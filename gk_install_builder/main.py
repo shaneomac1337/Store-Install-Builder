@@ -40,6 +40,7 @@ class GKInstallBuilder:
             "Project Name",
             "Base URL",
             "Version"
+            
         ])
         
         # Installation Configuration
@@ -97,7 +98,7 @@ class GKInstallBuilder:
             
             self.config_manager.register_entry(config_key, entry)
             
-            # Add KeePass button for password fields
+            # Add KeePass button only for Basic Auth Password field
             if field == "Basic Auth Password":
                 self.basic_auth_password_entry = entry  # Store reference to this entry
                 ctk.CTkButton(
@@ -108,12 +109,7 @@ class GKInstallBuilder:
                 ).pack(side="left", padx=5)
             elif field == "Form Password":
                 self.form_password_entry = entry  # Store reference to this entry
-                ctk.CTkButton(
-                    field_frame,
-                    text="🔑",  # Key icon
-                    width=40,
-                    command=self.get_form_password_from_keepass
-                ).pack(side="left", padx=5)
+                # No KeePass button for Form Password
     
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
@@ -217,15 +213,7 @@ class GKInstallBuilder:
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
             
-        # KeePass button
-        ctk.CTkButton(
-            auth_frame,
-            text="Get from KeePass",
-            width=120,
-            command=self.get_password_from_keepass
-        ).pack(side="left", padx=5)
-        
-        # Connect button
+        # Connect button (removed KeePass button)
         ctk.CTkButton(
             auth_frame,
             text="Connect",
@@ -435,151 +423,6 @@ class GKInstallBuilder:
         )
         dialog.destroy()
     
-    def get_password_from_keepass(self):
-        """Open a dialog to get password from KeePass for WebDAV"""
-        # Create a toplevel window
-        dialog = ctk.CTkToplevel(self.window)
-        dialog.title("KeePass Authentication")
-        dialog.geometry("450x350")
-        dialog.transient(self.window)
-        dialog.grab_set()
-        
-        # Username frame
-        username_frame = ctk.CTkFrame(dialog)
-        username_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left")
-        username_var = ctk.StringVar()
-        username_entry = ctk.CTkEntry(username_frame, width=200, textvariable=username_var)
-        username_entry.pack(side="left", padx=5)
-        
-        # Password frame
-        password_frame = ctk.CTkFrame(dialog)
-        password_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left")
-        password_var = ctk.StringVar()
-        password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
-        password_entry.pack(side="left", padx=5)
-        
-        # Project frame
-        project_frame = ctk.CTkFrame(dialog)
-        project_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(project_frame, text="Project:", width=100).pack(side="left")
-        project_var = ctk.StringVar(value="AZR-CSE")  # Default project
-        project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
-        project_entry.pack(side="left", padx=5)
-        
-        # Environment frame (will be populated after connection)
-        env_frame = ctk.CTkFrame(dialog)
-        env_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
-        env_var = ctk.StringVar()
-        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, state="readonly")
-        env_combo.pack(side="left", padx=5)
-        
-        # Status label
-        status_var = ctk.StringVar()
-        status_label = ctk.CTkLabel(dialog, textvariable=status_var)
-        status_label.pack(pady=5)
-        
-        # Connect to KeePass and get environments
-        def connect():
-            try:
-                client = PleasantPasswordClient(
-                    base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
-                    username=username_var.get(),
-                    password=password_var.get()
-                )
-                
-                # Get project folder
-                projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
-                folder_structure = client.get_folder(projects_folder_id)
-                
-                # Find project folder
-                project_name = project_var.get()
-                folder_id = self.find_folder_id_by_name(folder_structure, project_name)
-                
-                if folder_id:
-                    # Get environments
-                    folder_contents = client.get_folder(folder_id)
-                    subfolders = self.get_subfolders(folder_contents)
-                    
-                    # Update environment dropdown
-                    env_combo.configure(values=[folder['name'] for folder in subfolders])
-                    if env_combo.get_values():
-                        env_combo.set(env_combo.get_values()[0])
-                    
-                    status_var.set("Connected successfully! Select environment and get password.")
-                    get_password_btn.configure(state="normal")
-                    
-                    # Store client for later use
-                    dialog.client = client
-                    dialog.folder_contents = folder_contents
-                else:
-                    status_var.set(f"Project {project_name} not found!")
-            
-            except Exception as e:
-                status_var.set(f"Error: {str(e)}")
-        
-        # Get password after selecting environment
-        def get_password():
-            try:
-                client = dialog.client
-                folder_contents = dialog.folder_contents
-                
-                # Find selected environment folder
-                env_name = env_var.get()
-                env_folder = None
-                
-                for subfolder in self.get_subfolders(folder_contents):
-                    if subfolder['name'] == env_name:
-                        env_folder = subfolder
-                        break
-                
-                if env_folder:
-                    # Get full folder structure
-                    folder_structure = client.get_folder_by_id(env_folder['id'], recurse_level=5)
-                    
-                    # Find password entry - look for LAUNCHPAD-OAUTH
-                    launchpad_entry = self.find_launchpad_password_entry(folder_structure)
-                    if launchpad_entry:
-                        # Get password
-                        password = client._make_request('GET', f'credentials/{launchpad_entry["Id"]}/password')
-                        
-                        # Set password in WebDAV password field
-                        self.webdav_password.delete(0, 'end')
-                        self.webdav_password.insert(0, password)
-                        
-                        status_var.set("Password retrieved successfully!")
-                        dialog.after(1000, dialog.destroy)  # Close after 1 second
-                    else:
-                        status_var.set(f"No Launchpad OAuth password entry found in {env_name}!")
-                else:
-                    status_var.set(f"Environment {env_name} not found!")
-            
-            except Exception as e:
-                status_var.set(f"Error: {str(e)}")
-        
-        # Connect button
-        connect_btn = ctk.CTkButton(
-            dialog,
-            text="Connect",
-            command=connect
-        )
-        connect_btn.pack(pady=5)
-        
-        # Get Password button (initially disabled)
-        get_password_btn = ctk.CTkButton(
-            dialog,
-            text="Get Password",
-            command=get_password,
-            state="disabled"
-        )
-        get_password_btn.pack(pady=5)
-    
     def get_basic_auth_password_from_keepass(self):
         """Open a dialog to get Basic Auth Password from KeePass"""
         # Create a toplevel window
@@ -653,9 +496,10 @@ class GKInstallBuilder:
                     subfolders = self.get_subfolders(folder_contents)
                     
                     # Update environment dropdown
-                    env_combo.configure(values=[folder['name'] for folder in subfolders])
-                    if env_combo.get_values():
-                        env_combo.set(env_combo.get_values()[0])
+                    env_values = [folder['name'] for folder in subfolders]
+                    env_combo.configure(values=env_values)
+                    if env_values:
+                        env_combo.set(env_values[0])
                     
                     status_var.set("Connected successfully! Select environment and get password.")
                     get_password_btn.configure(state="normal")
@@ -685,21 +529,52 @@ class GKInstallBuilder:
                         break
                 
                 if env_folder:
-                    # Get full folder structure
+                    # Get full folder structure with higher recurse level
+                    print("\nGetting folder structure for environment:", env_name)
+                    print(f"Folder ID: {env_folder['id']}")
                     folder_structure = client.get_folder_by_id(env_folder['id'], recurse_level=5)
                     
-                    # Find password entry - look for BASIC-AUTH
+                    # Print the raw JSON response for debugging
+                    import json
+                    print("\n=== RAW JSON RESPONSE FROM KEEPASS API ===")
+                    print(json.dumps(folder_structure, indent=2)[:2000])  # Print first 2000 chars to avoid flooding console
+                    print("... (truncated)")
+                    print("=== END OF RAW JSON RESPONSE ===\n")
+                    
+                    # Print all credentials in the folder structure for debugging
+                    print("\nAll credentials in the folder structure:")
+                    self.print_all_credentials(folder_structure)
+                    
+                    # Find password entry - look for TEST-LAUNCHPAD-OAUTH-BA-PASSWORD first
                     basic_auth_entry = self.find_basic_auth_password_entry(folder_structure)
                     if basic_auth_entry:
-                        # Get password
-                        password = client._make_request('GET', f'credentials/{basic_auth_entry["Id"]}/password')
+                        # Debug output
+                        print(f"\nFound BASIC-AUTH entry: {basic_auth_entry['Id']}")
+                        print(f"Entry name: {basic_auth_entry['Name']}")
+                        print("Attempting to get password...")
                         
-                        # Set password in Basic Auth Password field
-                        self.basic_auth_password_entry.delete(0, 'end')
-                        self.basic_auth_password_entry.insert(0, password)
-                        
-                        status_var.set("Password retrieved successfully!")
-                        dialog.after(1000, dialog.destroy)  # Close after 1 second
+                        # Get password - direct API call
+                        try:
+                            password_url = f"credentials/{basic_auth_entry['Id']}/password"
+                            print(f"Making API call to: {password_url}")
+                            password = client._make_request('GET', password_url)
+                            print(f"Password response type: {type(password)}")
+                            print(f"Password response: {password}")
+                            
+                            # Set password directly as string
+                            actual_password = str(password).strip()
+                            print(f"Setting password: {actual_password}")
+                            
+                            # Set password in Basic Auth Password field
+                            self.basic_auth_password_entry.delete(0, 'end')
+                            self.basic_auth_password_entry.insert(0, actual_password)
+                            print("Password set in field successfully")
+                            
+                            status_var.set("Password retrieved successfully!")
+                            dialog.after(1000, dialog.destroy)  # Close after 1 second
+                        except Exception as e:
+                            print(f"Error getting password: {str(e)}")
+                            status_var.set(f"Error getting password: {str(e)}")
                     else:
                         status_var.set(f"No Basic Auth password entry found in {env_name}!")
                 else:
@@ -725,184 +600,124 @@ class GKInstallBuilder:
         )
         get_password_btn.pack(pady=5)
     
-    def get_form_password_from_keepass(self):
-        """Open a dialog to get Form Password from KeePass"""
-        # Create a toplevel window
-        dialog = ctk.CTkToplevel(self.window)
-        dialog.title("KeePass Authentication")
-        dialog.geometry("450x350")
-        dialog.transient(self.window)
-        dialog.grab_set()
-        
-        # Username frame
-        username_frame = ctk.CTkFrame(dialog)
-        username_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left")
-        username_var = ctk.StringVar()
-        username_entry = ctk.CTkEntry(username_frame, width=200, textvariable=username_var)
-        username_entry.pack(side="left", padx=5)
-        
-        # Password frame
-        password_frame = ctk.CTkFrame(dialog)
-        password_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left")
-        password_var = ctk.StringVar()
-        password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
-        password_entry.pack(side="left", padx=5)
-        
-        # Project frame
-        project_frame = ctk.CTkFrame(dialog)
-        project_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(project_frame, text="Project:", width=100).pack(side="left")
-        project_var = ctk.StringVar(value="AZR-CSE")  # Default project
-        project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
-        project_entry.pack(side="left", padx=5)
-        
-        # Environment frame (will be populated after connection)
-        env_frame = ctk.CTkFrame(dialog)
-        env_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
-        env_var = ctk.StringVar()
-        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, state="readonly")
-        env_combo.pack(side="left", padx=5)
-        
-        # Status label
-        status_var = ctk.StringVar()
-        status_label = ctk.CTkLabel(dialog, textvariable=status_var)
-        status_label.pack(pady=5)
-        
-        # Connect to KeePass and get environments
-        def connect():
-            try:
-                client = PleasantPasswordClient(
-                    base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
-                    username=username_var.get(),
-                    password=password_var.get()
-                )
-                
-                # Get project folder
-                projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
-                folder_structure = client.get_folder(projects_folder_id)
-                
-                # Find project folder
-                project_name = project_var.get()
-                folder_id = self.find_folder_id_by_name(folder_structure, project_name)
-                
-                if folder_id:
-                    # Get environments
-                    folder_contents = client.get_folder(folder_id)
-                    subfolders = self.get_subfolders(folder_contents)
-                    
-                    # Update environment dropdown
-                    env_combo.configure(values=[folder['name'] for folder in subfolders])
-                    if env_combo.get_values():
-                        env_combo.set(env_combo.get_values()[0])
-                    
-                    status_var.set("Connected successfully! Select environment and get password.")
-                    get_password_btn.configure(state="normal")
-                    
-                    # Store client for later use
-                    dialog.client = client
-                    dialog.folder_contents = folder_contents
-                else:
-                    status_var.set(f"Project {project_name} not found!")
-            
-            except Exception as e:
-                status_var.set(f"Error: {str(e)}")
-        
-        # Get password after selecting environment
-        def get_password():
-            try:
-                client = dialog.client
-                folder_contents = dialog.folder_contents
-                
-                # Find selected environment folder
-                env_name = env_var.get()
-                env_folder = None
-                
-                for subfolder in self.get_subfolders(folder_contents):
-                    if subfolder['name'] == env_name:
-                        env_folder = subfolder
-                        break
-                
-                if env_folder:
-                    # Get full folder structure
-                    folder_structure = client.get_folder_by_id(env_folder['id'], recurse_level=5)
-                    
-                    # Find password entry - look for FORM-PASSWORD
-                    form_password_entry = self.find_form_password_entry(folder_structure)
-                    if form_password_entry:
-                        # Get password
-                        password = client._make_request('GET', f'credentials/{form_password_entry["Id"]}/password')
-                        
-                        # Set password in Form Password field
-                        self.form_password_entry.delete(0, 'end')
-                        self.form_password_entry.insert(0, password)
-                        
-                        status_var.set("Password retrieved successfully!")
-                        dialog.after(1000, dialog.destroy)  # Close after 1 second
-                    else:
-                        status_var.set(f"No Form Password entry found in {env_name}!")
-                else:
-                    status_var.set(f"Environment {env_name} not found!")
-            
-            except Exception as e:
-                status_var.set(f"Error: {str(e)}")
-        
-        # Connect button
-        connect_btn = ctk.CTkButton(
-            dialog,
-            text="Connect",
-            command=connect
-        )
-        connect_btn.pack(pady=5)
-        
-        # Get Password button (initially disabled)
-        get_password_btn = ctk.CTkButton(
-            dialog,
-            text="Get Password",
-            command=get_password,
-            state="disabled"
-        )
-        get_password_btn.pack(pady=5)
-    
     def find_basic_auth_password_entry(self, folder_structure):
         """Find Basic Auth password entry in KeePass folder structure"""
+        print("\nSearching for Basic Auth password entry...")
+        env_name = None
+        
+        # Try to extract environment name from folder structure
         if isinstance(folder_structure, dict):
-            credentials = folder_structure.get('Credentials', [])
+            folder_name = folder_structure.get('Name', '')
+            if folder_name:
+                env_name = folder_name
+                print(f"Current environment: {env_name}")
+        
+        # Create a list to store all found credentials for debugging
+        all_credentials = []
+        found_entries = []
+        target_entry = None
+        
+        def search_recursively(structure, path=""):
+            """Recursively search for credentials in the folder structure"""
+            nonlocal target_entry
+            
+            if not isinstance(structure, dict):
+                return None
+                
+            # Check credentials in current folder
+            credentials = structure.get('Credentials', [])
+            folder_name = structure.get('Name', '')
+            current_path = f"{path}/{folder_name}" if path else folder_name
+            
+            print(f"Checking folder: {current_path} - Found {len(credentials)} credentials")
+            
+            # Look for credentials in this folder
             for cred in credentials:
-                # Look for entries with BASIC-AUTH in the name
-                if 'BASIC-AUTH' in cred.get('Name', ''):
-                    return cred
-
-            children = folder_structure.get('Children', [])
+                cred_name = cred.get('Name', '')
+                cred_id = cred.get('Id', '')
+                all_credentials.append({
+                    'path': current_path,
+                    'name': cred_name,
+                    'id': cred_id
+                })
+                
+                # Dynamically build the target credential name based on environment
+                if env_name:
+                    target_cred_name = f"{env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD"
+                    
+                    # First priority: exact match for {ENV}-LAUNCHPAD-OAUTH-BA-PASSWORD in APP subfolder
+                    if cred_name == target_cred_name and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY: {target_cred_name} in {current_path}")
+                        target_entry = cred
+                        return cred
+                    
+                    # Second priority: exact match for {ENV}-LAUNCHPAD-OAUTH-BA-PASSWORD anywhere
+                    if cred_name == target_cred_name:
+                        print(f"FOUND EXACT MATCH: {target_cred_name} in {current_path}")
+                        found_entries.append({
+                            'priority': 1,
+                            'entry': cred,
+                            'path': current_path,
+                            'reason': f'Exact match for {target_cred_name}'
+                        })
+            
+            # Third priority: entries with LAUNCHPAD-OAUTH-BA-PASSWORD
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'LAUNCHPAD-OAUTH-BA-PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains LAUNCHPAD-OAUTH-BA-PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 2,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains LAUNCHPAD-OAUTH-BA-PASSWORD: {cred_name}'
+                    })
+            
+            # Fourth priority: entries with BA-PASSWORD
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'BA-PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains BA-PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 3,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains BA-PASSWORD: {cred_name}'
+                    })
+            
+            # Check children folders
+            children = structure.get('Children', [])
             for child in children:
-                result = self.find_basic_auth_password_entry(child)
+                result = search_recursively(child, current_path)
                 if result:
                     return result
-        return None
+                    
+            return None
+        
+        # Start recursive search
+        result = search_recursively(folder_structure)
+        
+        # If we found the target entry, return it
+        if target_entry:
+            return target_entry
+        
+        # If no exact match found but we have other matches, use the highest priority one
+        if not result and found_entries:
+            # Sort by priority (lowest number = highest priority)
+            found_entries.sort(key=lambda x: x['priority'])
+            best_match = found_entries[0]
+            print(f"\nNo exact match for {env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD found in APP subfolder.")
+            print(f"Using best match: {best_match['reason']} in {best_match['path']}")
+            return best_match['entry']
+        
+        # If no result found, print all credentials for debugging
+        if not result and not found_entries:
+            print("\nAll credentials found during search:")
+            for cred in all_credentials:
+                print(f"  - {cred['path']}: {cred['name']} (ID: {cred['id']})")
+            
+        return result
     
-    def find_form_password_entry(self, folder_structure):
-        """Find Form Password entry in KeePass folder structure"""
-        if isinstance(folder_structure, dict):
-            credentials = folder_structure.get('Credentials', [])
-            for cred in credentials:
-                # Look for entries with FORM-PASSWORD in the name
-                if 'FORM-PASSWORD' in cred.get('Name', ''):
-                    return cred
-
-            children = folder_structure.get('Children', [])
-            for child in children:
-                result = self.find_form_password_entry(child)
-                if result:
-                    return result
-        return None
-    
-    # Helper functions for KeePass integration
     def find_folder_id_by_name(self, folder_structure, search_name):
         if isinstance(folder_structure, dict):
             if folder_structure.get('Name') == search_name:
@@ -929,20 +744,24 @@ class GKInstallBuilder:
                 })
         return sorted(folders, key=lambda x: x['name'])
 
-    def find_launchpad_password_entry(self, folder_structure):
-        if isinstance(folder_structure, dict):
-            credentials = folder_structure.get('Credentials', [])
-            for cred in credentials:
-                if 'LAUNCHPAD-OAUTH' in cred.get('Name', ''):
-                    return cred
+    def print_all_credentials(self, folder_structure, path=""):
+        """Print all credentials in the folder structure for debugging"""
+        if not isinstance(folder_structure, dict):
+            return
+            
+        folder_name = folder_structure.get('Name', '')
+        current_path = f"{path}/{folder_name}" if path else folder_name
+        
+        credentials = folder_structure.get('Credentials', [])
+        for cred in credentials:
+            cred_name = cred.get('Name', '')
+            cred_id = cred.get('Id', '')
+            print(f"  - {current_path}: {cred_name} (ID: {cred_id})")
+            
+        children = folder_structure.get('Children', [])
+        for child in children:
+            self.print_all_credentials(child, current_path)
 
-            children = folder_structure.get('Children', [])
-            for child in children:
-                result = self.find_launchpad_password_entry(child)
-                if result:
-                    return result
-        return None
-    
     def run(self):
         self.window.mainloop()
 
