@@ -31,7 +31,9 @@ class ConfigManager:
                     "basic_auth_password": "",
                     "form_password": "",
                     "pos_system_type": "GKR-OPOS-CLOUD",
-                    "wdm_system_type": "CSE-wdm"
+                    "wdm_system_type": "CSE-wdm",
+                    "webdav_username": "",
+                    "webdav_password": ""
                 }
         except Exception as e:
             self._show_error("Failed to load configuration", str(e))
