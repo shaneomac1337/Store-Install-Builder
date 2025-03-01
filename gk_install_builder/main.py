@@ -31,6 +31,11 @@ class GKInstallBuilder:
         # Track whether this is first run (no config file)
         self.is_first_run = not os.path.exists(self.config_manager.config_file)
         
+        # Ensure default values are set for critical fields
+        # ALWAYS set base_install_dir regardless of whether it's first run or not
+        self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+        print("Setting default base install directory to C:\\gkretail in __init__")
+        
         # Store section frames for progressive disclosure
         self.section_frames = {}
         
@@ -96,15 +101,24 @@ class GKInstallBuilder:
                 "POS System Type",
                 "WDM System Type"
             ])
+            
+            # Ensure base install directory is set
+            base_dir_entry = self.config_manager.get_entry("base_install_dir")
+            if base_dir_entry:
+                current_value = base_dir_entry.get()
+                if not current_value:
+                    base_dir_entry.delete(0, 'end')
+                    base_dir_entry.insert(0, "C:\\gkretail")
+                    print("Set base install directory to C:\\gkretail in create_remaining_sections")
         
         # Security Configuration
         if "Security Configuration" not in self.section_frames:
             self.create_section("Security Configuration", [
-                "SSL Password",
+                "EH/Launchpad Username",
+                "EH/Launchpad Password",
                 "Username",
-                "Form Username",
-                "Basic Auth Password",
-                "Form Password"
+                "Launchpad oAuth2",
+                "SSL Password"
             ])
         
         # Output Directory
@@ -127,8 +141,12 @@ class GKInstallBuilder:
             self.auto_fill_based_on_url(base_url)
             
             # Force update of specific fields
-            for key in ["pos_system_type", "wdm_system_type"]:
+            for key in ["pos_system_type", "wdm_system_type", "base_install_dir"]:
                 value = self.config_manager.config.get(key, "")
+                if key == "base_install_dir" and not value:
+                    value = "C:\\gkretail"
+                    self.config_manager.config[key] = value
+                
                 entry = self.config_manager.get_entry(key)
                 if entry and value:
                     entry.delete(0, 'end')
@@ -155,6 +173,10 @@ class GKInstallBuilder:
         # Auto-fill fields based on base URL
         self.auto_fill_based_on_url(base_url)
         
+        # Ensure base install directory is set
+        self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+        print("Setting default base install directory to C:\\gkretail in on_continue")
+        
         # Save current configuration
         self.config_manager.update_config_from_entries()
         self.config_manager.save_config_silent()
@@ -176,9 +198,11 @@ class GKInstallBuilder:
         # Specifically ensure POS and WDM system types are updated
         pos_type = self.config_manager.config.get("pos_system_type", "")
         wdm_type = self.config_manager.config.get("wdm_system_type", "")
+        base_install_dir = self.config_manager.config.get("base_install_dir", "C:\\gkretail")
         
         pos_entry = self.config_manager.get_entry("pos_system_type")
         wdm_entry = self.config_manager.get_entry("wdm_system_type")
+        base_dir_entry = self.config_manager.get_entry("base_install_dir")
         
         if pos_entry and pos_type:
             pos_entry.delete(0, 'end')
@@ -189,6 +213,11 @@ class GKInstallBuilder:
             wdm_entry.delete(0, 'end')
             wdm_entry.insert(0, wdm_type)
             print(f"Force updated WDM system type to: {wdm_type}")
+            
+        if base_dir_entry:
+            base_dir_entry.delete(0, 'end')
+            base_dir_entry.insert(0, base_install_dir)
+            print(f"Force updated base install directory to: {base_install_dir}")
     
     def on_base_url_changed(self, event):
         """Handle base URL field changes"""
@@ -226,10 +255,36 @@ class GKInstallBuilder:
             self.config_manager.update_entry_value("pos_system_type", pos_type)
             self.config_manager.update_entry_value("wdm_system_type", wdm_type)
             
-            # Set default values for other fields only if they're empty
-            if self.config_manager.get_entry("base_install_dir") and not self.config_manager.get_entry("base_install_dir").get():
-                self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
+            # ALWAYS update base install directory
+            self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
+            print("Setting base install directory to: C:\\gkretail")
             
+            # Update output directory based on project name and base URL
+            # Create a structured output path: {project_name}/{base_url}
+            output_dir = os.path.join(project_name, base_url)
+            self.config_manager.update_entry_value("output_dir", output_dir)
+            print(f"Setting output directory to: {output_dir}")
+            
+            # Update the output directory entry if it exists
+            output_dir_entry = self.config_manager.get_entry("output_dir")
+            if output_dir_entry:
+                # For read-only entry, we need to enable it temporarily
+                output_dir_entry.configure(state="normal")
+                output_dir_entry.delete(0, 'end')
+                output_dir_entry.insert(0, output_dir)
+                output_dir_entry.configure(state="readonly")
+                print(f"Updated output directory entry to: {output_dir}")
+            
+            # Update certificate path to be inside the output directory
+            # Use the actual output directory instead of a fixed path
+            certificate_path = os.path.join(output_dir, "certificate.p12")
+            self.config_manager.update_entry_value("certificate_path", certificate_path)
+            print(f"Setting certificate path to: {certificate_path}")
+            
+            # ALWAYS update certificate common name
+            self.config_manager.update_entry_value("certificate_common_name", "*gk-software.com")
+            
+            # Set default values for other fields only if they're empty
             if self.config_manager.get_entry("tenant_id") and not self.config_manager.get_entry("tenant_id").get():
                 self.config_manager.update_entry_value("tenant_id", "001")
             
@@ -241,6 +296,10 @@ class GKInstallBuilder:
             
             if self.config_manager.get_entry("ssl_password") and not self.config_manager.get_entry("ssl_password").get():
                 self.config_manager.update_entry_value("ssl_password", "changeit")
+        else:
+            # Even if there's no valid URL, still set the base install directory
+            self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
+            print("Setting base install directory to: C:\\gkretail (no valid URL provided)")
     
     def create_section(self, title, fields):
         # Section Frame
@@ -259,18 +318,18 @@ class GKInstallBuilder:
         
         # Field tooltips - descriptions of what each field is for
         tooltips = {
-            "Project Name": "Name of your store project (e.g., 'Store123 Installation')",
-            "Base URL": "Base URL for the cloud retail environment (e.g., 'example.cloud4retail.co')",
-            "Version": "Version number of the installation (e.g., 'v1.0.0')",
+            "Project Name": "Name of your store project (e.g., 'Coop Sweden')",
+            "Base URL": "Base URL for the cloud retail environment (e.g., 'test.cse.cloud4retail.co')",
+            "Version": "Version number of the installation (e.g., 'v1.2.0')",
             "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail')",
             "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
-            "POS System Type": "Type of Point of Sale system (e.g., 'GKR-OPOS-CLOUD')",
+            "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
             "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
             "SSL Password": "Password for SSL certificate (default: 'changeit')",
-            "Username": "Username for authentication (e.g., 'launchpad')",
-            "Form Username": "Username for form authentication (e.g., '1001')",
-            "Basic Auth Password": "Password for basic authentication (click 🔑 to retrieve from KeePass)",
-            "Form Password": "Password for form authentication"
+            "Username": "Username for Auth-Service (e.g., 'launchpad')",
+            "EH/Launchpad Username": "Username for Employee Hub / Launchpad (e.g., '1001')",
+            "Launchpad oAuth2": "Launchpad Auth Service password (click 🔑 to retrieve from KeePass)",
+            "EH/Launchpad Password": "Employee Hub / Launchpad Password"
         }
         
         # Fields
@@ -290,10 +349,21 @@ class GKInstallBuilder:
             if field in tooltips:
                 self.create_tooltip(label, tooltips[field])
             
-            config_key = field.lower().replace(" ", "_")
+            # Special case for Base Install Directory - use base_install_dir instead of base_install_directory
+            if field == "Base Install Directory":
+                config_key = "base_install_dir"
+            # Map the new field names to their config keys
+            elif field == "EH/Launchpad Username":
+                config_key = "form_username"
+            elif field == "Launchpad oAuth2":
+                config_key = "basic_auth_password"
+            elif field == "EH/Launchpad Password":
+                config_key = "form_password"
+            else:
+                config_key = field.lower().replace(" ", "_")
             
             # Check if this is a password field
-            is_password_field = "password" in field.lower()
+            is_password_field = "password" in field.lower() or field == "Launchpad oAuth2"
             
             if is_password_field:
                 # Create password field with show/hide toggle
@@ -313,8 +383,8 @@ class GKInstallBuilder:
             
             self.config_manager.register_entry(config_key, entry)
             
-            # Add KeePass button only for Basic Auth Password field
-            if field == "Basic Auth Password":
+            # Add KeePass button only for Launchpad oAuth2 field
+            if field == "Launchpad oAuth2":
                 self.basic_auth_password_entry = entry  # Store reference to this entry
                 ctk.CTkButton(
                     field_frame,
@@ -322,7 +392,7 @@ class GKInstallBuilder:
                     width=40,
                     command=self.get_basic_auth_password_from_keepass
                 ).pack(side="left", padx=5)
-            elif field == "Form Password":
+            elif field == "EH/Launchpad Password":
                 self.form_password_entry = entry  # Store reference to this entry
                 # No KeePass button for Form Password
             elif field == "SSL Password":
@@ -332,8 +402,33 @@ class GKInstallBuilder:
         if title == "Security Configuration":
             self.create_certificate_section(section_frame)
             
+            # Update certificate common name
+            common_name_entry = self.config_manager.get_entry("certificate_common_name")
+            if common_name_entry:
+                common_name_entry.delete(0, 'end')
+                common_name_entry.insert(0, "*gk-software.com")
+                print("Updated certificate common name to: *gk-software.com")
+            
         # Special handling for Installation Configuration section
         if title == "Installation Configuration":
+            # Always ensure base_install_dir is set to C:\gkretail
+            base_dir_entry = self.config_manager.get_entry("base_install_dir")
+            print(f"Base install directory entry found: {base_dir_entry is not None}")
+            
+            if base_dir_entry:
+                # Force update the entry
+                current_value = base_dir_entry.get()
+                print(f"Current base install directory value: '{current_value}'")
+                
+                # Always update regardless of current value
+                base_dir_entry.delete(0, 'end')
+                base_dir_entry.insert(0, "C:\\gkretail")
+                print("Updated base install directory to: C:\\gkretail")
+                
+                # Also update the config
+                self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+                print("Updated config base_install_dir to: C:\\gkretail")
+            
             # Ensure POS and WDM system types are updated from config
             base_url = self.config_manager.config.get("base_url", "")
             if base_url:
@@ -353,6 +448,7 @@ class GKInstallBuilder:
                     pos_entry = self.config_manager.get_entry("pos_system_type")
                     wdm_entry = self.config_manager.get_entry("wdm_system_type")
                     
+                    # Always update these fields
                     if pos_entry:
                         pos_entry.delete(0, 'end')
                         pos_entry.insert(0, pos_type)
@@ -362,6 +458,13 @@ class GKInstallBuilder:
                         wdm_entry.delete(0, 'end')
                         wdm_entry.insert(0, wdm_type)
                         print(f"Updated WDM system type to: {wdm_type}")
+                    
+                    # Update certificate path
+                    cert_entry = self.config_manager.get_entry("certificate_path")
+                    if cert_entry:
+                        cert_entry.delete(0, 'end')
+                        cert_entry.insert(0, "generated_scripts/certificate.p12")
+                        print("Updated certificate path to: generated_scripts/certificate.p12")
     
     def create_password_field(self, parent_frame, field, config_key):
         """Create a password field with integrated show/hide toggle"""
@@ -418,120 +521,82 @@ class GKInstallBuilder:
         entry.insert(0, current_text)
     
     def create_certificate_section(self, parent_frame):
-        """Create a section for SSL certificate management"""
-        # Certificate frame
+        """Create certificate management section"""
+        # Certificate management frame
         cert_frame = ctk.CTkFrame(parent_frame)
         cert_frame.pack(fill="x", padx=10, pady=10)
         
-        # Title
-        cert_title = ctk.CTkLabel(
-            cert_frame,
-            text="SSL Certificate Management",
-            font=("Helvetica", 14, "bold")
-        )
-        cert_title.pack(anchor="w", padx=10, pady=5)
-        self.create_tooltip(cert_title, "Manage SSL certificates for secure connections")
-        
-        # Certificate info frame
-        info_frame = ctk.CTkFrame(cert_frame)
-        info_frame.pack(fill="x", padx=10, pady=5)
-        
-        # Certificate status
-        status_label = ctk.CTkLabel(
-            info_frame,
-            text="Certificate Status:",
-            width=150
-        )
-        status_label.pack(side="left", padx=10)
-        
-        self.cert_status = ctk.CTkLabel(
-            info_frame,
-            text="No certificate generated",
-            text_color="orange"
-        )
-        self.cert_status.pack(side="left", padx=10)
-        
-        # Certificate path frame
-        path_frame = ctk.CTkFrame(cert_frame)
-        path_frame.pack(fill="x", padx=10, pady=5)
-        
         # Certificate path
-        path_label = ctk.CTkLabel(
-            path_frame,
+        cert_path_frame = ctk.CTkFrame(cert_frame)
+        cert_path_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            cert_path_frame,
             text="Certificate Path:",
             width=150
-        )
-        path_label.pack(side="left", padx=10)
+        ).pack(side="left", padx=10)
         
-        self.cert_path_entry = ctk.CTkEntry(path_frame, width=300)
+        self.cert_path_entry = ctk.CTkEntry(cert_path_frame, width=300)
         self.cert_path_entry.pack(side="left", padx=10)
         
-        # Load saved certificate path
+        # Load saved value if exists
         if "certificate_path" in self.config_manager.config:
             self.cert_path_entry.insert(0, self.config_manager.config["certificate_path"])
-        else:
-            # Default to a path in the output directory
-            default_path = os.path.join(self.config_manager.config["output_dir"], "cse_wdm.p12")
-            self.cert_path_entry.insert(0, default_path)
         
-        # Register with config manager
         self.config_manager.register_entry("certificate_path", self.cert_path_entry)
         
         # Browse button
-        browse_btn = ctk.CTkButton(
-            path_frame,
+        ctk.CTkButton(
+            cert_path_frame,
             text="Browse",
             width=80,
             command=self.browse_certificate_path
-        )
-        browse_btn.pack(side="left", padx=5)
+        ).pack(side="left", padx=5)
         
-        # Certificate generation frame
-        gen_frame = ctk.CTkFrame(cert_frame)
-        gen_frame.pack(fill="x", padx=10, pady=5)
+        # Certificate common name
+        cert_common_name_frame = ctk.CTkFrame(cert_frame)
+        cert_common_name_frame.pack(fill="x", padx=10, pady=5)
         
-        # Common Name field
-        cn_label = ctk.CTkLabel(
-            gen_frame,
+        ctk.CTkLabel(
+            cert_common_name_frame,
             text="Common Name:",
             width=150
+        ).pack(side="left", padx=10)
+        
+        self.cert_common_name_entry = ctk.CTkEntry(cert_common_name_frame, width=300)
+        self.cert_common_name_entry.pack(side="left", padx=10)
+        
+        # Load saved value if exists
+        if "certificate_common_name" in self.config_manager.config:
+            self.cert_common_name_entry.insert(0, self.config_manager.config["certificate_common_name"])
+        
+        self.config_manager.register_entry("certificate_common_name", self.cert_common_name_entry)
+        
+        # Certificate status and buttons
+        cert_status_frame = ctk.CTkFrame(cert_frame)
+        cert_status_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Status label
+        self.cert_status_label = ctk.CTkLabel(
+            cert_status_frame,
+            text="",
+            width=150
         )
-        cn_label.pack(side="left", padx=10)
-        self.create_tooltip(cn_label, "Domain name for the certificate (e.g., 'store.example.com')")
-        
-        self.common_name_entry = ctk.CTkEntry(gen_frame, width=300)
-        self.common_name_entry.pack(side="left", padx=10)
-        self.common_name_entry.insert(0, "store.example.com")
-        
-        # Register with config manager
-        self.config_manager.register_entry("certificate_common_name", self.common_name_entry)
-        
-        # Buttons frame
-        btn_frame = ctk.CTkFrame(cert_frame)
-        btn_frame.pack(fill="x", padx=10, pady=5)
+        self.cert_status_label.pack(side="left", padx=10)
         
         # Generate button
-        generate_btn = ctk.CTkButton(
-            btn_frame,
+        ctk.CTkButton(
+            cert_status_frame,
             text="Generate Certificate",
             width=150,
             command=self.generate_certificate
-        )
-        generate_btn.pack(side="left", padx=10)
-        self.create_tooltip(generate_btn, "Generate a new self-signed SSL certificate")
+        ).pack(side="left", padx=5)
         
-        # View button
-        view_btn = ctk.CTkButton(
-            btn_frame,
-            text="View Certificate",
-            width=150,
-            command=self.view_certificate
-        )
-        view_btn.pack(side="left", padx=10)
-        self.create_tooltip(view_btn, "View details of the current certificate")
-        
-        # Check certificate status on startup
+        # Check certificate status
         self.check_certificate_status()
+        
+        # Add tooltip for certificate section
+        self.create_tooltip(cert_frame, "SSL Certificate for secure communication. The certificate will be generated with the specified common name and will include a Subject Alternative Name (SAN) matching the common name.")
     
     def browse_certificate_path(self):
         """Browse for certificate path"""
@@ -558,367 +623,239 @@ class GKInstallBuilder:
         cert_path = self.cert_path_entry.get()
         
         if os.path.exists(cert_path):
-            self.cert_status.configure(text="Certificate exists", text_color="green")
+            self.cert_status_label.configure(text="Certificate exists", text_color="green")
         else:
-            self.cert_status.configure(text="No certificate found", text_color="orange")
+            self.cert_status_label.configure(text="No certificate found", text_color="orange")
     
     def generate_certificate(self):
-        """Generate a new self-signed certificate"""
+        """Generate a self-signed certificate"""
         try:
             # Get certificate details
             cert_path = self.cert_path_entry.get()
-            common_name = self.common_name_entry.get()
-            password = self.ssl_password_entry.get() if hasattr(self, 'ssl_password_entry') else self.config_manager.config.get("ssl_password", "changeit")
+            common_name = self.cert_common_name_entry.get()
+            password = self.ssl_password_entry.get() if hasattr(self, 'ssl_password_entry') else "changeit"
             
-            # Create directory if it doesn't exist
-            cert_dir = os.path.dirname(cert_path)
-            os.makedirs(cert_dir, exist_ok=True)
+            # Create output directory if it doesn't exist
+            output_dir = os.path.dirname(cert_path)
+            if output_dir and not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+                print(f"Created directory: {output_dir}")
             
-            # Generate a more descriptive filename based on common name
-            if common_name:
-                # Create a safe filename from common name
-                safe_name = "".join(c if c.isalnum() else "_" for c in common_name)
-                # Limit length and ensure it's not empty
-                safe_name = safe_name[:30] or "certificate"
-                
-                # Update the certificate path with the new name
-                cert_path = os.path.join(cert_dir, f"{safe_name}.p12")
-                self.cert_path_entry.delete(0, 'end')
-                self.cert_path_entry.insert(0, cert_path)
-            
-            # Try different methods to generate certificate
+            # Generate certificate using cryptography
             try:
-                # First try with cryptography library (most modern)
                 from cryptography import x509
                 from cryptography.x509.oid import NameOID
                 from cryptography.hazmat.primitives import hashes, serialization
                 from cryptography.hazmat.primitives.asymmetric import rsa
-                from datetime import datetime, timedelta
-                import ipaddress
+                import datetime
                 
                 # Generate private key
-                private_key = rsa.generate_private_key(
+                key = rsa.generate_private_key(
                     public_exponent=65537,
-                    key_size=2048,
+                    key_size=2048
                 )
                 
-                # Create a self-signed certificate
+                # Create certificate subject
                 subject = issuer = x509.Name([
-                    x509.NameAttribute(NameOID.COUNTRY_NAME, "US"),
-                    x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "State"),
-                    x509.NameAttribute(NameOID.LOCALITY_NAME, "City"),
-                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Organization"),
-                    x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME, "Organizational Unit"),
+                    x509.NameAttribute(NameOID.COUNTRY_NAME, "DE"),
+                    x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Saxony"),
+                    x509.NameAttribute(NameOID.LOCALITY_NAME, "Dresden"),
+                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "GK Software SE"),
                     x509.NameAttribute(NameOID.COMMON_NAME, common_name),
                 ])
                 
+                # Create certificate with SAN
                 cert = x509.CertificateBuilder().subject_name(
                     subject
                 ).issuer_name(
                     issuer
                 ).public_key(
-                    private_key.public_key()
+                    key.public_key()
                 ).serial_number(
                     x509.random_serial_number()
                 ).not_valid_before(
-                    datetime.utcnow()
+                    datetime.datetime.utcnow()
                 ).not_valid_after(
-                    datetime.utcnow() + timedelta(days=3650)  # 10 years
+                    # Valid for 10 years
+                    datetime.datetime.utcnow() + datetime.timedelta(days=3650)
                 ).add_extension(
                     x509.SubjectAlternativeName([x509.DNSName(common_name)]),
-                    critical=False,
-                ).sign(private_key, hashes.SHA256())
+                    critical=False
+                ).sign(key, hashes.SHA256())
                 
-                # Write the certificate to a PEM file
-                cert_file = cert_path.replace('.p12', '.crt')
-                key_file = cert_path.replace('.p12', '.key')
+                # Store certificate and key in memory instead of writing to files
+                cert_pem = cert.public_bytes(serialization.Encoding.PEM)
+                key_pem = key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
                 
-                with open(cert_file, "wb") as f:
-                    f.write(cert.public_bytes(serialization.Encoding.PEM))
-                
-                with open(key_file, "wb") as f:
-                    f.write(private_key.private_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PrivateFormat.PKCS8,
-                        encryption_algorithm=serialization.NoEncryption()
-                    ))
-                
-                # Create PKCS12 file
+                # Try to convert to PKCS12 format
                 try:
-                    # Try to create PKCS12 using cryptography
-                    from cryptography.hazmat.primitives.serialization.pkcs12 import serialize_key_and_certificates
+                    from cryptography.hazmat.primitives.serialization import pkcs12
                     
                     # Create PKCS12
-                    pkcs12_data = serialize_key_and_certificates(
-                        name=common_name.encode('utf-8'),
-                        key=private_key,
+                    p12 = pkcs12.serialize_key_and_certificates(
+                        name=common_name.encode(),
+                        key=key,
                         cert=cert,
                         cas=None,
-                        encryption_algorithm=serialization.BestAvailableEncryption(password.encode('utf-8'))
+                        encryption_algorithm=serialization.BestAvailableEncryption(password.encode())
                     )
                     
-                    # Write PKCS12 file
+                    # Write PKCS12 to file
                     with open(cert_path, "wb") as f:
-                        f.write(pkcs12_data)
+                        f.write(p12)
                     
                     # Show success message
-                    self.cert_status.configure(text="Certificate generated", text_color="green")
+                    self.cert_status_label.configure(text="Certificate generated", text_color="green")
                     self.show_info("Certificate Generated", 
                                   f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                  f"PEM files also available at:\n{cert_file}\n{key_file}")
+                                  f"Common Name: {common_name}\n"
+                                  f"Subject Alternative Name (SAN): {common_name}\n"
+                                  f"Valid for: 10 years")
                     
-                except (ImportError, AttributeError) as e:
-                    # If PKCS12 creation fails, try with PyOpenSSL
+                    # Update certificate status
+                    self.check_certificate_status()
+                    
+                    return True
+                    
+                except (ImportError, AttributeError, Exception) as e2:
+                    # If PKCS12 conversion fails, save the P12 using OpenSSL
+                    import subprocess
+                    import tempfile
+                    
+                    # Create temporary files for the cert and key
+                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_cert:
+                        temp_cert.write(cert_pem)
+                        temp_cert_path = temp_cert.name
+                    
+                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
+                        temp_key.write(key_pem)
+                        temp_key_path = temp_key.name
+                    
                     try:
-                        import OpenSSL.crypto as crypto
-                        
-                        # Load the certificate and key from PEM files
-                        with open(cert_file, 'rb') as f:
-                            cert_data = f.read()
-                        
-                        with open(key_file, 'rb') as f:
-                            key_data = f.read()
-                        
-                        # Create PKCS12
-                        cert_obj = crypto.load_certificate(crypto.FILETYPE_PEM, cert_data)
-                        key_obj = crypto.load_privatekey(crypto.FILETYPE_PEM, key_data)
-                        
-                        p12 = crypto.PKCS12()
-                        p12.set_certificate(cert_obj)
-                        p12.set_privatekey(key_obj)
-                        pkcs12_data = p12.export(password.encode('utf-8'))
-                        
-                        # Write PKCS12 file
-                        with open(cert_path, "wb") as f:
-                            f.write(pkcs12_data)
+                        # Convert to PKCS12 using OpenSSL
+                        subprocess.run(
+                            f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
+                            shell=True, check=True
+                        )
                         
                         # Show success message
-                        self.cert_status.configure(text="Certificate generated", text_color="green")
+                        self.cert_status_label.configure(text="Certificate generated", text_color="green")
                         self.show_info("Certificate Generated", 
                                       f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                      f"PEM files also available at:\n{cert_file}\n{key_file}")
-                        
-                    except (ImportError, AttributeError, Exception) as e2:
-                        # If both methods fail, just use the PEM files
-                        self.cert_status.configure(text="Certificate generated (PEM)", text_color="green")
-                        self.show_info("Certificate Generated (PEM format)", 
-                                      f"Certificate and key generated in PEM format at:\n{cert_file}\n{key_file}\n\n"
-                                      f"Note: PKCS12 format could not be created. Using separate PEM files instead.")
-                
-            except ImportError:
-                # Fall back to PyOpenSSL
-                try:
-                    import OpenSSL.crypto as crypto
-                    
-                    # Create a key pair
-                    k = crypto.PKey()
-                    k.generate_key(crypto.TYPE_RSA, 2048)
-                    
-                    # Create a self-signed cert
-                    cert = crypto.X509()
-                    cert.get_subject().C = "US"
-                    cert.get_subject().ST = "State"
-                    cert.get_subject().L = "City"
-                    cert.get_subject().O = "Organization"
-                    cert.get_subject().OU = "Organizational Unit"
-                    cert.get_subject().CN = common_name
-                    cert.set_serial_number(1000)
-                    cert.gmtime_adj_notBefore(0)
-                    cert.gmtime_adj_notAfter(10*365*24*60*60)  # 10 years
-                    cert.set_issuer(cert.get_subject())
-                    cert.set_pubkey(k)
-                    cert.sign(k, 'sha256')
-                    
-                    # Export certificate and key to PEM format
-                    cert_pem = crypto.dump_certificate(crypto.FILETYPE_PEM, cert)
-                    key_pem = crypto.dump_privatekey(crypto.FILETYPE_PEM, k)
-                    
-                    # Write PEM files
-                    cert_file = cert_path.replace('.p12', '.crt')
-                    key_file = cert_path.replace('.p12', '.key')
-                    
-                    with open(cert_file, 'wb') as f:
-                        f.write(cert_pem)
-                    
-                    with open(key_file, 'wb') as f:
-                        f.write(key_pem)
-                    
-                    # Try to create PKCS12
-                    try:
-                        p12 = crypto.PKCS12()
-                        p12.set_certificate(cert)
-                        p12.set_privatekey(k)
-                        pkcs12_data = p12.export(password.encode('utf-8'))
-                        
-                        # Write PKCS12 file
-                        with open(cert_path, "wb") as f:
-                            f.write(pkcs12_data)
-                        
-                        # Show success message
-                        self.cert_status.configure(text="Certificate generated", text_color="green")
-                        self.show_info("Certificate Generated", 
-                                      f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                      f"PEM files also available at:\n{cert_file}\n{key_file}")
-                    
-                    except (AttributeError, Exception) as e:
-                        # If PKCS12 creation fails, just use the PEM files
-                        self.cert_status.configure(text="Certificate generated (PEM)", text_color="green")
-                        self.show_info("Certificate Generated (PEM format)", 
-                                      f"Certificate and key generated in PEM format at:\n{cert_file}\n{key_file}\n\n"
-                                      f"Note: PKCS12 format could not be created. Using separate PEM files instead.")
-                    
-                except ImportError:
-                    self.show_error("Missing Dependencies", 
-                                   "Neither cryptography nor PyOpenSSL is available.\n"
-                                   "Please install one of these packages:\n"
-                                   "pip install cryptography\n"
-                                   "pip install pyopenssl")
-        
-        except Exception as e:
-            self.show_error("Certificate Generation Failed", f"Error: {str(e)}")
-    
-    def view_certificate(self):
-        """View certificate details"""
-        try:
-            cert_path = self.cert_path_entry.get()
-            
-            # Check if the certificate file exists
-            if not os.path.exists(cert_path):
-                # If the file doesn't exist, check if it's in a different format
-                base_path = os.path.splitext(cert_path)[0]
-                possible_extensions = ['.p12', '.crt', '.pem', '.cer']
-                found = False
-                
-                for ext in possible_extensions:
-                    alt_path = base_path + ext
-                    if os.path.exists(alt_path):
-                        cert_path = alt_path
-                        found = True
-                        break
-                
-                if not found:
-                    self.show_error("Certificate Not Found", f"No certificate found at:\n{cert_path}")
-                    return
-            
-            # Try different methods to view the certificate
-            try:
-                # First try with cryptography library
-                from cryptography import x509
-                from cryptography.hazmat.backends import default_backend
-                
-                # Read the certificate file
-                with open(cert_path, 'rb') as f:
-                    cert_data = f.read()
-                
-                # Try to parse as PEM
-                try:
-                    cert = x509.load_pem_x509_certificate(cert_data, default_backend())
-                    
-                    # Extract certificate details
-                    subject = cert.subject
-                    issuer = cert.issuer
-                    
-                    # Format subject and issuer
-                    subject_str = "Unknown"
-                    issuer_str = "Unknown"
-                    
-                    for attr in subject:
-                        if attr.oid._name == 'commonName':
-                            subject_str = attr.value
-                    
-                    for attr in issuer:
-                        if attr.oid._name == 'commonName':
-                            issuer_str = attr.value
-                    
-                    # Get validity dates
-                    not_before = cert.not_valid_before.strftime('%Y-%m-%d %H:%M:%S')
-                    not_after = cert.not_valid_after.strftime('%Y-%m-%d %H:%M:%S')
-                    
-                    # Create info message
-                    info = f"Certificate Details:\n\n"
-                    info += f"Certificate File: {os.path.basename(cert_path)}\n"
-                    info += f"Subject: {subject_str}\n"
-                    info += f"Issuer: {issuer_str}\n"
-                    info += f"Valid From: {not_before}\n"
-                    info += f"Valid To: {not_after}\n"
-                    info += f"Path: {cert_path}"
-                    
-                    self.show_info("Certificate Information", info)
-                    return
-                    
-                except Exception:
-                    # If PEM parsing fails and it's a .p12 file, try to parse as PKCS12
-                    if cert_path.endswith('.p12'):
-                        # We can't easily parse PKCS12 with cryptography without the password
-                        # So we'll fall back to PyOpenSSL or just show basic info
-                        pass
-            
-            except ImportError:
-                # Fall back to PyOpenSSL
-                try:
-                    import OpenSSL.crypto as crypto
-                    
-                    # Read the certificate file
-                    with open(cert_path, 'rb') as f:
-                        cert_data = f.read()
-                    
-                    # Try to parse as PEM
-                    try:
-                        cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert_data)
-                        
-                        # Extract certificate details
-                        subject = cert.get_subject()
-                        issuer = cert.get_issuer()
-                        
-                        # Format subject and issuer
-                        subject_str = f"CN={subject.CN}" if hasattr(subject, 'CN') else "Unknown"
-                        issuer_str = f"CN={issuer.CN}" if hasattr(issuer, 'CN') else "Unknown"
-                        
-                        # Get validity dates
-                        from datetime import datetime
-                        not_before = datetime.strptime(cert.get_notBefore().decode('ascii'), '%Y%m%d%H%M%SZ').strftime('%Y-%m-%d %H:%M:%S')
-                        not_after = datetime.strptime(cert.get_notAfter().decode('ascii'), '%Y%m%d%H%M%SZ').strftime('%Y-%m-%d %H:%M:%S')
-                        
-                        # Create info message
-                        info = f"Certificate Details:\n\n"
-                        info += f"Subject: {subject_str}\n"
-                        info += f"Issuer: {issuer_str}\n"
-                        info += f"Valid From: {not_before}\n"
-                        info += f"Valid To: {not_after}\n"
-                        info += f"Path: {cert_path}"
-                        
-                        self.show_info("Certificate Information", info)
-                        return
-                        
-                    except Exception:
-                        # If PEM parsing fails and it's a .p12 file, we can't easily view it
-                        if cert_path.endswith('.p12'):
-                            # We need the password to view PKCS12
+                                      f"Common Name: {common_name}\n"
+                                      f"Subject Alternative Name (SAN): {common_name}\n"
+                                      f"Valid for: 10 years")
+                    except Exception as e3:
+                        self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
+                        self.show_error("Certificate Generation Failed", f"Error: {str(e3)}")
+                    finally:
+                        # Clean up temporary files
+                        try:
+                            os.unlink(temp_cert_path)
+                            os.unlink(temp_key_path)
+                        except:
                             pass
+                    
+                    # Update certificate status
+                    self.check_certificate_status()
+                    
+                    return True
+            except Exception as e1:
+                # If cryptography fails, try OpenSSL directly
+                import subprocess
+                import tempfile
                 
-                except ImportError:
-                    # If neither cryptography nor PyOpenSSL is available, show basic info
-                    pass
-            
-            # If we get here, we couldn't parse the certificate with the available libraries
-            # Just show basic file info
-            import os
-            file_size = os.path.getsize(cert_path)
-            file_time = os.path.getmtime(cert_path)
-            from datetime import datetime
-            mod_time = datetime.fromtimestamp(file_time).strftime('%Y-%m-%d %H:%M:%S')
-            
-            info = f"Certificate File Information:\n\n"
-            info += f"Path: {cert_path}\n"
-            info += f"Size: {file_size} bytes\n"
-            info += f"Last Modified: {mod_time}\n\n"
-            info += "Note: Detailed certificate information could not be extracted.\n"
-            info += "This may be due to the file format or missing libraries."
-            
-            self.show_info("Certificate Information", info)
-            
+                # Create a temporary OpenSSL config file
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cnf') as temp:
+                    temp.write(f"""
+                    [req]
+                    distinguished_name = req_distinguished_name
+                    req_extensions = v3_req
+                    prompt = no
+                    
+                    [req_distinguished_name]
+                    C = DE
+                    ST = Saxony
+                    L = Dresden
+                    O = GK Software SE
+                    CN = {common_name}
+                    
+                    [v3_req]
+                    keyUsage = keyEncipherment, dataEncipherment
+                    extendedKeyUsage = serverAuth
+                    subjectAltName = @alt_names
+                    
+                    [alt_names]
+                    DNS.1 = {common_name}
+                    """)
+                    config_file = temp.name
+                
+                try:
+                    # Create temporary files for the cert and key
+                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_cert:
+                        temp_cert_path = temp_cert.name
+                    
+                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
+                        temp_key_path = temp_key.name
+                    
+                    # Generate key
+                    subprocess.run(
+                        f'openssl genrsa -out "{temp_key_path}" 2048',
+                        shell=True, check=True
+                    )
+                    
+                    # Generate certificate
+                    subprocess.run(
+                        f'openssl req -new -x509 -key "{temp_key_path}" -out "{temp_cert_path}" -days 3650 -config "{config_file}"',
+                        shell=True, check=True
+                    )
+                    
+                    # Convert to PKCS12
+                    subprocess.run(
+                        f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
+                        shell=True, check=True
+                    )
+                    
+                    # Clean up the temporary files
+                    os.unlink(config_file)
+                    os.unlink(temp_cert_path)
+                    os.unlink(temp_key_path)
+                    
+                    # Show success message
+                    self.cert_status_label.configure(text="Certificate generated", text_color="green")
+                    self.show_info("Certificate Generated", 
+                                  f"Certificate generated successfully at:\n{cert_path}\n\n"
+                                  f"Common Name: {common_name}\n"
+                                  f"Subject Alternative Name (SAN): {common_name}\n"
+                                  f"Valid for: 10 years")
+                    
+                    # Update certificate status
+                    self.check_certificate_status()
+                    
+                    return True
+                    
+                except Exception as e2:
+                    # Clean up any temporary files
+                    try:
+                        os.unlink(config_file)
+                        os.unlink(temp_cert_path)
+                        os.unlink(temp_key_path)
+                    except:
+                        pass
+                    
+                    # Show error message
+                    self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
+                    self.show_error("Certificate Generation Failed", f"Error: {str(e2)}")
+                    return False
+                    
         except Exception as e:
-            self.show_error("Certificate Error", f"Error: {str(e)}")
+            self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
+            self.show_error("Certificate Generation Failed", f"Error: {str(e)}")
+            return False
     
     def create_component_versions(self):
         # Create frame for component-specific versions
@@ -994,27 +931,15 @@ class GKInstallBuilder:
         label.pack(side="left", padx=10)
         
         # Create tooltip for the label
-        self.create_tooltip(label, "Directory where generated installation files will be saved")
+        self.create_tooltip(label, "Directory where generated installation files will be saved (automatically set based on Project Name and Base URL)")
         
-        # Entry with tooltip
-        self.output_dir_entry = ctk.CTkEntry(frame, width=400)
+        # Entry with tooltip - make it read-only
+        self.output_dir_entry = ctk.CTkEntry(frame, width=400, state="readonly")
         self.output_dir_entry.pack(side="left", padx=10)
         self.output_dir_entry.insert(0, self.config_manager.config["output_dir"])
         
         # Create tooltip for the entry
-        self.create_tooltip(self.output_dir_entry, "Directory where generated installation files will be saved")
-        
-        # Browse button with tooltip
-        browse_btn = ctk.CTkButton(
-            frame,
-            text="Browse",
-            width=100,
-            command=self.browse_output_dir
-        )
-        browse_btn.pack(side="left", padx=10)
-        
-        # Create tooltip for the browse button
-        self.create_tooltip(browse_btn, "Select output directory")
+        self.create_tooltip(self.output_dir_entry, "Directory where generated installation files will be saved (automatically set based on Project Name and Base URL)")
         
         self.config_manager.register_entry("output_dir", self.output_dir_entry)
     
@@ -1058,12 +983,6 @@ class GKInstallBuilder:
         )
         offline_btn.pack(side="left", padx=10)
         self.create_tooltip(offline_btn, "Open the Offline Package Creator to download and create offline installation packages")
-    
-    def browse_output_dir(self):
-        directory = ctk.filedialog.askdirectory(initialdir=".")
-        if directory:
-            self.output_dir_entry.delete(0, "end")
-            self.output_dir_entry.insert(0, directory)
     
     def on_window_close(self):
         """Handle window close event"""
@@ -1327,7 +1246,7 @@ class GKInstallBuilder:
         messagebox.showinfo(title, message)
 
     def get_basic_auth_password_from_keepass(self):
-        """Open a dialog to get Basic Auth Password from KeePass"""
+        """Open a dialog to get Launchpad oAuth2 Password from KeePass"""
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("KeePass Authentication")
@@ -1664,7 +1583,7 @@ class GKInstallBuilder:
                             print(f"Error getting password: {str(e)}")
                             status_var.set(f"Error getting password: {str(e)}")
                     else:
-                        status_var.set(f"No Basic Auth password entry found in {env_name}!")
+                        status_var.set(f"No Launchpad oAuth2 password entry found in {env_name}!")
                 else:
                     status_var.set(f"Environment {env_name} not found!")
             

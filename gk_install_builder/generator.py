@@ -1,7 +1,8 @@
 import os
+import re
+import json
 import shutil
 import customtkinter as ctk
-import json
 import base64
 from webdav3.client import Client
 from webdav3.exceptions import WebDavException
@@ -9,6 +10,7 @@ from datetime import datetime
 from urllib.parse import unquote
 import requests
 import logging
+from string import Template
 
 class WebDAVBrowser:
     def __init__(self, base_url, username=None, password=None):
@@ -166,13 +168,9 @@ class ProjectGenerator:
         try:
             cert_path = config.get("certificate_path", "")
             if cert_path and os.path.exists(cert_path):
-                # Create security directory in output
-                security_dir = os.path.join(output_dir, "security")
-                os.makedirs(security_dir, exist_ok=True)
-                
-                # Copy certificate to output directory with generic name
+                # Copy certificate to output directory with the same name
                 cert_filename = os.path.basename(cert_path)
-                dest_path = os.path.join(security_dir, cert_filename)
+                dest_path = os.path.join(output_dir, cert_filename)
                 shutil.copy2(cert_path, dest_path)
                 print(f"Copied certificate from {cert_path} to {dest_path}")
                 
@@ -206,6 +204,14 @@ class ProjectGenerator:
             pos_version = config.get("pos_version", default_version)
             wdm_version = config.get("wdm_version", default_version)
             
+            # Get system types from config
+            pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
+            wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
+            
+            print(f"Using system types from config:")
+            print(f"  POS System Type: {pos_system_type}")
+            print(f"  WDM System Type: {wdm_system_type}")
+            
             # Define replacements
             replacements = [
                 ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
@@ -213,6 +219,12 @@ class ProjectGenerator:
                 ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
                 ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
                 ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
+                # Replace hardcoded system types in the if statement
+                ('$systemType = if ($ComponentType -eq \'POS\') { "GKR-OPOS-CLOUD" } else { "CSE-wdm" }', 
+                 f'$systemType = if ($ComponentType -eq \'POS\') {{ "{pos_system_type}" }} else {{ "{wdm_system_type}" }}'),
+                # Replace hardcoded system types in the dictionary
+                ('$systemTypes = @{\n    POS = "GKR-OPOS-CLOUD"\n    WDM = "CSE-wdm"', 
+                 f'$systemTypes = @{{\n    POS = "{pos_system_type}"\n    WDM = "{wdm_system_type}"'),
             ]
             
             # Add component-specific version replacements with simplified logic
