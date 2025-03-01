@@ -428,7 +428,7 @@ class GKInstallBuilder:
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("KeePass Authentication")
-        dialog.geometry("450x350")
+        dialog.geometry("450x400")  # Increased height to accommodate new elements
         dialog.transient(self.window)
         dialog.grab_set()
         
@@ -450,6 +450,18 @@ class GKInstallBuilder:
         password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
         password_entry.pack(side="left", padx=5)
         
+        # Connect button frame
+        connect_frame = ctk.CTkFrame(dialog)
+        connect_frame.pack(pady=10, fill="x", padx=20)
+        
+        connect_btn = ctk.CTkButton(
+            connect_frame,
+            text="Connect to KeePass",
+            width=200,
+            command=lambda: connect()
+        )
+        connect_btn.pack(pady=5)
+        
         # Project frame
         project_frame = ctk.CTkFrame(dialog)
         project_frame.pack(pady=10, fill="x", padx=20)
@@ -458,6 +470,16 @@ class GKInstallBuilder:
         project_var = ctk.StringVar(value="AZR-CSE")  # Default project
         project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
         project_entry.pack(side="left", padx=5)
+        
+        # Detect Projects button (initially disabled)
+        detect_projects_btn = ctk.CTkButton(
+            project_frame,
+            text="Detect Projects",
+            width=120,
+            command=lambda: detect_projects(),
+            state="disabled"
+        )
+        detect_projects_btn.pack(side="left", padx=5)
         
         # Environment frame (will be populated after connection)
         env_frame = ctk.CTkFrame(dialog)
@@ -473,14 +495,176 @@ class GKInstallBuilder:
         status_label = ctk.CTkLabel(dialog, textvariable=status_var)
         status_label.pack(pady=5)
         
+        # Get Password button (initially disabled)
+        get_password_btn = ctk.CTkButton(
+            dialog,
+            text="Get Password",
+            command=lambda: get_password(),
+            state="disabled"
+        )
+        get_password_btn.pack(pady=5)
+        
+        # Function to detect available projects
+        def detect_projects():
+            try:
+                client = dialog.client
+                
+                # Get project folder
+                projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
+                folder_structure = client.get_folder(projects_folder_id)
+                
+                # Get all project folders
+                projects = self.get_subfolders(folder_structure)
+                
+                if not projects:
+                    status_var.set("No projects found!")
+                    return
+                
+                # Create a project selection dialog
+                project_dialog = ctk.CTkToplevel(dialog)
+                project_dialog.title("Select Project")
+                project_dialog.geometry("300x450")  # Increased height for filter controls
+                project_dialog.transient(dialog)
+                project_dialog.grab_set()
+                
+                # Add label
+                ctk.CTkLabel(
+                    project_dialog,
+                    text="Available Projects:",
+                    font=("Helvetica", 14, "bold")
+                ).pack(padx=20, pady=(10, 5))
+                
+                # Add filter controls
+                filter_frame = ctk.CTkFrame(project_dialog)
+                filter_frame.pack(padx=20, pady=(0, 10), fill="x")
+                
+                # Filter checkbox
+                show_azr_only_var = ctk.BooleanVar(value=True)  # Default to showing only AZR projects
+                
+                def update_project_list():
+                    # Clear existing buttons
+                    for widget in projects_frame.winfo_children():
+                        widget.destroy()
+                    
+                    # Filter projects based on checkbox state
+                    filtered_projects = projects
+                    if show_azr_only_var.get():
+                        filtered_projects = [p for p in projects if p['name'].startswith('AZR-')]
+                    
+                    # Sort projects alphabetically
+                    filtered_projects.sort(key=lambda x: x['name'].lower())
+                    
+                    # Show count
+                    count_label.configure(text=f"Showing {len(filtered_projects)} of {len(projects)} projects")
+                    
+                    # Add buttons for each project
+                    for project in filtered_projects:
+                        btn = ctk.CTkButton(
+                            projects_frame,
+                            text=project['name'],
+                            width=200,
+                            command=lambda p=project: select_project(p)
+                        )
+                        btn.pack(pady=2)
+                
+                azr_checkbox = ctk.CTkCheckBox(
+                    filter_frame,
+                    text="Show only AZR projects",
+                    variable=show_azr_only_var,
+                    command=update_project_list
+                )
+                azr_checkbox.pack(side="left", padx=5)
+                
+                # Count label
+                count_label = ctk.CTkLabel(filter_frame, text="")
+                count_label.pack(side="right", padx=5)
+                
+                # Create scrollable frame for projects
+                projects_frame = ctk.CTkScrollableFrame(project_dialog, width=250, height=300)
+                projects_frame.pack(padx=20, pady=10, fill="both", expand=True)
+                
+                # Add search field
+                search_frame = ctk.CTkFrame(project_dialog)
+                search_frame.pack(padx=20, pady=(0, 10), fill="x")
+                
+                ctk.CTkLabel(search_frame, text="Search:", width=50).pack(side="left", padx=5)
+                search_var = ctk.StringVar()
+                
+                def on_search_change(*args):
+                    search_text = search_var.get().lower()
+                    
+                    # Clear existing buttons
+                    for widget in projects_frame.winfo_children():
+                        widget.destroy()
+                    
+                    # Filter projects based on checkbox state and search text
+                    filtered_projects = projects
+                    if show_azr_only_var.get():
+                        filtered_projects = [p for p in projects if p['name'].startswith('AZR-')]
+                    
+                    if search_text:
+                        filtered_projects = [p for p in filtered_projects if search_text in p['name'].lower()]
+                    
+                    # Sort projects alphabetically
+                    filtered_projects.sort(key=lambda x: x['name'].lower())
+                    
+                    # Update count
+                    count_label.configure(text=f"Showing {len(filtered_projects)} of {len(projects)} projects")
+                    
+                    # Add buttons for each project
+                    for project in filtered_projects:
+                        btn = ctk.CTkButton(
+                            projects_frame,
+                            text=project['name'],
+                            width=200,
+                            command=lambda p=project: select_project(p)
+                        )
+                        btn.pack(pady=2)
+                
+                search_var.trace_add("write", on_search_change)
+                search_entry = ctk.CTkEntry(search_frame, width=180, textvariable=search_var)
+                search_entry.pack(side="left", padx=5)
+                
+                def select_project(project):
+                    # Set the selected project
+                    project_var.set(project['name'])
+                    project_dialog.destroy()
+                    
+                    # Now get environments for this project
+                    folder_id = project['id']
+                    folder_contents = client.get_folder(folder_id)
+                    subfolders = self.get_subfolders(folder_contents)
+                    
+                    # Update environment dropdown
+                    env_values = [folder['name'] for folder in subfolders]
+                    env_combo.configure(values=env_values)
+                    if env_values:
+                        env_combo.set(env_values[0])
+                    
+                    # Store folder contents for later use
+                    dialog.folder_contents = folder_contents
+                    
+                    status_var.set(f"Selected project: {project['name']}")
+                
+                # Initialize the project list
+                update_project_list()
+            
+            except Exception as e:
+                status_var.set(f"Error detecting projects: {str(e)}")
+        
         # Connect to KeePass and get environments
         def connect():
             try:
+                status_var.set("Connecting to KeePass...")
+                
                 client = PleasantPasswordClient(
                     base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
                     username=username_var.get(),
                     password=password_var.get()
                 )
+                
+                # Store client for later use
+                dialog.client = client
                 
                 # Get project folder
                 projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
@@ -503,12 +687,13 @@ class GKInstallBuilder:
                     
                     status_var.set("Connected successfully! Select environment and get password.")
                     get_password_btn.configure(state="normal")
+                    detect_projects_btn.configure(state="normal")  # Enable Detect Projects button
                     
-                    # Store client for later use
-                    dialog.client = client
+                    # Store folder contents for later use
                     dialog.folder_contents = folder_contents
                 else:
-                    status_var.set(f"Project {project_name} not found!")
+                    status_var.set(f"Project {project_name} not found! Click 'Detect Projects' to see available projects.")
+                    detect_projects_btn.configure(state="normal")  # Enable Detect Projects button
             
             except Exception as e:
                 status_var.set(f"Error: {str(e)}")
@@ -582,23 +767,6 @@ class GKInstallBuilder:
             
             except Exception as e:
                 status_var.set(f"Error: {str(e)}")
-        
-        # Connect button
-        connect_btn = ctk.CTkButton(
-            dialog,
-            text="Connect",
-            command=connect
-        )
-        connect_btn.pack(pady=5)
-        
-        # Get Password button (initially disabled)
-        get_password_btn = ctk.CTkButton(
-            dialog,
-            text="Get Password",
-            command=get_password,
-            state="disabled"
-        )
-        get_password_btn.pack(pady=5)
     
     def find_basic_auth_password_entry(self, folder_structure):
         """Find Basic Auth password entry in KeePass folder structure"""
