@@ -1,0 +1,15 @@
+gk_install_config.json
+generated_scripts/GKInstall.ps1
+generated_scripts/installationtoken.base64
+generated_scripts/installationtoken.txt
+generated_scripts/Launcher.exe
+generated_scripts/launcher.properties
+generated_scripts/onboarding.ps1
+generated_scripts/onboarding.token
+generated_scripts/helper/launchers/launcher.pos.template
+generated_scripts/helper/launchers/launcher.wdm.template
+generated_scripts/helper/onboarding/pos.onboarding.json
+generated_scripts/helper/onboarding/wdm.onboarding.json
+generated_scripts/helper/tokens/access_token.txt
+generated_scripts/helper/tokens/basic_auth_password.txt
+generated_scripts/helper/tokens/form_password.txt
