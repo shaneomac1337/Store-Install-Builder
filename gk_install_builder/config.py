@@ -11,6 +11,7 @@ class ConfigManager:
         self.save_status_label = None
         self.save_timer = None
         self.save_in_progress = False
+        self.config_file = "gk_install_config.json"
         self.load_config()
 
     def register_entry(self, key, entry):
@@ -24,6 +25,20 @@ class ConfigManager:
             # For dropdown/combobox, bind to the <<ComboboxSelected>> event
             if str(entry).find("combobox") != -1:
                 entry.bind("<<ComboboxSelected>>", lambda event: self.schedule_save())
+
+    def get_entry(self, key):
+        """Get an entry widget by its key"""
+        return self.entries.get(key, None)
+
+    def update_entry_value(self, key, value):
+        """Update an entry widget with a new value, clearing any existing content first"""
+        entry = self.get_entry(key)
+        if entry and hasattr(entry, "delete") and hasattr(entry, "insert"):
+            entry.delete(0, 'end')  # Clear existing value
+            entry.insert(0, value)  # Insert new value
+            self.config[key] = value  # Update config dictionary
+            return True
+        return False
 
     def set_save_status_label(self, label):
         """Set the label for displaying save status"""
@@ -63,18 +78,16 @@ class ConfigManager:
 
     def load_config(self):
         """Load configuration from file or return default values"""
-        config_file = "gk_install_config.json"
-        
-        if os.path.exists(config_file):
+        if os.path.exists(self.config_file):
             try:
-                with open(config_file, "r") as f:
+                with open(self.config_file, "r") as f:
                     self.config = json.load(f)
-                print(f"Configuration loaded from {config_file}")
+                print(f"Configuration loaded from {self.config_file}")
             except Exception as e:
                 print(f"Error loading configuration: {e}")
                 self.config = self._get_default_config()
         else:
-            print(f"Configuration file {config_file} not found, using defaults")
+            print(f"Configuration file {self.config_file} not found, using defaults")
             self.config = self._get_default_config()
 
     def _get_default_config(self):
@@ -91,10 +104,10 @@ class ConfigManager:
             "wdm_version": "v1.0.0",
             
             # Installation Configuration
-            "base_install_dir": "C:\\gkretail",
+            "base_installation_directory": "C:\\gkretail",
             "tenant_id": "001",
-            "pos_system_type": "GKR-OPOS-CLOUD",
-            "wdm_system_type": "CSE-wdm",
+            "pos_system_type": "",  # Will be dynamically set based on URL
+            "wdm_system_type": "",  # Will be dynamically set based on URL
             
             # Security Configuration
             "ssl_password": "changeit",
@@ -102,6 +115,10 @@ class ConfigManager:
             "form_username": "1001",
             "basic_auth_password": "Enter your basic auth password or use KeePass",
             "form_password": "Enter your form password",
+            
+            # Certificate Configuration
+            "certificate_path": "generated_scripts/cse_wdm.p12",
+            "certificate_common_name": "store.example.com",
             
             # Output Configuration
             "output_dir": "generated_scripts",
@@ -125,7 +142,7 @@ class ConfigManager:
             self.update_config_from_entries()
             
             # Save to file
-            with open("gk_install_config.json", "w") as f:
+            with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
             
             # Update save status
@@ -165,7 +182,7 @@ class ConfigManager:
             self.update_config_from_entries()
             
             # Save to file
-            with open("gk_install_config.json", "w") as f:
+            with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
             
             return True
