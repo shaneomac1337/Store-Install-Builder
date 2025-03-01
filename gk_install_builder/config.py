@@ -71,10 +71,8 @@ class ConfigManager:
 
     def update_config_from_entries(self):
         """Update config from registered entries"""
-        for key, entry in self.entries.items():
-            if hasattr(entry, "get"):
-                self.config[key] = entry.get()
-        return self.config
+        # Use the safer method instead
+        return self.safe_update_config_from_entries()
 
     def load_config(self):
         """Load configuration from file or return default values"""
@@ -138,8 +136,8 @@ class ConfigManager:
             # Set save in progress flag
             self.save_in_progress = True
             
-            # Update config from entries
-            self.update_config_from_entries()
+            # Update config from entries using the safer method
+            self.safe_update_config_from_entries()
             
             # Save to file
             with open(self.config_file, "w") as f:
@@ -178,8 +176,8 @@ class ConfigManager:
     def save_config_silent(self):
         """Save configuration without updating UI"""
         try:
-            # Update config from entries
-            self.update_config_from_entries()
+            # Update config from entries using the safer method
+            self.safe_update_config_from_entries()
             
             # Save to file
             with open(self.config_file, "w") as f:
@@ -228,4 +226,44 @@ class ConfigManager:
             text=message,
             title=title
         )
-        dialog.destroy() 
+        dialog.destroy()
+
+    def unregister_entry(self, key):
+        """Unregister an entry widget for a config key"""
+        if key in self.entries:
+            # Save the current value to config before unregistering
+            try:
+                entry = self.entries[key]
+                if hasattr(entry, 'get'):
+                    try:
+                        # Only try to get the value if the widget exists
+                        if hasattr(entry, 'winfo_exists') and entry.winfo_exists():
+                            self.config[key] = entry.get()
+                    except Exception:
+                        # If we can't get the value, keep the existing config value
+                        pass
+            except Exception:
+                # Ignore any errors when trying to save the value
+                pass
+                
+            # Remove the entry from our dictionary
+            del self.entries[key]
+            
+    def safe_update_config_from_entries(self):
+        """Update config from registered entries, skipping any that cause errors"""
+        for key, entry in list(self.entries.items()):
+            try:
+                if hasattr(entry, "get"):
+                    # Only try to get the value if the widget exists
+                    if not hasattr(entry, 'winfo_exists') or entry.winfo_exists():
+                        self.config[key] = entry.get()
+                    else:
+                        # Widget doesn't exist, unregister it
+                        self.unregister_entry(key)
+            except Exception:
+                # If there's any error, unregister the entry
+                try:
+                    self.unregister_entry(key)
+                except Exception:
+                    pass
+        return self.config 

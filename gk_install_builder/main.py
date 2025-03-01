@@ -988,7 +988,51 @@ class GKInstallBuilder:
         """Handle window close event"""
         # Ensure all configuration is saved before exit
         try:
-            # Update config from all entries
+            # Clean up any lingering references to child windows
+            if hasattr(self, 'offline_creator'):
+                if hasattr(self.offline_creator, 'window') and self.offline_creator.window.winfo_exists():
+                    self.offline_creator.window.destroy()
+                delattr(self, 'offline_creator')
+            
+            # First, create a list of valid entries
+            valid_entries = {}
+            invalid_keys = []
+            
+            for key, entry in list(self.config_manager.entries.items()):
+                try:
+                    # Check if the entry widget still exists
+                    if hasattr(entry, 'winfo_exists'):
+                        try:
+                            if entry.winfo_exists():
+                                valid_entries[key] = entry
+                            else:
+                                invalid_keys.append(key)
+                        except Exception:
+                            # If checking existence fails, mark as invalid
+                            invalid_keys.append(key)
+                    else:
+                        # If it's not a widget with winfo_exists, keep it
+                        valid_entries[key] = entry
+                except Exception:
+                    # If there's any error, mark as invalid
+                    invalid_keys.append(key)
+            
+            # Unregister all invalid entries
+            for key in invalid_keys:
+                try:
+                    self.config_manager.unregister_entry(key)
+                except Exception:
+                    pass
+            
+            # Final safety check - remove any entries with "offline_creator" in the key
+            for key in list(self.config_manager.entries.keys()):
+                if "offline_creator" in key:
+                    try:
+                        self.config_manager.unregister_entry(key)
+                    except Exception:
+                        pass
+            
+            # Update config from all remaining entries
             self.config_manager.update_config_from_entries()
             
             # Save configuration
@@ -1014,6 +1058,14 @@ class GKInstallBuilder:
             config_manager=self.config_manager,
             project_generator=self.project_generator
         )
+        
+        # Set up a callback for when the window is closed
+        def cleanup_offline_creator():
+            if hasattr(self, 'offline_creator'):
+                delattr(self, 'offline_creator')
+        
+        # Add callback to be executed when the window is destroyed
+        self.offline_creator.window.bind("<Destroy>", lambda e: cleanup_offline_creator())
     
     def create_webdav_browser(self):
         # Create WebDAV browser frame
@@ -1062,8 +1114,8 @@ class GKInstallBuilder:
         if self.config_manager.config["webdav_username"]:
             self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
         
-        # Register WebDAV username with config manager
-        self.config_manager.register_entry("webdav_username", self.webdav_username)
+        # Register WebDAV username with config manager using a unique key for this window
+        self.config_manager.register_entry("offline_creator_webdav_username", self.webdav_username)
         
         # Password
         password_frame = ctk.CTkFrame(auth_frame)
@@ -1082,8 +1134,8 @@ class GKInstallBuilder:
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
         
-        # Register WebDAV password with config manager
-        self.config_manager.register_entry("webdav_password", self.webdav_password)
+        # Register WebDAV password with config manager using a unique key for this window
+        self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
         # Connect button
         connect_btn = ctk.CTkButton(
@@ -1254,6 +1306,23 @@ class GKInstallBuilder:
         dialog.transient(self.window)
         dialog.grab_set()
         
+        # Add window close protocol handler
+        def on_dialog_close():
+            try:
+                # Clean up any references
+                if hasattr(dialog, 'client'):
+                    delattr(dialog, 'client')
+                if hasattr(dialog, 'folder_contents'):
+                    delattr(dialog, 'folder_contents')
+            except Exception:
+                # Ignore any errors during cleanup
+                pass
+            finally:
+                # Always destroy the dialog
+                dialog.destroy()
+            
+        dialog.protocol("WM_DELETE_WINDOW", on_dialog_close)
+        
         # Username frame
         username_frame = ctk.CTkFrame(dialog)
         username_frame.pack(pady=10, fill="x", padx=20)
@@ -1348,6 +1417,20 @@ class GKInstallBuilder:
                 project_dialog.geometry("300x450")  # Increased height for filter controls
                 project_dialog.transient(dialog)
                 project_dialog.grab_set()
+                
+                # Add window close protocol handler
+                def on_project_dialog_close():
+                    try:
+                        # Any cleanup needed for project dialog
+                        pass
+                    except Exception:
+                        # Ignore any errors during cleanup
+                        pass
+                    finally:
+                        # Always destroy the dialog
+                        project_dialog.destroy()
+                
+                project_dialog.protocol("WM_DELETE_WINDOW", on_project_dialog_close)
                 
                 # Add label
                 ctk.CTkLabel(
@@ -1798,6 +1881,9 @@ class OfflinePackageCreator:
         self.window.geometry("1000x800")
         self.window.transient(parent)  # Set to be on top of the parent window
         
+        # Add window close protocol handler
+        self.window.protocol("WM_DELETE_WINDOW", self.on_window_close)
+        
         # Store references
         self.config_manager = config_manager
         self.project_generator = project_generator
@@ -1811,6 +1897,61 @@ class OfflinePackageCreator:
         
         # Create offline package section
         self.create_offline_package_section()
+        
+    def on_window_close(self):
+        """Handle window close event"""
+        try:
+            # Force update of config from entries before unregistering them
+            self.config_manager.update_config_from_entries()
+            
+            # Explicitly handle the webdav entries
+            if hasattr(self, 'webdav_username'):
+                try:
+                    # Save the value to the main config key
+                    if hasattr(self.webdav_username, 'get'):
+                        self.config_manager.config["webdav_username"] = self.webdav_username.get()
+                    
+                    # Unregister the entry
+                    if "webdav_username" in self.config_manager.entries:
+                        self.config_manager.unregister_entry("webdav_username")
+                    if "offline_creator_webdav_username" in self.config_manager.entries:
+                        self.config_manager.unregister_entry("offline_creator_webdav_username")
+                except Exception:
+                    pass
+            
+            if hasattr(self, 'webdav_password'):
+                try:
+                    # Save the value to the main config key
+                    if hasattr(self.webdav_password, 'get'):
+                        self.config_manager.config["webdav_password"] = self.webdav_password.get()
+                    
+                    # Unregister the entry
+                    if "webdav_password" in self.config_manager.entries:
+                        self.config_manager.unregister_entry("webdav_password")
+                    if "offline_creator_webdav_password" in self.config_manager.entries:
+                        self.config_manager.unregister_entry("offline_creator_webdav_password")
+                except Exception:
+                    pass
+            
+            # Get a copy of all entry keys
+            all_keys = list(self.config_manager.entries.keys())
+            
+            # Unregister all entries - this is a more aggressive approach
+            # but ensures no lingering references remain
+            for key in all_keys:
+                try:
+                    self.config_manager.unregister_entry(key)
+                except Exception:
+                    pass
+                    
+            # Save the configuration silently
+            self.config_manager.save_config_silent()
+        except Exception:
+            # Ignore any errors during cleanup
+            pass
+        finally:
+            # Always destroy the window
+            self.window.destroy()
     
     def create_offline_package_section(self):
         """Create the offline package creation section"""
@@ -1913,8 +2054,8 @@ class OfflinePackageCreator:
         if self.config_manager.config["webdav_username"]:
             self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
         
-        # Register WebDAV username with config manager
-        self.config_manager.register_entry("webdav_username", self.webdav_username)
+        # Register WebDAV username with config manager using a unique key for this window
+        self.config_manager.register_entry("offline_creator_webdav_username", self.webdav_username)
         
         # Password
         password_frame = ctk.CTkFrame(auth_frame)
@@ -1933,8 +2074,8 @@ class OfflinePackageCreator:
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
         
-        # Register WebDAV password with config manager
-        self.config_manager.register_entry("webdav_password", self.webdav_password)
+        # Register WebDAV password with config manager using a unique key for this window
+        self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
         # Connect button
         connect_btn = ctk.CTkButton(
