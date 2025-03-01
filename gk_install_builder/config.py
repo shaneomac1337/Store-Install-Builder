@@ -104,7 +104,7 @@ class ConfigManager:
             "wdm_version": "v1.0.0",
             
             # Installation Configuration
-            "base_installation_directory": "C:\\gkretail",
+            "base_install_dir": "C:\\gkretail",
             "tenant_id": "001",
             "pos_system_type": "",  # Will be dynamically set based on URL
             "wdm_system_type": "",  # Will be dynamically set based on URL
@@ -113,15 +113,15 @@ class ConfigManager:
             "ssl_password": "changeit",
             "username": "launchpad",
             "form_username": "1001",
-            "basic_auth_password": "Enter your basic auth password or use KeePass",
-            "form_password": "Enter your form password",
+            "basic_auth_password": "Enter Auth-service's password for Launchpad BA",
+            "form_password": "Enter your Launchpad password",
             
             # Certificate Configuration
-            "certificate_path": "generated_scripts/cse_wdm.p12",
-            "certificate_common_name": "store.example.com",
+            "certificate_path": "PROJECT/BASEURL/certificate.p12",  # Will be dynamically set based on URL
+            "certificate_common_name": "*gk-software.com",
             
             # Output Configuration
-            "output_dir": "generated_scripts",
+            "output_dir": "PROJECT/BASEURL",  # Will be dynamically set based on URL
             
             # WebDAV Configuration
             "webdav_username": "Enter your WebDAV username",
