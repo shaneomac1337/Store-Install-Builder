@@ -59,7 +59,7 @@ $tomcat_file = ""
 
 # Set WDM SSL settings based on base install directory
 $security_dir = Join-Path $base_install_dir "security"
-$ssl_path = Join-Path $security_dir "cse_wdm.p12"
+# We'll find the actual certificate file dynamically later
 $ssl_password = "changeit"
 
 # Check offline mode
@@ -67,10 +67,6 @@ $offline_mode = $offline.IsPresent
 
 # Validate WDM-specific parameters
 if ($ComponentType -eq 'WDM') {
-    if ([string]::IsNullOrEmpty($ssl_path)) {
-        Write-Host "Error: ssl_path is required for WDM installation"
-        exit 1
-    }
     if ([string]::IsNullOrEmpty($ssl_password)) {
         Write-Host "Error: ssl_password is required for WDM installation"
         exit 1
@@ -247,27 +243,41 @@ Set-Content -Path "$install_dir\addonpack.properties" -Value $addonpackProps
 
 # Handle .p12 file if it exists
 $p12Files = Get-ChildItem -Path "." -Filter "*.p12"
-if ($p12Files.Count -gt 0) {
-    Write-Host "Found .p12 file(s) in script directory"
-    
-    # Create security directory if it doesn't exist
-    if (-not (Test-Path $security_dir)) {
-        Write-Host "Creating security directory: $security_dir"
-        New-Item -ItemType Directory -Path $security_dir -Force | Out-Null
-    }
-    
-    # Copy each .p12 file found
-    foreach ($p12File in $p12Files) {
-        if ($ComponentType -eq 'WDM') {
-            # For WDM, always use the standard filename
-            $destPath = Join-Path $security_dir "cse_wdm.p12"
-            Write-Host "Copying $($p12File.Name) to $destPath as cse_wdm.p12"
-        } else {
-            # For other components, keep original filename
+
+# Create security directory if it doesn't exist
+if (-not (Test-Path $security_dir)) {
+    Write-Host "Creating security directory: $security_dir"
+    New-Item -ItemType Directory -Path $security_dir -Force | Out-Null
+}
+
+# Check for certificates in the security directory
+$securityP12Files = Get-ChildItem -Path $security_dir -Filter "*.p12" -ErrorAction SilentlyContinue
+$ssl_path = $null
+
+if ($securityP12Files.Count -gt 0) {
+    # Use the first .p12 file found in the security directory
+    $ssl_path = $securityP12Files[0].FullName
+    Write-Host "Found certificate at: $ssl_path"
+} else {
+    # Check for .p12 files in the current directory
+    if ($p12Files.Count -gt 0) {
+        Write-Host "Found .p12 file(s) in script directory"
+        
+        # Copy each .p12 file found
+        foreach ($p12File in $p12Files) {
+            # Copy with original filename
             $destPath = Join-Path $security_dir $p12File.Name
             Write-Host "Copying $($p12File.Name) to $destPath"
+            Copy-Item -Path $p12File.FullName -Destination $destPath -Force
+            
+            # Set the ssl_path to the first certificate copied
+            if ($null -eq $ssl_path) {
+                $ssl_path = $destPath
+            }
         }
-        Copy-Item -Path $p12File.FullName -Destination $destPath -Force
+    } else {
+        # No certificate found
+        Write-Host "Warning: No certificate found for WDM. The installation may fail if a certificate is required."
     }
 }
 
@@ -303,11 +313,11 @@ $replacements = @{
     '@JRE_VERSION@' = $(if ($offline_mode) { $jre_version } else { "" })
     '@JRE_PACKAGE@' = $(if ($offline_mode) { "$PWD\offline_package\jre-$jre_version.zip" } else { "" })
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode) { "$PWD\offline_package\installer.jar" } else { "" })
+    '@SSL_PATH@' = $ssl_path
+    '@SSL_PASSWORD@' = $ssl_password
 }
 
 if ($ComponentType -eq 'WDM') {
-    $replacements['@SSL_PATH@'] = $ssl_path
-    $replacements['@SSL_PASSWORD@'] = $ssl_password
     $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
     $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\offline_package\tomcat-$tomcat_version.zip" } else { "" })
 }

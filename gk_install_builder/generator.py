@@ -124,11 +124,23 @@ class ProjectGenerator:
     def generate(self, config):
         """Generate project from configuration"""
         try:
-            output_dir = config["output_dir"]
+            # Get absolute output directory path
+            output_dir = os.path.abspath(config["output_dir"])
             os.makedirs(output_dir, exist_ok=True)
+            
+            # Store the original working directory
+            original_cwd = os.getcwd()
+            
+            # Print debug information
+            print(f"Current working directory: {original_cwd}")
+            print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+            print(f"Output directory: {output_dir}")
             
             # Create project structure
             self._create_directory_structure(output_dir)
+            
+            # Copy certificate if it exists
+            self._copy_certificate(output_dir, config)
             
             # Generate main scripts by modifying the original files
             self._generate_gk_install(output_dir, config)
@@ -140,36 +152,71 @@ class ProjectGenerator:
             self._show_success(f"Project generated in: {output_dir}")
         except Exception as e:
             self._show_error(f"Failed to generate project: {str(e)}")
+            # Print detailed error for debugging
+            import traceback
+            print(f"Error details: {traceback.format_exc()}")
 
     def _create_directory_structure(self, output_dir):
         """Create the project directory structure"""
         for dir_name in self.helper_structure.keys():
             os.makedirs(os.path.join(output_dir, "helper", dir_name), exist_ok=True)
 
+    def _copy_certificate(self, output_dir, config):
+        """Copy SSL certificate to output directory if it exists"""
+        try:
+            cert_path = config.get("certificate_path", "")
+            if cert_path and os.path.exists(cert_path):
+                # Create security directory in output
+                security_dir = os.path.join(output_dir, "security")
+                os.makedirs(security_dir, exist_ok=True)
+                
+                # Copy certificate to output directory with generic name
+                cert_filename = os.path.basename(cert_path)
+                dest_path = os.path.join(security_dir, cert_filename)
+                shutil.copy2(cert_path, dest_path)
+                print(f"Copied certificate from {cert_path} to {dest_path}")
+                
+                return True
+        except Exception as e:
+            print(f"Warning: Failed to copy certificate: {str(e)}")
+        
+        return False
+
     def _generate_gk_install(self, output_dir, config):
-        """Generate GKInstall.ps1 script"""
-        # Read template
-        template_path = os.path.join(os.path.dirname(__file__), "templates", "GKInstall.ps1.template")
-        with open(template_path, "r") as f:
-            template = f.read()
-        
-        # Get component-specific versions
-        default_version = config.get("version", "v1.0.0")
-        use_version_override = config.get("use_version_override", False)
-        pos_version = config.get("pos_version", default_version)
-        wdm_version = config.get("wdm_version", default_version)
-        
-        # Replace placeholders
-        replacements = [
-            ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
-            ('$version = "v1.0.0"', f'$version = "{default_version}"'),
-            ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
-            ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
-            ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
-        ]
-        
-        # Add component-specific version replacements with simplified logic
-        version_config = f'''
+        """Generate GKInstall.ps1 with replaced values"""
+        try:
+            # Use absolute paths for template and output
+            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "GKInstall.ps1.template")
+            output_path = os.path.join(output_dir, 'GKInstall.ps1')
+            
+            print(f"Generating GKInstall.ps1:")
+            print(f"  Template path: {template_path}")
+            print(f"  Output path: {output_path}")
+            
+            # Check if template exists
+            if not os.path.exists(template_path):
+                raise Exception(f"Template file not found: {template_path}")
+            
+            with open(template_path, 'r') as f:
+                template = f.read()
+            
+            # Get version information
+            default_version = config.get("version", "v1.0.0")
+            use_version_override = config.get("use_version_override", False)
+            pos_version = config.get("pos_version", default_version)
+            wdm_version = config.get("wdm_version", default_version)
+            
+            # Define replacements
+            replacements = [
+                ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
+                ('$version = "v1.0.0"', f'$version = "{default_version}"'),
+                ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
+                ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
+                ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
+            ]
+            
+            # Add component-specific version replacements with simplified logic
+            version_config = f'''
 # Component-specific versions
 $use_version_override = ${str(use_version_override).lower()}
 $pos_version = "{pos_version}"
@@ -200,45 +247,58 @@ function Get-ComponentVersion {{
         default {{ return $version }}
     }}
 }}
+
+# Note: This script will use the certificate generated by the GK Install Builder
+# The certificate is located in the security directory
 '''
-        
-        # Find the position to insert the component-specific version config
-        basic_config_marker = "# Basic configuration"
-        template = template.replace(basic_config_marker, f"{basic_config_marker}\n{version_config}")
-        
-        # Update the download URL to use the component-specific version with fallback logic
-        download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
-        new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
+            
+            # Find the position to insert the component-specific version config
+            basic_config_marker = "# Basic configuration"
+            template = template.replace(basic_config_marker, f"{basic_config_marker}\n{version_config}")
+            
+            # Update the download URL to use the component-specific version with fallback logic
+            download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
+            new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
 # If the component version is empty or null, fall back to the default version
 if ([string]::IsNullOrEmpty($component_version)) {
     $component_version = $version
 }
 $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"'''
-        template = template.replace(download_url_line, new_download_url_line)
-        
-        # Update the version replacement in installation token with fallback logic
-        version_replacement_line = '$installationToken = $installationToken.Replace("@Version@", $version)'
-        new_version_replacement_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
-# If the component version is empty or null, fall back to the default version
-if ([string]::IsNullOrEmpty($component_version)) {
-    $component_version = $version
-}
-$installationToken = $installationToken.Replace("@Version@", $component_version)'''
-        template = template.replace(version_replacement_line, new_version_replacement_line)
-        
-        # Apply all replacements
-        for old, new in replacements:
-            template = template.replace(old, new)
-        
-        # Write to file
-        output_path = os.path.join(output_dir, "GKInstall.ps1")
-        with open(output_path, "w") as f:
-            f.write(template)
+            
+            template = template.replace(download_url_line, new_download_url_line)
+            
+            # Apply all replacements
+            for old, new in replacements:
+                template = template.replace(old, new)
+            
+            # Write the modified template to the output file
+            with open(output_path, 'w') as f:
+                f.write(template)
+                
+            print(f"Successfully generated GKInstall.ps1 at {output_path}")
+                
+        except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error generating GKInstall.ps1: {error_details}")
+            raise Exception(f"Failed to generate GKInstall.ps1: {str(e)}")
 
     def _generate_onboarding(self, output_dir, config):
         """Generate onboarding.ps1 with replaced values"""
         try:
-            with open('onboarding.ps1', 'r') as f:
+            # Use absolute paths for template and output
+            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "onboarding.ps1.template")
+            output_path = os.path.join(output_dir, 'onboarding.ps1')
+            
+            print(f"Generating onboarding.ps1:")
+            print(f"  Template path: {template_path}")
+            print(f"  Output path: {output_path}")
+            
+            # Check if template exists
+            if not os.path.exists(template_path):
+                raise Exception(f"Template file not found: {template_path}")
+            
+            with open(template_path, 'r') as f:
                 content = f.read()
             
             # Replace configurations
@@ -260,31 +320,56 @@ $installationToken = $installationToken.Replace("@Version@", $component_version)
             )
             
             # Write the modified content
-            with open(os.path.join(output_dir, 'onboarding.ps1'), 'w') as f:
+            with open(output_path, 'w') as f:
                 f.write(content)
                 
+            print(f"Successfully generated onboarding.ps1 at {output_path}")
+                
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error generating onboarding.ps1: {error_details}")
             raise Exception(f"Failed to generate onboarding.ps1: {str(e)}")
 
     def _copy_helper_files(self, output_dir, config):
         """Copy helper files to output directory and handle password files"""
         try:
+            # Use absolute paths for source and destination
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            helper_src = os.path.join(script_dir, 'helper')
+            helper_dst = os.path.join(output_dir, 'helper')
+            
+            print(f"Copying helper files:")
+            print(f"  Source: {helper_src}")
+            print(f"  Destination: {helper_dst}")
+            
+            # Check if source directory exists
+            if not os.path.exists(helper_src):
+                # Try to find helper directory in parent directory
+                parent_helper = os.path.join(os.path.dirname(script_dir), 'helper')
+                if os.path.exists(parent_helper):
+                    helper_src = parent_helper
+                    print(f"  Found helper directory in parent: {helper_src}")
+                else:
+                    raise FileNotFoundError(f"Helper directory not found at {helper_src} or {parent_helper}")
+            
             # Copy entire helper directory structure
-            if os.path.exists('helper'):
-                helper_dst = os.path.join(output_dir, 'helper')
-                if os.path.exists(helper_dst):
-                    shutil.rmtree(helper_dst)
-                shutil.copytree('helper', helper_dst)
-                
-                # Create password files
-                self._create_password_files(helper_dst, config)
-                
-                # Modify JSON files after copying
-                self._modify_json_files(helper_dst, config)
-            else:
-                raise FileNotFoundError("Helper directory not found")
-
+            if os.path.exists(helper_dst):
+                shutil.rmtree(helper_dst)
+            shutil.copytree(helper_src, helper_dst)
+            
+            # Create password files
+            self._create_password_files(helper_dst, config)
+            
+            # Modify JSON files after copying
+            self._modify_json_files(helper_dst, config)
+            
+            print(f"Successfully copied helper files to {helper_dst}")
+            
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error copying helper files: {error_details}")
             raise Exception(f"Failed to copy helper files: {str(e)}")
 
     def _create_password_files(self, helper_dir, config):
