@@ -27,8 +27,8 @@ class GKInstallBuilder:
         
         self.create_gui()
         
-        # Add WebDAV browser frame
-        self.create_webdav_browser()  # Always show WebDAV browser
+        # Set up window close handler
+        self.window.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
     def create_gui(self):
         # Create main container with scrollbar
@@ -40,8 +40,10 @@ class GKInstallBuilder:
             "Project Name",
             "Base URL",
             "Version"
-            
         ])
+        
+        # Component-specific versions
+        self.create_component_versions()
         
         # Installation Configuration
         self.create_section("Installation Configuration", [
@@ -63,6 +65,9 @@ class GKInstallBuilder:
         # Output Directory
         self.create_output_selection()
         
+        # Status label for auto-save
+        self.create_status_label()
+        
         # Buttons
         self.create_buttons()
         
@@ -78,19 +83,46 @@ class GKInstallBuilder:
             font=("Helvetica", 16, "bold")
         ).pack(anchor="w", padx=10, pady=10)
         
+        # Field tooltips - descriptions of what each field is for
+        tooltips = {
+            "Project Name": "Name of your store project (e.g., 'Store123 Installation')",
+            "Base URL": "Base URL for the cloud retail environment (e.g., 'example.cloud4retail.co')",
+            "Version": "Version number of the installation (e.g., 'v1.0.0')",
+            "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail')",
+            "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
+            "POS System Type": "Type of Point of Sale system (e.g., 'GKR-OPOS-CLOUD')",
+            "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
+            "SSL Password": "Password for SSL certificate (default: 'changeit')",
+            "Username": "Username for authentication (e.g., 'launchpad')",
+            "Form Username": "Username for form authentication (e.g., '1001')",
+            "Basic Auth Password": "Password for basic authentication (click 🔑 to retrieve from KeePass)",
+            "Form Password": "Password for form authentication"
+        }
+        
         # Fields
         for field in fields:
             field_frame = ctk.CTkFrame(section_frame)
             field_frame.pack(fill="x", padx=10, pady=5)
             
-            ctk.CTkLabel(
+            # Label with tooltip
+            label = ctk.CTkLabel(
                 field_frame,
                 text=f"{field}:",
                 width=150
-            ).pack(side="left", padx=10)
+            )
+            label.pack(side="left", padx=10)
             
+            # Create tooltip for the label
+            if field in tooltips:
+                self.create_tooltip(label, tooltips[field])
+            
+            # Entry with tooltip
             entry = ctk.CTkEntry(field_frame, width=400)
             entry.pack(side="left", padx=10)
+            
+            # Also add tooltip to the entry
+            if field in tooltips:
+                self.create_tooltip(entry, tooltips[field])
             
             config_key = field.lower().replace(" ", "_")
             if config_key in self.config_manager.config:
@@ -111,53 +143,144 @@ class GKInstallBuilder:
                 self.form_password_entry = entry  # Store reference to this entry
                 # No KeePass button for Form Password
     
+    def create_component_versions(self):
+        # Create frame for component-specific versions
+        component_frame = ctk.CTkFrame(self.main_frame)
+        component_frame.pack(padx=10, pady=10, fill="x", expand=False)
+        
+        # Title
+        title_label = ctk.CTkLabel(component_frame, text="Component-Specific Versions", font=("Arial", 14, "bold"))
+        title_label.pack(padx=10, pady=(10, 5), anchor="w")
+        
+        # Description
+        desc_label = ctk.CTkLabel(component_frame, text="Specify versions for different component types (leave empty to use project version)")
+        desc_label.pack(padx=10, pady=(0, 10), anchor="w")
+        
+        # Create grid for version inputs
+        grid_frame = ctk.CTkFrame(component_frame)
+        grid_frame.pack(padx=10, pady=5, fill="x", expand=True)
+        
+        # Version override checkbox
+        self.version_override_var = ctk.BooleanVar(value=False)
+        override_checkbox = ctk.CTkCheckBox(
+            grid_frame, 
+            text="Enable Version Override", 
+            variable=self.version_override_var,
+            command=self.toggle_version_override
+        )
+        override_checkbox.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        self.create_tooltip(override_checkbox, "Enable to specify custom versions for each component type")
+        
+        # POS Version
+        pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
+        pos_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.pos_version_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.config_manager.register_entry("pos_version", self.pos_version_entry)
+        self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
+        self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
+        
+        # WDM Version
+        wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
+        wdm_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.wdm_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
+        self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
+        self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
+        
+        # Register the override checkbox with config manager
+        self.config_manager.register_entry("use_version_override", self.version_override_var)
+        
+        # Initialize state based on config
+        self.toggle_version_override()
+    
+    def toggle_version_override(self):
+        """Toggle the enabled state of version fields based on checkbox"""
+        enabled = self.version_override_var.get()
+        state = "normal" if enabled else "disabled"
+        
+        # Update entry states
+        self.pos_version_entry.configure(state=state)
+        self.wdm_version_entry.configure(state=state)
+    
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
         frame.pack(fill="x", padx=10, pady=(0, 20))
         
-        ctk.CTkLabel(
+        # Label with tooltip
+        label = ctk.CTkLabel(
             frame,
             text="Output Directory:",
             width=150
-        ).pack(side="left", padx=10)
+        )
+        label.pack(side="left", padx=10)
         
+        # Create tooltip for the label
+        self.create_tooltip(label, "Directory where generated installation files will be saved")
+        
+        # Entry with tooltip
         self.output_dir_entry = ctk.CTkEntry(frame, width=400)
         self.output_dir_entry.pack(side="left", padx=10)
         self.output_dir_entry.insert(0, self.config_manager.config["output_dir"])
         
-        ctk.CTkButton(
+        # Create tooltip for the entry
+        self.create_tooltip(self.output_dir_entry, "Directory where generated installation files will be saved")
+        
+        # Browse button with tooltip
+        browse_btn = ctk.CTkButton(
             frame,
             text="Browse",
             width=100,
             command=self.browse_output_dir
-        ).pack(side="left", padx=10)
+        )
+        browse_btn.pack(side="left", padx=10)
+        
+        # Create tooltip for the browse button
+        self.create_tooltip(browse_btn, "Select output directory")
         
         self.config_manager.register_entry("output_dir", self.output_dir_entry)
+    
+    def create_status_label(self):
+        """Create a status label for auto-save feedback"""
+        status_frame = ctk.CTkFrame(self.main_frame)
+        status_frame.pack(fill="x", padx=10, pady=(0, 5))
+        
+        # Create and configure the status label
+        self.save_status_label = ctk.CTkLabel(
+            status_frame,
+            text="",
+            font=("Helvetica", 12),
+            anchor="e"
+        )
+        self.save_status_label.pack(side="right", padx=10)
+        
+        # Register the status label with the config manager
+        self.config_manager.set_save_status_label(self.save_status_label)
     
     def create_buttons(self):
         button_frame = ctk.CTkFrame(self.main_frame)
         button_frame.pack(fill="x", padx=10, pady=20)
         
-        ctk.CTkButton(
-            button_frame,
-            text="Save Configuration",
-            width=200,
-            command=self.config_manager.save_config
-        ).pack(side="left", padx=10)
-        
-        ctk.CTkButton(
+        # Generate Project button with tooltip
+        generate_btn = ctk.CTkButton(
             button_frame,
             text="Generate Project",
             width=200,
             command=lambda: self.project_generator.generate(self.config_manager.config)
-        ).pack(side="left", padx=10)
+        )
+        generate_btn.pack(side="left", padx=10)
+        self.create_tooltip(generate_btn, "Generate installation scripts based on current configuration")
         
-        ctk.CTkButton(
+        # Offline Package Creator button with tooltip
+        offline_btn = ctk.CTkButton(
             button_frame,
-            text="Create Offline Package",
+            text="Offline Package Creator",
             width=200,
-            command=self.create_offline_package
-        ).pack(side="left", padx=10)
+            command=self.open_offline_package_creator
+        )
+        offline_btn.pack(side="left", padx=10)
+        self.create_tooltip(offline_btn, "Open the Offline Package Creator to download and create offline installation packages")
     
     def browse_output_dir(self):
         directory = ctk.filedialog.askdirectory(initialdir=".")
@@ -165,17 +288,58 @@ class GKInstallBuilder:
             self.output_dir_entry.delete(0, "end")
             self.output_dir_entry.insert(0, directory)
     
+    def on_window_close(self):
+        """Handle window close event"""
+        # Ensure all configuration is saved before exit
+        try:
+            # Update config from all entries
+            self.config_manager.update_config_from_entries()
+            
+            # Save configuration
+            if self.config_manager.save_config_silent():
+                # If save was successful, destroy the window
+                self.window.destroy()
+            else:
+                # If save failed, ask user if they want to exit anyway
+                if messagebox.askyesno("Save Failed", 
+                                      "Failed to save configuration. Exit anyway?"):
+                    self.window.destroy()
+        except Exception as e:
+            # If an error occurred, show error and ask if user wants to exit anyway
+            if messagebox.askyesno("Error", 
+                                  f"An error occurred while saving: {str(e)}\nExit anyway?"):
+                self.window.destroy()
+    
+    def open_offline_package_creator(self):
+        """Open the Offline Package Creator window"""
+        # Create a new toplevel window
+        self.offline_creator = OfflinePackageCreator(
+            parent=self.window,
+            config_manager=self.config_manager,
+            project_generator=self.project_generator
+        )
+    
     def create_webdav_browser(self):
         # Create WebDAV browser frame
         webdav_frame = ctk.CTkFrame(self.main_frame)
         webdav_frame.pack(fill="x", padx=10, pady=(0, 20))
         
         # Title
-        ctk.CTkLabel(
+        title_label = ctk.CTkLabel(
             webdav_frame,
             text="WebDAV Browser",
             font=("Helvetica", 16, "bold")
-        ).pack(anchor="w", padx=10, pady=10)
+        )
+        title_label.pack(anchor="w", padx=10, pady=10)
+        
+        # Description
+        description = ctk.CTkLabel(
+            webdav_frame,
+            text="Browse and download files from the WebDAV server.\n"
+                 "Connect to the server using your credentials and navigate to the desired files.",
+            justify="left"
+        )
+        description.pack(anchor="w", padx=10, pady=(0, 10))
         
         # Current path
         self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /")
@@ -188,38 +352,51 @@ class GKInstallBuilder:
         # Username
         username_frame = ctk.CTkFrame(auth_frame)
         username_frame.pack(side="left", padx=5)
-        ctk.CTkLabel(
+        username_label = ctk.CTkLabel(
             username_frame,
             text="Username:",
             width=100
-        ).pack(side="left")
+        )
+        username_label.pack(side="left")
+        
         self.webdav_username = ctk.CTkEntry(username_frame, width=150)
         self.webdav_username.pack(side="left", padx=5)
+        
         # Load saved username
         if self.config_manager.config["webdav_username"]:
             self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
         
+        # Register WebDAV username with config manager
+        self.config_manager.register_entry("webdav_username", self.webdav_username)
+        
         # Password
         password_frame = ctk.CTkFrame(auth_frame)
         password_frame.pack(side="left", padx=5)
-        ctk.CTkLabel(
+        password_label = ctk.CTkLabel(
             password_frame,
             text="Password:",
             width=100
-        ).pack(side="left")
+        )
+        password_label.pack(side="left")
+        
         self.webdav_password = ctk.CTkEntry(password_frame, width=150, show="*")
         self.webdav_password.pack(side="left", padx=5)
+        
         # Load saved password
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
+        
+        # Register WebDAV password with config manager
+        self.config_manager.register_entry("webdav_password", self.webdav_password)
             
-        # Connect button (removed KeePass button)
-        ctk.CTkButton(
+        # Connect button
+        connect_btn = ctk.CTkButton(
             auth_frame,
             text="Connect",
             width=100,
             command=self.connect_webdav
-        ).pack(side="left", padx=10)
+        )
+        connect_btn.pack(side="left", padx=10)
         
         # Status
         self.webdav_status = ctk.CTkLabel(
@@ -233,19 +410,21 @@ class GKInstallBuilder:
         nav_frame = ctk.CTkFrame(webdav_frame)
         nav_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkButton(
+        up_btn = ctk.CTkButton(
             nav_frame,
             text="Up",
             width=50,
             command=self.navigate_up
-        ).pack(side="left", padx=5)
+        )
+        up_btn.pack(side="left", padx=5)
         
-        ctk.CTkButton(
+        refresh_btn = ctk.CTkButton(
             nav_frame,
             text="Refresh",
             width=70,
             command=self.refresh_listing
-        ).pack(side="left", padx=5)
+        )
+        refresh_btn.pack(side="left", padx=5)
         
         # Directory listing
         self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=200)
@@ -264,10 +443,7 @@ class GKInstallBuilder:
             )
             return
         
-        # Save credentials to config
-        self.config_manager.config["webdav_username"] = username
-        self.config_manager.config["webdav_password"] = password
-        self.config_manager.save_config()
+        # No need to manually update config as the entries are registered for auto-save
         
         self.webdav = self.project_generator.create_webdav_browser(
             base_url,
@@ -339,53 +515,11 @@ class GKInstallBuilder:
             print("\nStarting offline package creation...")
             config = self.config_manager.config
             
-            # Create our own dialog window
-            dialog = ctk.CTkToplevel(self.window)
-            dialog.title("Select Components")
-            dialog.geometry("300x200")
-            
-            # Add label
-            ctk.CTkLabel(
-                dialog,
-                text="Which components would you like to download?"
-            ).pack(padx=20, pady=10)
-            
-            # Add checkboxes for components
-            pos_var = ctk.BooleanVar(value=True)
-            wdm_var = ctk.BooleanVar(value=True)
-            
-            ctk.CTkCheckBox(
-                dialog,
-                text="POS Component",
-                variable=pos_var
-            ).pack(padx=20, pady=10)
-            
-            ctk.CTkCheckBox(
-                dialog,
-                text="WDM Component",
-                variable=wdm_var
-            ).pack(padx=20, pady=10)
-            
-            # Add OK button
-            def on_ok():
-                dialog.quit()
-                dialog.destroy()
-                
-            ctk.CTkButton(
-                dialog,
-                text="OK",
-                command=on_ok
-            ).pack(padx=20, pady=20)
-            
-            # Wait for dialog
-            dialog.grab_set()  # Make dialog modal
-            dialog.wait_window()
-            
             # Get selected components
             selected_components = []
-            if pos_var.get():
+            if self.pos_var.get():
                 selected_components.append("POS")
-            if wdm_var.get():
+            if self.wdm_var.get():
                 selected_components.append("WDM")
             
             if not selected_components:
@@ -409,20 +543,12 @@ class GKInstallBuilder:
     
     def show_error(self, title, message):
         """Show error dialog"""
-        dialog = ctk.CTkInputDialog(
-            text=f"Error: {message}",
-            title=title
-        )
-        dialog.destroy()
+        messagebox.showerror(title, message)
 
     def show_info(self, title, message):
         """Show info dialog"""
-        dialog = ctk.CTkInputDialog(
-            text=message,
-            title=title
-        )
-        dialog.destroy()
-    
+        messagebox.showinfo(title, message)
+
     def get_basic_auth_password_from_keepass(self):
         """Open a dialog to get Basic Auth Password from KeePass"""
         # Create a toplevel window
@@ -930,8 +1056,349 @@ class GKInstallBuilder:
         for child in children:
             self.print_all_credentials(child, current_path)
 
+    def create_tooltip(self, widget, text):
+        """Create a tooltip for a widget"""
+        # This is a simple tooltip implementation
+        # When mouse enters the widget, show tooltip
+        def enter(event):
+            # Create a toplevel window for the tooltip
+            tooltip = ctk.CTkToplevel(self.window)
+            tooltip.wm_overrideredirect(True)  # Remove window decorations
+            tooltip.wm_geometry(f"+{event.x_root+15}+{event.y_root+10}")
+            
+            # Create a label with the tooltip text
+            label = ctk.CTkLabel(
+                tooltip,
+                text=text,
+                corner_radius=6,
+                fg_color=("#333333", "#666666"),  # Dark background
+                text_color=("#FFFFFF", "#FFFFFF"),  # White text
+                padx=10,
+                pady=5
+            )
+            label.pack()
+            
+            # Store the tooltip reference in the widget
+            widget.tooltip = tooltip
+            
+        # When mouse leaves the widget, hide tooltip
+        def leave(event):
+            if hasattr(widget, "tooltip"):
+                widget.tooltip.destroy()
+                delattr(widget, "tooltip")
+        
+        # Bind events
+        widget.bind("<Enter>", enter)
+        widget.bind("<Leave>", leave)
+
     def run(self):
         self.window.mainloop()
+
+# New class for the Offline Package Creator window
+class OfflinePackageCreator:
+    def __init__(self, parent, config_manager, project_generator):
+        self.window = ctk.CTkToplevel(parent)
+        self.window.title("Offline Package Creator")
+        self.window.geometry("1000x800")
+        self.window.transient(parent)  # Set to be on top of the parent window
+        
+        # Store references
+        self.config_manager = config_manager
+        self.project_generator = project_generator
+        
+        # Create main container with scrollbar
+        self.main_frame = ctk.CTkScrollableFrame(self.window, width=900, height=700)
+        self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        # Create WebDAV browser
+        self.create_webdav_browser()
+        
+        # Create offline package section
+        self.create_offline_package_section()
+    
+    def create_offline_package_section(self):
+        """Create the offline package creation section"""
+        # Create frame
+        frame = ctk.CTkFrame(self.main_frame)
+        frame.pack(fill="x", padx=10, pady=(20, 10))
+        
+        # Title
+        title_label = ctk.CTkLabel(
+            frame,
+            text="Create Offline Package",
+            font=("Helvetica", 16, "bold")
+        )
+        title_label.pack(anchor="w", padx=10, pady=10)
+        
+        # Description
+        description = ctk.CTkLabel(
+            frame,
+            text="Create an offline installation package that can be used without internet connection.\n"
+                 "Select the components you want to include in the package.",
+            justify="left"
+        )
+        description.pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # Component selection frame
+        component_frame = ctk.CTkFrame(frame)
+        component_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Add checkboxes for components
+        self.pos_var = ctk.BooleanVar(value=True)
+        self.wdm_var = ctk.BooleanVar(value=True)
+        
+        pos_checkbox = ctk.CTkCheckBox(
+            component_frame,
+            text="POS Component",
+            variable=self.pos_var
+        )
+        pos_checkbox.pack(side="left", padx=20, pady=10)
+        
+        wdm_checkbox = ctk.CTkCheckBox(
+            component_frame,
+            text="WDM Component",
+            variable=self.wdm_var
+        )
+        wdm_checkbox.pack(side="left", padx=20, pady=10)
+        
+        # Create button
+        create_btn = ctk.CTkButton(
+            frame,
+            text="Create Offline Package",
+            width=200,
+            command=self.create_offline_package
+        )
+        create_btn.pack(anchor="center", padx=10, pady=20)
+    
+    def create_webdav_browser(self):
+        # Create WebDAV browser frame
+        webdav_frame = ctk.CTkFrame(self.main_frame)
+        webdav_frame.pack(fill="x", padx=10, pady=(0, 20))
+        
+        # Title
+        title_label = ctk.CTkLabel(
+            webdav_frame,
+            text="WebDAV Browser",
+            font=("Helvetica", 16, "bold")
+        )
+        title_label.pack(anchor="w", padx=10, pady=10)
+        
+        # Description
+        description = ctk.CTkLabel(
+            webdav_frame,
+            text="Browse and download files from the WebDAV server.\n"
+                 "Connect to the server using your credentials and navigate to the desired files.",
+            justify="left"
+        )
+        description.pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # Current path
+        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /")
+        self.path_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Authentication frame
+        auth_frame = ctk.CTkFrame(webdav_frame)
+        auth_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Username
+        username_frame = ctk.CTkFrame(auth_frame)
+        username_frame.pack(side="left", padx=5)
+        username_label = ctk.CTkLabel(
+            username_frame,
+            text="Username:",
+            width=100
+        )
+        username_label.pack(side="left")
+        
+        self.webdav_username = ctk.CTkEntry(username_frame, width=150)
+        self.webdav_username.pack(side="left", padx=5)
+        
+        # Load saved username
+        if self.config_manager.config["webdav_username"]:
+            self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
+        
+        # Register WebDAV username with config manager
+        self.config_manager.register_entry("webdav_username", self.webdav_username)
+        
+        # Password
+        password_frame = ctk.CTkFrame(auth_frame)
+        password_frame.pack(side="left", padx=5)
+        password_label = ctk.CTkLabel(
+            password_frame,
+            text="Password:",
+            width=100
+        )
+        password_label.pack(side="left")
+        
+        self.webdav_password = ctk.CTkEntry(password_frame, width=150, show="*")
+        self.webdav_password.pack(side="left", padx=5)
+        
+        # Load saved password
+        if self.config_manager.config["webdav_password"]:
+            self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
+        
+        # Register WebDAV password with config manager
+        self.config_manager.register_entry("webdav_password", self.webdav_password)
+            
+        # Connect button
+        connect_btn = ctk.CTkButton(
+            auth_frame,
+            text="Connect",
+            width=100,
+            command=self.connect_webdav
+        )
+        connect_btn.pack(side="left", padx=10)
+        
+        # Status
+        self.webdav_status = ctk.CTkLabel(
+            auth_frame,
+            text="Not Connected",
+            text_color="red"
+        )
+        self.webdav_status.pack(side="left", padx=10)
+        
+        # Navigation buttons
+        nav_frame = ctk.CTkFrame(webdav_frame)
+        nav_frame.pack(fill="x", padx=10, pady=5)
+        
+        up_btn = ctk.CTkButton(
+            nav_frame,
+            text="Up",
+            width=50,
+            command=self.navigate_up
+        )
+        up_btn.pack(side="left", padx=5)
+        
+        refresh_btn = ctk.CTkButton(
+            nav_frame,
+            text="Refresh",
+            width=70,
+            command=self.refresh_listing
+        )
+        refresh_btn.pack(side="left", padx=5)
+        
+        # Directory listing
+        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=200)
+        self.dir_listbox.pack(fill="x", padx=10, pady=5)
+    
+    def connect_webdav(self):
+        """Handle WebDAV connection"""
+        base_url = self.config_manager.config["base_url"]
+        username = self.webdav_username.get()
+        password = self.webdav_password.get()
+        
+        if not all([base_url, username, password]):
+            self.webdav_status.configure(
+                text="Error: Base URL, username, and password are required",
+                text_color="red"
+            )
+            return
+        
+        # No need to manually update config as the entries are registered for auto-save
+        
+        self.webdav = self.project_generator.create_webdav_browser(
+            base_url,
+            username,
+            password
+        )
+        
+        success, message = self.webdav.connect()
+        
+        if success:
+            self.webdav_status.configure(text="Connected", text_color="green")
+            # Navigate to SoftwarePackage after successful connection
+            self.webdav.current_path = "/SoftwarePackage"
+            self.refresh_listing()
+        else:
+            self.webdav_status.configure(text=f"Connection failed: {message}", text_color="red")
+    
+    def refresh_listing(self):
+        """Refresh the current directory listing"""
+        try:
+            # Clear existing items
+            for widget in self.dir_listbox.winfo_children():
+                widget.destroy()
+            
+            # Get all items
+            items = self.webdav.list_directories(self.webdav.current_path)
+            
+            # Update path label
+            self.path_label.configure(text=f"Current Path: {self.webdav.current_path}")
+            
+            # Sort items - directories first, then files
+            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
+            
+            # Add buttons for directories and files
+            for item in items:
+                icon = "📁" if item['is_directory'] else "📄"
+                btn = ctk.CTkButton(
+                    self.dir_listbox,
+                    text=f"{icon} {item['name']}",
+                    anchor="w",
+                    command=lambda d=item['name'], is_dir=item['is_directory']: 
+                        self.handle_item_click(d, is_dir)
+                )
+                btn.pack(fill="x", padx=5, pady=2)
+        
+        except Exception as e:
+            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="red")
+    
+    def handle_item_click(self, name, is_directory):
+        """Handle clicking on an item"""
+        if is_directory:
+            self.enter_directory(name)
+    
+    def enter_directory(self, dirname):
+        """Enter a directory"""
+        new_path = os.path.join(self.webdav.current_path, dirname)
+        self.webdav.current_path = new_path
+        self.refresh_listing()
+    
+    def navigate_up(self):
+        """Navigate to parent directory"""
+        if self.webdav.current_path != "/":
+            self.webdav.current_path = os.path.dirname(self.webdav.current_path.rstrip('/'))
+            self.refresh_listing()
+    
+    def create_offline_package(self):
+        """Create offline installation package"""
+        try:
+            print("\nStarting offline package creation...")
+            config = self.config_manager.config
+            
+            # Get selected components
+            selected_components = []
+            if self.pos_var.get():
+                selected_components.append("POS")
+            if self.wdm_var.get():
+                selected_components.append("WDM")
+            
+            if not selected_components:
+                self.show_error("Error", "Please select at least one component")
+                return
+            
+            # Call prepare_offline_package with selected components
+            success, message = self.project_generator.prepare_offline_package(
+                config,
+                selected_components
+            )
+            
+            if success:
+                self.show_info("Success", message)
+            else:
+                self.show_error("Error", message)
+                
+        except Exception as e:
+            print(f"Error: {str(e)}")
+            self.show_error("Error", f"Failed to create offline package: {str(e)}")
+    
+    def show_error(self, title, message):
+        """Show error dialog"""
+        messagebox.showerror(title, message)
+
+    def show_info(self, title, message):
+        """Show info dialog"""
+        messagebox.showinfo(title, message)
 
 def main():
     app = GKInstallBuilder()

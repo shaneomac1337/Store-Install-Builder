@@ -147,40 +147,93 @@ class ProjectGenerator:
             os.makedirs(os.path.join(output_dir, "helper", dir_name), exist_ok=True)
 
     def _generate_gk_install(self, output_dir, config):
-        """Generate GKInstall.ps1 with replaced values"""
-        try:
-            with open('GKInstall.ps1', 'r') as f:
-                content = f.read()
-            
-            # Replace the base URL and other configurations
-            content = content.replace(
-                'test.cse.cloud4retail.co',
-                config['base_url']
-            )
-            content = content.replace(
-                '$version = "v1.0.0"',
-                f'$version = "{config["version"]}"'
-            )
-            content = content.replace(
-                '$base_install_dir = "C:\\gkretail"',
-                f'$base_install_dir = "{config["base_install_dir"]}"'
-            )
-            # Replace system types
-            content = content.replace(
-                '"GKR-OPOS-CLOUD"',
-                f'"{config["pos_system_type"]}"'
-            )
-            content = content.replace(
-                '"CSE-wdm"',
-                f'"{config["wdm_system_type"]}"'
-            )
-            
-            # Write the modified content
-            with open(os.path.join(output_dir, 'GKInstall.ps1'), 'w') as f:
-                f.write(content)
-                
-        except Exception as e:
-            raise Exception(f"Failed to generate GKInstall.ps1: {str(e)}")
+        """Generate GKInstall.ps1 script"""
+        # Read template
+        template_path = os.path.join(os.path.dirname(__file__), "templates", "GKInstall.ps1.template")
+        with open(template_path, "r") as f:
+            template = f.read()
+        
+        # Get component-specific versions
+        default_version = config.get("version", "v1.0.0")
+        use_version_override = config.get("use_version_override", False)
+        pos_version = config.get("pos_version", default_version)
+        wdm_version = config.get("wdm_version", default_version)
+        
+        # Replace placeholders
+        replacements = [
+            ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
+            ('$version = "v1.0.0"', f'$version = "{default_version}"'),
+            ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
+            ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
+            ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
+        ]
+        
+        # Add component-specific version replacements with simplified logic
+        version_config = f'''
+# Component-specific versions
+$use_version_override = ${str(use_version_override).lower()}
+$pos_version = "{pos_version}"
+$wdm_version = "{wdm_version}"
+
+# Function to get the correct version based on system type
+function Get-ComponentVersion {{
+    param($SystemType)
+    
+    # If version override is disabled, always use the default version
+    if (-not $use_version_override) {{
+        return $version
+    }}
+    
+    # If the system type doesn't have a specific version pattern, use the default version
+    if (-not $SystemType -or $SystemType -eq "") {{
+        return $version
+    }}
+    
+    switch -Regex ($SystemType) {{
+        # POS components (both GKR and standard)
+        "^.*POS.*|^.*OPOS.*" {{ return $pos_version }}
+        
+        # WDM components (both GKR and standard)
+        "^.*WDM.*|^.*wdm.*" {{ return $wdm_version }}
+        
+        # For any other system type, use the project version
+        default {{ return $version }}
+    }}
+}}
+'''
+        
+        # Find the position to insert the component-specific version config
+        basic_config_marker = "# Basic configuration"
+        template = template.replace(basic_config_marker, f"{basic_config_marker}\n{version_config}")
+        
+        # Update the download URL to use the component-specific version with fallback logic
+        download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
+        new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
+# If the component version is empty or null, fall back to the default version
+if ([string]::IsNullOrEmpty($component_version)) {
+    $component_version = $version
+}
+$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"'''
+        template = template.replace(download_url_line, new_download_url_line)
+        
+        # Update the version replacement in installation token with fallback logic
+        version_replacement_line = '$installationToken = $installationToken.Replace("@Version@", $version)'
+        new_version_replacement_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
+# If the component version is empty or null, fall back to the default version
+if ([string]::IsNullOrEmpty($component_version)) {
+    $component_version = $version
+}
+$installationToken = $installationToken.Replace("@Version@", $component_version)'''
+        template = template.replace(version_replacement_line, new_version_replacement_line)
+        
+        # Apply all replacements
+        for old, new in replacements:
+            template = template.replace(old, new)
+        
+        # Write to file
+        output_path = os.path.join(output_dir, "GKInstall.ps1")
+        with open(output_path, "w") as f:
+            f.write(template)
 
     def _generate_onboarding(self, output_dir, config):
         """Generate onboarding.ps1 with replaced values"""
@@ -325,11 +378,19 @@ class ProjectGenerator:
     def prepare_offline_package(self, config, selected_components):
         try:
             output_dir = config.get("output_dir", "generated_scripts")
-            version = config.get("version", "v1.0.0")
+            default_version = config.get("version", "v1.0.0")
+            use_version_override = config.get("use_version_override", False)
+            
+            # Get component-specific versions
+            pos_version = config.get("pos_version", default_version)
+            wdm_version = config.get("wdm_version", default_version)
             
             print(f"\nPreparing offline package:")
             print(f"Output dir: {output_dir}")
-            print(f"Version: {version}")
+            print(f"Default version: {default_version}")
+            print(f"Version override enabled: {use_version_override}")
+            print(f"POS version: {pos_version}")
+            print(f"WDM version: {wdm_version}")
             print(f"Selected components: {selected_components}")
             
             # Initialize WebDAV browser if not already initialized
@@ -347,6 +408,25 @@ class ProjectGenerator:
             
             downloaded_files = []
             
+            # Helper function to determine the correct version to use
+            def get_component_version(system_type):
+                # If version override is disabled, always use the default version
+                if not use_version_override:
+                    return default_version
+                
+                # If system type is empty, use default version
+                if not system_type or system_type == "":
+                    return default_version
+                
+                # Check system type patterns - simplified to just POS and WDM
+                if "POS" in system_type or "OPOS" in system_type:
+                    return pos_version
+                elif "WDM" in system_type or "wdm" in system_type:
+                    return wdm_version
+                else:
+                    # For any other system type, use the project version
+                    return default_version
+            
             # Download components
             if "POS" in selected_components:
                 pos_dir = os.path.join(output_dir, "offline_package_POS")
@@ -354,8 +434,15 @@ class ProjectGenerator:
                 print(f"Output directory: {pos_dir}")
                 os.makedirs(pos_dir, exist_ok=True)
                 
+                # Determine system type and version
+                pos_system_type = config.get("pos_system_type", "CSE-OPOS-CLOUD")
+                version_to_use = get_component_version(pos_system_type)
+                
+                print(f"Using system type: {pos_system_type}")
+                print(f"Using version: {version_to_use}")
+                
                 # Navigate to version directory
-                pos_version_path = f"/SoftwarePackage/CSE-OPOS-CLOUD/{version}"
+                pos_version_path = f"/SoftwarePackage/{pos_system_type}/{version_to_use}"
                 print(f"Checking version directory: {pos_version_path}")
                 
                 try:
@@ -388,8 +475,15 @@ class ProjectGenerator:
                 print(f"Output directory: {wdm_dir}")
                 os.makedirs(wdm_dir, exist_ok=True)
                 
+                # Determine system type and version
+                wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
+                version_to_use = get_component_version(wdm_system_type)
+                
+                print(f"Using system type: {wdm_system_type}")
+                print(f"Using version: {version_to_use}")
+                
                 # Navigate to version directory
-                wdm_version_path = f"/SoftwarePackage/CSE-wdm/{version}"
+                wdm_version_path = f"/SoftwarePackage/{wdm_system_type}/{version_to_use}"
                 print(f"Checking version directory: {wdm_version_path}")
                 
                 try:
