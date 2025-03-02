@@ -1845,17 +1845,28 @@ class GKInstallBuilder:
 
     def create_tooltip(self, widget, text):
         """Create a tooltip for a widget"""
-        # This is a simple tooltip implementation
-        # When mouse enters the widget, show tooltip
-        def enter(event):
+        # Improved tooltip implementation with delay and better cleanup
+        tooltip_id = None  # For tracking the scheduled tooltip
+        tooltip_window = None  # For tracking the tooltip window
+        
+        def show_tooltip(x, y):
+            nonlocal tooltip_window
+            # If there's already a tooltip showing, destroy it first
+            if tooltip_window is not None:
+                try:
+                    tooltip_window.destroy()
+                except:
+                    pass
+            
             # Create a toplevel window for the tooltip
-            tooltip = ctk.CTkToplevel(self.window)
-            tooltip.wm_overrideredirect(True)  # Remove window decorations
-            tooltip.wm_geometry(f"+{event.x_root+15}+{event.y_root+10}")
+            tooltip_window = ctk.CTkToplevel(self.window)
+            tooltip_window.wm_overrideredirect(True)  # Remove window decorations
+            tooltip_window.wm_geometry(f"+{x+15}+{y+10}")
+            tooltip_window.attributes("-topmost", True)  # Keep tooltip on top
             
             # Create a label with the tooltip text
             label = ctk.CTkLabel(
-                tooltip,
+                tooltip_window,
                 text=text,
                 corner_radius=6,
                 fg_color=("#333333", "#666666"),  # Dark background
@@ -1866,17 +1877,49 @@ class GKInstallBuilder:
             label.pack()
             
             # Store the tooltip reference in the widget
-            widget.tooltip = tooltip
+            widget._tooltip_window = tooltip_window
+        
+        # When mouse enters the widget, schedule tooltip display
+        def enter(event):
+            nonlocal tooltip_id
+            # Cancel any existing scheduled tooltip
+            if tooltip_id is not None:
+                widget.after_cancel(tooltip_id)
+                tooltip_id = None
             
-        # When mouse leaves the widget, hide tooltip
+            # Schedule new tooltip with a small delay (300ms)
+            tooltip_id = widget.after(300, lambda: show_tooltip(event.x_root, event.y_root))
+            
+        # When mouse leaves the widget, cancel scheduled tooltip and hide existing one
         def leave(event):
-            if hasattr(widget, "tooltip"):
-                widget.tooltip.destroy()
-                delattr(widget, "tooltip")
+            nonlocal tooltip_id, tooltip_window
+            # Cancel any scheduled tooltip
+            if tooltip_id is not None:
+                widget.after_cancel(tooltip_id)
+                tooltip_id = None
+            
+            # Destroy any existing tooltip
+            if tooltip_window is not None:
+                try:
+                    tooltip_window.destroy()
+                except:
+                    pass
+                tooltip_window = None
+            
+            # Also check for the old tooltip attribute for backward compatibility
+            if hasattr(widget, "_tooltip_window"):
+                try:
+                    widget._tooltip_window.destroy()
+                except:
+                    pass
+                delattr(widget, "_tooltip_window")
         
         # Bind events
         widget.bind("<Enter>", enter)
         widget.bind("<Leave>", leave)
+        
+        # Also bind to window close to ensure tooltips are cleaned up
+        self.window.bind("<Destroy>", lambda e: leave(e), add="+")
 
     def run(self):
         self.window.mainloop()
