@@ -11,6 +11,11 @@ from urllib.parse import unquote
 import requests
 import logging
 from string import Template
+from urllib3.exceptions import InsecureRequestWarning
+import urllib3
+
+# Disable insecure request warnings
+urllib3.disable_warnings(InsecureRequestWarning)
 
 class WebDAVBrowser:
     def __init__(self, base_url, username=None, password=None):
@@ -116,7 +121,7 @@ class ProjectGenerator:
             ]
         }
         self.webdav_browser = None
-        self.window = parent_window  # Store window reference
+        self.parent_window = parent_window  # Rename to parent_window for consistency
 
     def create_webdav_browser(self, base_url, username=None, password=None):
         """Create a new WebDAV browser instance"""
@@ -472,8 +477,12 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
         )
         dialog.destroy()
 
-    def prepare_offline_package(self, config, selected_components):
+    def prepare_offline_package(self, config, selected_components, dialog_parent=None):
         try:
+            import threading
+            import queue
+            import time
+            
             output_dir = config.get("output_dir", "generated_scripts")
             default_version = config.get("version", "v1.0.0")
             use_version_override = config.get("use_version_override", False)
@@ -503,7 +512,10 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     raise Exception(f"Failed to connect to WebDAV: {message}")
                 print("WebDAV connection successful")
             
+            # Create a queue for download results
+            download_queue = queue.Queue()
             downloaded_files = []
+            download_errors = []
             
             # Helper function to determine the correct version to use
             def get_component_version(system_type):
@@ -524,7 +536,265 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     # For any other system type, use the project version
                     return default_version
             
-            # Download components
+            # Helper function to download a file in a separate thread
+            def download_file_thread(remote_path, local_path, file_name, component_type):
+                try:
+                    print(f"\nDownloading {file_name}...")
+                    
+                    # Get the full URL for the file
+                    webdav_url = f"{self.webdav_browser.options['webdav_hostname']}{remote_path}"
+                    auth = (self.webdav_browser.username, self.webdav_browser.password)
+                    
+                    # Use requests with streaming to track progress
+                    with requests.get(webdav_url, auth=auth, stream=True, verify=False) as response:
+                        response.raise_for_status()
+                        
+                        # Get total file size if available
+                        total_size = int(response.headers.get('content-length', 0))
+                        
+                        # Initial progress update
+                        download_queue.put(("progress", (file_name, component_type, 0, total_size)))
+                        
+                        # Open local file for writing
+                        with open(local_path, 'wb') as f:
+                            downloaded = 0
+                            last_update_time = time.time()
+                            
+                            # Download in chunks and update progress
+                            for chunk in response.iter_content(chunk_size=8192):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    
+                                    # Update progress every 0.1 seconds to avoid flooding the queue
+                                    current_time = time.time()
+                                    if current_time - last_update_time > 0.1:
+                                        download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
+                                        last_update_time = current_time
+                            
+                            # Final progress update
+                            download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
+                    
+                    print(f"Successfully downloaded to {local_path}")
+                    download_queue.put(("success", f"{component_type}: {file_name}"))
+                except Exception as e:
+                    print(f"Error downloading {file_name}: {e}")
+                    download_queue.put(("error", f"Failed to download {file_name}: {str(e)}"))
+            
+            # Helper function to create a progress dialog
+            def create_progress_dialog(parent, total_files):
+                import customtkinter as ctk
+                
+                progress_dialog = ctk.CTkToplevel(parent)
+                progress_dialog.title("Downloading Files")
+                progress_dialog.geometry("500x400")
+                progress_dialog.transient(parent)
+                progress_dialog.grab_set()
+                progress_dialog.attributes("-topmost", True)
+                progress_dialog.focus_force()
+                
+                # Title
+                ctk.CTkLabel(
+                    progress_dialog,
+                    text="Downloading Files",
+                    font=("Helvetica", 16, "bold")
+                ).pack(pady=(20, 10), padx=20)
+                
+                # Progress frame
+                progress_frame = ctk.CTkFrame(progress_dialog)
+                progress_frame.pack(fill="both", expand=True, padx=20, pady=10)
+                
+                # Overall progress bar
+                ctk.CTkLabel(
+                    progress_frame,
+                    text="Overall Progress:",
+                    font=("Helvetica", 12)
+                ).pack(pady=(10, 5), padx=10, anchor="w")
+                
+                progress_bar = ctk.CTkProgressBar(progress_frame, width=450)
+                progress_bar.pack(pady=(0, 10), padx=10)
+                progress_bar.set(0)
+                
+                # Files progress label
+                files_label = ctk.CTkLabel(
+                    progress_frame,
+                    text=f"0/{total_files} files completed",
+                    font=("Helvetica", 12)
+                )
+                files_label.pack(pady=(0, 10), padx=10)
+                
+                # Current file progress
+                ctk.CTkLabel(
+                    progress_frame,
+                    text="Current File Progress:",
+                    font=("Helvetica", 12)
+                ).pack(pady=(5, 5), padx=10, anchor="w")
+                
+                current_file_label = ctk.CTkLabel(
+                    progress_frame,
+                    text="Waiting to start...",
+                    font=("Helvetica", 12)
+                )
+                current_file_label.pack(pady=(0, 5), padx=10)
+                
+                current_file_progress = ctk.CTkProgressBar(progress_frame, width=450)
+                current_file_progress.pack(pady=(0, 10), padx=10)
+                current_file_progress.set(0)
+                
+                # Create a scrollable frame for the log
+                log_frame = ctk.CTkScrollableFrame(progress_frame, width=450, height=120)
+                log_frame.pack(fill="both", expand=True, padx=10, pady=10)
+                
+                # Log label
+                log_label = ctk.CTkLabel(
+                    log_frame,
+                    text="",
+                    font=("Helvetica", 10),
+                    justify="left",
+                    wraplength=430
+                )
+                log_label.pack(anchor="w", pady=5, padx=5)
+                
+                return progress_dialog, progress_bar, files_label, current_file_label, current_file_progress, log_label
+            
+            # Helper function to prompt user for file selection when multiple JAR files are found
+            def prompt_for_file_selection(files, component_type):
+                import customtkinter as ctk
+                import tkinter as tk
+                
+                # Filter for JAR and EXE files
+                installable_files = [file for file in files if not file['is_directory'] and 
+                                    (file['name'].endswith('.jar') or file['name'].endswith('.exe'))]
+                
+                # Separate Launcher.exe from other files
+                launcher_files = [file for file in installable_files if file['name'] == 'Launcher.exe']
+                other_files = [file for file in installable_files if file['name'] != 'Launcher.exe']
+                
+                # If only Launcher.exe or no files, return all files directly
+                if len(other_files) == 0:
+                    return installable_files
+                
+                # If only one non-Launcher file (plus possibly Launcher.exe), return all files
+                if len(other_files) == 1:
+                    return installable_files
+                
+                # Create a dialog to select files
+                # Use the dialog_parent if provided, otherwise use self.parent_window, or create a new root
+                parent = dialog_parent or self.parent_window
+                if parent:
+                    dialog = ctk.CTkToplevel(parent)
+                    dialog.transient(parent)  # Make it transient to the parent
+                else:
+                    # Create a temporary root window if no parent is available
+                    temp_root = tk.Tk()
+                    temp_root.withdraw()  # Hide the temporary root
+                    dialog = ctk.CTkToplevel(temp_root)
+                
+                dialog.title(f"Select {component_type} Installer")
+                dialog.geometry("500x400")
+                dialog.attributes("-topmost", True)
+                
+                # Make dialog modal
+                dialog.focus_force()
+                dialog.grab_set()
+                
+                # Title and description
+                ctk.CTkLabel(
+                    dialog, 
+                    text=f"Multiple {component_type} Installers Detected",
+                    font=("Helvetica", 16, "bold")
+                ).pack(pady=(20, 5), padx=20)
+                
+                ctk.CTkLabel(
+                    dialog, 
+                    text="Please select which installer(s) you want to download:",
+                    font=("Helvetica", 12)
+                ).pack(pady=(0, 20), padx=20)
+                
+                # If Launcher.exe exists, show a message that it will be downloaded automatically
+                if launcher_files:
+                    launcher_label = ctk.CTkLabel(
+                        dialog,
+                        text="Note: Launcher.exe will be downloaded automatically",
+                        font=("Helvetica", 12, "italic"),
+                        text_color="gray"
+                    )
+                    launcher_label.pack(pady=(0, 10), padx=20)
+                
+                # Create a scrollable frame for the checkboxes
+                scroll_frame = ctk.CTkScrollableFrame(dialog, width=450, height=200)
+                scroll_frame.pack(fill="both", expand=True, padx=20, pady=10)
+                
+                # Create variables to track selections
+                selected_vars = {}
+                for file in other_files:  # Only show checkboxes for non-Launcher files
+                    var = ctk.BooleanVar(value=True)  # Default to selected
+                    selected_vars[file['name']] = var
+                    checkbox = ctk.CTkCheckBox(
+                        scroll_frame, 
+                        text=file['name'], 
+                        variable=var,
+                        checkbox_width=20,
+                        checkbox_height=20
+                    )
+                    checkbox.pack(anchor="w", pady=5, padx=10)
+                
+                # Result variable
+                result = []
+                
+                # OK button handler
+                def on_ok():
+                    nonlocal result
+                    # Always include Launcher.exe files
+                    result = launcher_files.copy()
+                    # Add selected non-Launcher files
+                    result.extend([file for file in other_files if selected_vars[file['name']].get()])
+                    dialog.destroy()
+                    if not parent:
+                        temp_root.destroy()  # Clean up the temporary root if we created one
+                
+                # Cancel button handler
+                def on_cancel():
+                    nonlocal result
+                    # Always include Launcher.exe files even on cancel
+                    result = launcher_files.copy()
+                    dialog.destroy()
+                    if not parent:
+                        temp_root.destroy()  # Clean up the temporary root if we created one
+                
+                # Buttons
+                button_frame = ctk.CTkFrame(dialog)
+                button_frame.pack(fill="x", pady=20, padx=20)
+                
+                ctk.CTkButton(
+                    button_frame, 
+                    text="Cancel", 
+                    command=on_cancel, 
+                    width=100,
+                    fg_color="#555555",
+                    hover_color="#333333"
+                ).pack(side="left", padx=10)
+                
+                ctk.CTkButton(
+                    button_frame, 
+                    text="Download Selected", 
+                    command=on_ok, 
+                    width=150
+                ).pack(side="right", padx=10)
+                
+                # Wait for the dialog to close
+                if parent:
+                    parent.wait_window(dialog)
+                else:
+                    # If we don't have a parent window, use a different approach
+                    dialog.wait_window()
+                
+                return result
+            
+            # Collect all files to download first
+            files_to_download = []
+            
+            # Process POS component
             if "POS" in selected_components:
                 pos_dir = os.path.join(output_dir, "offline_package_POS")
                 print(f"\nProcessing POS component...")
@@ -546,26 +816,21 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     files = self.webdav_browser.list_directories(pos_version_path)
                     print(f"Found files: {files}")
                     
-                    # Download files
-                    for file in files:
-                        if not file['is_directory']:
-                            file_name = file['name']
-                            if file_name.endswith('.exe') or file_name.endswith('.jar'):
-                                print(f"\nDownloading {file_name}...")
-                                remote_path = f"{pos_version_path}/{file_name}"
-                                local_path = os.path.join(pos_dir, file_name)
-                                
-                                try:
-                                    self.webdav_browser.client.download(remote_path, local_path)
-                                    print(f"Successfully downloaded to {local_path}")
-                                    downloaded_files.append(f"POS: {file_name}")
-                                except Exception as e:
-                                    print(f"Error downloading {file_name}: {e}")
+                    # Prompt user to select files if multiple JAR/EXE files are found
+                    selected_files = prompt_for_file_selection(files, "POS")
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{pos_version_path}/{file_name}"
+                        local_path = os.path.join(pos_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, "POS"))
                 
                 except Exception as e:
                     print(f"Error accessing POS version directory: {e}")
                     raise
             
+            # Process WDM component
             if "WDM" in selected_components:
                 wdm_dir = os.path.join(output_dir, "offline_package_WDM")
                 print(f"\nProcessing WDM component...")
@@ -587,33 +852,147 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     files = self.webdav_browser.list_directories(wdm_version_path)
                     print(f"Found files: {files}")
                     
-                    # Download files
-                    for file in files:
-                        if not file['is_directory']:
-                            file_name = file['name']
-                            if file_name.endswith('.exe') or file_name.endswith('.jar'):
-                                print(f"\nDownloading {file_name}...")
-                                remote_path = f"{wdm_version_path}/{file_name}"
-                                local_path = os.path.join(wdm_dir, file_name)
-                                
-                                try:
-                                    self.webdav_browser.client.download(remote_path, local_path)
-                                    print(f"Successfully downloaded to {local_path}")
-                                    downloaded_files.append(f"WDM: {file_name}")
-                                except Exception as e:
-                                    print(f"Error downloading {file_name}: {e}")
+                    # Prompt user to select files if multiple JAR/EXE files are found
+                    selected_files = prompt_for_file_selection(files, "WDM")
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{wdm_version_path}/{file_name}"
+                        local_path = os.path.join(wdm_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, "WDM"))
                 
                 except Exception as e:
                     print(f"Error accessing WDM version directory: {e}")
                     raise
             
+            # If no files to download, return
+            if not files_to_download:
+                return False, "No files were selected for download"
+            
+            # Create progress dialog
+            parent = dialog_parent or self.parent_window
+            if parent:
+                progress_dialog, progress_bar, files_label, current_file_label, current_file_progress, log_label = create_progress_dialog(parent, len(files_to_download))
+            
+            # Start download threads
+            download_threads = []
+            for remote_path, local_path, file_name, component_type in files_to_download:
+                thread = threading.Thread(
+                    target=download_file_thread,
+                    args=(remote_path, local_path, file_name, component_type)
+                )
+                thread.daemon = True
+                download_threads.append(thread)
+                thread.start()
+            
+            # Update progress while downloads are running
+            if parent:
+                log_text = ""
+                completed_files = 0
+                file_progress = {}  # Track progress for each file
+                total_bytes = 0
+                downloaded_bytes = 0
+                
+                # Calculate total bytes if available
+                for _, _, file_name, _ in files_to_download:
+                    file_progress[file_name] = (0, 0)  # (downloaded, total)
+                
+                while completed_files < len(files_to_download):
+                    try:
+                        # Check for new download results
+                        while not download_queue.empty():
+                            status, data = download_queue.get_nowait()
+                            
+                            if status == "progress":
+                                # Update file progress
+                                file_name, component_type, downloaded, total = data
+                                file_progress[file_name] = (downloaded, total)
+                                
+                                # Update current file progress bar and label
+                                if total > 0:
+                                    current_file_progress.set(downloaded / total)
+                                    size_mb = total / (1024 * 1024)
+                                    downloaded_mb = downloaded / (1024 * 1024)
+                                    current_file_label.configure(
+                                        text=f"Downloading {component_type}: {file_name} - {downloaded_mb:.2f} MB / {size_mb:.2f} MB"
+                                    )
+                                else:
+                                    current_file_progress.set(0)
+                                    current_file_label.configure(
+                                        text=f"Downloading {component_type}: {file_name} - Size unknown"
+                                    )
+                                
+                                # Calculate overall progress based on all files
+                                total_bytes = sum(total for _, total in file_progress.values())
+                                downloaded_bytes = sum(downloaded for downloaded, _ in file_progress.values())
+                                
+                                if total_bytes > 0:
+                                    overall_progress = downloaded_bytes / total_bytes
+                                    progress_bar.set(overall_progress)
+                            
+                            elif status == "success":
+                                downloaded_files.append(data)
+                                log_text += f"✓ {data}\n"
+                                completed_files += 1
+                                
+                                # Update files counter
+                                files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                                
+                                # Reset current file progress for the next file
+                                current_file_progress.set(0)
+                                if completed_files == len(files_to_download):
+                                    current_file_label.configure(text="All downloads complete!")
+                                else:
+                                    current_file_label.configure(text="Waiting for next file...")
+                            
+                            else:  # error
+                                download_errors.append(data)
+                                log_text += f"✗ {data}\n"
+                                completed_files += 1
+                                
+                                # Update files counter
+                                files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                            
+                            # Update log
+                            log_label.configure(text=log_text)
+                        
+                        # Update UI
+                        parent.update()
+                        time.sleep(0.05)
+                        
+                    except Exception as e:
+                        print(f"Error updating progress: {e}")
+                
+                # Wait a moment before closing the progress dialog
+                time.sleep(1)
+                progress_dialog.destroy()
+            else:
+                # If no parent window, just wait for all threads to complete
+                for thread in download_threads:
+                    thread.join()
+                
+                # Process all download results
+                while not download_queue.empty():
+                    status, data = download_queue.get()
+                    if status == "success":
+                        downloaded_files.append(data)
+                    elif status == "error":
+                        download_errors.append(data)
+                    # Ignore progress updates when no UI
+            
             # Create summary
             if downloaded_files:
                 success_message = "Downloaded files:\n" + "\n".join(downloaded_files)
+                if download_errors:
+                    success_message += "\n\nErrors:\n" + "\n".join(download_errors)
                 success_message += f"\n\nFiles saved in: {output_dir}"
                 return True, success_message
             else:
-                return False, "No files were downloaded"
+                error_message = "No files were downloaded successfully"
+                if download_errors:
+                    error_message += "\n\nErrors:\n" + "\n".join(download_errors)
+                return False, error_message
             
         except Exception as e:
             print(f"\nError in prepare_offline_package: {str(e)}")
