@@ -1274,10 +1274,11 @@ class GKInstallBuilder:
                 self.show_error("Error", "Please select at least one component")
                 return
             
-            # Call prepare_offline_package with selected components
+            # Call prepare_offline_package with selected components and pass the window as dialog_parent
             success, message = self.project_generator.prepare_offline_package(
                 config,
-                selected_components
+                selected_components,
+                dialog_parent=self.window  # Pass the window as dialog_parent
             )
             
             if success:
@@ -2214,10 +2215,11 @@ class OfflinePackageCreator:
                 self.show_error("Error", "Please select at least one component")
                 return
             
-            # Call prepare_offline_package with selected components
+            # Call prepare_offline_package with selected components and pass the window as dialog_parent
             success, message = self.project_generator.prepare_offline_package(
                 config,
-                selected_components
+                selected_components,
+                dialog_parent=self.window  # Pass the window as dialog_parent
             )
             
             if success:
