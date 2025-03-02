@@ -477,6 +477,98 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
         )
         dialog.destroy()
 
+    def _ask_download_dependencies_only(self, component_type, parent=None, error_message=None):
+        """Ask user if they want to download dependencies even if component files are not found"""
+        import customtkinter as ctk
+        import tkinter as tk
+        
+        # Create message based on whether there was an error or just no files found
+        if error_message:
+            message = f"{component_type} files could not be accessed: {error_message}\n\nWould you like to download Java and Tomcat dependencies anyway?"
+        else:
+            message = f"No {component_type} files were found.\n\nWould you like to download Java and Tomcat dependencies anyway?"
+        
+        # Use the parent if provided, otherwise use self.parent_window, or create a new root
+        parent_window = parent or self.parent_window
+        if parent_window:
+            dialog = ctk.CTkToplevel(parent_window)
+            dialog.transient(parent_window)  # Make it transient to the parent
+        else:
+            # Create a temporary root window if no parent is available
+            temp_root = tk.Tk()
+            temp_root.withdraw()  # Hide the temporary root
+            dialog = ctk.CTkToplevel(temp_root)
+        
+        dialog.title(f"{component_type} Files Not Found")
+        dialog.geometry("500x200")
+        dialog.attributes("-topmost", True)
+        
+        # Make dialog modal
+        dialog.focus_force()
+        dialog.grab_set()
+        
+        # Result variable
+        result = False
+        
+        # Title and message
+        ctk.CTkLabel(
+            dialog, 
+            text=f"{component_type} Files Not Found",
+            font=("Helvetica", 16, "bold")
+        ).pack(pady=(20, 5), padx=20)
+        
+        ctk.CTkLabel(
+            dialog, 
+            text=message,
+            font=("Helvetica", 12),
+            wraplength=450
+        ).pack(pady=(0, 20), padx=20)
+        
+        # Yes button handler
+        def on_yes():
+            nonlocal result
+            result = True
+            dialog.destroy()
+            if not parent_window:
+                temp_root.destroy()  # Clean up the temporary root if we created one
+        
+        # No button handler
+        def on_no():
+            nonlocal result
+            result = False
+            dialog.destroy()
+            if not parent_window:
+                temp_root.destroy()  # Clean up the temporary root if we created one
+        
+        # Buttons
+        button_frame = ctk.CTkFrame(dialog)
+        button_frame.pack(fill="x", pady=20, padx=20)
+        
+        ctk.CTkButton(
+            button_frame, 
+            text="No", 
+            command=on_no, 
+            width=100,
+            fg_color="#555555",
+            hover_color="#333333"
+        ).pack(side="left", padx=10)
+        
+        ctk.CTkButton(
+            button_frame, 
+            text="Yes, Download Dependencies", 
+            command=on_yes, 
+            width=200
+        ).pack(side="right", padx=10)
+        
+        # Wait for the dialog to close
+        if parent_window:
+            parent_window.wait_window(dialog)
+        else:
+            # If we don't have a parent window, use a different approach
+            dialog.wait_window()
+        
+        return result
+
     def prepare_offline_package(self, config, selected_components, dialog_parent=None):
         try:
             import threading
@@ -491,6 +583,9 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             pos_version = config.get("pos_version", default_version)
             wdm_version = config.get("wdm_version", default_version)
             
+            # Get component dependencies
+            component_dependencies = config.get("component_dependencies", {})
+            
             print(f"\nPreparing offline package:")
             print(f"Output dir: {output_dir}")
             print(f"Default version: {default_version}")
@@ -498,6 +593,7 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             print(f"POS version: {pos_version}")
             print(f"WDM version: {wdm_version}")
             print(f"Selected components: {selected_components}")
+            print(f"Component dependencies: {component_dependencies}")
             
             # Initialize WebDAV browser if not already initialized
             if not self.webdav_browser:
@@ -658,24 +754,40 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 return progress_dialog, progress_bar, files_label, current_file_label, current_file_progress, log_label
             
             # Helper function to prompt user for file selection when multiple JAR files are found
-            def prompt_for_file_selection(files, component_type):
+            def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None):
                 import customtkinter as ctk
                 import tkinter as tk
                 
-                # Filter for JAR and EXE files
-                installable_files = [file for file in files if not file['is_directory'] and 
-                                    (file['name'].endswith('.jar') or file['name'].endswith('.exe'))]
+                # Use custom title and description if provided
+                title = title or f"Select {component_type} Installer"
+                description = description or f"Please select which installer(s) you want to download:"
                 
-                # Separate Launcher.exe from other files
-                launcher_files = [file for file in installable_files if file['name'] == 'Launcher.exe']
-                other_files = [file for file in installable_files if file['name'] != 'Launcher.exe']
+                # Filter for appropriate file types
+                if file_type == "zip":
+                    installable_files = [file for file in files if not file['is_directory'] and 
+                                        file['name'].endswith('.zip')]
+                else:
+                    installable_files = [file for file in files if not file['is_directory'] and 
+                                        (file['name'].endswith('.jar') or file['name'].endswith('.exe'))]
+                
+                # Separate Launcher.exe from other files (only for regular components)
+                if file_type != "zip":
+                    launcher_files = [file for file in installable_files if file['name'] == 'Launcher.exe']
+                    other_files = [file for file in installable_files if file['name'] != 'Launcher.exe']
+                else:
+                    launcher_files = []
+                    other_files = installable_files
+                
+                # If no files found, return empty list
+                if len(installable_files) == 0:
+                    return []
                 
                 # If only Launcher.exe or no files, return all files directly
-                if len(other_files) == 0:
+                if file_type != "zip" and len(other_files) == 0:
                     return installable_files
                 
-                # If only one non-Launcher file (plus possibly Launcher.exe), return all files
-                if len(other_files) == 1:
+                # If only one file (and it's not a dependency), return it directly
+                if file_type != "zip" and len(other_files) == 1:
                     return installable_files
                 
                 # Create a dialog to select files
@@ -690,7 +802,7 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     temp_root.withdraw()  # Hide the temporary root
                     dialog = ctk.CTkToplevel(temp_root)
                 
-                dialog.title(f"Select {component_type} Installer")
+                dialog.title(title)
                 dialog.geometry("500x400")
                 dialog.attributes("-topmost", True)
                 
@@ -701,13 +813,13 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 # Title and description
                 ctk.CTkLabel(
                     dialog, 
-                    text=f"Multiple {component_type} Installers Detected",
+                    text=title,
                     font=("Helvetica", 16, "bold")
                 ).pack(pady=(20, 5), padx=20)
                 
                 ctk.CTkLabel(
                     dialog, 
-                    text="Please select which installer(s) you want to download:",
+                    text=description,
                     font=("Helvetica", 12)
                 ).pack(pady=(0, 20), padx=20)
                 
@@ -725,10 +837,54 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 scroll_frame = ctk.CTkScrollableFrame(dialog, width=450, height=200)
                 scroll_frame.pack(fill="both", expand=True, padx=20, pady=10)
                 
+                # Find the latest version (assuming version numbers are in the filenames)
+                # This is a simple heuristic - we'll try to find the file with the highest version number
+                latest_file = None
+                
+                # First, try to find files with version numbers in format x.y.z
+                import re
+                version_pattern = re.compile(r'(\d+\.\d+\.\d+)')
+                versioned_files = []
+                
+                for file in other_files:
+                    match = version_pattern.search(file['name'])
+                    if match:
+                        version = match.group(1)
+                        versioned_files.append((file, version))
+                
+                if versioned_files:
+                    # Sort by version number (as string, which works for simple version formats)
+                    versioned_files.sort(key=lambda x: [int(n) for n in x[1].split('.')])
+                    latest_file = versioned_files[-1][0]  # Get the file with the highest version
+                
+                # If no versioned files found, try to use date in filename or just pick the last file
+                if not latest_file:
+                    # Try to find date patterns (YYYYMMDD or similar)
+                    date_pattern = re.compile(r'(\d{8}|\d{6})')
+                    dated_files = []
+                    
+                    for file in other_files:
+                        match = date_pattern.search(file['name'])
+                        if match:
+                            date = match.group(1)
+                            dated_files.append((file, date))
+                    
+                    if dated_files:
+                        # Sort by date (as string)
+                        dated_files.sort(key=lambda x: x[1])
+                        latest_file = dated_files[-1][0]  # Get the file with the latest date
+                    else:
+                        # If all else fails, just pick the last file in the list
+                        # Sort alphabetically first to ensure consistent behavior
+                        sorted_files = sorted(other_files, key=lambda x: x['name'])
+                        latest_file = sorted_files[-1] if sorted_files else None
+                
                 # Create variables to track selections
                 selected_vars = {}
-                for file in other_files:  # Only show checkboxes for non-Launcher files
-                    var = ctk.BooleanVar(value=True)  # Default to selected
+                for file in other_files:
+                    # Only select the latest file by default
+                    default_selected = (file == latest_file)
+                    var = ctk.BooleanVar(value=default_selected)
                     selected_vars[file['name']] = var
                     checkbox = ctk.CTkCheckBox(
                         scroll_frame, 
@@ -738,6 +894,38 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                         checkbox_height=20
                     )
                     checkbox.pack(anchor="w", pady=5, padx=10)
+                
+                # Add select all / deselect all buttons
+                buttons_frame = ctk.CTkFrame(dialog)
+                buttons_frame.pack(fill="x", pady=(0, 10), padx=20)
+                
+                def select_all():
+                    for var in selected_vars.values():
+                        var.set(True)
+                
+                def deselect_all():
+                    for var in selected_vars.values():
+                        var.set(False)
+                
+                ctk.CTkButton(
+                    buttons_frame,
+                    text="Select All",
+                    command=select_all,
+                    width=100,
+                    height=25,
+                    fg_color="#555555",
+                    hover_color="#333333"
+                ).pack(side="left", padx=5)
+                
+                ctk.CTkButton(
+                    buttons_frame,
+                    text="Deselect All",
+                    command=deselect_all,
+                    width=100,
+                    height=25,
+                    fg_color="#555555",
+                    hover_color="#333333"
+                ).pack(side="left", padx=5)
                 
                 # Result variable
                 result = []
@@ -791,6 +979,68 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 
                 return result
             
+            # Helper function to download dependencies for a component
+            def download_dependencies_for_component(component_type, component_dir):
+                dependency_files = []
+                
+                # Process Java
+                java_path = "/SoftwarePackage/Java"
+                print(f"\nChecking Java directory for {component_type}: {java_path}")
+                
+                try:
+                    java_files = self.webdav_browser.list_directories(java_path)
+                    print(f"Found Java files: {java_files}")
+                    
+                    # Prompt user to select Java version
+                    selected_java_files = prompt_for_file_selection(
+                        java_files, 
+                        f"{component_type} Java", 
+                        f"Select Java Version for {component_type}", 
+                        f"Please select which Java version to download for {component_type}:",
+                        "zip"
+                    )
+                    
+                    # Add selected files to dependency files list
+                    for file in selected_java_files:
+                        file_name = file['name']
+                        remote_path = f"{java_path}/{file_name}"
+                        local_path = os.path.join(component_dir, "Java_" + file_name)
+                        dependency_files.append((remote_path, local_path, file_name, f"{component_type} Java"))
+                
+                except Exception as e:
+                    print(f"Error accessing Java directory: {e}")
+                    download_errors.append(f"Failed to access Java directory for {component_type}: {str(e)}")
+                
+                # Process Tomcat
+                tomcat_path = "/SoftwarePackage/Tomcat"
+                print(f"\nChecking Tomcat directory for {component_type}: {tomcat_path}")
+                
+                try:
+                    tomcat_files = self.webdav_browser.list_directories(tomcat_path)
+                    print(f"Found Tomcat files: {tomcat_files}")
+                    
+                    # Prompt user to select Tomcat version
+                    selected_tomcat_files = prompt_for_file_selection(
+                        tomcat_files, 
+                        f"{component_type} Tomcat", 
+                        f"Select Tomcat Version for {component_type}", 
+                        f"Please select which Tomcat version to download for {component_type}:",
+                        "zip"
+                    )
+                    
+                    # Add selected files to dependency files list
+                    for file in selected_tomcat_files:
+                        file_name = file['name']
+                        remote_path = f"{tomcat_path}/{file_name}"
+                        local_path = os.path.join(component_dir, "Tomcat_" + file_name)
+                        dependency_files.append((remote_path, local_path, file_name, f"{component_type} Tomcat"))
+                
+                except Exception as e:
+                    print(f"Error accessing Tomcat directory: {e}")
+                    download_errors.append(f"Failed to access Tomcat directory for {component_type}: {str(e)}")
+                
+                return dependency_files
+            
             # Collect all files to download first
             files_to_download = []
             
@@ -825,10 +1075,30 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                         remote_path = f"{pos_version_path}/{file_name}"
                         local_path = os.path.join(pos_dir, file_name)
                         files_to_download.append((remote_path, local_path, file_name, "POS"))
+                    
+                    # Check if no files were found but dependencies are needed
+                    if not selected_files and component_dependencies.get("POS", False):
+                        # Ask user if they want to download dependencies even though no component files were found
+                        if self._ask_download_dependencies_only("POS", dialog_parent):
+                            # Download Java and Tomcat for POS
+                            dependency_files = download_dependencies_for_component("POS", pos_dir)
+                            files_to_download.extend(dependency_files)
+                    # Check if dependencies are needed for POS
+                    elif component_dependencies.get("POS", False):
+                        # Download Java and Tomcat for POS
+                        dependency_files = download_dependencies_for_component("POS", pos_dir)
+                        files_to_download.extend(dependency_files)
                 
                 except Exception as e:
                     print(f"Error accessing POS version directory: {e}")
-                    raise
+                    # Ask if user wants to download dependencies even though component files couldn't be accessed
+                    if component_dependencies.get("POS", False):
+                        if self._ask_download_dependencies_only("POS", dialog_parent, error_message=str(e)):
+                            # Download Java and Tomcat for POS
+                            dependency_files = download_dependencies_for_component("POS", pos_dir)
+                            files_to_download.extend(dependency_files)
+                    else:
+                        raise
             
             # Process WDM component
             if "WDM" in selected_components:
@@ -861,10 +1131,30 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                         remote_path = f"{wdm_version_path}/{file_name}"
                         local_path = os.path.join(wdm_dir, file_name)
                         files_to_download.append((remote_path, local_path, file_name, "WDM"))
+                    
+                    # Check if no files were found but dependencies are needed
+                    if not selected_files and component_dependencies.get("WDM", False):
+                        # Ask user if they want to download dependencies even though no component files were found
+                        if self._ask_download_dependencies_only("WDM", dialog_parent):
+                            # Download Java and Tomcat for WDM
+                            dependency_files = download_dependencies_for_component("WDM", wdm_dir)
+                            files_to_download.extend(dependency_files)
+                    # Check if dependencies are needed for WDM
+                    elif component_dependencies.get("WDM", False):
+                        # Download Java and Tomcat for WDM
+                        dependency_files = download_dependencies_for_component("WDM", wdm_dir)
+                        files_to_download.extend(dependency_files)
                 
                 except Exception as e:
                     print(f"Error accessing WDM version directory: {e}")
-                    raise
+                    # Ask if user wants to download dependencies even though component files couldn't be accessed
+                    if component_dependencies.get("WDM", False):
+                        if self._ask_download_dependencies_only("WDM", dialog_parent, error_message=str(e)):
+                            # Download Java and Tomcat for WDM
+                            dependency_files = download_dependencies_for_component("WDM", wdm_dir)
+                            files_to_download.extend(dependency_files)
+                    else:
+                        raise
             
             # If no files to download, return
             if not files_to_download:
