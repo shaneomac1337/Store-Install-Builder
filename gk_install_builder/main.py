@@ -116,7 +116,7 @@ class GKInstallBuilder:
             self.create_section("Security Configuration", [
                 "EH/Launchpad Username",
                 "EH/Launchpad Password",
-                "Username",
+                "Auth Service BA User",
                 "Launchpad oAuth2",
                 "SSL Password"
             ])
@@ -326,7 +326,7 @@ class GKInstallBuilder:
             "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
             "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
             "SSL Password": "Password for SSL certificate (default: 'changeit')",
-            "Username": "Username for Auth-Service (e.g., 'launchpad')",
+            "Auth Service BA User": "Username for Auth-Service (e.g., 'launchpad'). If you don't know what you are doing, please keep launchpad",
             "EH/Launchpad Username": "Username for Employee Hub / Launchpad (e.g., '1001')",
             "Launchpad oAuth2": "Launchpad Auth Service password (click 🔑 to retrieve from KeePass)",
             "EH/Launchpad Password": "Employee Hub / Launchpad Password"
@@ -359,6 +359,9 @@ class GKInstallBuilder:
                 config_key = "basic_auth_password"
             elif field == "EH/Launchpad Password":
                 config_key = "form_password"
+            # Map Auth Service BA User to username config key
+            elif field == "Auth Service BA User":
+                config_key = "username"
             else:
                 config_key = field.lower().replace(" ", "_")
             
@@ -493,6 +496,20 @@ class GKInstallBuilder:
         
         # Position the button at the right side of the entry field
         toggle_btn.place(in_=entry, relx=0.95, rely=0.5, anchor="e")
+        
+        # Define a focus event handler to clear placeholder text
+        def clear_placeholder(event):
+            if entry.get() == self.config_manager.config.get(config_key, ''):
+                entry.delete(0, 'end')
+
+        # Define a focus out event handler to restore placeholder text
+        def restore_placeholder(event):
+            if entry.get() == '':
+                entry.insert(0, self.config_manager.config.get(config_key, ''))
+
+        # Bind the focus in and focus out events to the handlers
+        entry.bind('<FocusIn>', clear_placeholder)
+        entry.bind('<FocusOut>', restore_placeholder)
         
         return entry, toggle_btn
         
@@ -1137,6 +1154,20 @@ class GKInstallBuilder:
         # Register WebDAV password with config manager using a unique key for this window
         self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
+        # Define a focus event handler to clear placeholder text
+        def clear_placeholder(event):
+            if self.webdav_password.get() == self.config_manager.config.get("webdav_password", ''):
+                self.webdav_password.delete(0, 'end')
+
+        # Define a focus out event handler to restore placeholder text
+        def restore_placeholder(event):
+            if self.webdav_password.get() == '':
+                self.webdav_password.insert(0, self.config_manager.config.get("webdav_password", ''))
+
+        # Bind the focus in and focus out events to the handlers
+        self.webdav_password.bind('<FocusIn>', clear_placeholder)
+        self.webdav_password.bind('<FocusOut>', restore_placeholder)
+        
         # Connect button
         connect_btn = ctk.CTkButton(
             auth_frame,
@@ -1597,7 +1628,6 @@ class GKInstallBuilder:
                     env_combo.configure(values=env_values)
                     if env_values:
                         env_combo.set(env_values[0])
-                    
                     status_var.set("Connected successfully! Select environment and get password.")
                     get_password_btn.configure(state="normal")
                     detect_projects_btn.configure(state="normal")  # Enable Detect Projects button
@@ -2165,6 +2195,20 @@ class OfflinePackageCreator:
         # Register WebDAV password with config manager using a unique key for this window
         self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
+        # Define a focus event handler to clear placeholder text
+        def clear_placeholder(event):
+            if self.webdav_password.get() == self.config_manager.config.get("webdav_password", ''):
+                self.webdav_password.delete(0, 'end')
+
+        # Define a focus out event handler to restore placeholder text
+        def restore_placeholder(event):
+            if self.webdav_password.get() == '':
+                self.webdav_password.insert(0, self.config_manager.config.get("webdav_password", ''))
+
+        # Bind the focus in and focus out events to the handlers
+        self.webdav_password.bind('<FocusIn>', clear_placeholder)
+        self.webdav_password.bind('<FocusOut>', restore_placeholder)
+        
         # Connect button
         connect_btn = ctk.CTkButton(
             auth_frame,
