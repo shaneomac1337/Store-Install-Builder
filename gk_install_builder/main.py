@@ -1258,27 +1258,33 @@ class GKInstallBuilder:
             self.refresh_listing()
     
     def create_offline_package(self):
-        """Create offline installation package"""
+        """Create offline package with selected components"""
         try:
-            print("\nStarting offline package creation...")
-            config = self.config_manager.config
-            
-            # Get selected components
-            selected_components = []
-            if self.pos_var.get():
-                selected_components.append("POS")
-            if self.wdm_var.get():
-                selected_components.append("WDM")
-            
-            if not selected_components:
+            # Check if at least one component is selected
+            if not self.include_pos.get() and not self.include_wdm.get():
                 self.show_error("Error", "Please select at least one component")
                 return
             
-            # Call prepare_offline_package with selected components and pass the window as dialog_parent
+            # Get selected components and their dependencies
+            selected_components = []
+            component_dependencies = {}
+            
+            if self.include_pos.get():
+                selected_components.append("POS")
+                component_dependencies["POS"] = self.pos_dependencies_needed.get()
+                
+            if self.include_wdm.get():
+                selected_components.append("WDM")
+                component_dependencies["WDM"] = self.wdm_dependencies_needed.get()
+            
+            # Update config with component dependencies
+            self.config_manager.config["component_dependencies"] = component_dependencies
+            
+            # Create offline package
             success, message = self.project_generator.prepare_offline_package(
-                config,
+                self.config_manager.config,
                 selected_components,
-                dialog_parent=self.window  # Pass the window as dialog_parent
+                dialog_parent=self.window
             )
             
             if success:
@@ -1287,8 +1293,9 @@ class GKInstallBuilder:
                 self.show_error("Error", message)
                 
         except Exception as e:
-            print(f"Error: {str(e)}")
             self.show_error("Error", f"Failed to create offline package: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def show_error(self, title, message):
         """Show error dialog"""
@@ -1955,58 +1962,95 @@ class OfflinePackageCreator:
             self.window.destroy()
     
     def create_offline_package_section(self):
-        """Create the offline package creation section"""
-        # Create frame
-        frame = ctk.CTkFrame(self.main_frame)
-        frame.pack(fill="x", padx=10, pady=(20, 10))
+        # Create frame for offline package options
+        self.offline_package_frame = ctk.CTkFrame(self.window)
+        self.offline_package_frame.pack(fill="both", expand=True, padx=20, pady=10)
         
         # Title
-        title_label = ctk.CTkLabel(
-            frame,
+        ctk.CTkLabel(
+            self.offline_package_frame, 
             text="Create Offline Package",
             font=("Helvetica", 16, "bold")
-        )
-        title_label.pack(anchor="w", padx=10, pady=10)
+        ).pack(pady=(10, 5), padx=10)
         
         # Description
-        description = ctk.CTkLabel(
-            frame,
-            text="Create an offline installation package that can be used without internet connection.\n"
-                 "Select the components you want to include in the package.",
-            justify="left"
-        )
-        description.pack(anchor="w", padx=10, pady=(0, 10))
+        ctk.CTkLabel(
+            self.offline_package_frame, 
+            text="Select components to include in the offline package:",
+            font=("Helvetica", 12)
+        ).pack(pady=(0, 10), padx=10)
         
-        # Component selection frame
-        component_frame = ctk.CTkFrame(frame)
-        component_frame.pack(fill="x", padx=10, pady=10)
+        # Components frame
+        self.components_frame = ctk.CTkFrame(self.offline_package_frame)
+        self.components_frame.pack(fill="x", padx=10, pady=5)
         
-        # Add checkboxes for components
-        self.pos_var = ctk.BooleanVar(value=True)
-        self.wdm_var = ctk.BooleanVar(value=True)
+        # POS component frame
+        pos_component_frame = ctk.CTkFrame(self.components_frame)
+        pos_component_frame.pack(fill="x", pady=5, padx=10)
         
+        # POS checkbox
+        self.include_pos = ctk.BooleanVar(value=True)
         pos_checkbox = ctk.CTkCheckBox(
-            component_frame,
-            text="POS Component",
-            variable=self.pos_var
+            pos_component_frame,
+            text="POS",
+            variable=self.include_pos,
+            checkbox_width=20,
+            checkbox_height=20
         )
-        pos_checkbox.pack(side="left", padx=20, pady=10)
+        pos_checkbox.pack(side="left", pady=5, padx=10)
         
-        wdm_checkbox = ctk.CTkCheckBox(
-            component_frame,
-            text="WDM Component",
-            variable=self.wdm_var
+        # POS dependencies checkbox
+        self.pos_dependencies_needed = ctk.BooleanVar(value=False)
+        pos_dependencies_checkbox = ctk.CTkCheckBox(
+            pos_component_frame,
+            text="Include Java & Tomcat",
+            variable=self.pos_dependencies_needed,
+            checkbox_width=20,
+            checkbox_height=20
         )
-        wdm_checkbox.pack(side="left", padx=20, pady=10)
+        pos_dependencies_checkbox.pack(side="left", pady=5, padx=20)
+        
+        # WDM component frame
+        wdm_component_frame = ctk.CTkFrame(self.components_frame)
+        wdm_component_frame.pack(fill="x", pady=5, padx=10)
+        
+        # WDM checkbox
+        self.include_wdm = ctk.BooleanVar(value=True)
+        wdm_checkbox = ctk.CTkCheckBox(
+            wdm_component_frame,
+            text="WDM",
+            variable=self.include_wdm,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        wdm_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # WDM dependencies checkbox
+        self.wdm_dependencies_needed = ctk.BooleanVar(value=False)
+        wdm_dependencies_checkbox = ctk.CTkCheckBox(
+            wdm_component_frame,
+            text="Include Java & Tomcat",
+            variable=self.wdm_dependencies_needed,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        wdm_dependencies_checkbox.pack(side="left", pady=5, padx=20)
         
         # Create button
-        create_btn = ctk.CTkButton(
-            frame,
+        self.create_button = ctk.CTkButton(
+            self.offline_package_frame,
             text="Create Offline Package",
-            width=200,
             command=self.create_offline_package
         )
-        create_btn.pack(anchor="center", padx=10, pady=20)
+        self.create_button.pack(pady=10, padx=10)
+        
+        # Status label
+        self.status_label = ctk.CTkLabel(
+            self.offline_package_frame,
+            text="",
+            font=("Helvetica", 12)
+        )
+        self.status_label.pack(pady=5, padx=10)
     
     def create_webdav_browser(self):
         # Create WebDAV browser frame
@@ -2199,27 +2243,33 @@ class OfflinePackageCreator:
             self.refresh_listing()
     
     def create_offline_package(self):
-        """Create offline installation package"""
+        """Create offline package with selected components"""
         try:
-            print("\nStarting offline package creation...")
-            config = self.config_manager.config
-            
-            # Get selected components
-            selected_components = []
-            if self.pos_var.get():
-                selected_components.append("POS")
-            if self.wdm_var.get():
-                selected_components.append("WDM")
-            
-            if not selected_components:
+            # Check if at least one component is selected
+            if not self.include_pos.get() and not self.include_wdm.get():
                 self.show_error("Error", "Please select at least one component")
                 return
             
-            # Call prepare_offline_package with selected components and pass the window as dialog_parent
+            # Get selected components and their dependencies
+            selected_components = []
+            component_dependencies = {}
+            
+            if self.include_pos.get():
+                selected_components.append("POS")
+                component_dependencies["POS"] = self.pos_dependencies_needed.get()
+                
+            if self.include_wdm.get():
+                selected_components.append("WDM")
+                component_dependencies["WDM"] = self.wdm_dependencies_needed.get()
+            
+            # Update config with component dependencies
+            self.config_manager.config["component_dependencies"] = component_dependencies
+            
+            # Create offline package
             success, message = self.project_generator.prepare_offline_package(
-                config,
+                self.config_manager.config,
                 selected_components,
-                dialog_parent=self.window  # Pass the window as dialog_parent
+                dialog_parent=self.window
             )
             
             if success:
@@ -2228,8 +2278,9 @@ class OfflinePackageCreator:
                 self.show_error("Error", message)
                 
         except Exception as e:
-            print(f"Error: {str(e)}")
             self.show_error("Error", f"Failed to create offline package: {str(e)}")
+            import traceback
+            traceback.print_exc()
     
     def show_error(self, title, message):
         """Show error dialog"""
