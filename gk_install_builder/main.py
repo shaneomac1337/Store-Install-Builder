@@ -13,6 +13,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pleasant_password_client import PleasantPasswordClient
 
 class GKInstallBuilder:
+    # Class variables to store KeePass client and credentials
+    keepass_client = None
+    keepass_username = None
+    keepass_password = None
+    
     def __init__(self):
         self.window = ctk.CTk()
         self.window.title("GK Install Builder")
@@ -978,31 +983,56 @@ class GKInstallBuilder:
         self.config_manager.set_save_status_label(self.save_status_label)
     
     def create_buttons(self):
+        """Create action buttons"""
+        # Create frame for buttons
         button_frame = ctk.CTkFrame(self.main_frame)
-        button_frame.pack(fill="x", padx=10, pady=20)
+        button_frame.pack(fill="x", padx=10, pady=10)
         
-        # Generate Project button with tooltip
-        generate_btn = ctk.CTkButton(
+        # Generate button
+        self.generate_button = ctk.CTkButton(
             button_frame,
-            text="Generate Project",
-            width=200,
+            text="Generate Install Scripts",
             command=lambda: self.project_generator.generate(self.config_manager.config)
         )
-        generate_btn.pack(side="left", padx=10)
-        self.create_tooltip(generate_btn, "Generate installation scripts based on current configuration")
+        self.generate_button.pack(side="left", padx=10)
         
-        # Offline Package Creator button with tooltip
-        offline_btn = ctk.CTkButton(
+        # Offline Package Creator button
+        self.offline_package_button = ctk.CTkButton(
             button_frame,
             text="Offline Package Creator",
-            width=200,
             command=self.open_offline_package_creator
         )
-        offline_btn.pack(side="left", padx=10)
-        self.create_tooltip(offline_btn, "Open the Offline Package Creator to download and create offline installation packages")
+        self.offline_package_button.pack(side="left", padx=10)
+        
+        # Create a frame for the KeePass button
+        self.keepass_btn_frame = ctk.CTkFrame(button_frame)
+        self.keepass_btn_frame.pack(side="left", padx=10)
+        
+        # Update the KeePass button state
+        self.update_keepass_button()
+    
+    def update_keepass_button(self):
+        """Update the KeePass credentials button based on current state"""
+        # Clear any existing widgets in the frame
+        for widget in self.keepass_btn_frame.winfo_children():
+            widget.destroy()
+            
+        # Only create the button if KeePass client exists
+        if hasattr(GKInstallBuilder, 'keepass_client') and GKInstallBuilder.keepass_client:
+            self.clear_keepass_button = ctk.CTkButton(
+                self.keepass_btn_frame,
+                text="Clear KeePass Credentials",
+                command=self.clear_keepass_credentials
+            )
+            self.clear_keepass_button.pack(side="left", padx=10)
     
     def on_window_close(self):
         """Handle window close event"""
+        # Clear KeePass credentials
+        GKInstallBuilder.keepass_client = None
+        GKInstallBuilder.keepass_username = None
+        GKInstallBuilder.keepass_password = None
+        
         # Ensure all configuration is saved before exit
         try:
             # Clean up any lingering references to child windows
@@ -1073,7 +1103,8 @@ class GKInstallBuilder:
         self.offline_creator = OfflinePackageCreator(
             parent=self.window,
             config_manager=self.config_manager,
-            project_generator=self.project_generator
+            project_generator=self.project_generator,
+            parent_app=self  # Pass the GKInstallBuilder instance
         )
         
         # Set up a callback for when the window is closed
@@ -1150,8 +1181,16 @@ class GKInstallBuilder:
         # Load saved password
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
+            
+        # Add KeePass button for WebDAV password
+        ctk.CTkButton(
+            password_frame,
+            text="🔑",  # Key icon
+            width=40,
+            command=lambda: self.get_basic_auth_password_from_keepass(target_entry=self.webdav_password)
+        ).pack(side="left", padx=5)
         
-        # Register WebDAV password with config manager using a unique key for this window
+        # Register WebDAV password with config manager
         self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
         # Define a focus event handler to clear placeholder text
@@ -1215,9 +1254,32 @@ class GKInstallBuilder:
         username = self.webdav_username.get()
         password = self.webdav_password.get()
         
-        if not all([base_url, username, password]):
+        if not all([base_url, username]):
             self.webdav_status.configure(
-                text="Error: Base URL, username, and password are required",
+                text="Error: Base URL and username are required",
+                text_color="red"
+            )
+            return
+            
+        # If password is the placeholder text, try to get it from KeePass
+        if password == self.config_manager.config.get("webdav_password", '') and "Enter" in password:
+            # Show a message that we're using the same password as basic auth
+            self.webdav_status.configure(
+                text="Using KeePass to get password...",
+                text_color="orange"
+            )
+            self.window.update()
+            
+            # Try to use the same password as basic auth if it's available
+            basic_auth_password = self.basic_auth_password_entry.get()
+            if basic_auth_password and "Enter" not in basic_auth_password:
+                password = basic_auth_password
+                self.webdav_password.delete(0, 'end')
+                self.webdav_password.insert(0, password)
+        
+        if not password:
+            self.webdav_status.configure(
+                text="Error: Password is required",
                 text_color="red"
             )
             return
@@ -1336,12 +1398,16 @@ class GKInstallBuilder:
         """Show info dialog"""
         messagebox.showinfo(title, message)
 
-    def get_basic_auth_password_from_keepass(self):
+    def get_basic_auth_password_from_keepass(self, target_entry=None):
         """Open a dialog to get Launchpad oAuth2 Password from KeePass"""
+        # If no target entry is specified, use the basic auth password entry
+        if target_entry is None:
+            target_entry = self.basic_auth_password_entry
+            
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("KeePass Authentication")
-        dialog.geometry("450x400")  # Increased height to accommodate new elements
+        dialog.geometry("450x470")  # Increased height to accommodate new elements
         dialog.transient(self.window)
         dialog.grab_set()
         
@@ -1371,6 +1437,10 @@ class GKInstallBuilder:
         username_entry = ctk.CTkEntry(username_frame, width=200, textvariable=username_var)
         username_entry.pack(side="left", padx=5)
         
+        # If we have saved credentials, pre-fill the username
+        if GKInstallBuilder.keepass_username:
+            username_var.set(GKInstallBuilder.keepass_username)
+        
         # Password frame
         password_frame = ctk.CTkFrame(dialog)
         password_frame.pack(pady=10, fill="x", padx=20)
@@ -1380,52 +1450,76 @@ class GKInstallBuilder:
         password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
         password_entry.pack(side="left", padx=5)
         
+        # If we have saved credentials, pre-fill the password
+        if GKInstallBuilder.keepass_password:
+            password_var.set(GKInstallBuilder.keepass_password)
+        
+        # Remember credentials checkbox
+        remember_var = ctk.BooleanVar(value=True)
+        remember_checkbox = ctk.CTkCheckBox(
+            dialog, 
+            text="Remember credentials for this session", 
+            variable=remember_var
+        )
+        remember_checkbox.pack(pady=5, padx=20, anchor="w")
+        
+        # Clear credentials button
+        if GKInstallBuilder.keepass_client:
+            clear_btn = ctk.CTkButton(
+                dialog,
+                text="Clear Saved Credentials",
+                command=lambda: [
+                    self.clear_keepass_credentials(), 
+                    self.update_keepass_button(),
+                    on_dialog_close()
+                ]
+            )
+            clear_btn.pack(pady=5, padx=20)
+        
+        # Project selection frame
+        project_frame = ctk.CTkFrame(dialog)
+        project_frame.pack(pady=10, fill="x", padx=20)
+        
+        ctk.CTkLabel(project_frame, text="Project:", width=100).pack(side="left")
+        project_var = ctk.StringVar(value="AZR-CSE")
+        project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
+        project_entry.pack(side="left", padx=5)
+        
+        # Environment selection frame
+        env_frame = ctk.CTkFrame(dialog)
+        env_frame.pack(pady=10, fill="x", padx=20)
+        
+        ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
+        env_var = ctk.StringVar(value="TEST")
+        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, values=["TEST", "PROD"])
+        env_combo.pack(side="left", padx=5)
+        
         # Connect button frame
         connect_frame = ctk.CTkFrame(dialog)
         connect_frame.pack(pady=10, fill="x", padx=20)
         
         connect_btn = ctk.CTkButton(
             connect_frame,
-            text="Connect to KeePass",
-            width=200,
-            command=lambda: connect()
+            text="Connect",
+            command=lambda: connect_to_keepass()
         )
-        connect_btn.pack(pady=5)
+        connect_btn.pack(side="left", padx=10)
         
-        # Project frame
-        project_frame = ctk.CTkFrame(dialog)
-        project_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(project_frame, text="Project:", width=100).pack(side="left")
-        project_var = ctk.StringVar(value="AZR-CSE")  # Default project
-        project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
-        project_entry.pack(side="left", padx=5)
+        # Status label
+        status_var = ctk.StringVar(value="Not connected")
+        status_label = ctk.CTkLabel(connect_frame, textvariable=status_var)
+        status_label.pack(side="left", padx=10)
         
         # Detect Projects button (initially disabled)
         detect_projects_btn = ctk.CTkButton(
-            project_frame,
+            dialog,
             text="Detect Projects",
-            width=120,
             command=lambda: detect_projects(),
             state="disabled"
         )
-        detect_projects_btn.pack(side="left", padx=5)
+        detect_projects_btn.pack(pady=5)
         
-        # Environment frame (will be populated after connection)
-        env_frame = ctk.CTkFrame(dialog)
-        env_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
-        env_var = ctk.StringVar()
-        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, state="readonly")
-        env_combo.pack(side="left", padx=5)
-        
-        # Status label
-        status_var = ctk.StringVar()
-        status_label = ctk.CTkLabel(dialog, textvariable=status_var)
-        status_label.pack(pady=5)
-        
-        # Get Password button (initially disabled)
+        # Get password button (initially disabled)
         get_password_btn = ctk.CTkButton(
             dialog,
             text="Get Password",
@@ -1433,6 +1527,43 @@ class GKInstallBuilder:
             state="disabled"
         )
         get_password_btn.pack(pady=5)
+        
+        # Function to connect to KeePass
+        def connect_to_keepass():
+            try:
+                status_var.set("Connecting to KeePass...")
+                
+                # Create a new client
+                client = PleasantPasswordClient(
+                    base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
+                    username=username_var.get(),
+                    password=password_var.get()
+                )
+                
+                # If remember checkbox is checked, save the credentials
+                if remember_var.get():
+                    GKInstallBuilder.keepass_client = client
+                    GKInstallBuilder.keepass_username = username_var.get()
+                    GKInstallBuilder.keepass_password = password_var.get()
+                    
+                    # Update the KeePass button state in the main window
+                    self.update_keepass_button()
+                
+                # Store client for later use
+                dialog.client = client
+                
+                # Enable the get password button
+                get_password_btn.configure(state="normal")
+                
+                # Update status
+                status_var.set("Connected successfully! Click 'Get Password' to retrieve the password.")
+                
+                # Enable detect projects button if it exists
+                if 'detect_projects_btn' in locals():
+                    detect_projects_btn.configure(state="normal")
+                
+            except Exception as e:
+                status_var.set(f"Connection error: {str(e)}")
         
         # Function to detect available projects
         def detect_projects():
@@ -1601,11 +1732,23 @@ class GKInstallBuilder:
             try:
                 status_var.set("Connecting to KeePass...")
                 
-                client = PleasantPasswordClient(
-                    base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
-                    username=username_var.get(),
-                    password=password_var.get()
-                )
+                # Check if we already have a client
+                if GKInstallBuilder.keepass_client:
+                    client = GKInstallBuilder.keepass_client
+                    status_var.set("Using existing KeePass connection...")
+                else:
+                    # Create a new client
+                    client = PleasantPasswordClient(
+                        base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
+                        username=username_var.get(),
+                        password=password_var.get()
+                    )
+                    
+                    # If remember checkbox is checked, save the credentials
+                    if remember_var.get():
+                        GKInstallBuilder.keepass_client = client
+                        GKInstallBuilder.keepass_username = username_var.get()
+                        GKInstallBuilder.keepass_password = password_var.get()
                 
                 # Store client for later use
                 dialog.client = client
@@ -1693,9 +1836,9 @@ class GKInstallBuilder:
                             actual_password = str(password).strip()
                             print(f"Setting password: {actual_password}")
                             
-                            # Set password in Basic Auth Password field
-                            self.basic_auth_password_entry.delete(0, 'end')
-                            self.basic_auth_password_entry.insert(0, actual_password)
+                            # Set password in the target entry field
+                            target_entry.delete(0, 'end')
+                            target_entry.insert(0, actual_password)
                             print("Password set in field successfully")
                             
                             status_var.set("Password retrieved successfully!")
@@ -1954,9 +2097,21 @@ class GKInstallBuilder:
     def run(self):
         self.window.mainloop()
 
+    def clear_keepass_credentials(self):
+        """Clear saved KeePass credentials"""
+        GKInstallBuilder.keepass_client = None
+        GKInstallBuilder.keepass_username = None
+        GKInstallBuilder.keepass_password = None
+        
+        # Update the KeePass button state
+        if hasattr(self, 'update_keepass_button'):
+            self.update_keepass_button()
+            
+        messagebox.showinfo("KeePass Credentials", "KeePass credentials have been cleared.")
+
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:
-    def __init__(self, parent, config_manager, project_generator):
+    def __init__(self, parent, config_manager, project_generator, parent_app=None):
         self.window = ctk.CTkToplevel(parent)
         self.window.title("Offline Package Creator")
         self.window.geometry("1000x800")
@@ -1968,6 +2123,7 @@ class OfflinePackageCreator:
         # Store references
         self.config_manager = config_manager
         self.project_generator = project_generator
+        self.parent_app = parent_app  # Store reference to the parent application (GKInstallBuilder instance)
         
         # Create main container with scrollbar
         self.main_frame = ctk.CTkScrollableFrame(self.window, width=900, height=700)
@@ -2191,8 +2347,16 @@ class OfflinePackageCreator:
         # Load saved password
         if self.config_manager.config["webdav_password"]:
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
+            
+        # Add KeePass button for WebDAV password
+        ctk.CTkButton(
+            password_frame,
+            text="🔑",  # Key icon
+            width=40,
+            command=lambda: self.get_basic_auth_password_from_keepass(target_entry=self.webdav_password)
+        ).pack(side="left", padx=5)
         
-        # Register WebDAV password with config manager using a unique key for this window
+        # Register WebDAV password with config manager
         self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
             
         # Define a focus event handler to clear placeholder text
@@ -2256,9 +2420,33 @@ class OfflinePackageCreator:
         username = self.webdav_username.get()
         password = self.webdav_password.get()
         
-        if not all([base_url, username, password]):
+        if not all([base_url, username]):
             self.webdav_status.configure(
-                text="Error: Base URL, username, and password are required",
+                text="Error: Base URL and username are required",
+                text_color="red"
+            )
+            return
+            
+        # If password is the placeholder text, try to get it from KeePass
+        if password == self.config_manager.config.get("webdav_password", '') and "Enter" in password:
+            # Show a message that we're using the same password as basic auth
+            self.webdav_status.configure(
+                text="Using KeePass to get password...",
+                text_color="orange"
+            )
+            self.window.update()
+            
+            # Try to use the same password as basic auth from the parent window if it's available
+            if self.parent_app and hasattr(self.parent_app, 'basic_auth_password_entry'):
+                basic_auth_password = self.parent_app.basic_auth_password_entry.get()
+                if basic_auth_password and "Enter" not in basic_auth_password:
+                    password = basic_auth_password
+                    self.webdav_password.delete(0, 'end')
+                    self.webdav_password.insert(0, password)
+        
+        if not password:
+            self.webdav_status.configure(
+                text="Error: Password is required",
                 text_color="red"
             )
             return
@@ -2376,6 +2564,15 @@ class OfflinePackageCreator:
     def show_info(self, title, message):
         """Show info dialog"""
         messagebox.showinfo(title, message)
+
+    def get_basic_auth_password_from_keepass(self, target_entry=None):
+        """Delegate to the parent app's get_basic_auth_password_from_keepass method"""
+        # Use the stored reference to the parent app (GKInstallBuilder instance)
+        if self.parent_app and hasattr(self.parent_app, 'get_basic_auth_password_from_keepass'):
+            self.parent_app.get_basic_auth_password_from_keepass(target_entry=target_entry)
+        else:
+            # Show an error if the parent app doesn't have the method
+            messagebox.showerror("Error", "Could not access KeePass integration from parent application.")
 
 def main():
     app = GKInstallBuilder()
