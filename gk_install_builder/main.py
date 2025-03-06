@@ -21,7 +21,7 @@ class GKInstallBuilder:
     def __init__(self):
         self.window = ctk.CTk()
         self.window.title("GK Install Builder")
-        self.window.geometry("1000x800")
+        self.window.geometry("1200x900")  # Increased from 1000x800
         
         # Set theme
         ctk.set_appearance_mode("dark")
@@ -1118,7 +1118,7 @@ class GKInstallBuilder:
     def create_webdav_browser(self):
         # Create WebDAV browser frame
         webdav_frame = ctk.CTkFrame(self.main_frame)
-        webdav_frame.pack(fill="x", padx=10, pady=(0, 20))
+        webdav_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
         # Title
         title_label = ctk.CTkLabel(
@@ -1126,7 +1126,7 @@ class GKInstallBuilder:
             text="WebDAV Browser",
             font=("Helvetica", 16, "bold")
         )
-        title_label.pack(anchor="w", padx=10, pady=10)
+        title_label.pack(anchor="w", padx=10, pady=(10, 5))
         
         # Description
         description = ctk.CTkLabel(
@@ -1135,10 +1135,10 @@ class GKInstallBuilder:
                  "Connect to the server using your credentials and navigate to the desired files.",
             justify="left"
         )
-        description.pack(anchor="w", padx=10, pady=(0, 10))
+        description.pack(anchor="w", padx=10, pady=(0, 5))
         
         # Current path
-        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /")
+        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /SoftwarePackage")
         self.path_label.pack(anchor="w", padx=10, pady=5)
         
         # Authentication frame
@@ -1244,9 +1244,9 @@ class GKInstallBuilder:
         )
         refresh_btn.pack(side="left", padx=5)
         
-        # Directory listing
-        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=200)
-        self.dir_listbox.pack(fill="x", padx=10, pady=5)
+        # Directory listing - increase height and make it expand to fill available space
+        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=400)
+        self.dir_listbox.pack(fill="both", expand=True, padx=10, pady=10)
     
     def connect_webdav(self):
         """Handle WebDAV connection"""
@@ -1407,7 +1407,7 @@ class GKInstallBuilder:
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("KeePass Authentication")
-        dialog.geometry("450x400")  # Reduced height since we're removing the project field
+        dialog.geometry("500x550")  # Increased from 450x400
         dialog.transient(self.window)
         dialog.grab_set()
         
@@ -1578,7 +1578,7 @@ class GKInstallBuilder:
                 # Create a project selection dialog
                 project_dialog = ctk.CTkToplevel(dialog)
                 project_dialog.title("Select Project")
-                project_dialog.geometry("300x450")  # Increased height for filter controls
+                project_dialog.geometry("400x600")  # Increased from 300x450
                 project_dialog.transient(dialog)
                 project_dialog.grab_set()
                 
@@ -2186,7 +2186,7 @@ class OfflinePackageCreator:
     def __init__(self, parent, config_manager, project_generator, parent_app=None):
         self.window = ctk.CTkToplevel(parent)
         self.window.title("Offline Package Creator")
-        self.window.geometry("1000x800")
+        self.window.geometry("1200x900")  # Increased from 1000x800
         self.window.transient(parent)  # Set to be on top of the parent window
         
         # Add window close protocol handler
@@ -2197,9 +2197,9 @@ class OfflinePackageCreator:
         self.project_generator = project_generator
         self.parent_app = parent_app  # Store reference to the parent application (GKInstallBuilder instance)
         
-        # Create main container with scrollbar
-        self.main_frame = ctk.CTkScrollableFrame(self.window, width=900, height=700)
-        self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        # Create main frame with scrollbar
+        self.main_frame = ctk.CTkScrollableFrame(self.window)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Create WebDAV browser
         self.create_webdav_browser()
@@ -2356,7 +2356,7 @@ class OfflinePackageCreator:
     def create_webdav_browser(self):
         # Create WebDAV browser frame
         webdav_frame = ctk.CTkFrame(self.main_frame)
-        webdav_frame.pack(fill="x", padx=10, pady=(0, 20))
+        webdav_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
         # Title
         title_label = ctk.CTkLabel(
@@ -2364,7 +2364,7 @@ class OfflinePackageCreator:
             text="WebDAV Browser",
             font=("Helvetica", 16, "bold")
         )
-        title_label.pack(anchor="w", padx=10, pady=10)
+        title_label.pack(anchor="w", padx=10, pady=(10, 5))
         
         # Description
         description = ctk.CTkLabel(
@@ -2373,10 +2373,10 @@ class OfflinePackageCreator:
                  "Connect to the server using your credentials and navigate to the desired files.",
             justify="left"
         )
-        description.pack(anchor="w", padx=10, pady=(0, 10))
+        description.pack(anchor="w", padx=10, pady=(0, 5))
         
         # Current path
-        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /")
+        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /SoftwarePackage")
         self.path_label.pack(anchor="w", padx=10, pady=5)
         
         # Authentication frame
@@ -2482,9 +2482,9 @@ class OfflinePackageCreator:
         )
         refresh_btn.pack(side="left", padx=5)
         
-        # Directory listing
-        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=200)
-        self.dir_listbox.pack(fill="x", padx=10, pady=5)
+        # Directory listing - increase height and make it expand to fill available space
+        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=400)
+        self.dir_listbox.pack(fill="both", expand=True, padx=10, pady=10)
     
     def connect_webdav(self):
         """Handle WebDAV connection"""
@@ -2508,13 +2508,12 @@ class OfflinePackageCreator:
             )
             self.window.update()
             
-            # Try to use the same password as basic auth from the parent window if it's available
-            if self.parent_app and hasattr(self.parent_app, 'basic_auth_password_entry'):
-                basic_auth_password = self.parent_app.basic_auth_password_entry.get()
-                if basic_auth_password and "Enter" not in basic_auth_password:
-                    password = basic_auth_password
-                    self.webdav_password.delete(0, 'end')
-                    self.webdav_password.insert(0, password)
+            # Try to use the same password as basic auth if it's available
+            basic_auth_password = self.basic_auth_password_entry.get()
+            if basic_auth_password and "Enter" not in basic_auth_password:
+                password = basic_auth_password
+                self.webdav_password.delete(0, 'end')
+                self.webdav_password.insert(0, password)
         
         if not password:
             self.webdav_status.configure(
