@@ -2,7 +2,7 @@
     "restrictions": {
         "clientType": "wdm",
         "tenantId": "001",
-        "lifespan": 60,
+        "lifespan": 86400,
         "maxUsageCount": 10000
     },
     "afterOnboardingProperties": [
