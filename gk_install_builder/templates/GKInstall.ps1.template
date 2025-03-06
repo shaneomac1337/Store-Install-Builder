@@ -74,7 +74,7 @@ if ($ComponentType -eq 'WDM') {
 }
 
 # Add component-specific package directory check
-$package_dir = if ($ComponentType -eq 'POS') { "offline_package_POS" } else { "offline_package_WDM" }
+$package_dir = "offline_package_$ComponentType"
 
 # Update offline mode checks
 if ($offline.IsPresent) {
@@ -89,9 +89,11 @@ if ($offline.IsPresent) {
         # Find JRE and Tomcat packages dynamically
         $jre_pattern = Join-Path $package_dir "jre-*.zip"
         $tomcat_pattern = Join-Path $package_dir "tomcat-*.zip"
+        $installer_jar = Join-Path $package_dir "installer.jar"
         
         $jre_files = @(Get-ChildItem -Path $jre_pattern -ErrorAction SilentlyContinue)
         $tomcat_files = @(Get-ChildItem -Path $tomcat_pattern -ErrorAction SilentlyContinue)
+        $has_installer_jar = Test-Path $installer_jar
         
         if ($jre_files.Count -eq 0) {
             Write-Host "Error: No JRE package found matching pattern: $jre_pattern"
@@ -113,16 +115,64 @@ if ($offline.IsPresent) {
         
         Write-Host "Found JRE package: $($jre_files[0].Name), version: $jre_version"
         Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
+        if ($has_installer_jar) {
+            Write-Host "Found installer.jar package"
+        } else {
+            Write-Host "Warning: installer.jar not found in $package_dir"
+        }
         
         $required_files = @(
             (Join-Path $package_dir "Launcher.exe"),
             $jre_file,
             $tomcat_file
         )
+        
+        # Add installer.jar to required files if it exists
+        if ($has_installer_jar) {
+            $required_files += $installer_jar
+        }
     } else {
+        # For other components - generic approach
+        $jre_pattern = Join-Path $package_dir "jre-*.zip"
+        $tomcat_pattern = Join-Path $package_dir "tomcat-*.zip"
+        $installer_jar = Join-Path $package_dir "installer.jar"
+        
+        $jre_files = @(Get-ChildItem -Path $jre_pattern -ErrorAction SilentlyContinue)
+        $tomcat_files = @(Get-ChildItem -Path $tomcat_pattern -ErrorAction SilentlyContinue)
+        $has_installer_jar = Test-Path $installer_jar
+        
+        # Initialize required files with Launcher.exe
         $required_files = @(
             (Join-Path $package_dir "Launcher.exe")
         )
+        
+        # Process JRE files if available
+        if ($jre_files.Count -gt 0) {
+            $jre_file = $jre_files[0].FullName
+            $jre_version = Get-JreVersion -JreZip $jre_files[0].Name
+            Write-Host "Found JRE package: $($jre_files[0].Name), version: $jre_version"
+            $required_files += $jre_file
+        } else {
+            Write-Host "No JRE package found for $ComponentType."
+        }
+        
+        # Process Tomcat files if available
+        if ($tomcat_files.Count -gt 0) {
+            $tomcat_file = $tomcat_files[0].FullName
+            $tomcat_version = Get-TomcatVersion -TomcatZip $tomcat_files[0].Name
+            Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
+            $required_files += $tomcat_file
+        } else {
+            Write-Host "No Tomcat package found for $ComponentType."
+        }
+        
+        # Add installer.jar to required files if it exists
+        if ($has_installer_jar) {
+            Write-Host "Found installer.jar package"
+            $required_files += $installer_jar
+        } else {
+            Write-Host "Warning: installer.jar not found in $package_dir"
+        }
     }
 
     foreach ($file in $required_files) {
@@ -335,16 +385,17 @@ $replacements = @{
     '@INSTALL_DIR@' = $install_dir
     '@BASE64_TOKEN@' = $base64Token
     '@OFFLINE_MODE@' = $(if ($offline_mode) { "1" } else { "0" })
-    '@JRE_VERSION@' = $(if ($offline_mode) { $jre_version } else { "" })
-    '@JRE_PACKAGE@' = $(if ($offline_mode) { "$PWD\offline_package\jre-$jre_version.zip" } else { "" })
-    '@INSTALLER_PACKAGE@' = $(if ($offline_mode) { "$PWD\offline_package\installer.jar" } else { "" })
+    '@JRE_VERSION@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version } else { "" })
+    '@JRE_PACKAGE@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { "$PWD\$package_dir\jre-$jre_version.zip" } else { "" })
+    '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { "$PWD\$package_dir\installer.jar" } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
 }
 
-if ($ComponentType -eq 'WDM') {
+# Add Tomcat replacements if Tomcat files were found
+if ($tomcat_files.Count -gt 0) {
     $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
-    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\offline_package\tomcat-$tomcat_version.zip" } else { "" })
+    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\$package_dir\tomcat-$tomcat_version.zip" } else { "" })
 }
 
 # Apply all replacements
@@ -366,6 +417,17 @@ if (-not $offline_mode) {
     }
     catch {
         Write-Host "Error downloading Launcher.exe: $_"
+        exit 1
+    }
+} else {
+    # In offline mode, copy the Launcher.exe from the package directory to the current directory
+    Write-Host "Copying Launcher.exe from $package_dir to current directory..."
+    try {
+        Copy-Item -Path $launcher_path -Destination ".\Launcher.exe" -Force
+        Write-Host "Successfully copied Launcher.exe"
+    }
+    catch {
+        Write-Host "Error copying Launcher.exe: $_"
         exit 1
     }
 }
@@ -429,13 +491,16 @@ while ($elapsed -lt $maxWaitTime) {
                 if ($finalLogContent -match "Installation finished successfully") {
                     Write-Host "Installation completed successfully!"
                     Write-Host "Installation directory: $install_dir"
+                    
+                    # Component-specific completion messages
                     if ($ComponentType -eq 'WDM') {
                         Write-Host "WDM installation completed. Please check the following:"
                         Write-Host "1. Tomcat service status"
                         Write-Host "2. WDM application accessibility at https://localhost:8543"
                     } else {
-                        Write-Host "POS installation completed. Please check the POS application status."
+                        Write-Host "$ComponentType installation completed. Please check the application status."
                     }
+                    
                     exit 0
                 }
                 elseif ($finalLogContent -match "Installation failed") {
@@ -484,13 +549,16 @@ while ($elapsed -lt $maxWaitTime) {
             if ($logContent -match "Installation finished successfully") {
                 Write-Host "Installation completed successfully!"
                 Write-Host "Installation directory: $install_dir"
+                
+                # Component-specific completion messages
                 if ($ComponentType -eq 'WDM') {
                     Write-Host "WDM installation completed. Please check the following:"
                     Write-Host "1. Tomcat service status"
                     Write-Host "2. WDM application accessibility at https://localhost:8543"
                 } else {
-                    Write-Host "POS installation completed. Please check the POS application status."
+                    Write-Host "$ComponentType installation completed. Please check the application status."
                 }
+                
                 exit 0
             }
             elseif ($logContent -match "Installation failed") {
