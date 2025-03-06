@@ -86,10 +86,38 @@ if ($offline.IsPresent) {
 
     # Check for required files based on component type
     if ($ComponentType -eq 'WDM') {
+        # Find JRE and Tomcat packages dynamically
+        $jre_pattern = Join-Path $package_dir "jre-*.zip"
+        $tomcat_pattern = Join-Path $package_dir "tomcat-*.zip"
+        
+        $jre_files = @(Get-ChildItem -Path $jre_pattern -ErrorAction SilentlyContinue)
+        $tomcat_files = @(Get-ChildItem -Path $tomcat_pattern -ErrorAction SilentlyContinue)
+        
+        if ($jre_files.Count -eq 0) {
+            Write-Host "Error: No JRE package found matching pattern: $jre_pattern"
+            exit 1
+        }
+        
+        if ($tomcat_files.Count -eq 0) {
+            Write-Host "Error: No Tomcat package found matching pattern: $tomcat_pattern"
+            exit 1
+        }
+        
+        # Use the first matching file if multiple are found
+        $jre_file = $jre_files[0].FullName
+        $tomcat_file = $tomcat_files[0].FullName
+        
+        # Extract versions
+        $jre_version = Get-JreVersion -JreZip $jre_files[0].Name
+        $tomcat_version = Get-TomcatVersion -TomcatZip $tomcat_files[0].Name
+        
+        Write-Host "Found JRE package: $($jre_files[0].Name), version: $jre_version"
+        Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
+        
         $required_files = @(
             (Join-Path $package_dir "Launcher.exe"),
-            (Join-Path $package_dir "jre-11.0.20.zip"),
-            (Join-Path $package_dir "tomcat-9.0.78.zip")
+            $jre_file,
+            $tomcat_file
         )
     } else {
         $required_files = @(
@@ -106,10 +134,7 @@ if ($offline.IsPresent) {
 
     # Update file paths to use component-specific directory
     $launcher_path = Join-Path $package_dir "Launcher.exe"
-    if ($ComponentType -eq 'WDM') {
-        $jre_file = Join-Path $package_dir "jre-11.0.20.zip"
-        $tomcat_file = Join-Path $package_dir "tomcat-9.0.78.zip"
-    }
+    # JRE and Tomcat files are already set in the dynamic detection code above
 }
 
 # Create installation directory if it doesn't exist
