@@ -1407,7 +1407,7 @@ class GKInstallBuilder:
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("KeePass Authentication")
-        dialog.geometry("450x470")  # Increased height to accommodate new elements
+        dialog.geometry("450x400")  # Reduced height since we're removing the project field
         dialog.transient(self.window)
         dialog.grab_set()
         
@@ -1476,15 +1476,6 @@ class GKInstallBuilder:
             )
             clear_btn.pack(pady=5, padx=20)
         
-        # Project selection frame
-        project_frame = ctk.CTkFrame(dialog)
-        project_frame.pack(pady=10, fill="x", padx=20)
-        
-        ctk.CTkLabel(project_frame, text="Project:", width=100).pack(side="left")
-        project_var = ctk.StringVar(value="AZR-CSE")
-        project_entry = ctk.CTkEntry(project_frame, width=200, textvariable=project_var)
-        project_entry.pack(side="left", padx=5)
-        
         # Environment selection frame
         env_frame = ctk.CTkFrame(dialog)
         env_frame.pack(pady=10, fill="x", padx=20)
@@ -1528,6 +1519,10 @@ class GKInstallBuilder:
         )
         get_password_btn.pack(pady=5)
         
+        # Define on_search_change function early so it can be referenced before its definition
+        def on_search_change(*args):
+            update_project_list()
+            
         # Function to connect to KeePass
         def connect_to_keepass():
             try:
@@ -1552,19 +1547,18 @@ class GKInstallBuilder:
                 # Store client for later use
                 dialog.client = client
                 
-                # Enable the get password button
-                get_password_btn.configure(state="normal")
-                
                 # Update status
-                status_var.set("Connected successfully! Click 'Get Password' to retrieve the password.")
+                status_var.set("Connected to KeePass! Auto-detecting environment...")
                 
-                # Enable detect projects button if it exists
-                if 'detect_projects_btn' in locals():
-                    detect_projects_btn.configure(state="normal")
+                # Run auto-detection immediately
+                connect()
+                
+                # If we successfully connected and detected environment, get_password_btn will be enabled
+                # by the connect() function
                 
             except Exception as e:
                 status_var.set(f"Connection error: {str(e)}")
-        
+                
         # Function to detect available projects
         def detect_projects():
             try:
@@ -1611,248 +1605,326 @@ class GKInstallBuilder:
                 
                 # Add filter controls
                 filter_frame = ctk.CTkFrame(project_dialog)
-                filter_frame.pack(padx=20, pady=(0, 10), fill="x")
+                filter_frame.pack(fill="x", padx=20, pady=5)
                 
-                # Filter checkbox
-                show_azr_only_var = ctk.BooleanVar(value=True)  # Default to showing only AZR projects
+                ctk.CTkLabel(filter_frame, text="Filter:").pack(side="left", padx=(0, 5))
+                filter_var = ctk.StringVar()
+                filter_entry = ctk.CTkEntry(filter_frame, textvariable=filter_var)
+                filter_entry.pack(side="left", fill="x", expand=True)
                 
+                # Create frame for the project buttons
+                projects_frame = ctk.CTkScrollableFrame(project_dialog, height=300)
+                projects_frame.pack(fill="both", expand=True, padx=20, pady=10)
+                
+                # Keep reference to projects frame
+                dialog.projects_frame = projects_frame
+                
+                # Store project names and IDs
+                dialog.all_projects = []
+                for p in projects:
+                    # Check if it's a dictionary with 'name' and 'id' keys
+                    if isinstance(p, dict) and 'name' in p and 'id' in p:
+                        dialog.all_projects.append({'name': p['name'], 'id': p['id']})
+                    # Or just a simple string name
+                    elif isinstance(p, str):
+                        # In this case, we'll need to find the ID later
+                        dialog.all_projects.append({'name': p, 'id': None})
+                
+                # Function to update project list based on filter
                 def update_project_list():
                     # Clear existing buttons
                     for widget in projects_frame.winfo_children():
                         widget.destroy()
                     
-                    # Filter projects based on checkbox state
-                    filtered_projects = projects
-                    if show_azr_only_var.get():
-                        filtered_projects = [p for p in projects if p['name'].startswith('AZR-')]
+                    # Get filter text
+                    filter_text = filter_var.get().lower()
                     
-                    # Sort projects alphabetically
-                    filtered_projects.sort(key=lambda x: x['name'].lower())
-                    
-                    # Show count
-                    count_label.configure(text=f"Showing {len(filtered_projects)} of {len(projects)} projects")
-                    
-                    # Add buttons for each project
-                    for project in filtered_projects:
-                        btn = ctk.CTkButton(
-                            projects_frame,
-                            text=project['name'],
-                            width=200,
-                            command=lambda p=project: select_project(p)
-                        )
-                        btn.pack(pady=2)
+                    # Add filtered projects
+                    for project in dialog.all_projects:
+                        project_name = project['name']
+                        if filter_text in project_name.lower():
+                            project_btn = ctk.CTkButton(
+                                projects_frame,
+                                text=project_name,
+                                command=lambda p=project: select_project(p)
+                            )
+                            project_btn.pack(fill="x", pady=2)
                 
-                azr_checkbox = ctk.CTkCheckBox(
-                    filter_frame,
-                    text="Show only AZR projects",
-                    variable=show_azr_only_var,
-                    command=update_project_list
-                )
-                azr_checkbox.pack(side="left", padx=5)
-                
-                # Count label
-                count_label = ctk.CTkLabel(filter_frame, text="")
-                count_label.pack(side="right", padx=5)
-                
-                # Create scrollable frame for projects
-                projects_frame = ctk.CTkScrollableFrame(project_dialog, width=250, height=300)
-                projects_frame.pack(padx=20, pady=10, fill="both", expand=True)
-                
-                # Add search field
-                search_frame = ctk.CTkFrame(project_dialog)
-                search_frame.pack(padx=20, pady=(0, 10), fill="x")
-                
-                ctk.CTkLabel(search_frame, text="Search:", width=50).pack(side="left", padx=5)
-                search_var = ctk.StringVar()
-                
-                def on_search_change(*args):
-                    search_text = search_var.get().lower()
-                    
-                    # Clear existing buttons
-                    for widget in projects_frame.winfo_children():
-                        widget.destroy()
-                    
-                    # Filter projects based on checkbox state and search text
-                    filtered_projects = projects
-                    if show_azr_only_var.get():
-                        filtered_projects = [p for p in projects if p['name'].startswith('AZR-')]
-                    
-                    if search_text:
-                        filtered_projects = [p for p in filtered_projects if search_text in p['name'].lower()]
-                    
-                    # Sort projects alphabetically
-                    filtered_projects.sort(key=lambda x: x['name'].lower())
-                    
-                    # Update count
-                    count_label.configure(text=f"Showing {len(filtered_projects)} of {len(projects)} projects")
-                    
-                    # Add buttons for each project
-                    for project in filtered_projects:
-                        btn = ctk.CTkButton(
-                            projects_frame,
-                            text=project['name'],
-                            width=200,
-                            command=lambda p=project: select_project(p)
-                        )
-                        btn.pack(pady=2)
-                
-                search_var.trace_add("write", on_search_change)
-                search_entry = ctk.CTkEntry(search_frame, width=180, textvariable=search_var)
-                search_entry.pack(side="left", padx=5)
-                
+                # Function to select a project
                 def select_project(project):
-                    # Set the selected project
-                    project_var.set(project['name'])
-                    project_dialog.destroy()
+                    # Get the project ID if it's not already set
+                    project_id = project['id']
+                    if project_id is None:
+                        # Find the ID from folder structure
+                        project_id = self.find_folder_id_by_name(folder_structure, project['name'])
+                        if not project_id:
+                            status_var.set(f"Could not find folder ID for {project['name']}")
+                            return
+                        project['id'] = project_id
                     
                     # Now get environments for this project
-                    folder_id = project['id']
+                    folder_id = project_id
                     folder_contents = client.get_folder(folder_id)
                     subfolders = self.get_subfolders(folder_contents)
                     
-                    # Update environment dropdown
-                    env_values = [folder['name'] for folder in subfolders]
+                    # Update environment dropdown with actual values from the project
+                    env_values = [folder['name'] for folder in subfolders] if isinstance(subfolders[0], dict) else subfolders
                     env_combo.configure(values=env_values)
                     if env_values:
-                        env_combo.set(env_values[0])
+                        env_var.set(env_values[0])  # Set first environment as default
                     
                     # Store folder contents for later use
                     dialog.folder_contents = folder_contents
                     
+                    # Close the project dialog
+                    project_dialog.destroy()
+                    
+                    # Update the dialog state with the selected project
+                    dialog.selected_project = project['name']
+                    
+                    # Enable get password button
+                    get_password_btn.configure(state="normal")
+                    
+                    # Update status
                     status_var.set(f"Selected project: {project['name']}")
                 
-                # Initialize the project list
+                # Add trace after defining the function
+                filter_var.trace_add("write", on_search_change)
+                
+                # Initial update of project list
                 update_project_list()
-            
+                
             except Exception as e:
                 status_var.set(f"Error detecting projects: {str(e)}")
-        
+                import traceback
+                traceback.print_exc()
+                
         # Connect to KeePass and get environments
         def connect():
             try:
-                status_var.set("Connecting to KeePass...")
+                # Skip the "Connecting to KeePass..." message since we're already connected
+                if not hasattr(dialog, 'client'):
+                    status_var.set("No KeePass connection yet!")
+                    return
                 
-                # Check if we already have a client
-                if GKInstallBuilder.keepass_client:
-                    client = GKInstallBuilder.keepass_client
-                    status_var.set("Using existing KeePass connection...")
-                else:
-                    # Create a new client
-                    client = PleasantPasswordClient(
-                        base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
-                        username=username_var.get(),
-                        password=password_var.get()
-                    )
-                    
-                    # If remember checkbox is checked, save the credentials
-                    if remember_var.get():
-                        GKInstallBuilder.keepass_client = client
-                        GKInstallBuilder.keepass_username = username_var.get()
-                        GKInstallBuilder.keepass_password = password_var.get()
-                
-                # Store client for later use
-                dialog.client = client
+                client = dialog.client
                 
                 # Get project folder
                 projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
                 folder_structure = client.get_folder(projects_folder_id)
                 
-                # Find project folder
-                project_name = project_var.get()
+                # Try to determine project name AND environment from the base URL automatically
+                project_name = "AZR-CSE"  # Default project
+                detected_env = "TEST"  # Default environment
+                
+                base_url = self.config_manager.config.get("base_url", "")
+                
+                if base_url and "." in base_url:
+                    parts = base_url.split(".")
+                    
+                    # Extract environment directly from first part (before first dot)
+                    if parts[0]:
+                        # Just use the exact environment name from the URL (uppercase)
+                        detected_env = parts[0].upper()
+                        print(f"Auto-detected environment from URL: {detected_env}")
+                    
+                    # Extract project name from second part (between first and second dot)
+                    if len(parts) >= 2 and parts[1]:
+                        # Extract second part of domain and add AZR- prefix
+                        detected_project = parts[1].upper()
+                        project_name = f"AZR-{detected_project}"
+                        print(f"Auto-detected project name from URL: {project_name}")
+                
                 folder_id = self.find_folder_id_by_name(folder_structure, project_name)
                 
-                if folder_id:
-                    # Get environments
-                    folder_contents = client.get_folder(folder_id)
-                    subfolders = self.get_subfolders(folder_contents)
-                    
-                    # Update environment dropdown
-                    env_values = [folder['name'] for folder in subfolders]
-                    env_combo.configure(values=env_values)
-                    if env_values:
-                        env_combo.set(env_values[0])
-                    status_var.set("Connected successfully! Select environment and get password.")
-                    get_password_btn.configure(state="normal")
-                    detect_projects_btn.configure(state="normal")  # Enable Detect Projects button
-                    
-                    # Store folder contents for later use
-                    dialog.folder_contents = folder_contents
-                else:
-                    status_var.set(f"Project {project_name} not found! Click 'Detect Projects' to see available projects.")
-                    detect_projects_btn.configure(state="normal")  # Enable Detect Projects button
-            
-            except Exception as e:
-                status_var.set(f"Error: {str(e)}")
-        
-        # Get password after selecting environment
-        def get_password():
-            try:
-                client = dialog.client
-                folder_contents = dialog.folder_contents
+                if not folder_id:
+                    status_var.set(f"Folder '{project_name}' not found! Click 'Detect Projects' to choose manually.")
+                    detect_projects_btn.configure(state="normal")
+                    return
                 
-                # Find selected environment folder
-                env_name = env_var.get()
-                env_folder = None
+                # Get environments for this project
+                folder_contents = client.get_folder(folder_id)
+                subfolders = self.get_subfolders(folder_contents)
                 
-                for subfolder in self.get_subfolders(folder_contents):
-                    if subfolder['name'] == env_name:
-                        env_folder = subfolder
+                # Update environment dropdown with actual values from the project
+                env_values = [folder['name'] for folder in subfolders] if isinstance(subfolders[0], dict) else subfolders
+                env_combo.configure(values=env_values)
+                
+                # Check if our detected environment exists in the available environments
+                detected_env_exists = False
+                for env in env_values:
+                    if env == detected_env:  # Exact match only
+                        detected_env_exists = True
                         break
                 
-                if env_folder:
-                    # Get full folder structure with higher recurse level
-                    print("\nGetting folder structure for environment:", env_name)
-                    print(f"Folder ID: {env_folder['id']}")
-                    folder_structure = client.get_folder_by_id(env_folder['id'], recurse_level=5)
-                    
-                    # Print the raw JSON response for debugging
-                    import json
-                    print("\n=== RAW JSON RESPONSE FROM KEEPASS API ===")
-                    print(json.dumps(folder_structure, indent=2)[:2000])  # Print first 2000 chars to avoid flooding console
-                    print("... (truncated)")
-                    print("=== END OF RAW JSON RESPONSE ===\n")
-                    
-                    # Print all credentials in the folder structure for debugging
-                    print("\nAll credentials in the folder structure:")
-                    self.print_all_credentials(folder_structure)
-                    
-                    # Find password entry - look for TEST-LAUNCHPAD-OAUTH-BA-PASSWORD first
-                    basic_auth_entry = self.find_basic_auth_password_entry(folder_structure)
-                    if basic_auth_entry:
-                        # Debug output
-                        print(f"\nFound BASIC-AUTH entry: {basic_auth_entry['Id']}")
-                        print(f"Entry name: {basic_auth_entry['Name']}")
-                        print("Attempting to get password...")
-                        
-                        # Get password - direct API call
-                        try:
-                            password_url = f"credentials/{basic_auth_entry['Id']}/password"
-                            print(f"Making API call to: {password_url}")
-                            password = client._make_request('GET', password_url)
-                            print(f"Password response type: {type(password)}")
-                            print(f"Password response: {password}")
-                            
-                            # Set password directly as string
-                            actual_password = str(password).strip()
-                            print(f"Setting password: {actual_password}")
-                            
-                            # Set password in the target entry field
-                            target_entry.delete(0, 'end')
-                            target_entry.insert(0, actual_password)
-                            print("Password set in field successfully")
-                            
-                            status_var.set("Password retrieved successfully!")
-                            dialog.after(1000, dialog.destroy)  # Close after 1 second
-                        except Exception as e:
-                            print(f"Error getting password: {str(e)}")
-                            status_var.set(f"Error getting password: {str(e)}")
+                # Set the environment value
+                if env_values:
+                    if detected_env_exists:
+                        env_var.set(detected_env)  # Set our detected environment if it exists
+                        print(f"Setting detected environment: {detected_env}")
                     else:
-                        status_var.set(f"No Launchpad oAuth2 password entry found in {env_name}!")
+                        env_var.set(env_values[0])  # Otherwise use the first available environment
+                        print(f"Detected environment '{detected_env}' not found, using: {env_values[0]}")
+                
+                # Store folder contents for later use
+                dialog.folder_contents = folder_contents
+                
+                # Store project name for later use
+                dialog.selected_project = project_name
+                
+                # Store folder structure for recursive search
+                dialog.folder_structure = folder_structure
+                
+                # Update status with Environment Autodetect message
+                status_var.set(f"Environment Autodetect - {project_name}")
+                
+                # Enable get password button
+                get_password_btn.configure(state="normal")
+                
+                # Also enable detect projects button in case user wants to select a different project
+                detect_projects_btn.configure(state="normal")
+                
+            except Exception as e:
+                status_var.set(f"Connection error: {str(e)}")
+                import traceback
+                traceback.print_exc()
+        
+        # Function to get password
+        def get_password():
+            try:
+                # Determine which project is selected
+                if not hasattr(dialog, 'selected_project'):
+                    # Try to auto-determine project from URL
+                    connect()
+                    if not hasattr(dialog, 'selected_project'):
+                        status_var.set("No project selected! Click 'Detect Projects' to select a project.")
+                        return
+                
+                project_name = dialog.selected_project
+                environment = env_var.get()
+                
+                # Clear any existing password
+                target_entry.delete(0, 'end')
+                
+                client = dialog.client
+                
+                # If we have folder_contents, use that instead of making more API calls
+                if hasattr(dialog, 'folder_contents'):
+                    folder_contents = dialog.folder_contents
+                    
+                    # Find the selected environment in folder_contents
+                    env_folder = None
+                    for folder in self.get_subfolders(folder_contents):
+                        if isinstance(folder, dict) and folder.get('name') == environment:
+                            env_folder = folder
+                            break
+                        elif folder == environment:  # String comparison
+                            # Need to get the ID for this environment
+                            env_id = self.find_folder_id_by_name(folder_contents, environment)
+                            if env_id:
+                                env_folder = client.get_folder(env_id)
+                            break
+                    
+                    if env_folder:
+                        # Get full environment folder structure
+                        env_id = env_folder['id'] if isinstance(env_folder, dict) else env_folder
+                        env_structure = client.get_folder(env_id)
+                        
+                        # Find the credential in this environment
+                        entry = self.find_basic_auth_password_entry(env_structure)
+                        
+                        if entry:
+                            # Get the password
+                            if isinstance(entry, dict) and 'Id' in entry:
+                                try:
+                                    # Direct API call to get the password
+                                    password_url = f"credentials/{entry['Id']}/password"
+                                    print(f"Making API call to: {password_url}")
+                                    password = client._make_request('GET', password_url)
+                                    # Set password in the target entry field
+                                    target_entry.delete(0, 'end')
+                                    target_entry.insert(0, str(password).strip())
+                                    status_var.set(f"Retrieved credential successfully!")
+                                except Exception as e:
+                                    status_var.set(f"Error retrieving password: {str(e)}")
+                                    print(f"Error getting password: {str(e)}")
+                            # For backwards compatibility, try to access password as attribute
+                            elif hasattr(entry, 'password'):
+                                password = entry.password
+                                target_entry.delete(0, 'end')
+                                target_entry.insert(0, password)
+                                status_var.set(f"Retrieved credential successfully!")
+                            else:
+                                status_var.set(f"Error: Unsupported entry format")
+                                print(f"Unsupported entry format: {type(entry)}")
+                                
+                            # Close the dialog after successful retrieval
+                            dialog.after(2000, on_dialog_close)
+                        else:
+                            status_var.set(f"No credentials found in {environment}!")
+                    else:
+                        status_var.set(f"Environment {environment} not found in project {project_name}!")
                 else:
-                    status_var.set(f"Environment {env_name} not found!")
+                    # Fallback to the previous implementation if folder_contents is not available
+                    folder_structure = dialog.folder_structure if hasattr(dialog, 'folder_structure') else client.get_folder("87300a24-9741-4d24-8a5c-a8b04e0b7049")
+                    
+                    # Navigate to project folder
+                    project_folder_id = self.find_folder_id_by_name(folder_structure, project_name)
+                    
+                    if not project_folder_id:
+                        status_var.set(f"Project '{project_name}' not found!")
+                        return
+                    
+                    # Get project folder structure
+                    project_folder = client.get_folder(project_folder_id)
+                    
+                    # Find environment folder
+                    env_folder_id = self.find_folder_id_by_name(project_folder, environment)
+                    
+                    if not env_folder_id:
+                        status_var.set(f"Environment '{environment}' not found!")
+                        return
+                    
+                    # Get environment folder structure
+                    env_folder = client.get_folder(env_folder_id)
+                    
+                    # In that environment, now we need to find the credentials
+                    entry = self.find_basic_auth_password_entry(env_folder)
+                    
+                    if entry:
+                        # Get the password - entry might be a dict, not an object with a password attribute
+                        if isinstance(entry, dict) and 'Id' in entry:
+                            try:
+                                # Direct API call to get the password
+                                password_url = f"credentials/{entry['Id']}/password"
+                                print(f"Making API call to: {password_url}")
+                                password = client._make_request('GET', password_url)
+                                # Set password in the target entry field
+                                target_entry.delete(0, 'end')
+                                target_entry.insert(0, str(password).strip())
+                                status_var.set(f"Retrieved credential successfully!")
+                            except Exception as e:
+                                status_var.set(f"Error retrieving password: {str(e)}")
+                                print(f"Error getting password: {str(e)}")
+                        # For backwards compatibility, try to access password as attribute
+                        elif hasattr(entry, 'password'):
+                            password = entry.password
+                            target_entry.delete(0, 'end')
+                            target_entry.insert(0, password)
+                            status_var.set(f"Retrieved credential successfully!")
+                        else:
+                            status_var.set(f"Error: Unsupported entry format")
+                            print(f"Unsupported entry format: {type(entry)}")
+                        
+                        # Close the dialog after 2 seconds
+                        dialog.after(2000, on_dialog_close)
+                    else:
+                        status_var.set(f"No credentials found for this project/environment!")
             
             except Exception as e:
                 status_var.set(f"Error: {str(e)}")
+                import traceback
+                traceback.print_exc()
     
     def find_basic_auth_password_entry(self, folder_structure):
         """Find Basic Auth password entry in KeePass folder structure"""
