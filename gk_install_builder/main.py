@@ -256,13 +256,23 @@ class GKInstallBuilder:
             # Determine system types based on project name
             pos_type = f"{project_name}-OPOS-CLOUD"
             wdm_type = f"{project_name}-wdm"
+            lpa_type = f"{project_name}-lps-lpa"
+            storehub_type = f"{project_name}-sh-cloud"
+            # Flow Service typically remains GKR-based but can be overridden if needed
+            flow_service_type = "GKR-FLOWSERVICE-CLOUD"
             
             print(f"Setting POS system type to: {pos_type}")
             print(f"Setting WDM system type to: {wdm_type}")
+            print(f"Setting LPA Service system type to: {lpa_type}")
+            print(f"Setting StoreHub Service system type to: {storehub_type}")
+            print(f"Setting Flow Service system type to: {flow_service_type}")
             
-            # ALWAYS update POS and WDM system types using the new method
+            # ALWAYS update system types using the new method
             self.config_manager.update_entry_value("pos_system_type", pos_type)
             self.config_manager.update_entry_value("wdm_system_type", wdm_type)
+            self.config_manager.update_entry_value("lpa_service_system_type", lpa_type)
+            self.config_manager.update_entry_value("storehub_service_system_type", storehub_type)
+            self.config_manager.update_entry_value("flow_service_system_type", flow_service_type)
             
             # ALWAYS update base install directory
             self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
@@ -902,7 +912,7 @@ class GKInstallBuilder:
         grid_frame.pack(padx=10, pady=5, fill="x", expand=True)
         
         # Version override checkbox
-        self.version_override_var = ctk.BooleanVar(value=False)
+        self.version_override_var = ctk.BooleanVar(value=self.config_manager.config.get("use_version_override", False))
         override_checkbox = ctk.CTkCheckBox(
             grid_frame, 
             text="Enable Version Override", 
@@ -912,11 +922,15 @@ class GKInstallBuilder:
         override_checkbox.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="w")
         self.create_tooltip(override_checkbox, "Enable to specify custom versions for each component type")
         
+        # Get project version from config
+        project_version = self.config_manager.config.get("version", "")
+        
         # POS Version
         pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
         pos_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.pos_version_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.pos_version_entry.insert(0, self.config_manager.config.get("pos_version", project_version))
         self.config_manager.register_entry("pos_version", self.pos_version_entry)
         self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
         self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
@@ -926,6 +940,7 @@ class GKInstallBuilder:
         wdm_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
         self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.wdm_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry.insert(0, self.config_manager.config.get("wdm_version", project_version))
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
         self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
@@ -935,6 +950,7 @@ class GKInstallBuilder:
         flow_service_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.flow_service_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry.insert(0, self.config_manager.config.get("flow_service_version", project_version))
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
         self.create_tooltip(self.flow_service_version_entry, "Example: v1.0.0")
@@ -944,6 +960,7 @@ class GKInstallBuilder:
         lpa_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.lpa_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry.insert(0, self.config_manager.config.get("lpa_service_version", project_version))
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
         self.create_tooltip(self.lpa_service_version_entry, "Example: v1.0.0")
@@ -953,6 +970,7 @@ class GKInstallBuilder:
         storehub_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.storehub_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
         self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
         self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
@@ -968,12 +986,35 @@ class GKInstallBuilder:
         enabled = self.version_override_var.get()
         state = "normal" if enabled else "disabled"
         
-        # Update entry states
-        self.pos_version_entry.configure(state=state)
-        self.wdm_version_entry.configure(state=state)
-        self.flow_service_version_entry.configure(state=state)
-        self.lpa_service_version_entry.configure(state=state)
-        self.storehub_service_version_entry.configure(state=state)
+        # Get project version
+        project_version = self.config_manager.config.get("version", "")
+        
+        # Update entry states and values
+        version_entries = [
+            (self.pos_version_entry, "pos_version"),
+            (self.wdm_version_entry, "wdm_version"),
+            (self.flow_service_version_entry, "flow_service_version"),
+            (self.lpa_service_version_entry, "lpa_service_version"),
+            (self.storehub_service_version_entry, "storehub_service_version")
+        ]
+        
+        for entry, config_key in version_entries:
+            # Configure entry state
+            entry.configure(state="normal")  # Temporarily enable to modify
+            
+            if not enabled:
+                # If disabling override, reset to project version
+                entry.delete(0, 'end')
+                entry.insert(0, project_version)
+                # Update config to remove override
+                self.config_manager.config[config_key] = project_version
+            
+            # Set final state
+            entry.configure(state=state)
+            
+        # Update config
+        self.config_manager.config["use_version_override"] = enabled
+        self.config_manager.save_config_silent()
     
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
@@ -1389,7 +1430,11 @@ class GKInstallBuilder:
         """Create offline package with selected components"""
         try:
             # Check if at least one component is selected
-            if not self.include_pos.get() and not self.include_wdm.get() and not self.include_flow_service.get() and not self.include_lpa_service.get() and not self.include_storehub_service.get():
+            if not (self.include_pos.get() or 
+                   self.include_wdm.get() or 
+                   self.include_flow_service.get() or 
+                   self.include_lpa_service.get() or 
+                   self.include_storehub_service.get()):
                 self.show_error("Error", "Please select at least one component")
                 return
             
@@ -2717,7 +2762,11 @@ class OfflinePackageCreator:
         """Create offline package with selected components"""
         try:
             # Check if at least one component is selected
-            if not self.include_pos.get() and not self.include_wdm.get():
+            if not (self.include_pos.get() or 
+                   self.include_wdm.get() or 
+                   self.include_flow_service.get() or 
+                   self.include_lpa_service.get() or 
+                   self.include_storehub_service.get()):
                 self.show_error("Error", "Please select at least one component")
                 return
             

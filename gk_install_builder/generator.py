@@ -215,9 +215,9 @@ class ProjectGenerator:
             # Get system types from config
             pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
             wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
-            flow_service_system_type = config.get("flow_service_system_type", "CSE-flow-service")
-            lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lpa-service")
-            storehub_service_system_type = config.get("storehub_service_system_type", "CSE-storehub-service")
+            flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
+            lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
+            storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
             
             print(f"Using system types from config:")
             print(f"  POS System Type: {pos_system_type}")
@@ -226,20 +226,32 @@ class ProjectGenerator:
             print(f"  LPA Service System Type: {lpa_service_system_type}")
             print(f"  StoreHub Service System Type: {storehub_service_system_type}")
             
-            # Define replacements
+            # Replace the switch statement for system types
+            old_switch = """$systemType = switch ($ComponentType) {
+    'POS' { "CSE-OPOS-CLOUD" }
+    'WDM' { "CSE-wdm" }
+    'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
+    'LPA-SERVICE' { "CSE-lps-lpa" }
+    'STOREHUB-SERVICE' { "CSE-sh-cloud" }
+    default { "CSE-OPOS-CLOUD" }
+}"""
+            new_switch = f"""$systemType = switch ($ComponentType) {{
+    'POS' {{ "{pos_system_type}" }}
+    'WDM' {{ "{wdm_system_type}" }}
+    'FLOW-SERVICE' {{ "{flow_service_system_type}" }}
+    'LPA-SERVICE' {{ "{lpa_service_system_type}" }}
+    'STOREHUB-SERVICE' {{ "{storehub_service_system_type}" }}
+    default {{ "{pos_system_type}" }}
+}}"""
+            template = template.replace(old_switch, new_switch)
+            
+            # Define other replacements
             replacements = [
                 ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
                 ('$version = "v1.0.0"', f'$version = "{default_version}"'),
                 ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
                 ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
                 ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
-                # Replace hardcoded system types in the if statement
-                ('$systemType = if ($ComponentType -eq \'POS\') { "GKR-OPOS-CLOUD" } else { "CSE-wdm" }', 
-                 f'$systemType = if ($ComponentType -eq \'POS\') {{ "{pos_system_type}" }} else {{ "{wdm_system_type}" }}'),
-                # Replace hardcoded system types in the dictionary
-                ('$systemTypes = @{\n    POS = "GKR-OPOS-CLOUD"\n    WDM = "CSE-wdm"', 
-                 f'$systemTypes = @{{\n    POS = "{pos_system_type}"\n    WDM = "{wdm_system_type}"\n    "FLOW-SERVICE" = "{flow_service_system_type}"\n    "LPA-SERVICE" = "{lpa_service_system_type}"\n    "STOREHUB-SERVICE" = "{storehub_service_system_type}"'),
-                # Add Firebird server path for StoreHub Service
                 ('@FIREBIRD_SERVER_PATH@', config.get("firebird_server_path", "localhost")),
             ]
             
@@ -267,21 +279,21 @@ function Get-ComponentVersion {{
         return $version
     }}
     
-    switch -Regex ($SystemType) {{
-        # POS components (both GKR and standard)
-        "^.*POS.*|^.*OPOS.*" {{ return $pos_version }}
+    switch ($SystemType) {{
+        # POS components
+        "{pos_system_type}" {{ return $pos_version }}
         
-        # WDM components (both GKR and standard)
-        "^.*WDM.*|^.*wdm.*" {{ return $wdm_version }}
+        # WDM components
+        "{wdm_system_type}" {{ return $wdm_version }}
         
         # Flow Service components
-        "^.*flow-service.*" {{ return $flow_service_version }}
+        "{flow_service_system_type}" {{ return $flow_service_version }}
         
         # LPA Service components
-        "^.*lpa-service.*" {{ return $lpa_service_version }}
+        "{lpa_service_system_type}" {{ return $lpa_service_version }}
         
         # StoreHub Service components
-        "^.*storehub-service.*" {{ return $storehub_service_version }}
+        "{storehub_service_system_type}" {{ return $storehub_service_version }}
         
         # For any other system type, use the project version
         default {{ return $version }}
@@ -592,6 +604,49 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
         
         return result
 
+    def get_component_version(self, system_type, config):
+        """Determine the correct version for a component based on its system type"""
+        # Get version information from config
+        default_version = config.get("version", "v1.0.0")
+        use_version_override = config.get("use_version_override", False)
+        
+        # If version override is disabled, always use the default version
+        if not use_version_override:
+            return default_version
+        
+        # If system type is empty, use default version
+        if not system_type or system_type == "":
+            return default_version
+        
+        # Print debug information
+        print(f"\nDetermining version for system type: {system_type}")
+        print(f"Version override enabled: {use_version_override}")
+        
+        # Match against the exact system type names
+        if system_type in ["GKR-OPOS-CLOUD", "CSE-OPOS-CLOUD"]:
+            version = config.get("pos_version", default_version)
+            print(f"Matched POS system type, using version: {version}")
+            return version
+        elif system_type in ["CSE-wdm", "GKR-WDM-CLOUD"]:
+            version = config.get("wdm_version", default_version)
+            print(f"Matched WDM system type, using version: {version}")
+            return version
+        elif system_type == "GKR-FLOWSERVICE-CLOUD":
+            version = config.get("flow_service_version", default_version)
+            print(f"Matched Flow Service system type, using version: {version}")
+            return version
+        elif system_type == "CSE-lps-lpa":
+            version = config.get("lpa_service_version", default_version)
+            print(f"Matched LPA Service system type, using version: {version}")
+            return version
+        elif system_type == "CSE-sh-cloud":
+            version = config.get("storehub_service_version", default_version)
+            print(f"Matched StoreHub Service system type, using version: {version}")
+            return version
+        else:
+            print(f"No match found for system type, using default version: {default_version}")
+            return default_version
+
     def prepare_offline_package(self, config, selected_components, dialog_parent=None):
         try:
             import threading
@@ -641,31 +696,6 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             download_queue = queue.Queue()
             downloaded_files = []
             download_errors = []
-            
-            # Helper function to determine the correct version to use
-            def get_component_version(system_type):
-                # If version override is disabled, always use the default version
-                if not use_version_override:
-                    return default_version
-                
-                # If system type is empty, use default version
-                if not system_type or system_type == "":
-                    return default_version
-                
-                # Check system type patterns
-                if "POS" in system_type or "OPOS" in system_type:
-                    return pos_version
-                elif "WDM" in system_type or "wdm" in system_type:
-                    return wdm_version
-                elif "flow-service" in system_type:
-                    return flow_service_version
-                elif "lpa-service" in system_type:
-                    return lpa_service_version
-                elif "storehub-service" in system_type:
-                    return storehub_service_version
-                else:
-                    # For any other system type, use the project version
-                    return default_version
             
             # Helper function to download a file in a separate thread
             def download_file_thread(remote_path, local_path, file_name, component_type):
@@ -1086,14 +1116,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 print(f"Output directory: {pos_dir}")
                 os.makedirs(pos_dir, exist_ok=True)
                 
-                # Determine system type and version
+                # Determine system type and version first
                 pos_system_type = config.get("pos_system_type", "CSE-OPOS-CLOUD")
-                version_to_use = get_component_version(pos_system_type)
+                version_to_use = self.get_component_version(pos_system_type, config)
                 
                 print(f"Using system type: {pos_system_type}")
                 print(f"Using version: {version_to_use}")
                 
-                # Navigate to version directory
+                # Navigate to version directory with correct system type and version
                 pos_version_path = f"/SoftwarePackage/{pos_system_type}/{version_to_use}"
                 print(f"Checking version directory: {pos_version_path}")
                 
@@ -1142,14 +1172,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 print(f"Output directory: {wdm_dir}")
                 os.makedirs(wdm_dir, exist_ok=True)
                 
-                # Determine system type and version
+                # Determine system type and version first
                 wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
-                version_to_use = get_component_version(wdm_system_type)
+                version_to_use = self.get_component_version(wdm_system_type, config)
                 
                 print(f"Using system type: {wdm_system_type}")
                 print(f"Using version: {version_to_use}")
                 
-                # Navigate to version directory
+                # Navigate to version directory with correct system type and version
                 wdm_version_path = f"/SoftwarePackage/{wdm_system_type}/{version_to_use}"
                 print(f"Checking version directory: {wdm_version_path}")
                 
@@ -1198,14 +1228,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 print(f"Output directory: {flow_service_dir}")
                 os.makedirs(flow_service_dir, exist_ok=True)
                 
-                # Determine system type and version
-                flow_service_system_type = config.get("flow_service_system_type", "CSE-flow-service")
-                version_to_use = get_component_version(flow_service_system_type)
+                # Determine system type and version first
+                flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
+                version_to_use = self.get_component_version(flow_service_system_type, config)
                 
                 print(f"Using system type: {flow_service_system_type}")
                 print(f"Using version: {version_to_use}")
                 
-                # Navigate to version directory
+                # Navigate to version directory with correct system type and version
                 flow_service_version_path = f"/SoftwarePackage/{flow_service_system_type}/{version_to_use}"
                 print(f"Checking version directory: {flow_service_version_path}")
                 
@@ -1238,7 +1268,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 
                 except Exception as e:
                     print(f"Error accessing Flow Service version directory: {e}")
-                    download_errors.append(f"Failed to access Flow Service version directory: {str(e)}")
+                    # Ask if user wants to download dependencies even though component files couldn't be accessed
+                    if component_dependencies.get("FLOW-SERVICE", False):
+                        if self._ask_download_dependencies_only("Flow Service", dialog_parent, error_message=str(e)):
+                            # Download Java and Tomcat for Flow Service
+                            dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
+                            files_to_download.extend(dependency_files)
+                    else:
+                        raise
                 
                 # Copy launcher template
                 try:
@@ -1249,22 +1286,22 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 except Exception as e:
                     print(f"Error copying Flow Service launcher template: {e}")
                     download_errors.append(f"Failed to copy Flow Service launcher template: {str(e)}")
-                
+            
             # Process LPA Service component
             if "LPA-SERVICE" in selected_components:
-                lpa_service_dir = os.path.join(output_dir, "offline_package_LPA-SERVICE")
+                lpa_service_dir = os.path.join(output_dir, "offline_package_LPA")
                 print(f"\nProcessing LPA Service component...")
                 print(f"Output directory: {lpa_service_dir}")
                 os.makedirs(lpa_service_dir, exist_ok=True)
                 
-                # Determine system type and version
-                lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lpa-service")
-                version_to_use = get_component_version(lpa_service_system_type)
+                # Determine system type and version first
+                lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
+                version_to_use = self.get_component_version(lpa_service_system_type, config)
                 
                 print(f"Using system type: {lpa_service_system_type}")
                 print(f"Using version: {version_to_use}")
                 
-                # Navigate to version directory
+                # Navigate to version directory with correct system type and version
                 lpa_service_version_path = f"/SoftwarePackage/{lpa_service_system_type}/{version_to_use}"
                 print(f"Checking version directory: {lpa_service_version_path}")
                 
@@ -1297,7 +1334,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 
                 except Exception as e:
                     print(f"Error accessing LPA Service version directory: {e}")
-                    download_errors.append(f"Failed to access LPA Service version directory: {str(e)}")
+                    # Ask if user wants to download dependencies even though component files couldn't be accessed
+                    if component_dependencies.get("LPA-SERVICE", False):
+                        if self._ask_download_dependencies_only("LPA Service", dialog_parent, error_message=str(e)):
+                            # Download Java and Tomcat for LPA Service
+                            dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
+                            files_to_download.extend(dependency_files)
+                    else:
+                        raise
                 
                 # Copy launcher template
                 try:
@@ -1308,22 +1352,22 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 except Exception as e:
                     print(f"Error copying LPA Service launcher template: {e}")
                     download_errors.append(f"Failed to copy LPA Service launcher template: {str(e)}")
-                
+            
             # Process StoreHub Service component
             if "STOREHUB-SERVICE" in selected_components:
-                storehub_service_dir = os.path.join(output_dir, "offline_package_STOREHUB-SERVICE")
+                storehub_service_dir = os.path.join(output_dir, "offline_package_SH")
                 print(f"\nProcessing StoreHub Service component...")
                 print(f"Output directory: {storehub_service_dir}")
                 os.makedirs(storehub_service_dir, exist_ok=True)
                 
-                # Determine system type and version
-                storehub_service_system_type = config.get("storehub_service_system_type", "CSE-storehub-service")
-                version_to_use = get_component_version(storehub_service_system_type)
+                # Determine system type and version first
+                storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
+                version_to_use = self.get_component_version(storehub_service_system_type, config)
                 
                 print(f"Using system type: {storehub_service_system_type}")
                 print(f"Using version: {version_to_use}")
                 
-                # Navigate to version directory
+                # Navigate to version directory with correct system type and version
                 storehub_service_version_path = f"/SoftwarePackage/{storehub_service_system_type}/{version_to_use}"
                 print(f"Checking version directory: {storehub_service_version_path}")
                 
@@ -1356,7 +1400,14 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 
                 except Exception as e:
                     print(f"Error accessing StoreHub Service version directory: {e}")
-                    download_errors.append(f"Failed to access StoreHub Service version directory: {str(e)}")
+                    # Ask if user wants to download dependencies even though component files couldn't be accessed
+                    if component_dependencies.get("STOREHUB-SERVICE", False):
+                        if self._ask_download_dependencies_only("StoreHub Service", dialog_parent, error_message=str(e)):
+                            # Download Java and Tomcat for StoreHub Service
+                            dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
+                            files_to_download.extend(dependency_files)
+                    else:
+                        raise
                 
                 # Copy launcher template
                 try:
