@@ -208,14 +208,23 @@ class ProjectGenerator:
             use_version_override = config.get("use_version_override", False)
             pos_version = config.get("pos_version", default_version)
             wdm_version = config.get("wdm_version", default_version)
+            flow_service_version = config.get("flow_service_version", default_version)
+            lpa_service_version = config.get("lpa_service_version", default_version)
+            storehub_service_version = config.get("storehub_service_version", default_version)
             
             # Get system types from config
             pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
             wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
+            flow_service_system_type = config.get("flow_service_system_type", "CSE-flow-service")
+            lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lpa-service")
+            storehub_service_system_type = config.get("storehub_service_system_type", "CSE-storehub-service")
             
             print(f"Using system types from config:")
             print(f"  POS System Type: {pos_system_type}")
             print(f"  WDM System Type: {wdm_system_type}")
+            print(f"  Flow Service System Type: {flow_service_system_type}")
+            print(f"  LPA Service System Type: {lpa_service_system_type}")
+            print(f"  StoreHub Service System Type: {storehub_service_system_type}")
             
             # Define replacements
             replacements = [
@@ -229,7 +238,9 @@ class ProjectGenerator:
                  f'$systemType = if ($ComponentType -eq \'POS\') {{ "{pos_system_type}" }} else {{ "{wdm_system_type}" }}'),
                 # Replace hardcoded system types in the dictionary
                 ('$systemTypes = @{\n    POS = "GKR-OPOS-CLOUD"\n    WDM = "CSE-wdm"', 
-                 f'$systemTypes = @{{\n    POS = "{pos_system_type}"\n    WDM = "{wdm_system_type}"'),
+                 f'$systemTypes = @{{\n    POS = "{pos_system_type}"\n    WDM = "{wdm_system_type}"\n    "FLOW-SERVICE" = "{flow_service_system_type}"\n    "LPA-SERVICE" = "{lpa_service_system_type}"\n    "STOREHUB-SERVICE" = "{storehub_service_system_type}"'),
+                # Add Firebird server path for StoreHub Service
+                ('@FIREBIRD_SERVER_PATH@', config.get("firebird_server_path", "localhost")),
             ]
             
             # Add component-specific version replacements with simplified logic
@@ -238,6 +249,9 @@ class ProjectGenerator:
 $use_version_override = ${str(use_version_override).lower()}
 $pos_version = "{pos_version}"
 $wdm_version = "{wdm_version}"
+$flow_service_version = "{flow_service_version}"
+$lpa_service_version = "{lpa_service_version}"
+$storehub_service_version = "{storehub_service_version}"
 
 # Function to get the correct version based on system type
 function Get-ComponentVersion {{
@@ -259,6 +273,15 @@ function Get-ComponentVersion {{
         
         # WDM components (both GKR and standard)
         "^.*WDM.*|^.*wdm.*" {{ return $wdm_version }}
+        
+        # Flow Service components
+        "^.*flow-service.*" {{ return $flow_service_version }}
+        
+        # LPA Service components
+        "^.*lpa-service.*" {{ return $lpa_service_version }}
+        
+        # StoreHub Service components
+        "^.*storehub-service.*" {{ return $storehub_service_version }}
         
         # For any other system type, use the project version
         default {{ return $version }}
@@ -582,6 +605,9 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             # Get component-specific versions
             pos_version = config.get("pos_version", default_version)
             wdm_version = config.get("wdm_version", default_version)
+            flow_service_version = config.get("flow_service_version", default_version)
+            lpa_service_version = config.get("lpa_service_version", default_version)
+            storehub_service_version = config.get("storehub_service_version", default_version)
             
             # Get component dependencies
             component_dependencies = config.get("component_dependencies", {})
@@ -592,6 +618,9 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             print(f"Version override enabled: {use_version_override}")
             print(f"POS version: {pos_version}")
             print(f"WDM version: {wdm_version}")
+            print(f"Flow Service version: {flow_service_version}")
+            print(f"LPA Service version: {lpa_service_version}")
+            print(f"StoreHub Service version: {storehub_service_version}")
             print(f"Selected components: {selected_components}")
             print(f"Component dependencies: {component_dependencies}")
             
@@ -623,11 +652,17 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 if not system_type or system_type == "":
                     return default_version
                 
-                # Check system type patterns - simplified to just POS and WDM
+                # Check system type patterns
                 if "POS" in system_type or "OPOS" in system_type:
                     return pos_version
                 elif "WDM" in system_type or "wdm" in system_type:
                     return wdm_version
+                elif "flow-service" in system_type:
+                    return flow_service_version
+                elif "lpa-service" in system_type:
+                    return lpa_service_version
+                elif "storehub-service" in system_type:
+                    return storehub_service_version
                 else:
                     # For any other system type, use the project version
                     return default_version
@@ -1155,6 +1190,183 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                             files_to_download.extend(dependency_files)
                     else:
                         raise
+            
+            # Process Flow Service component
+            if "FLOW-SERVICE" in selected_components:
+                flow_service_dir = os.path.join(output_dir, "offline_package_FLOW-SERVICE")
+                print(f"\nProcessing Flow Service component...")
+                print(f"Output directory: {flow_service_dir}")
+                os.makedirs(flow_service_dir, exist_ok=True)
+                
+                # Determine system type and version
+                flow_service_system_type = config.get("flow_service_system_type", "CSE-flow-service")
+                version_to_use = get_component_version(flow_service_system_type)
+                
+                print(f"Using system type: {flow_service_system_type}")
+                print(f"Using version: {version_to_use}")
+                
+                # Navigate to version directory
+                flow_service_version_path = f"/SoftwarePackage/{flow_service_system_type}/{version_to_use}"
+                print(f"Checking version directory: {flow_service_version_path}")
+                
+                try:
+                    files = self.webdav_browser.list_directories(flow_service_version_path)
+                    print(f"Found files: {files}")
+                    
+                    # Prompt user to select files if multiple JAR/EXE files are found
+                    selected_files = prompt_for_file_selection(files, "Flow Service")
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{flow_service_version_path}/{file_name}"
+                        local_path = os.path.join(flow_service_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, "Flow Service"))
+                    
+                    # Check if no files were found but dependencies are needed
+                    if not selected_files and component_dependencies.get("FLOW-SERVICE", False):
+                        # Ask user if they want to download dependencies even though no component files were found
+                        if self._ask_download_dependencies_only("Flow Service", dialog_parent):
+                            # Download Java and Tomcat for Flow Service
+                            dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
+                            files_to_download.extend(dependency_files)
+                    # Check if dependencies are needed for Flow Service
+                    elif component_dependencies.get("FLOW-SERVICE", False):
+                        # Download Java and Tomcat for Flow Service
+                        dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
+                        files_to_download.extend(dependency_files)
+                
+                except Exception as e:
+                    print(f"Error accessing Flow Service version directory: {e}")
+                    download_errors.append(f"Failed to access Flow Service version directory: {str(e)}")
+                
+                # Copy launcher template
+                try:
+                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.flow-service.template")
+                    launcher_output_path = os.path.join(flow_service_dir, "launcher.properties.template")
+                    shutil.copy(launcher_template_path, launcher_output_path)
+                    print(f"Copied Flow Service launcher template to {launcher_output_path}")
+                except Exception as e:
+                    print(f"Error copying Flow Service launcher template: {e}")
+                    download_errors.append(f"Failed to copy Flow Service launcher template: {str(e)}")
+                
+            # Process LPA Service component
+            if "LPA-SERVICE" in selected_components:
+                lpa_service_dir = os.path.join(output_dir, "offline_package_LPA-SERVICE")
+                print(f"\nProcessing LPA Service component...")
+                print(f"Output directory: {lpa_service_dir}")
+                os.makedirs(lpa_service_dir, exist_ok=True)
+                
+                # Determine system type and version
+                lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lpa-service")
+                version_to_use = get_component_version(lpa_service_system_type)
+                
+                print(f"Using system type: {lpa_service_system_type}")
+                print(f"Using version: {version_to_use}")
+                
+                # Navigate to version directory
+                lpa_service_version_path = f"/SoftwarePackage/{lpa_service_system_type}/{version_to_use}"
+                print(f"Checking version directory: {lpa_service_version_path}")
+                
+                try:
+                    files = self.webdav_browser.list_directories(lpa_service_version_path)
+                    print(f"Found files: {files}")
+                    
+                    # Prompt user to select files if multiple JAR/EXE files are found
+                    selected_files = prompt_for_file_selection(files, "LPA Service")
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{lpa_service_version_path}/{file_name}"
+                        local_path = os.path.join(lpa_service_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, "LPA Service"))
+                    
+                    # Check if no files were found but dependencies are needed
+                    if not selected_files and component_dependencies.get("LPA-SERVICE", False):
+                        # Ask user if they want to download dependencies even though no component files were found
+                        if self._ask_download_dependencies_only("LPA Service", dialog_parent):
+                            # Download Java and Tomcat for LPA Service
+                            dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
+                            files_to_download.extend(dependency_files)
+                    # Check if dependencies are needed for LPA Service
+                    elif component_dependencies.get("LPA-SERVICE", False):
+                        # Download Java and Tomcat for LPA Service
+                        dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
+                        files_to_download.extend(dependency_files)
+                
+                except Exception as e:
+                    print(f"Error accessing LPA Service version directory: {e}")
+                    download_errors.append(f"Failed to access LPA Service version directory: {str(e)}")
+                
+                # Copy launcher template
+                try:
+                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.lpa-service.template")
+                    launcher_output_path = os.path.join(lpa_service_dir, "launcher.properties.template")
+                    shutil.copy(launcher_template_path, launcher_output_path)
+                    print(f"Copied LPA Service launcher template to {launcher_output_path}")
+                except Exception as e:
+                    print(f"Error copying LPA Service launcher template: {e}")
+                    download_errors.append(f"Failed to copy LPA Service launcher template: {str(e)}")
+                
+            # Process StoreHub Service component
+            if "STOREHUB-SERVICE" in selected_components:
+                storehub_service_dir = os.path.join(output_dir, "offline_package_STOREHUB-SERVICE")
+                print(f"\nProcessing StoreHub Service component...")
+                print(f"Output directory: {storehub_service_dir}")
+                os.makedirs(storehub_service_dir, exist_ok=True)
+                
+                # Determine system type and version
+                storehub_service_system_type = config.get("storehub_service_system_type", "CSE-storehub-service")
+                version_to_use = get_component_version(storehub_service_system_type)
+                
+                print(f"Using system type: {storehub_service_system_type}")
+                print(f"Using version: {version_to_use}")
+                
+                # Navigate to version directory
+                storehub_service_version_path = f"/SoftwarePackage/{storehub_service_system_type}/{version_to_use}"
+                print(f"Checking version directory: {storehub_service_version_path}")
+                
+                try:
+                    files = self.webdav_browser.list_directories(storehub_service_version_path)
+                    print(f"Found files: {files}")
+                    
+                    # Prompt user to select files if multiple JAR/EXE files are found
+                    selected_files = prompt_for_file_selection(files, "StoreHub Service")
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{storehub_service_version_path}/{file_name}"
+                        local_path = os.path.join(storehub_service_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, "StoreHub Service"))
+                    
+                    # Check if no files were found but dependencies are needed
+                    if not selected_files and component_dependencies.get("STOREHUB-SERVICE", False):
+                        # Ask user if they want to download dependencies even though no component files were found
+                        if self._ask_download_dependencies_only("StoreHub Service", dialog_parent):
+                            # Download Java and Tomcat for StoreHub Service
+                            dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
+                            files_to_download.extend(dependency_files)
+                    # Check if dependencies are needed for StoreHub Service
+                    elif component_dependencies.get("STOREHUB-SERVICE", False):
+                        # Download Java and Tomcat for StoreHub Service
+                        dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
+                        files_to_download.extend(dependency_files)
+                
+                except Exception as e:
+                    print(f"Error accessing StoreHub Service version directory: {e}")
+                    download_errors.append(f"Failed to access StoreHub Service version directory: {str(e)}")
+                
+                # Copy launcher template
+                try:
+                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.storehub-service.template")
+                    launcher_output_path = os.path.join(storehub_service_dir, "launcher.properties.template")
+                    shutil.copy(launcher_template_path, launcher_output_path)
+                    print(f"Copied StoreHub Service launcher template to {launcher_output_path}")
+                except Exception as e:
+                    print(f"Error copying StoreHub Service launcher template: {e}")
+                    download_errors.append(f"Failed to copy StoreHub Service launcher template: {str(e)}")
             
             # If no files to download, return
             if not files_to_download:

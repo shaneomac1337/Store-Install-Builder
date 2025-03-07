@@ -100,12 +100,19 @@ class ConfigManager:
             "use_version_override": False,  # Flag to enable/disable version override
             "pos_version": "v1.0.0",
             "wdm_version": "v1.0.0",
+            "flow_service_version": "v1.0.0",
+            "lpa_service_version": "v1.0.0",
+            "storehub_service_version": "v1.0.0",
             
             # Installation Configuration
             "base_install_dir": "C:\\gkretail",
             "tenant_id": "001",
             "pos_system_type": "",  # Will be dynamically set based on URL
             "wdm_system_type": "",  # Will be dynamically set based on URL
+            "flow_service_system_type": "CSE-flow-service",
+            "lpa_service_system_type": "CSE-lpa-service",
+            "storehub_service_system_type": "CSE-storehub-service",
+            "firebird_server_path": "localhost",
             
             # Security Configuration
             "ssl_password": "changeit",
