@@ -1,12 +1,19 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
+    [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co"
 )
 
 # Stop on first error
 $ErrorActionPreference = "Stop"
+
+# Map shortened component types to full names
+if ($ComponentType -eq 'LPA') {
+    $ComponentType = 'LPA-SERVICE'
+} elseif ($ComponentType -eq 'SH') {
+    $ComponentType = 'STOREHUB-SERVICE'
+}
 
 # Function for error handling
 function Handle-Error {
@@ -82,7 +89,14 @@ $version = "v1.0.0"
 $base_install_dir = "C:\gkretail"
 
 # Set component-specific configurations
-$systemType = if ($ComponentType -eq 'POS') { "GKR-OPOS-CLOUD" } else { "CSE-wdm" }
+$systemType = switch ($ComponentType) {
+    'POS' { "CSE-OPOS-CLOUD" }
+    'WDM' { "CSE-wdm" }
+    'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
+    'LPA-SERVICE' { "CSE-lps-lpa" }
+    'STOREHUB-SERVICE' { "CSE-sh-cloud" }
+    default { "CSE-OPOS-CLOUD" }
+}
 $install_dir = Join-Path $base_install_dir $(
     if ($ComponentType -eq 'POS') { "pos-full" } 
     elseif ($ComponentType -eq 'WDM') { "wdm" }
@@ -115,7 +129,9 @@ if ($ComponentType -eq 'WDM') {
 }
 
 # Add component-specific package directory check
-$package_dir = "offline_package_$ComponentType"
+$package_dir = if ($ComponentType -eq 'LPA-SERVICE') { "offline_package_LPA" }
+               elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "offline_package_SH" }
+               else { "offline_package_$ComponentType" }
 
 # Update offline mode checks
 if ($offline.IsPresent) {
@@ -290,18 +306,6 @@ Write-Host "Environment: $part3"
 Write-Host "StoreNr   : $part4"
 Write-Host "PosNr     : $part5"
 Write-Host "-------------------"
-
-# Define system types
-$systemTypes = @{
-    POS = "GKR-OPOS-CLOUD"
-    WDM = "CSE-wdm"
-    "FLOW-SERVICE" = "CSE-flow-service"
-    "LPA-SERVICE" = "CSE-lpa-service"
-    "STOREHUB-SERVICE" = "CSE-storehub-service"
-}
-
-# Get the system type based on component type
-$systemType = $systemTypes[$ComponentType]
 
 # After the basic configuration section, update the onboarding call
 Write-Host "Starting onboarding process for $ComponentType"

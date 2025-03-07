@@ -1,6 +1,6 @@
 {
     "restrictions": {
-        "clientType": "flow-service",
+        "clientType": "flowservice-cloud",
         "tenantId": "001",
         "lifespan": 86400,
         "maxUsageCount": 10000

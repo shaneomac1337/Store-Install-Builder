@@ -109,9 +109,9 @@ class ConfigManager:
             "tenant_id": "001",
             "pos_system_type": "",  # Will be dynamically set based on URL
             "wdm_system_type": "",  # Will be dynamically set based on URL
-            "flow_service_system_type": "CSE-flow-service",
-            "lpa_service_system_type": "CSE-lpa-service",
-            "storehub_service_system_type": "CSE-storehub-service",
+            "flow_service_system_type": "GKR-FLOWSERVICE-CLOUD",  # Default to GKR but still configurable
+            "lpa_service_system_type": "",  # Will be dynamically set based on URL
+            "storehub_service_system_type": "",  # Will be dynamically set based on URL
             "firebird_server_path": "localhost",
             
             # Security Configuration

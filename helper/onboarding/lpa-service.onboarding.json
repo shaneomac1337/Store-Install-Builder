@@ -1,6 +1,6 @@
 {
     "restrictions": {
-        "clientType": "lpa-service",
+        "clientType": "GKR-lps-lpa",
         "tenantId": "001",
         "lifespan": 86400,
         "maxUsageCount": 10000
