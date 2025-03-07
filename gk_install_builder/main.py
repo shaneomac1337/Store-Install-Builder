@@ -104,7 +104,11 @@ class GKInstallBuilder:
                 "Base Install Directory",
                 "Tenant ID",
                 "POS System Type",
-                "WDM System Type"
+                "WDM System Type",
+                "Flow Service System Type",
+                "LPA Service System Type",
+                "StoreHub Service System Type",
+                "Firebird Server Path"
             ])
             
             # Ensure base install directory is set
@@ -334,7 +338,8 @@ class GKInstallBuilder:
             "Auth Service BA User": "Username for Auth-Service (e.g., 'launchpad'). If you don't know what you are doing, please keep launchpad",
             "EH/Launchpad Username": "Username for Employee Hub / Launchpad (e.g., '1001')",
             "Launchpad oAuth2": "Launchpad Auth Service password (click 🔑 to retrieve from KeePass)",
-            "EH/Launchpad Password": "Employee Hub / Launchpad Password"
+            "EH/Launchpad Password": "Employee Hub / Launchpad Password",
+            "Firebird Server Path": "Path to the Firebird server (e.g., 'C:\\firebird\\server')",
         }
         
         # Fields
@@ -925,6 +930,33 @@ class GKInstallBuilder:
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
         self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
         
+        # Flow Service Version
+        flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
+        flow_service_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.flow_service_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
+        self.create_tooltip(flow_service_label, "Version for Flow Service components")
+        self.create_tooltip(self.flow_service_version_entry, "Example: v1.0.0")
+        
+        # LPA Service Version
+        lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
+        lpa_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.lpa_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
+        self.create_tooltip(lpa_service_label, "Version for LPA Service components")
+        self.create_tooltip(self.lpa_service_version_entry, "Example: v1.0.0")
+        
+        # StoreHub Service Version
+        storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
+        storehub_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.storehub_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
+        self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
+        self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
+        
         # Register the override checkbox with config manager
         self.config_manager.register_entry("use_version_override", self.version_override_var)
         
@@ -939,6 +971,9 @@ class GKInstallBuilder:
         # Update entry states
         self.pos_version_entry.configure(state=state)
         self.wdm_version_entry.configure(state=state)
+        self.flow_service_version_entry.configure(state=state)
+        self.lpa_service_version_entry.configure(state=state)
+        self.storehub_service_version_entry.configure(state=state)
     
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
@@ -1354,7 +1389,7 @@ class GKInstallBuilder:
         """Create offline package with selected components"""
         try:
             # Check if at least one component is selected
-            if not self.include_pos.get() and not self.include_wdm.get():
+            if not self.include_pos.get() and not self.include_wdm.get() and not self.include_flow_service.get() and not self.include_lpa_service.get() and not self.include_storehub_service.get():
                 self.show_error("Error", "Please select at least one component")
                 return
             
@@ -1369,6 +1404,18 @@ class GKInstallBuilder:
             if self.include_wdm.get():
                 selected_components.append("WDM")
                 component_dependencies["WDM"] = self.wdm_dependencies_needed.get()
+            
+            if self.include_flow_service.get():
+                selected_components.append("FLOW-SERVICE")
+                component_dependencies["FLOW-SERVICE"] = self.flow_service_dependencies_needed.get()
+                
+            if self.include_lpa_service.get():
+                selected_components.append("LPA-SERVICE")
+                component_dependencies["LPA-SERVICE"] = self.lpa_service_dependencies_needed.get()
+                
+            if self.include_storehub_service.get():
+                selected_components.append("STOREHUB-SERVICE")
+                component_dependencies["STOREHUB-SERVICE"] = self.storehub_service_dependencies_needed.get()
             
             # Update config with component dependencies
             self.config_manager.config["component_dependencies"] = component_dependencies
@@ -2337,6 +2384,84 @@ class OfflinePackageCreator:
         )
         wdm_dependencies_checkbox.pack(side="left", pady=5, padx=20)
         
+        # Flow Service component frame
+        flow_service_component_frame = ctk.CTkFrame(self.components_frame)
+        flow_service_component_frame.pack(fill="x", pady=5, padx=10)
+        
+        # Flow Service checkbox
+        self.include_flow_service = ctk.BooleanVar(value=False)
+        flow_service_checkbox = ctk.CTkCheckBox(
+            flow_service_component_frame,
+            text="Flow Service",
+            variable=self.include_flow_service,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        flow_service_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # Flow Service dependencies checkbox
+        self.flow_service_dependencies_needed = ctk.BooleanVar(value=False)
+        flow_service_dependencies_checkbox = ctk.CTkCheckBox(
+            flow_service_component_frame,
+            text="Include Java & Tomcat",
+            variable=self.flow_service_dependencies_needed,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        flow_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
+        
+        # LPA Service component frame
+        lpa_service_component_frame = ctk.CTkFrame(self.components_frame)
+        lpa_service_component_frame.pack(fill="x", pady=5, padx=10)
+        
+        # LPA Service checkbox
+        self.include_lpa_service = ctk.BooleanVar(value=False)
+        lpa_service_checkbox = ctk.CTkCheckBox(
+            lpa_service_component_frame,
+            text="LPA Service",
+            variable=self.include_lpa_service,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        lpa_service_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # LPA Service dependencies checkbox
+        self.lpa_service_dependencies_needed = ctk.BooleanVar(value=False)
+        lpa_service_dependencies_checkbox = ctk.CTkCheckBox(
+            lpa_service_component_frame,
+            text="Include Java & Tomcat",
+            variable=self.lpa_service_dependencies_needed,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        lpa_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
+        
+        # StoreHub Service component frame
+        storehub_service_component_frame = ctk.CTkFrame(self.components_frame)
+        storehub_service_component_frame.pack(fill="x", pady=5, padx=10)
+        
+        # StoreHub Service checkbox
+        self.include_storehub_service = ctk.BooleanVar(value=False)
+        storehub_service_checkbox = ctk.CTkCheckBox(
+            storehub_service_component_frame,
+            text="StoreHub Service",
+            variable=self.include_storehub_service,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        storehub_service_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # StoreHub Service dependencies checkbox
+        self.storehub_service_dependencies_needed = ctk.BooleanVar(value=False)
+        storehub_service_dependencies_checkbox = ctk.CTkCheckBox(
+            storehub_service_component_frame,
+            text="Include Java & Tomcat",
+            variable=self.storehub_service_dependencies_needed,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        storehub_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
+        
         # Create button
         self.create_button = ctk.CTkButton(
             self.offline_package_frame,
@@ -2607,6 +2732,18 @@ class OfflinePackageCreator:
             if self.include_wdm.get():
                 selected_components.append("WDM")
                 component_dependencies["WDM"] = self.wdm_dependencies_needed.get()
+            
+            if self.include_flow_service.get():
+                selected_components.append("FLOW-SERVICE")
+                component_dependencies["FLOW-SERVICE"] = self.flow_service_dependencies_needed.get()
+                
+            if self.include_lpa_service.get():
+                selected_components.append("LPA-SERVICE")
+                component_dependencies["LPA-SERVICE"] = self.lpa_service_dependencies_needed.get()
+                
+            if self.include_storehub_service.get():
+                selected_components.append("STOREHUB-SERVICE")
+                component_dependencies["STOREHUB-SERVICE"] = self.storehub_service_dependencies_needed.get()
             
             # Update config with component dependencies
             self.config_manager.config["component_dependencies"] = component_dependencies

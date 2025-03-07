@@ -1,6 +1,6 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'WDM')]
+    [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co"
 )
@@ -83,7 +83,14 @@ $base_install_dir = "C:\gkretail"
 
 # Set component-specific configurations
 $systemType = if ($ComponentType -eq 'POS') { "GKR-OPOS-CLOUD" } else { "CSE-wdm" }
-$install_dir = Join-Path $base_install_dir $(if ($ComponentType -eq 'POS') { "pos-full" } else { "wdm" })
+$install_dir = Join-Path $base_install_dir $(
+    if ($ComponentType -eq 'POS') { "pos-full" } 
+    elseif ($ComponentType -eq 'WDM') { "wdm" }
+    elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
+    elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
+    elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "storehub-service" }
+    else { "wdm" }
+)
 
 # Initialize offline variables
 $jre_version = ""
@@ -288,7 +295,9 @@ Write-Host "-------------------"
 $systemTypes = @{
     POS = "GKR-OPOS-CLOUD"
     WDM = "CSE-wdm"
-    # Add other components here as needed
+    "FLOW-SERVICE" = "CSE-flow-service"
+    "LPA-SERVICE" = "CSE-lpa-service"
+    "STOREHUB-SERVICE" = "CSE-storehub-service"
 }
 
 # Get the system type based on component type
@@ -402,6 +411,14 @@ if (-Not (Test-Path $launchersPath)) {
 # Select the appropriate template file
 $templateFile = if ($ComponentType -eq 'POS') { 
     Join-Path $launchersPath "launcher.pos.template" 
+} elseif ($ComponentType -eq 'WDM') {
+    Join-Path $launchersPath "launcher.wdm.template"
+} elseif ($ComponentType -eq 'FLOW-SERVICE') {
+    Join-Path $launchersPath "launcher.flow-service.template"
+} elseif ($ComponentType -eq 'LPA-SERVICE') {
+    Join-Path $launchersPath "launcher.lpa-service.template"
+} elseif ($ComponentType -eq 'STOREHUB-SERVICE') {
+    Join-Path $launchersPath "launcher.storehub-service.template"
 } else { 
     Join-Path $launchersPath "launcher.wdm.template" 
 }
@@ -424,6 +441,7 @@ $replacements = @{
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { "$PWD\$package_dir\installer.jar" } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
+    '@FIREBIRD_SERVER_PATH@' = $(if ($ComponentType -eq 'STOREHUB-SERVICE') { "localhost" } else { "" })
 }
 
 # Add Tomcat replacements if Tomcat files were found

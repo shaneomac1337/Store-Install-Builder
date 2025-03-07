@@ -1,0 +1,23 @@
+# Launcher defaults for StoreHub Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+applicationJmsPort=7001
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+firebirdServerPath=@FIREBIRD_SERVER_PATH@
+firebirdServerPort=3050
+firebirdServerUser=SYSDBA
+firebirdServerPassword=masterkey
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@ 

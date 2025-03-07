@@ -91,6 +91,12 @@ try {
     # Determine JSON file based on ComponentType
     $jsonFile = if ($ComponentType -eq "WDM") {
         "wdm.onboarding.json"
+    } elseif ($ComponentType -eq "FLOW-SERVICE") {
+        "flow-service.onboarding.json"
+    } elseif ($ComponentType -eq "LPA-SERVICE") {
+        "lpa-service.onboarding.json"
+    } elseif ($ComponentType -eq "STOREHUB-SERVICE") {
+        "storehub-service.onboarding.json"
     } else {
         "pos.onboarding.json"
     }
