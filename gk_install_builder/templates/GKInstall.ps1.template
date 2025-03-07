@@ -71,7 +71,40 @@ function Get-PackageVersion {
 # Function to get JRE version from filename
 function Get-JreVersion {
     param($JreZip)
-    return Get-PackageVersion -PackageFile $JreZip -ComponentPrefix "jre"
+    
+    # Get filename without extension
+    $filename = [System.IO.Path]::GetFileNameWithoutExtension($JreZip)
+    
+    # Special case for Java_zulujre pattern
+    if ($filename -match "Java_zulujre.*?[-_](\d+\.\d+\.\d+)") {
+        Write-Host "Detected Java version $($matches[1]) from Zulu JRE filename"
+        return $matches[1]
+    }
+    
+    # Special case for x64/x86 in filename to avoid extracting "64" as version
+    if ($filename -match "x64-(\d+\.\d+\.\d+)") {
+        Write-Host "Detected Java version $($matches[1]) from x64 pattern"
+        return $matches[1]
+    }
+    if ($filename -match "x86-(\d+\.\d+\.\d+)") {
+        Write-Host "Detected Java version $($matches[1]) from x86 pattern"
+        return $matches[1]
+    }
+    
+    # Try jre prefix first, then java if that fails
+    $version = Get-PackageVersion -PackageFile $JreZip -ComponentPrefix "jre"
+    if ([string]::IsNullOrEmpty($version)) {
+        $version = Get-PackageVersion -PackageFile $JreZip -ComponentPrefix "java"
+    }
+    
+    # Validate version format - if it's just a number like "64", it's probably wrong
+    if ($version -match "^\d+$" -and $filename -match "(\d+\.\d+\.\d+)") {
+        # Extract version with format like 11.0.18
+        Write-Host "Correcting invalid version '$version' to $($matches[1])"
+        return $matches[1]
+    }
+    
+    return $version
 }
 
 # Function to get Tomcat version from filename
@@ -143,22 +176,50 @@ if ($offline.IsPresent) {
 
     # Check for required files based on component type
     if ($ComponentType -eq 'WDM') {
-        # Find JRE and Tomcat packages dynamically
-        $jre_pattern = Join-Path $package_dir "jre-*.zip"
-        $tomcat_pattern = Join-Path $package_dir "tomcat-*.zip"
-        $installer_jar = Join-Path $package_dir "installer.jar"
+        # Find JRE and Tomcat packages dynamically with more flexible patterns
+        $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "jre-*.zip") -ErrorAction SilentlyContinue)
         
-        $jre_files = @(Get-ChildItem -Path $jre_pattern -ErrorAction SilentlyContinue)
-        $tomcat_files = @(Get-ChildItem -Path $tomcat_pattern -ErrorAction SilentlyContinue)
-        $has_installer_jar = Test-Path $installer_jar
+        # If no jre files found, try java pattern
+        if ($jre_files.Count -eq 0) {
+            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "java-*.zip") -ErrorAction SilentlyContinue)
+        }
+        
+        # If still no files found, try a more generic pattern
+        if ($jre_files.Count -eq 0) {
+            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*jre*.zip") -ErrorAction SilentlyContinue)
+            if ($jre_files.Count -eq 0) {
+                $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*java*.zip") -ErrorAction SilentlyContinue)
+            }
+        }
+        
+        $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "tomcat-*.zip") -ErrorAction SilentlyContinue)
+        
+        # If no tomcat files found, try a more generic pattern
+        if ($tomcat_files.Count -eq 0) {
+            $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "*tomcat*.zip") -ErrorAction SilentlyContinue)
+        }
+        
+        # Look for any JAR file to use as installer
+        $jar_files = @(Get-ChildItem -Path (Join-Path $package_dir "*.jar") -ErrorAction SilentlyContinue)
+        $installer_jar = $null
+        $has_installer_jar = $false
+        
+        if ($jar_files.Count -gt 0) {
+            if ($jar_files.Count -gt 1) {
+                Write-Host "Warning: Multiple JAR files found in $package_dir. Using the first one: $($jar_files[0].Name)"
+            }
+            $installer_jar = $jar_files[0].FullName
+            $has_installer_jar = $true
+            Write-Host "Found installer JAR: $($jar_files[0].Name)"
+        }
         
         if ($jre_files.Count -eq 0) {
-            Write-Host "Error: No JRE package found matching pattern: $jre_pattern"
+            Write-Host "Error: No JRE/Java package found in $package_dir"
             exit 1
         }
         
         if ($tomcat_files.Count -eq 0) {
-            Write-Host "Error: No Tomcat package found matching pattern: $tomcat_pattern"
+            Write-Host "Error: No Tomcat package found in $package_dir"
             exit 1
         }
         
@@ -167,16 +228,11 @@ if ($offline.IsPresent) {
         $tomcat_file = $tomcat_files[0].FullName
         
         # Extract versions
-        $jre_version = Get-PackageVersion -PackageFile $jre_files[0].Name -ComponentPrefix "jre"
-        $tomcat_version = Get-PackageVersion -PackageFile $tomcat_files[0].Name -ComponentPrefix "tomcat"
+        $jre_version = Get-JreVersion -JreZip $jre_files[0].Name
+        $tomcat_version = Get-TomcatVersion -TomcatZip $tomcat_files[0].Name
         
-        Write-Host "Found JRE package: $($jre_files[0].Name), version: $jre_version"
+        Write-Host "Found JRE/Java package: $($jre_files[0].Name), version: $jre_version"
         Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
-        if ($has_installer_jar) {
-            Write-Host "Found installer.jar package"
-        } else {
-            Write-Host "Warning: installer.jar not found in $package_dir"
-        }
         
         $required_files = @(
             (Join-Path $package_dir "Launcher.exe"),
@@ -189,14 +245,43 @@ if ($offline.IsPresent) {
             $required_files += $installer_jar
         }
     } else {
-        # For other components - generic approach
-        $jre_pattern = Join-Path $package_dir "jre-*.zip"
-        $tomcat_pattern = Join-Path $package_dir "tomcat-*.zip"
-        $installer_jar = Join-Path $package_dir "installer.jar"
+        # For other components - generic approach with improved detection
+        # Find JRE and Tomcat packages dynamically with more flexible patterns
+        $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "jre-*.zip") -ErrorAction SilentlyContinue)
         
-        $jre_files = @(Get-ChildItem -Path $jre_pattern -ErrorAction SilentlyContinue)
-        $tomcat_files = @(Get-ChildItem -Path $tomcat_pattern -ErrorAction SilentlyContinue)
-        $has_installer_jar = Test-Path $installer_jar
+        # If no jre files found, try java pattern
+        if ($jre_files.Count -eq 0) {
+            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "java-*.zip") -ErrorAction SilentlyContinue)
+        }
+        
+        # If still no files found, try a more generic pattern
+        if ($jre_files.Count -eq 0) {
+            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*jre*.zip") -ErrorAction SilentlyContinue)
+            if ($jre_files.Count -eq 0) {
+                $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*java*.zip") -ErrorAction SilentlyContinue)
+            }
+        }
+        
+        $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "tomcat-*.zip") -ErrorAction SilentlyContinue)
+        
+        # If no tomcat files found, try a more generic pattern
+        if ($tomcat_files.Count -eq 0) {
+            $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "*tomcat*.zip") -ErrorAction SilentlyContinue)
+        }
+        
+        # Look for any JAR file to use as installer
+        $jar_files = @(Get-ChildItem -Path (Join-Path $package_dir "*.jar") -ErrorAction SilentlyContinue)
+        $installer_jar = $null
+        $has_installer_jar = $false
+        
+        if ($jar_files.Count -gt 0) {
+            if ($jar_files.Count -gt 1) {
+                Write-Host "Warning: Multiple JAR files found in $package_dir. Using the first one: $($jar_files[0].Name)"
+            }
+            $installer_jar = $jar_files[0].FullName
+            $has_installer_jar = $true
+            Write-Host "Found installer JAR: $($jar_files[0].Name)"
+        }
         
         # Initialize required files with Launcher.exe
         $required_files = @(
@@ -206,17 +291,17 @@ if ($offline.IsPresent) {
         # Process JRE files if available
         if ($jre_files.Count -gt 0) {
             $jre_file = $jre_files[0].FullName
-            $jre_version = Get-PackageVersion -PackageFile $jre_files[0].Name -ComponentPrefix "jre"
-            Write-Host "Found JRE package: $($jre_files[0].Name), version: $jre_version"
+            $jre_version = Get-JreVersion -JreZip $jre_files[0].Name
+            Write-Host "Found JRE/Java package: $($jre_files[0].Name), version: $jre_version"
             $required_files += $jre_file
         } else {
-            Write-Host "No JRE package found for $ComponentType."
+            Write-Host "No JRE/Java package found for $ComponentType."
         }
         
         # Process Tomcat files if available
         if ($tomcat_files.Count -gt 0) {
             $tomcat_file = $tomcat_files[0].FullName
-            $tomcat_version = Get-PackageVersion -PackageFile $tomcat_files[0].Name -ComponentPrefix "tomcat"
+            $tomcat_version = Get-TomcatVersion -TomcatZip $tomcat_files[0].Name
             Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
             $required_files += $tomcat_file
         } else {
@@ -225,10 +310,7 @@ if ($offline.IsPresent) {
         
         # Add installer.jar to required files if it exists
         if ($has_installer_jar) {
-            Write-Host "Found installer.jar package"
             $required_files += $installer_jar
-        } else {
-            Write-Host "Warning: installer.jar not found in $package_dir"
         }
     }
 
@@ -442,7 +524,7 @@ $replacements = @{
     '@OFFLINE_MODE@' = $(if ($offline_mode) { "1" } else { "0" })
     '@JRE_VERSION@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version } else { "" })
     '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { "$PWD\$package_dir\$($jre_files[0].Name)" } else { "" })
-    '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { "$PWD\$package_dir\installer.jar" } else { "" })
+    '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
     '@FIREBIRD_SERVER_PATH@' = $(if ($ComponentType -eq 'STOREHUB-SERVICE') { "localhost" } else { "" })
