@@ -536,13 +536,15 @@ class GKInstallBuilder:
         
         # Security Configuration
         if "Security Configuration" not in self.section_frames:
-            self.create_section("Security Configuration", [
+            fields = [
                 "EH/Launchpad Username",
                 "EH/Launchpad Password",
                 "Auth Service BA User",
                 "Launchpad oAuth2",
+                "Webdav Admin",
                 "SSL Password"
-            ])
+            ]
+            self.create_section("Security Configuration", fields)
         
         # Output Directory
         if not hasattr(self, 'output_dir_entry'):
@@ -794,97 +796,54 @@ class GKInstallBuilder:
     def create_section(self, title, fields):
         # Section Frame
         section_frame = ctk.CTkFrame(self.main_frame)
-        section_frame.pack(fill="x", padx=10, pady=(0, 20))
+        section_frame.pack(fill="x", pady=10, padx=20)
         
-        # Store reference to section frame
-        self.section_frames[title] = section_frame
-        
-        # Title
+        # Section Title
         ctk.CTkLabel(
-            section_frame, 
-            text=title, 
-            font=("Helvetica", 16, "bold")
-        ).pack(anchor="w", padx=10, pady=10)
+            section_frame,
+            text=title,
+            font=("Helvetica", 14, "bold")
+        ).pack(pady=5)
         
-        # Field tooltips - descriptions of what each field is for
-        tooltips = {
-            "Project Name": "Name of your store project (e.g., 'Coop Sweden')",
-            "Base URL": "Base URL for the cloud retail environment (e.g., 'test.cse.cloud4retail.co')",
-            "Version": "Version number of the installation (e.g., 'v1.2.0')",
-            "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail')",
-            "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
-            "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
-            "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
-            "SSL Password": "Password for SSL certificate (default: 'changeit')",
-            "Auth Service BA User": "Username for Auth-Service (e.g., 'launchpad'). If you don't know what you are doing, please keep launchpad",
-            "EH/Launchpad Username": "Username for Employee Hub / Launchpad (e.g., '1001')",
-            "Launchpad oAuth2": "Launchpad Auth Service password (click 🔑 to retrieve from KeePass)",
-            "EH/Launchpad Password": "Employee Hub / Launchpad Password",
-            "Firebird Server Path": "Path to the Firebird server (e.g., 'C:\\firebird\\server')",
-        }
-        
-        # Fields
+        # Create fields
         for field in fields:
+            # Create frame for this field
             field_frame = ctk.CTkFrame(section_frame)
-            field_frame.pack(fill="x", padx=10, pady=5)
+            field_frame.pack(fill="x", pady=5, padx=10)
             
-            # Label with tooltip
-            label = ctk.CTkLabel(
-                field_frame, 
-                text=f"{field}:",
-                width=150
+            # Create label
+            ctk.CTkLabel(
+                field_frame,
+                text=field + ":",
+                width=200
+            ).pack(side="left")
+            
+            # Create entry
+            entry = ctk.CTkEntry(field_frame, width=400)
+            entry.pack(side="left", padx=5)
+            
+            # Register entry with config manager
+            self.config_manager.register_entry(
+                field.lower().replace(" ", "_").replace("/", "_"),
+                entry
             )
-            label.pack(side="left", padx=10)
             
-            # Create tooltip for the label
-            if field in tooltips:
-                self.create_tooltip(label, tooltips[field])
-            
-            # Special case for Base Install Directory - use base_install_dir instead of base_install_directory
-            if field == "Base Install Directory":
-                config_key = "base_install_dir"
-            # Map the new field names to their config keys
-            elif field == "EH/Launchpad Username":
-                config_key = "form_username"
-            elif field == "Launchpad oAuth2":
-                config_key = "basic_auth_password"
-            elif field == "EH/Launchpad Password":
-                config_key = "form_password"
-            # Map Auth Service BA User to username config key
-            elif field == "Auth Service BA User":
-                config_key = "username"
-            else:
-                config_key = field.lower().replace(" ", "_")
-            
-            # Check if this is a password field
-            is_password_field = "password" in field.lower() or field == "Launchpad oAuth2"
-            
-            if is_password_field:
-                # Create password field with show/hide toggle
-                entry, toggle_btn = self.create_password_field(field_frame, field, config_key)
-            else:
-                # Create regular entry
-                entry = ctk.CTkEntry(field_frame, width=400)
-                entry.pack(side="left", padx=10)
-                
-                # Also add tooltip to the entry
-                if field in tooltips:
-                    self.create_tooltip(entry, tooltips[field])
-                
-                # Load saved value if exists
-                if config_key in self.config_manager.config:
-                    entry.insert(0, self.config_manager.config[config_key])
-            
-            self.config_manager.register_entry(config_key, entry)
-            
-            # Add KeePass button only for Launchpad oAuth2 field
+            # Add KeePass button only for specific fields
             if field == "Launchpad oAuth2":
                 self.basic_auth_password_entry = entry  # Store reference to this entry
                 ctk.CTkButton(
                     field_frame,
                     text="🔑",  # Key icon
                     width=40,
-                    command=self.get_basic_auth_password_from_keepass
+                    command=lambda: self.get_basic_auth_password_from_keepass(password_type="basic_auth")
+                ).pack(side="left", padx=5)
+            elif field == "Webdav Admin":
+                self.webdav_admin_password_entry = entry  # Store reference to this entry
+                ctk.CTkButton(
+                    field_frame,
+                    text="🔑",  # Key icon
+                    width=40,
+                    command=lambda: self.get_basic_auth_password_from_keepass(password_type="webdav_admin")
                 ).pack(side="left", padx=5)
             elif field == "EH/Launchpad Password":
                 self.form_password_entry = entry  # Store reference to this entry
@@ -1727,11 +1686,14 @@ class GKInstallBuilder:
         """Show info dialog"""
         messagebox.showinfo(title, message)
 
-    def get_basic_auth_password_from_keepass(self, target_entry=None):
-        """Get basic auth password from KeePass"""
-        # If no target entry is specified, use the basic auth password entry
+    def get_basic_auth_password_from_keepass(self, target_entry=None, password_type="basic_auth"):
+        """Get password from KeePass"""
+        # If no target entry is specified, use the appropriate password entry based on type
         if target_entry is None:
-            target_entry = self.basic_auth_password_entry
+            if password_type == "basic_auth":
+                target_entry = self.basic_auth_password_entry
+            elif password_type == "webdav_admin":
+                target_entry = self.webdav_admin_password_entry
             
         # Create a toplevel window
         dialog = ctk.CTkToplevel(self.window)
@@ -1848,10 +1810,6 @@ class GKInstallBuilder:
         )
         get_password_btn.pack(pady=5)
         
-        # Define on_search_change function early so it can be referenced before its definition
-        def on_search_change(*args):
-            update_project_list()
-            
         # Function to connect to KeePass
         def connect_to_keepass():
             try:
@@ -1881,9 +1839,6 @@ class GKInstallBuilder:
                 
                 # Run auto-detection immediately
                 connect()
-                
-                # If we successfully connected and detected environment, get_password_btn will be enabled
-                # by the connect() function
                 
             except Exception as e:
                 status_var.set(f"Connection error: {str(e)}")
@@ -2018,7 +1973,7 @@ class GKInstallBuilder:
                     status_var.set(f"Selected project: {project['name']}")
                 
                 # Add trace after defining the function
-                filter_var.trace_add("write", on_search_change)
+                filter_var.trace_add("write", lambda *args: update_project_list())
                 
                 # Initial update of project list
                 update_project_list()
@@ -2159,13 +2114,16 @@ class GKInstallBuilder:
                         env_id = env_folder['id'] if isinstance(env_folder, dict) else env_folder
                         env_structure = client.get_folder(env_id)
                         
-                        # Find the credential in this environment
-                        entry = self.find_basic_auth_password_entry(env_structure)
+                        # Find the credential in this environment based on password type
+                        if password_type == "basic_auth":
+                            entry = self.find_basic_auth_password_entry(env_structure)
+                        else:  # webdav_admin
+                            entry = self.find_webdav_admin_password_entry(env_structure)
                         
                         if entry:
-                            # Get the password
-                            if isinstance(entry, dict) and 'Id' in entry:
-                                try:
+                            try:
+                                # Get the password
+                                if isinstance(entry, dict) and 'Id' in entry:
                                     # Direct API call to get the password
                                     password_url = f"credentials/{entry['Id']}/password"
                                     print(f"Making API call to: {password_url}")
@@ -2174,21 +2132,22 @@ class GKInstallBuilder:
                                     target_entry.delete(0, 'end')
                                     target_entry.insert(0, str(password).strip())
                                     status_var.set(f"Retrieved credential successfully!")
-                                except Exception as e:
-                                    status_var.set(f"Error retrieving password: {str(e)}")
-                                    print(f"Error getting password: {str(e)}")
-                            # For backwards compatibility, try to access password as attribute
-                            elif hasattr(entry, 'password'):
-                                password = entry.password
-                                target_entry.delete(0, 'end')
-                                target_entry.insert(0, password)
-                                status_var.set(f"Retrieved credential successfully!")
-                            else:
-                                status_var.set(f"Error: Unsupported entry format")
-                                print(f"Unsupported entry format: {type(entry)}")
+                                elif hasattr(entry, 'password'):
+                                    # For backwards compatibility, try to access password as attribute
+                                    password = entry.password
+                                    target_entry.delete(0, 'end')
+                                    target_entry.insert(0, password)
+                                    status_var.set(f"Retrieved credential successfully!")
+                                else:
+                                    status_var.set(f"Error: Unsupported entry format")
+                                    print(f"Unsupported entry format: {type(entry)}")
+                                    return
                                 
-                            # Close the dialog after successful retrieval
-                            dialog.after(2000, on_dialog_close)
+                                # Close the dialog after successful retrieval
+                                dialog.after(2000, on_dialog_close)
+                            except Exception as e:
+                                status_var.set(f"Error retrieving password: {str(e)}")
+                                print(f"Error getting password: {str(e)}")
                         else:
                             status_var.set(f"No credentials found in {environment}!")
                     else:
@@ -2217,13 +2176,16 @@ class GKInstallBuilder:
                     # Get environment folder structure
                     env_folder = client.get_folder(env_folder_id)
                     
-                    # In that environment, now we need to find the credentials
-                    entry = self.find_basic_auth_password_entry(env_folder)
+                    # Find the credential in this environment based on password type
+                    if password_type == "basic_auth":
+                        entry = self.find_basic_auth_password_entry(env_folder)
+                    else:  # webdav_admin
+                        entry = self.find_webdav_admin_password_entry(env_folder)
                     
                     if entry:
-                        # Get the password - entry might be a dict, not an object with a password attribute
-                        if isinstance(entry, dict) and 'Id' in entry:
-                            try:
+                        try:
+                            # Get the password - entry might be a dict, not an object with a password attribute
+                            if isinstance(entry, dict) and 'Id' in entry:
                                 # Direct API call to get the password
                                 password_url = f"credentials/{entry['Id']}/password"
                                 print(f"Making API call to: {password_url}")
@@ -2232,21 +2194,22 @@ class GKInstallBuilder:
                                 target_entry.delete(0, 'end')
                                 target_entry.insert(0, str(password).strip())
                                 status_var.set(f"Retrieved credential successfully!")
-                            except Exception as e:
-                                status_var.set(f"Error retrieving password: {str(e)}")
-                                print(f"Error getting password: {str(e)}")
-                        # For backwards compatibility, try to access password as attribute
-                        elif hasattr(entry, 'password'):
-                            password = entry.password
-                            target_entry.delete(0, 'end')
-                            target_entry.insert(0, password)
-                            status_var.set(f"Retrieved credential successfully!")
-                        else:
-                            status_var.set(f"Error: Unsupported entry format")
-                            print(f"Unsupported entry format: {type(entry)}")
-                        
-                        # Close the dialog after 2 seconds
-                        dialog.after(2000, on_dialog_close)
+                            elif hasattr(entry, 'password'):
+                                # For backwards compatibility, try to access password as attribute
+                                password = entry.password
+                                target_entry.delete(0, 'end')
+                                target_entry.insert(0, password)
+                                status_var.set(f"Retrieved credential successfully!")
+                            else:
+                                status_var.set(f"Error: Unsupported entry format")
+                                print(f"Unsupported entry format: {type(entry)}")
+                                return
+                            
+                            # Close the dialog after successful retrieval
+                            dialog.after(2000, on_dialog_close)
+                        except Exception as e:
+                            status_var.set(f"Error retrieving password: {str(e)}")
+                            print(f"Error getting password: {str(e)}")
                     else:
                         status_var.set(f"No credentials found for this project/environment!")
             
@@ -2373,6 +2336,124 @@ class GKInstallBuilder:
             
         return result
     
+    def find_webdav_admin_password_entry(self, folder_structure):
+        """Find Webdav Admin password entry in KeePass folder structure"""
+        print("\nSearching for Webdav Admin password entry...")
+        env_name = None
+        
+        # Try to extract environment name from folder structure
+        if isinstance(folder_structure, dict):
+            folder_name = folder_structure.get('Name', '')
+            if folder_name:
+                env_name = folder_name
+                print(f"Current environment: {env_name}")
+        
+        # Create a list to store all found credentials for debugging
+        all_credentials = []
+        found_entries = []
+        target_entry = None
+        
+        def search_recursively(structure, path=""):
+            """Recursively search for credentials in the folder structure"""
+            nonlocal target_entry
+            
+            if not isinstance(structure, dict):
+                return None
+                
+            # Check credentials in current folder
+            credentials = structure.get('Credentials', [])
+            folder_name = structure.get('Name', '')
+            current_path = f"{path}/{folder_name}" if path else folder_name
+            
+            print(f"Checking folder: {current_path} - Found {len(credentials)} credentials")
+            
+            # Look for credentials in this folder
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                cred_id = cred.get('Id', '')
+                all_credentials.append({
+                    'path': current_path,
+                    'name': cred_name,
+                    'id': cred_id
+                })
+                
+                # Dynamically build the target credential name based on environment
+                if env_name:
+                    target_cred_name = f"{env_name}-DSG-WEBDAV-ADMIN-PASSWORD"
+                    
+                    # First priority: exact match for {ENV}-DSG-WEBDAV-ADMIN-PASSWORD in APP subfolder
+                    if cred_name == target_cred_name and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY: {target_cred_name} in {current_path}")
+                        target_entry = cred
+                        return cred
+                    
+                    # Second priority: exact match for {ENV}-DSG-WEBDAV-ADMIN-PASSWORD anywhere
+                    if cred_name == target_cred_name:
+                        print(f"FOUND EXACT MATCH: {target_cred_name} in {current_path}")
+                        found_entries.append({
+                            'priority': 1,
+                            'entry': cred,
+                            'path': current_path,
+                            'reason': f'Exact match for {target_cred_name}'
+                        })
+            
+            # Third priority: entries with DSG-WEBDAV-ADMIN-PASSWORD
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'DSG-WEBDAV-ADMIN-PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains DSG-WEBDAV-ADMIN-PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 2,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains DSG-WEBDAV-ADMIN-PASSWORD: {cred_name}'
+                    })
+            
+            # Fourth priority: entries with WEBDAV-ADMIN-PASSWORD
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'WEBDAV-ADMIN-PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains WEBDAV-ADMIN-PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 3,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains WEBDAV-ADMIN-PASSWORD: {cred_name}'
+                    })
+            
+            # Check children folders
+            children = structure.get('Children', [])
+            for child in children:
+                result = search_recursively(child, current_path)
+                if result:
+                    return result
+                    
+            return None
+        
+        # Start recursive search
+        result = search_recursively(folder_structure)
+        
+        # If we found the target entry, return it
+        if target_entry:
+            return target_entry
+        
+        # If no exact match found but we have other matches, use the highest priority one
+        if not result and found_entries:
+            # Sort by priority (lowest number = highest priority)
+            found_entries.sort(key=lambda x: x['priority'])
+            best_match = found_entries[0]
+            print(f"\nNo exact match for {env_name}-DSG-WEBDAV-ADMIN-PASSWORD found in APP subfolder.")
+            print(f"Using best match: {best_match['reason']} in {best_match['path']}")
+            return best_match['entry']
+        
+        # If no result found, print all credentials for debugging
+        if not result and not found_entries:
+            print("\nAll credentials found during search:")
+            for cred in all_credentials:
+                print(f"  - {cred['path']}: {cred['name']} (ID: {cred['id']})")
+            
+        return result
+
     def find_folder_id_by_name(self, folder_structure, search_name):
         if isinstance(folder_structure, dict):
             if folder_structure.get('Name') == search_name:
@@ -2886,7 +2967,7 @@ class OfflinePackageCreator:
             password_frame,
             text="🔑",  # Key icon
             width=40,
-            command=lambda: self.get_basic_auth_password_from_keepass(target_entry=self.webdav_password)
+            command=lambda: self.get_basic_auth_password_from_keepass(target_entry=self.webdav_password, password_type="webdav_admin")
         ).pack(side="left", padx=5)
         
         # Register WebDAV password with config manager
@@ -3113,11 +3194,11 @@ class OfflinePackageCreator:
         """Show info dialog"""
         messagebox.showinfo(title, message)
 
-    def get_basic_auth_password_from_keepass(self, target_entry=None):
+    def get_basic_auth_password_from_keepass(self, target_entry=None, password_type="basic_auth"):
         """Delegate to the parent app's get_basic_auth_password_from_keepass method"""
         # Use the stored reference to the parent app (GKInstallBuilder instance)
         if self.parent_app and hasattr(self.parent_app, 'get_basic_auth_password_from_keepass'):
-            self.parent_app.get_basic_auth_password_from_keepass(target_entry=target_entry)
+            self.parent_app.get_basic_auth_password_from_keepass(target_entry=target_entry, password_type=password_type)
         else:
             # Show an error if the parent app doesn't have the method
             messagebox.showerror("Error", "Could not access KeePass integration from parent application.")
@@ -3126,13 +3207,37 @@ class OfflinePackageCreator:
         self.keepass_client = GKInstallBuilder.keepass_client
         self.keepass_username = GKInstallBuilder.keepass_username
         self.keepass_password = GKInstallBuilder.keepass_password
+    
+    def find_webdav_admin_password_entry(self, folder_structure):
+        """Find Webdav Admin password entry in KeePass folder structure"""
+        print("\nSearching for Webdav Admin password entry...")
         
-        # Update the button state
-        self.update_keepass_button()
+        # Get all credentials
+        all_credentials = self.keepass_client.get_all_credentials(folder_structure)
+        
+        # Filter credentials based on the entry name pattern
+        matching_credentials = [
+            cred for cred in all_credentials
+            if cred['name'].startswith(f"{self.config_manager.config['env_name']}-DSG-WEBDAV-ADMIN-PASSWORD")
+        ]
+        
+        if matching_credentials:
+            # If multiple matching credentials found, print a warning
+            if len(matching_credentials) > 1:
+                print(f"Warning: Multiple matching credentials found for {self.config_manager.config['env_name']}-DSG-WEBDAV-ADMIN-PASSWORD")
+                for cred in matching_credentials:
+                    print(f"  - {cred['path']}: {cred['name']} (ID: {cred['id']})")
+                print("Using the first matching credential.")
+            
+            # Return the first matching credential
+            return matching_credentials[0]
+        
+        print(f"No matching credentials found for {self.config_manager.config['env_name']}-DSG-WEBDAV-ADMIN-PASSWORD")
+        return None
 
 def main():
     app = GKInstallBuilder()
     app.run()
 
 if __name__ == "__main__":
-    main() 
+    main()
