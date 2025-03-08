@@ -541,7 +541,6 @@ class GKInstallBuilder:
                 "EH/Launchpad Password",
                 "Auth Service BA User",
                 "Launchpad oAuth2",
-                "Webdav Admin",
                 "SSL Password"
             ]
             self.create_section("Security Configuration", fields)
