@@ -12,6 +12,260 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pleasant_password_client import PleasantPasswordClient
 
+class LauncherSettingsEditor:
+    def __init__(self, parent, config_manager, project_generator):
+        self.parent = parent
+        self.config_manager = config_manager
+        self.project_generator = project_generator
+        self.window = None
+        self.settings = {}
+        
+    def open_editor(self):
+        if self.window is not None and self.window.winfo_exists():
+            self.window.lift()
+            return
+            
+        self.window = ctk.CTkToplevel(self.parent)
+        self.window.title("Launcher Settings Editor")
+        self.window.geometry("800x600")
+        self.window.transient(self.parent)
+        self.window.grab_set()
+        
+        # Create main frame with scrollbar
+        main_frame = ctk.CTkFrame(self.window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create tabs for each component type
+        tab_view = ctk.CTkTabview(main_frame)
+        tab_view.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        component_types = ["POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        
+        # Initialize settings dictionary
+        self.settings = {}
+        for component_type in component_types:
+            self.settings[component_type] = {}
+        
+        # Load default settings
+        self.load_default_settings()
+        
+        # Create tabs for each component
+        for component_type in component_types:
+            tab = tab_view.add(component_type)
+            
+            # Create a frame for this component's settings
+            settings_frame = ctk.CTkFrame(tab)
+            settings_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Add a label with instructions
+            instructions = ctk.CTkLabel(
+                settings_frame, 
+                text=f"Edit the launcher settings for {component_type}. These settings will be used when generating the installation files.",
+                wraplength=700
+            )
+            instructions.pack(pady=(0, 10), padx=10, anchor="w")
+            
+            # Create a scrollable frame for settings using CTkScrollableFrame
+            scrollable_settings = ctk.CTkScrollableFrame(settings_frame)
+            scrollable_settings.pack(fill="both", expand=True, padx=5, pady=5)
+            
+            # Create entries for each setting
+            row = 0
+            for key, value in self.settings[component_type].items():
+                frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
+                frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
+                frame.grid_columnconfigure(1, weight=1)
+                
+                label = ctk.CTkLabel(frame, text=key, width=150, anchor="w")
+                label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
+                
+                entry = ctk.CTkEntry(frame, width=400)
+                entry.insert(0, value)
+                entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+                
+                # Store the entry widget in the settings dictionary
+                self.settings[component_type][key] = {"value": value, "entry": entry}
+                
+                row += 1
+        
+        # Add buttons at the bottom
+        button_frame = ctk.CTkFrame(main_frame)
+        button_frame.pack(fill="x", padx=10, pady=10)
+        
+        save_button = ctk.CTkButton(
+            button_frame, 
+            text="Save Settings", 
+            command=self.save_settings
+        )
+        save_button.pack(side="right", padx=10)
+        
+        cancel_button = ctk.CTkButton(
+            button_frame, 
+            text="Cancel", 
+            command=self.window.destroy
+        )
+        cancel_button.pack(side="right", padx=10)
+        
+        # Set default tab
+        tab_view.set("WDM")
+    
+    def load_default_settings(self):
+        """Load default settings for each component type"""
+        # POS settings
+        self.settings["POS"] = {
+            "applicationJmxPort": "",
+            "updaterJmxPort": "",
+            "createShortcuts": "0",
+            "keepFiles": "0"
+        }
+        
+        # WDM settings
+        self.settings["WDM"] = {
+            "applicationServerHttpPort": "8080",
+            "applicationServerHttpsPort": "8443",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "updaterJmxPort": "4333",
+            "keepFiles": "0"
+        }
+        
+        # Flow Service settings
+        self.settings["FLOW-SERVICE"] = {
+            "applicationServerHttpPort": "8180",
+            "applicationServerHttpsPort": "8543",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "updaterJmxPort": "4333",
+            "keepFiles": "0"
+        }
+        
+        # LPA Service settings
+        self.settings["LPA-SERVICE"] = {
+            "applicationServerHttpPort": "8280",
+            "applicationServerHttpsPort": "8643",
+            "applicationServerShutdownPort": "8006",
+            "applicationServerJmxPort": "52223",
+            "updaterJmxPort": "4334",
+            "keepFiles": "0"
+        }
+        
+        # StoreHub Service settings
+        self.settings["STOREHUB-SERVICE"] = {
+            "applicationServerHttpPort": "8380",
+            "applicationServerHttpsPort": "8743",
+            "applicationServerShutdownPort": "8007",
+            "applicationServerJmxPort": "52224",
+            "applicationJmsPort": "7001",
+            "updaterJmxPort": "4335",
+            "firebirdServerPath": "localhost",
+            "firebirdServerPort": "3050",
+            "firebirdServerUser": "SYSDBA",
+            "firebirdServerPassword": "masterkey",
+            "keepFiles": "0"
+        }
+        
+        # Try to load existing templates from the output directory
+        self._load_existing_templates()
+        
+        # Load settings from config if available
+        for component_type in self.settings:
+            config_key = f"{component_type.lower().replace('-', '_')}_launcher_settings"
+            if config_key in self.config_manager.config:
+                saved_settings = self.config_manager.config[config_key]
+                print(f"Loading {config_key} settings from config: {saved_settings}")
+                for key in self.settings[component_type].keys():
+                    if key in saved_settings:
+                        self.settings[component_type][key] = saved_settings[key]
+                    
+    def _load_existing_templates(self):
+        """Load settings from existing templates in the output directory"""
+        # Get the output directory from the config
+        output_dir = self.config_manager.config.get("output_dir", "")
+        if not output_dir:
+            return
+            
+        # Check if the output directory exists
+        launchers_dir = os.path.join(output_dir, "helper", "launchers")
+        if not os.path.exists(launchers_dir):
+            return
+            
+        # Load settings from existing templates
+        template_files = {
+            "POS": "launcher.pos.template",
+            "WDM": "launcher.wdm.template",
+            "FLOW-SERVICE": "launcher.flow-service.template",
+            "LPA-SERVICE": "launcher.lpa-service.template",
+            "STOREHUB-SERVICE": "launcher.storehub-service.template"
+        }
+        
+        for component_type, filename in template_files.items():
+            file_path = os.path.join(launchers_dir, filename)
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r') as f:
+                        content = f.read()
+                        
+                    # Parse the template content
+                    for line in content.strip().split('\n'):
+                        if line.startswith('#') or not line.strip():
+                            continue
+                        
+                        if '=' in line:
+                            key, value = line.split('=', 1)
+                            
+                            # Skip placeholder values
+                            if '@' in value:
+                                continue
+                            
+                            # Add the key-value pair to the settings
+                            if key not in self.settings[component_type]:
+                                self.settings[component_type][key] = value
+                                
+                    print(f"Loaded settings from existing template: {filename}")
+                except Exception as e:
+                    print(f"Error loading settings from template {filename}: {str(e)}")
+    
+    def save_settings(self):
+        """Save settings to config and close the window"""
+        # Update settings from entries
+        for component_type in self.settings:
+            component_settings = {}
+            for key, item in self.settings[component_type].items():
+                if isinstance(item, dict) and "entry" in item:
+                    component_settings[key] = item["entry"].get()
+                else:
+                    component_settings[key] = item
+            
+            # Save to config with the correct key format
+            config_key = f"{component_type.lower().replace('-', '_')}_launcher_settings"
+            self.config_manager.config[config_key] = component_settings
+            
+            # Print debug info
+            print(f"Saving {config_key} settings:")
+            for k, v in component_settings.items():
+                print(f"  {k}: {v}")
+        
+        # Save config
+        self.config_manager.save_config()
+        
+        # Force regeneration of launcher templates if output directory exists
+        output_dir = self.config_manager.config.get("output_dir", "")
+        if output_dir and os.path.exists(output_dir):
+            launchers_dir = os.path.join(output_dir, "helper", "launchers")
+            os.makedirs(launchers_dir, exist_ok=True)
+            
+            try:
+                # Generate launcher templates with custom settings
+                self.project_generator._generate_launcher_templates(launchers_dir, self.config_manager.config)
+                messagebox.showinfo("Success", "Launcher settings saved and templates updated successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to update launcher templates: {str(e)}")
+                return
+        else:
+            messagebox.showinfo("Success", "Launcher settings saved successfully!")
+        
+        self.window.destroy()
+
 class GKInstallBuilder:
     # Class variables to store KeePass client and credentials
     keepass_client = None
@@ -43,6 +297,14 @@ class GKInstallBuilder:
         
         # Store section frames for progressive disclosure
         self.section_frames = {}
+        
+        # Initialize KeePass variables
+        self.keepass_client = GKInstallBuilder.keepass_client
+        self.keepass_username = GKInstallBuilder.keepass_username
+        self.keepass_password = GKInstallBuilder.keepass_password
+        
+        # Create launcher settings editor
+        self.launcher_editor = LauncherSettingsEditor(self.window, self.config_manager, self.project_generator)
         
         # Create the GUI
         self.create_gui()
@@ -1059,48 +1321,59 @@ class GKInstallBuilder:
         self.config_manager.set_save_status_label(self.save_status_label)
     
     def create_buttons(self):
-        """Create action buttons"""
         # Create frame for buttons
         button_frame = ctk.CTkFrame(self.main_frame)
         button_frame.pack(fill="x", padx=10, pady=10)
         
-        # Generate button
-        self.generate_button = ctk.CTkButton(
+        # Add button to open launcher settings editor
+        edit_launchers_button = ctk.CTkButton(
             button_frame,
-            text="Generate Install Scripts",
-            command=lambda: self.project_generator.generate(self.config_manager.config)
+            text="Edit Launcher Settings",
+            command=self.open_launcher_editor
         )
-        self.generate_button.pack(side="left", padx=10)
+        edit_launchers_button.pack(side="left", padx=10)
         
-        # Offline Package Creator button
-        self.offline_package_button = ctk.CTkButton(
+        # Create KeePass button
+        self.keepass_button = ctk.CTkButton(
             button_frame,
-            text="Offline Package Creator",
+            text="Connect to KeePass",
+            command=self.get_basic_auth_password_from_keepass
+        )
+        self.keepass_button.pack(side="left", padx=10)
+        
+        # Create button to open offline package creator
+        offline_button = ctk.CTkButton(
+            button_frame,
+            text="Create Offline Package",
             command=self.open_offline_package_creator
         )
-        self.offline_package_button.pack(side="left", padx=10)
+        offline_button.pack(side="left", padx=10)
         
-        # Create a frame for the KeePass button
-        self.keepass_btn_frame = ctk.CTkFrame(button_frame)
-        self.keepass_btn_frame.pack(side="left", padx=10)
+        # Create generate button
+        generate_button = ctk.CTkButton(
+            button_frame,
+            text="Generate Installation Files",
+            command=self.generate_installation_files
+        )
+        generate_button.pack(side="right", padx=10)
         
-        # Update the KeePass button state
+        # Update KeePass button state
         self.update_keepass_button()
     
     def update_keepass_button(self):
-        """Update the KeePass credentials button based on current state"""
-        # Clear any existing widgets in the frame
-        for widget in self.keepass_btn_frame.winfo_children():
-            widget.destroy()
-            
-        # Only create the button if KeePass client exists
-        if hasattr(GKInstallBuilder, 'keepass_client') and GKInstallBuilder.keepass_client:
-            self.clear_keepass_button = ctk.CTkButton(
-                self.keepass_btn_frame,
-                text="Clear KeePass Credentials",
+        """Update the KeePass button state based on whether credentials are stored"""
+        if self.keepass_client and self.keepass_username and self.keepass_password:
+            # We have credentials, show the disconnect button
+            self.keepass_button.configure(
+                text="Disconnect from KeePass",
                 command=self.clear_keepass_credentials
             )
-            self.clear_keepass_button.pack(side="left", padx=10)
+        else:
+            # No credentials, show the connect button
+            self.keepass_button.configure(
+                text="Connect to KeePass",
+                command=self.get_basic_auth_password_from_keepass
+            )
     
     def on_window_close(self):
         """Handle window close event"""
@@ -1491,7 +1764,7 @@ class GKInstallBuilder:
         messagebox.showinfo(title, message)
 
     def get_basic_auth_password_from_keepass(self, target_entry=None):
-        """Open a dialog to get Launchpad oAuth2 Password from KeePass"""
+        """Get basic auth password from KeePass"""
         # If no target entry is specified, use the basic auth password entry
         if target_entry is None:
             target_entry = self.basic_auth_password_entry
@@ -2262,16 +2535,38 @@ class GKInstallBuilder:
         self.window.mainloop()
 
     def clear_keepass_credentials(self):
-        """Clear saved KeePass credentials"""
+        """Clear stored KeePass credentials"""
         GKInstallBuilder.keepass_client = None
         GKInstallBuilder.keepass_username = None
         GKInstallBuilder.keepass_password = None
         
-        # Update the KeePass button state
-        if hasattr(self, 'update_keepass_button'):
-            self.update_keepass_button()
-            
+        # Update the button state
+        self.update_keepass_button()
+        
         messagebox.showinfo("KeePass Credentials", "KeePass credentials have been cleared.")
+
+    def open_launcher_editor(self):
+        """Open the launcher settings editor"""
+        self.launcher_editor.open_editor()
+        
+    def generate_installation_files(self):
+        """Generate installation files using the project generator"""
+        try:
+            # Update config from entries
+            self.config_manager.update_config_from_entries()
+            
+            # Save the output directory in the config
+            output_dir = self.config_manager.config.get("output_dir", "")
+            if output_dir:
+                print(f"Using output directory: {output_dir}")
+                self.config_manager.config["output_dir"] = output_dir
+                self.config_manager.save_config_silent()
+            
+            # Generate the installation files
+            self.project_generator.generate(self.config_manager.config)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to generate installation files: {str(e)}")
+            return
 
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:
@@ -2830,6 +3125,14 @@ class OfflinePackageCreator:
         else:
             # Show an error if the parent app doesn't have the method
             messagebox.showerror("Error", "Could not access KeePass integration from parent application.")
+        
+        # After successfully connecting to KeePass, update instance variables
+        self.keepass_client = GKInstallBuilder.keepass_client
+        self.keepass_username = GKInstallBuilder.keepass_username
+        self.keepass_password = GKInstallBuilder.keepass_password
+        
+        # Update the button state
+        self.update_keepass_button()
 
 def main():
     app = GKInstallBuilder()
