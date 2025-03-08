@@ -592,8 +592,8 @@ class GKInstallBuilder:
         
         # Title
         ctk.CTkLabel(
-            section_frame,
-            text=title,
+            section_frame, 
+            text=title, 
             font=("Helvetica", 16, "bold")
         ).pack(anchor="w", padx=10, pady=10)
         
@@ -621,7 +621,7 @@ class GKInstallBuilder:
             
             # Label with tooltip
             label = ctk.CTkLabel(
-                field_frame,
+                field_frame, 
                 text=f"{field}:",
                 width=150
             )
@@ -682,6 +682,19 @@ class GKInstallBuilder:
                 # No KeePass button for Form Password
             elif field == "SSL Password":
                 self.ssl_password_entry = entry  # Store reference to this entry
+            elif field == "Base URL":
+                # Add refresh icon button next to Base URL field
+                refresh_button = ctk.CTkButton(
+                    field_frame,
+                    text="⟳",  # Alternative refresh symbol (larger and more visible)
+                    width=40,
+                    height=40,
+                    font=("Helvetica", 20),  # Increase font size for the icon
+                    command=self.regenerate_configuration
+                )
+                refresh_button.pack(side="left", padx=5)
+                # Add tooltip to the refresh button
+                self.create_tooltip(refresh_button, "Regenerate configuration based on new URL")
         
         # Add certificate management section if this is the Security Configuration section
         if title == "Security Configuration":
@@ -2567,6 +2580,25 @@ class GKInstallBuilder:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to generate installation files: {str(e)}")
             return
+
+    def regenerate_configuration(self):
+        """Regenerate configuration based on the base URL"""
+        # Get the current base URL
+        base_url = self.config_manager.config.get("base_url", "")
+        if not base_url:
+            self.show_error("Error", "Please enter a base URL first.")
+            return
+        
+        # Update configuration based on the base URL
+        self.auto_fill_based_on_url(base_url)
+        
+        # Show success message
+        self.show_info("Success", "Configuration regenerated successfully based on the base URL.")
+        
+        # If we have sections that were hidden, show them now
+        if hasattr(self, 'remaining_sections_created') and not self.remaining_sections_created:
+            self.create_remaining_sections()
+            self.remaining_sections_created = True
 
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:
