@@ -96,6 +96,9 @@ class ConfigManager:
             "base_url": "example.cloud4retail.co",
             "version": "v1.0.0",
             
+            # Platform Selection
+            "platform": "Windows",  # Default platform (Windows or Linux)
+            
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override
             "pos_version": "v1.0.0",
@@ -105,7 +108,7 @@ class ConfigManager:
             "storehub_service_version": "v1.0.0",
             
             # Installation Configuration
-            "base_install_dir": "C:\\gkretail",
+            "base_install_dir": "C:\\gkretail",  # Will be adjusted based on platform
             "tenant_id": "001",
             "pos_system_type": "",  # Will be dynamically set based on URL
             "wdm_system_type": "",  # Will be dynamically set based on URL

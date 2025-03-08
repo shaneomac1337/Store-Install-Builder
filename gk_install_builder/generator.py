@@ -13,6 +13,7 @@ import logging
 from string import Template
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
+import time
 
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -109,11 +110,17 @@ class ProjectGenerator:
         self.helper_structure = {
             "launchers": [
                 "launcher.pos.template",
-                "launcher.wdm.template"
+                "launcher.wdm.template",
+                "launcher.flow-service.template",
+                "launcher.lpa-service.template",
+                "launcher.storehub-service.template"
             ],
             "onboarding": [
                 "pos.onboarding.json",
-                "wdm.onboarding.json"
+                "wdm.onboarding.json",
+                "flow-service.onboarding.json",
+                "lpa-service.onboarding.json",
+                "storehub-service.onboarding.json"
             ],
             "tokens": [
                 "basic_auth_password.txt",
@@ -133,6 +140,9 @@ class ProjectGenerator:
         try:
             # Get absolute output directory path
             output_dir = os.path.abspath(config["output_dir"])
+            print(f"Creating output directory: {output_dir}")
+            
+            # Create output directory and all parent directories if they don't exist
             os.makedirs(output_dir, exist_ok=True)
             
             # Store the original working directory
@@ -186,13 +196,24 @@ class ProjectGenerator:
         return False
 
     def _generate_gk_install(self, output_dir, config):
-        """Generate GKInstall.ps1 with replaced values"""
+        """Generate GKInstall script with replaced values based on platform"""
         try:
-            # Use absolute paths for template and output
-            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "GKInstall.ps1.template")
-            output_path = os.path.join(output_dir, 'GKInstall.ps1')
+            # Get platform from config (default to Windows if not specified)
+            platform = config.get("platform", "Windows")
             
-            print(f"Generating GKInstall.ps1:")
+            # Determine template and output paths based on platform
+            if platform == "Windows":
+                template_filename = "GKInstall.ps1.template"
+                output_filename = "GKInstall.ps1"
+            else:  # Linux
+                template_filename = "GKInstall.sh.template"
+                output_filename = "GKInstall.sh"
+            
+            # Use absolute paths for template and output
+            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", template_filename)
+            output_path = os.path.join(output_dir, output_filename)
+            
+            print(f"Generating {output_filename}:")
             print(f"  Template path: {template_path}")
             print(f"  Output path: {output_path}")
             
@@ -226,98 +247,130 @@ class ProjectGenerator:
             print(f"  LPA Service System Type: {lpa_service_system_type}")
             print(f"  StoreHub Service System Type: {storehub_service_system_type}")
             
-            # Replace the switch statement for system types
-            old_switch = """$systemType = switch ($ComponentType) {
-    'POS' { "CSE-OPOS-CLOUD" }
-    'WDM' { "CSE-wdm" }
-    'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
-    'LPA-SERVICE' { "CSE-lps-lpa" }
-    'STOREHUB-SERVICE' { "CSE-sh-cloud" }
-    default { "CSE-OPOS-CLOUD" }
-}"""
-            new_switch = f"""$systemType = switch ($ComponentType) {{
-    'POS' {{ "{pos_system_type}" }}
-    'WDM' {{ "{wdm_system_type}" }}
-    'FLOW-SERVICE' {{ "{flow_service_system_type}" }}
-    'LPA-SERVICE' {{ "{lpa_service_system_type}" }}
-    'STOREHUB-SERVICE' {{ "{storehub_service_system_type}" }}
-    default {{ "{pos_system_type}" }}
-}}"""
-            template = template.replace(old_switch, new_switch)
+            # Common replacements for both Windows and Linux
+            replacements = []
             
-            # Define other replacements
-            replacements = [
-                ('$base_url = "test.cse.cloud4retail.co"', f'$base_url = "{config["base_url"]}"'),
-                ('$version = "v1.0.0"', f'$version = "{default_version}"'),
-                ('$base_install_dir = "C:\\\\gkretail"', f'$base_install_dir = "{config["base_install_dir"]}"'),
-                ('$ssl_password = "changeit"', f'$ssl_password = "{config["ssl_password"]}"'),
-                ('station.tenantId=001', f'station.tenantId={config["tenant_id"]}'),
-                ('@FIREBIRD_SERVER_PATH@', config.get("firebird_server_path", "localhost")),
-            ]
+            # Get the base URL and base install directory
+            base_url = config.get("base_url", "test.cse.cloud4retail.co")
+            base_install_dir = config.get("base_install_dir", "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail")
             
-            # Add component-specific version replacements with simplified logic
-            version_config = f'''
-# Component-specific versions
-$use_version_override = ${str(use_version_override).lower()}
-$pos_version = "{pos_version}"
-$wdm_version = "{wdm_version}"
-$flow_service_version = "{flow_service_version}"
-$lpa_service_version = "{lpa_service_version}"
-$storehub_service_version = "{storehub_service_version}"
-
-# Function to get the correct version based on system type
+            if platform == "Windows":
+                # Windows-specific replacements
+                replacements = [
+                    ("test.cse.cloud4retail.co", base_url),
+                    ("C:\\\\gkretail", base_install_dir.replace("\\", "\\\\")),
+                    ('"v1.0.0"', f'"{default_version}"'),
+                    ("CSE-OPOS-CLOUD", pos_system_type),
+                    ("CSE-wdm", wdm_system_type),
+                    ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
+                    ("CSE-lps-lpa", lpa_service_system_type),
+                    ("CSE-sh-cloud", storehub_service_system_type)
+                ]
+                
+                # Add version function for component-specific versions
+                if use_version_override:
+                    version_function = f'''
 function Get-ComponentVersion {{
-    param($SystemType)
-    
-    # If version override is disabled, always use the default version
-    if (-not $use_version_override) {{
-        return $version
-    }}
-    
-    # If the system type doesn't have a specific version pattern, use the default version
-    if (-not $SystemType -or $SystemType -eq "") {{
-        return $version
-    }}
+    param([string]$SystemType)
     
     switch ($SystemType) {{
-        # POS components
-        "{pos_system_type}" {{ return $pos_version }}
-        
-        # WDM components
-        "{wdm_system_type}" {{ return $wdm_version }}
-        
-        # Flow Service components
-        "{flow_service_system_type}" {{ return $flow_service_version }}
-        
-        # LPA Service components
-        "{lpa_service_system_type}" {{ return $lpa_service_version }}
-        
-        # StoreHub Service components
-        "{storehub_service_system_type}" {{ return $storehub_service_version }}
-        
-        # For any other system type, use the project version
-        default {{ return $version }}
+        "{pos_system_type}" {{ return "{pos_version}" }}
+        "{wdm_system_type}" {{ return "{wdm_version}" }}
+        "{flow_service_system_type}" {{ return "{flow_service_version}" }}
+        "{lpa_service_system_type}" {{ return "{lpa_service_version}" }}
+        "{storehub_service_system_type}" {{ return "{storehub_service_version}" }}
+        default {{ return "" }}
     }}
 }}
-
-# Note: This script will use the certificate generated by the GK Install Builder
-# The certificate is located in the security directory
 '''
-            
-            # Find the position to insert the component-specific version config
-            basic_config_marker = "# Basic configuration"
-            template = template.replace(basic_config_marker, f"{basic_config_marker}\n{version_config}")
+                    # Add the version function after the Handle-Error function
+                    template = template.replace("function Handle-Error {", f"function Handle-Error {{\n\n{version_function}")
+                else:
+                    version_function = '''
+function Get-ComponentVersion {
+    param([string]$SystemType)
+    return ""  # Return empty string to use default version
+}
+'''
+                    # Add the version function after the Handle-Error function
+                    template = template.replace("function Handle-Error {", f"function Handle-Error {{\n\n{version_function}")
+                
+            else:  # Linux
+                # Linux-specific replacements
+                replacements = [
+                    ("test.cse.cloud4retail.co", base_url),
+                    ("/usr/local/gkretail", base_install_dir),
+                    ('version="v1.0.0"', f'version="{default_version}"'),
+                    ("CSE-OPOS-CLOUD", pos_system_type),
+                    ("CSE-wdm", wdm_system_type),
+                    ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
+                    ("CSE-lps-lpa", lpa_service_system_type),
+                    ("CSE-sh-cloud", storehub_service_system_type)
+                ]
+                
+                # Add version function for component-specific versions (bash version)
+                if use_version_override:
+                    version_function = f'''
+# Function to get version based on system type
+get_component_version() {{
+  local system_type="$1"
+  
+  case "$system_type" in
+    "{pos_system_type}")
+      echo "{pos_version}"
+      ;;
+    "{wdm_system_type}")
+      echo "{wdm_version}"
+      ;;
+    "{flow_service_system_type}")
+      echo "{flow_service_version}"
+      ;;
+    "{lpa_service_system_type}")
+      echo "{lpa_service_version}"
+      ;;
+    "{storehub_service_system_type}")
+      echo "{storehub_service_version}"
+      ;;
+    *)
+      echo ""
+      ;;
+  esac
+}}
+'''
+                    # Add the version function after the handle_error function
+                    template = template.replace("trap 'handle_error $LINENO' ERR", f"trap 'handle_error $LINENO' ERR\n\n{version_function}")
+                else:
+                    version_function = '''
+# Function to get version based on system type
+get_component_version() {
+  local system_type="$1"
+  echo ""  # Return empty string to use default version
+}
+'''
+                    # Add the version function after the handle_error function
+                    template = template.replace("trap 'handle_error $LINENO' ERR", f"trap 'handle_error $LINENO' ERR\n\n{version_function}")
             
             # Update the download URL to use the component-specific version with fallback logic
-            download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
-            new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
+            if platform == "Windows":
+                download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
+                new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
 # If the component version is empty or null, fall back to the default version
 if ([string]::IsNullOrEmpty($component_version)) {
     $component_version = $version
 }
 $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"'''
-            
-            template = template.replace(download_url_line, new_download_url_line)
+                
+                template = template.replace(download_url_line, new_download_url_line)
+            else:  # Linux
+                download_url_line = 'download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher"'
+                new_download_url_line = '''component_version=$(get_component_version "$systemType")
+# If the component version is empty or null, fall back to the default version
+if [ -z "$component_version" ]; then
+    component_version="$version"
+fi
+download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher"'''
+                
+                template = template.replace(download_url_line, new_download_url_line)
             
             # Apply all replacements
             for old, new in replacements:
@@ -331,16 +384,24 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             self._generate_launcher_templates(launchers_dir, config)
             
             # Write the modified template to the output file
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', newline='\n') as f:
                 f.write(template)
-                
-            print(f"Successfully generated GKInstall.ps1 at {output_path}")
+            
+            # For Linux scripts, make the file executable
+            if platform == "Linux":
+                try:
+                    os.chmod(output_path, 0o755)  # rwxr-xr-x
+                    print(f"Made {output_filename} executable")
+                except Exception as e:
+                    print(f"Warning: Failed to make {output_filename} executable: {e}")
+            
+            print(f"Successfully generated {output_filename} at {output_path}")
                 
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
-            print(f"Error generating GKInstall.ps1: {error_details}")
-            raise Exception(f"Failed to generate GKInstall.ps1: {str(e)}")
+            print(f"Error generating installation script: {error_details}")
+            raise Exception(f"Failed to generate installation script: {str(e)}")
 
     def _generate_launcher_templates(self, launchers_dir, config):
         """Generate launcher templates with custom settings from config"""
@@ -382,11 +443,6 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
         
         # Process each template file
         for filename, settings in template_files.items():
-            # Skip if no settings to apply
-            if not settings:
-                print(f"No settings to apply for {filename}, skipping")
-                continue
-            
             # Check if the template exists in the source directory
             source_path = os.path.join(source_launchers_dir, filename)
             if not os.path.exists(source_path):
@@ -403,36 +459,45 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 print(f"Error loading template from source {filename}: {str(e)}")
                 continue
             
-            # Update the template with the settings
-            lines = template_content.strip().split('\n')
-            new_lines = []
+            # Create a copy of the template content to modify if needed
+            modified_template = template_content
             
-            for line in lines:
-                if line.startswith('#') or not line.strip():
-                    new_lines.append(line)
-                    continue
+            # Only apply settings if there are any
+            if settings:
+                # Update the template with the settings
+                lines = template_content.strip().split('\n')
+                new_lines = []
                 
-                if '=' in line:
-                    key, value = line.split('=', 1)
+                for line in lines:
+                    if line.startswith('#') or not line.strip():
+                        new_lines.append(line)
+                        continue
                     
-                    # If this key has a setting and the value doesn't contain a placeholder
-                    if key in settings and '@' not in value:
-                        # Update the value
-                        new_value = settings[key]
-                        print(f"Setting {key} to {new_value} in {filename}")
-                        new_lines.append(f"{key}={new_value}")
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        
+                        # If this key has a setting and the value doesn't contain a placeholder
+                        if key in settings and '@' not in value:
+                            # Update the value
+                            new_value = settings[key]
+                            print(f"Setting {key} to {new_value} in {filename}")
+                            new_lines.append(f"{key}={new_value}")
+                        else:
+                            # Keep the line as is
+                            new_lines.append(line)
                     else:
                         # Keep the line as is
                         new_lines.append(line)
-                else:
-                    # Keep the line as is
-                    new_lines.append(line)
+                
+                modified_template = '\n'.join(new_lines)
+            else:
+                print(f"No settings to apply for {filename}, using default template")
             
-            # Write the updated template to the output file
+            # Write the template to the output file
             output_path = os.path.join(launchers_dir, filename)
             try:
                 with open(output_path, 'w') as f:
-                    f.write('\n'.join(new_lines))
+                    f.write(modified_template)
                 print(f"Generated launcher template: {filename}")
             except Exception as e:
                 print(f"Error generating launcher template {filename}: {str(e)}")
@@ -560,13 +625,24 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"Error creating default template {filename}: {str(e)}")
 
     def _generate_onboarding(self, output_dir, config):
-        """Generate onboarding.ps1 with replaced values"""
+        """Generate onboarding script with replaced values based on platform"""
         try:
-            # Use absolute paths for template and output
-            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", "onboarding.ps1.template")
-            output_path = os.path.join(output_dir, 'onboarding.ps1')
+            # Get platform from config (default to Windows if not specified)
+            platform = config.get("platform", "Windows")
             
-            print(f"Generating onboarding.ps1:")
+            # Determine template and output paths based on platform
+            if platform == "Windows":
+                template_filename = "onboarding.ps1.template"
+                output_filename = "onboarding.ps1"
+            else:  # Linux
+                template_filename = "onboarding.sh.template"
+                output_filename = "onboarding.sh"
+            
+            # Use absolute paths for template and output
+            template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates", template_filename)
+            output_path = os.path.join(output_dir, output_filename)
+            
+            print(f"Generating {output_filename}:")
             print(f"  Template path: {template_path}")
             print(f"  Output path: {output_path}")
             
@@ -577,35 +653,69 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             with open(template_path, 'r') as f:
                 content = f.read()
             
-            # Replace configurations
-            content = content.replace(
-                'test.cse.cloud4retail.co',
-                config['base_url']
-            )
-            content = content.replace(
-                '$username = "launchpad"',
-                f'$username = "{config["username"]}"'
-            )
-            content = content.replace(
-                'username = "1001"',
-                f'username = "{config["form_username"]}"'
-            )
-            content = content.replace(
-                'tenants/001/',
-                f'tenants/{config["tenant_id"]}/'
-            )
+            # Get configuration values
+            base_url = config.get("base_url", "test.cse.cloud4retail.co")
+            username = config.get("username", "launchpad")
+            form_username = config.get("form_username", "1001")
+            tenant_id = config.get("tenant_id", "001")
+            
+            # Replace configurations based on platform
+            if platform == "Windows":
+                # Windows-specific replacements
+                content = content.replace(
+                    'test.cse.cloud4retail.co',
+                    base_url
+                )
+                content = content.replace(
+                    '$username = "launchpad"',
+                    f'$username = "{username}"'
+                )
+                content = content.replace(
+                    'username = "1001"',
+                    f'username = "{form_username}"'
+                )
+                content = content.replace(
+                    'tenants/001/',
+                    f'tenants/{tenant_id}/'
+                )
+            else:  # Linux
+                # Linux-specific replacements
+                content = content.replace(
+                    'base_url="test.cse.cloud4retail.co"',
+                    f'base_url="{base_url}"'
+                )
+                content = content.replace(
+                    'username="launchpad"',
+                    f'username="{username}"'
+                )
+                content = content.replace(
+                    '"1001"',
+                    f'"{form_username}"'
+                )
+                content = content.replace(
+                    'tenants/001/',
+                    f'tenants/{tenant_id}/'
+                )
             
             # Write the modified content
-            with open(output_path, 'w') as f:
+            with open(output_path, 'w', newline='\n') as f:
                 f.write(content)
+            
+            # For Linux scripts, make the file executable
+            if platform == "Linux":
+                try:
+                    os.chmod(output_path, 0o755)  # rwxr-xr-x
+                    print(f"Made {output_filename} executable")
+                except Exception as e:
+                    print(f"Warning: Failed to make {output_filename} executable: {e}")
                 
-            print(f"Successfully generated onboarding.ps1 at {output_path}")
+            print(f"Successfully generated {output_filename} at {output_path}")
                 
         except Exception as e:
             import traceback
             error_details = traceback.format_exc()
-            print(f"Error generating onboarding.ps1: {error_details}")
-            raise Exception(f"Failed to generate onboarding.ps1: {str(e)}")
+            print(f"Error generating onboarding script: {error_details}")
+            raise Exception(f"Failed to generate onboarding script: {str(e)}")
 
     def _copy_helper_files(self, output_dir, config):
         """Copy helper files to output directory"""
@@ -627,11 +737,33 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     helper_src = parent_helper
                     print(f"  Found helper directory in parent: {helper_src}")
                 else:
-                    raise FileNotFoundError(f"Helper directory not found at {helper_src} or {parent_helper}")
+                    # Create the required directory structure instead of failing
+                    print(f"  Helper directory not found. Creating necessary directory structure.")
+                    self._create_helper_structure(helper_dst)
+                    
+                    # Create password files
+                    self._create_password_files(helper_dst, config)
+                    
+                    # Create JSON files
+                    self._create_default_json_files(helper_dst, config)
+                    
+                    # Create launchers directory
+                    launchers_dir = os.path.join(helper_dst, 'launchers')
+                    os.makedirs(launchers_dir, exist_ok=True)
+                    
+                    # Generate launcher templates with custom settings
+                    self._generate_launcher_templates(launchers_dir, config)
+                    
+                    print(f"Successfully created helper files at {helper_dst}")
+                    return
             
             # Create helper directory if it doesn't exist
             if not os.path.exists(helper_dst):
                 os.makedirs(helper_dst, exist_ok=True)
+            
+            # Ensure all required directories exist in the destination
+            for dir_name in self.helper_structure.keys():
+                os.makedirs(os.path.join(helper_dst, dir_name), exist_ok=True)
             
             # Copy helper directory structure, excluding launchers directory
             for item in os.listdir(helper_src):
@@ -643,10 +775,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     continue
                     
                 if os.path.isdir(src_item):
-                    # Copy directory
-                    if os.path.exists(dst_item):
-                        shutil.rmtree(dst_item)
-                    shutil.copytree(src_item, dst_item)
+                    # Create directory if it doesn't exist
+                    os.makedirs(dst_item, exist_ok=True)
+                    
+                    # Copy directory contents
+                    for subitem in os.listdir(src_item):
+                        src_subitem = os.path.join(src_item, subitem)
+                        dst_subitem = os.path.join(dst_item, subitem)
+                        if os.path.isdir(src_subitem):
+                            if os.path.exists(dst_subitem):
+                                shutil.rmtree(dst_subitem)
+                            shutil.copytree(src_subitem, dst_subitem)
+                        else:
+                            shutil.copy2(src_subitem, dst_subitem)
                 else:
                     # Copy file
                     shutil.copy2(src_item, dst_item)
@@ -671,6 +812,45 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             error_details = traceback.format_exc()
             print(f"Error copying helper files: {error_details}")
             raise Exception(f"Failed to copy helper files: {str(e)}")
+
+    def _create_helper_structure(self, helper_dir):
+        """Create the necessary helper directory structure with placeholder files"""
+        # Create main helper directory
+        os.makedirs(helper_dir, exist_ok=True)
+        
+        # Create sub-directories
+        for dir_name in self.helper_structure.keys():
+            sub_dir = os.path.join(helper_dir, dir_name)
+            os.makedirs(sub_dir, exist_ok=True)
+            print(f"  Created directory: {sub_dir}")
+
+    def _create_default_json_files(self, helper_dir, config):
+        """Create default JSON files for onboarding"""
+        onboarding_dir = os.path.join(helper_dir, "onboarding")
+        os.makedirs(onboarding_dir, exist_ok=True)
+        
+        # Default JSON templates for different component types
+        json_templates = {
+            "pos.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
+            "wdm.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
+            "flow-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
+            "lpa-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
+            "storehub-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}'''
+        }
+        
+        # Write JSON files
+        for filename, content in json_templates.items():
+            # Replace placeholders
+            timestamp = int(time.time() * 1000)  # Current time in milliseconds
+            content = content.replace("{{TIMESTAMP}}", str(timestamp))
+            content = content.replace("001", config.get("tenant_id", "001"))
+            content = content.replace("1001", config.get("form_username", "1001"))
+            
+            # Write file
+            file_path = os.path.join(onboarding_dir, filename)
+            with open(file_path, 'w') as f:
+                f.write(content)
+            print(f"  Created JSON file: {file_path}")
 
     def _create_password_files(self, helper_dir, config):
         """Create base64 encoded password files"""
