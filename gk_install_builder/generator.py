@@ -323,6 +323,13 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             for old, new in replacements:
                 template = template.replace(old, new)
             
+            # Create helper/launchers directory
+            launchers_dir = os.path.join(output_dir, "helper", "launchers")
+            os.makedirs(launchers_dir, exist_ok=True)
+            
+            # Generate launcher templates with custom settings
+            self._generate_launcher_templates(launchers_dir, config)
+            
             # Write the modified template to the output file
             with open(output_path, 'w') as f:
                 f.write(template)
@@ -334,6 +341,223 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             error_details = traceback.format_exc()
             print(f"Error generating GKInstall.ps1: {error_details}")
             raise Exception(f"Failed to generate GKInstall.ps1: {str(e)}")
+
+    def _generate_launcher_templates(self, launchers_dir, config):
+        """Generate launcher templates with custom settings from config"""
+        # Get settings from config
+        pos_settings = config.get("pos_launcher_settings", {})
+        wdm_settings = config.get("wdm_launcher_settings", {})
+        flow_service_settings = config.get("flow_service_launcher_settings", {})
+        lpa_service_settings = config.get("lpa_service_launcher_settings", {})
+        storehub_service_settings = config.get("storehub_service_launcher_settings", {})
+        
+        # Print debug info
+        print("Using launcher settings from config:")
+        print(f"POS settings: {pos_settings}")
+        print(f"WDM settings: {wdm_settings}")
+        print(f"FLOW-SERVICE settings: {flow_service_settings}")
+        print(f"LPA-SERVICE settings: {lpa_service_settings}")
+        print(f"STOREHUB-SERVICE settings: {storehub_service_settings}")
+        
+        # Define template files
+        template_files = {
+            "launcher.pos.template": pos_settings,
+            "launcher.wdm.template": wdm_settings,
+            "launcher.flow-service.template": flow_service_settings,
+            "launcher.lpa-service.template": lpa_service_settings,
+            "launcher.storehub-service.template": storehub_service_settings
+        }
+        
+        # Check if we have template files in the source directory
+        source_launchers_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers")
+        
+        # Make sure the source directory exists
+        if not os.path.exists(source_launchers_dir):
+            print(f"Source launchers directory not found: {source_launchers_dir}")
+            # Create the source directory
+            os.makedirs(source_launchers_dir, exist_ok=True)
+            
+            # Create default templates in the source directory
+            self._create_default_templates(source_launchers_dir)
+        
+        # Process each template file
+        for filename, settings in template_files.items():
+            # Skip if no settings to apply
+            if not settings:
+                print(f"No settings to apply for {filename}, skipping")
+                continue
+            
+            # Check if the template exists in the source directory
+            source_path = os.path.join(source_launchers_dir, filename)
+            if not os.path.exists(source_path):
+                print(f"Template file not found in source directory: {source_path}")
+                # Create default template in the source directory
+                self._create_default_template(source_launchers_dir, filename)
+            
+            # Read the template from the source directory
+            try:
+                with open(source_path, 'r') as f:
+                    template_content = f.read()
+                print(f"Loaded template from source: {filename}")
+            except Exception as e:
+                print(f"Error loading template from source {filename}: {str(e)}")
+                continue
+            
+            # Update the template with the settings
+            lines = template_content.strip().split('\n')
+            new_lines = []
+            
+            for line in lines:
+                if line.startswith('#') or not line.strip():
+                    new_lines.append(line)
+                    continue
+                
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    
+                    # If this key has a setting and the value doesn't contain a placeholder
+                    if key in settings and '@' not in value:
+                        # Update the value
+                        new_value = settings[key]
+                        print(f"Setting {key} to {new_value} in {filename}")
+                        new_lines.append(f"{key}={new_value}")
+                    else:
+                        # Keep the line as is
+                        new_lines.append(line)
+                else:
+                    # Keep the line as is
+                    new_lines.append(line)
+            
+            # Write the updated template to the output file
+            output_path = os.path.join(launchers_dir, filename)
+            try:
+                with open(output_path, 'w') as f:
+                    f.write('\n'.join(new_lines))
+                print(f"Generated launcher template: {filename}")
+            except Exception as e:
+                print(f"Error generating launcher template {filename}: {str(e)}")
+    
+    def _create_default_templates(self, launchers_dir):
+        """Create default templates in the source directory"""
+        self._create_default_template(launchers_dir, "launcher.pos.template")
+        self._create_default_template(launchers_dir, "launcher.wdm.template")
+        self._create_default_template(launchers_dir, "launcher.flow-service.template")
+        self._create_default_template(launchers_dir, "launcher.lpa-service.template")
+        self._create_default_template(launchers_dir, "launcher.storehub-service.template")
+
+    def _create_default_template(self, launchers_dir, filename):
+        """Create a default template in the source directory"""
+        template_content = ""
+        
+        if filename == "launcher.pos.template":
+            template_content = """# Launcher defaults for POS
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationJmxPort=
+updaterJmxPort=
+createShortcuts=0
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+hardware_package_local=
+"""
+        elif filename == "launcher.wdm.template":
+            template_content = """# Launcher defaults for WDM
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8080
+applicationServerHttpsPort=8443
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.flow-service.template":
+            template_content = """# Launcher defaults for Flow Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.lpa-service.template":
+            template_content = """# Launcher defaults for LPA Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8280
+applicationServerHttpsPort=8643
+applicationServerShutdownPort=8006
+applicationServerJmxPort=52223
+updaterJmxPort=4334
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.storehub-service.template":
+            template_content = """# Launcher defaults for StoreHub Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8380
+applicationServerHttpsPort=8743
+applicationServerShutdownPort=8007
+applicationServerJmxPort=52224
+applicationJmsPort=7001
+updaterJmxPort=4335
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+firebirdServerPath=@FIREBIRD_SERVER_PATH@
+firebirdServerPort=3050
+firebirdServerUser=SYSDBA
+firebirdServerPassword=masterkey
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        
+        # Write the template to the file
+        file_path = os.path.join(launchers_dir, filename)
+        try:
+            with open(file_path, 'w') as f:
+                f.write(template_content)
+            print(f"Created default template: {filename}")
+        except Exception as e:
+            print(f"Error creating default template {filename}: {str(e)}")
 
     def _generate_onboarding(self, output_dir, config):
         """Generate onboarding.ps1 with replaced values"""
@@ -384,7 +608,7 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
             raise Exception(f"Failed to generate onboarding.ps1: {str(e)}")
 
     def _copy_helper_files(self, output_dir, config):
-        """Copy helper files to output directory and handle password files"""
+        """Copy helper files to output directory"""
         try:
             # Use absolute paths for source and destination
             script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -405,15 +629,39 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 else:
                     raise FileNotFoundError(f"Helper directory not found at {helper_src} or {parent_helper}")
             
-            # Copy entire helper directory structure
-            if os.path.exists(helper_dst):
-                shutil.rmtree(helper_dst)
-            shutil.copytree(helper_src, helper_dst)
+            # Create helper directory if it doesn't exist
+            if not os.path.exists(helper_dst):
+                os.makedirs(helper_dst, exist_ok=True)
+            
+            # Copy helper directory structure, excluding launchers directory
+            for item in os.listdir(helper_src):
+                src_item = os.path.join(helper_src, item)
+                dst_item = os.path.join(helper_dst, item)
+                
+                if item == 'launchers':
+                    # Skip launchers directory, we'll handle it separately
+                    continue
+                    
+                if os.path.isdir(src_item):
+                    # Copy directory
+                    if os.path.exists(dst_item):
+                        shutil.rmtree(dst_item)
+                    shutil.copytree(src_item, dst_item)
+                else:
+                    # Copy file
+                    shutil.copy2(src_item, dst_item)
+            
+            # Create launchers directory
+            launchers_dir = os.path.join(helper_dst, 'launchers')
+            os.makedirs(launchers_dir, exist_ok=True)
+            
+            # Generate launcher templates with custom settings
+            self._generate_launcher_templates(launchers_dir, config)
             
             # Create password files
             self._create_password_files(helper_dst, config)
             
-            # Modify JSON files after copying
+            # Modify JSON files with the correct URLs
             self._modify_json_files(helper_dst, config)
             
             print(f"Successfully copied helper files to {helper_dst}")
@@ -770,7 +1018,7 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                     progress_frame,
                     text="Overall Progress:",
                     font=("Helvetica", 12)
-                ).pack(pady=(10, 5), padx=10, anchor="w")
+                ).pack(pady=(10, 5), padx=10)
                 
                 progress_bar = ctk.CTkProgressBar(progress_frame, width=450)
                 progress_bar.pack(pady=(0, 10), padx=10)
