@@ -323,12 +323,100 @@ class GKInstallBuilder:
         self.main_frame = ctk.CTkScrollableFrame(self.window, width=900, height=700)
         self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
         
-        # Project Configuration
-        self.create_section("Project Configuration", [
-            "Project Name",
-            "Base URL",
-            "Version"
-        ])
+        # Project Configuration - Create the main section frame
+        section_frame = ctk.CTkFrame(self.main_frame)
+        section_frame.pack(fill="x", padx=10, pady=(0, 20))
+        
+        # Store reference to section frame
+        self.section_frames["Project Configuration"] = section_frame
+        
+        # Title
+        ctk.CTkLabel(
+            section_frame, 
+            text="Project Configuration", 
+            font=("Helvetica", 16, "bold")
+        ).pack(anchor="w", padx=10, pady=10)
+        
+        # Create a frame for form fields
+        form_frame = ctk.CTkFrame(section_frame)
+        form_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Add standard project configuration fields
+        fields = ["Project Name", "Base URL", "Version"]
+        
+        # Field tooltips
+        tooltips = {
+            "Project Name": "Name of your store project (e.g., 'Coop Sweden')",
+            "Base URL": "Base URL for the cloud retail environment (e.g., 'test.cse.cloud4retail.co')",
+            "Version": "Version number of the installation (e.g., 'v1.2.0')",
+        }
+        
+        # Create fields
+        for field in fields:
+            field_frame = ctk.CTkFrame(form_frame)
+            field_frame.pack(fill="x", padx=10, pady=5)
+            
+            # Label with tooltip
+            label = ctk.CTkLabel(
+                field_frame, 
+                text=f"{field}:",
+                width=150
+            )
+            label.pack(side="left", padx=10)
+            
+            # Create tooltip for the label
+            if field in tooltips:
+                self.create_tooltip(label, tooltips[field])
+            
+            # Create the entry field
+            config_key = field.lower().replace(" ", "_")
+            entry = ctk.CTkEntry(field_frame, width=400)
+            entry.pack(side="left", fill="x", expand=True, padx=10)
+            
+            # Set default value if available
+            if config_key in self.config_manager.config:
+                entry.insert(0, self.config_manager.config[config_key])
+            
+            # Register entry with config manager
+            self.config_manager.register_entry(config_key, entry)
+        
+        # Add Platform Selection
+        platform_frame = ctk.CTkFrame(form_frame)
+        platform_frame.pack(fill="x", padx=10, pady=5)
+        
+        platform_label = ctk.CTkLabel(platform_frame, text="Platform:", width=150)
+        platform_label.pack(side="left", padx=10)
+        
+        # Create tooltip for platform
+        self.create_tooltip(platform_label, "Select target platform for installation scripts")
+        
+        # Create a StringVar for the platform option
+        self.platform_var = ctk.StringVar(value=self.config_manager.config.get("platform", "Windows"))
+        
+        # Create radio button frame
+        radio_frame = ctk.CTkFrame(platform_frame)
+        radio_frame.pack(side="left", padx=10)
+        
+        windows_radio = ctk.CTkRadioButton(
+            radio_frame, 
+            text="Windows", 
+            variable=self.platform_var, 
+            value="Windows",
+            command=self.on_platform_changed
+        )
+        windows_radio.pack(side="left", padx=10)
+        
+        linux_radio = ctk.CTkRadioButton(
+            radio_frame, 
+            text="Linux", 
+            variable=self.platform_var, 
+            value="Linux",
+            command=self.on_platform_changed
+        )
+        linux_radio.pack(side="left", padx=10)
+        
+        # Register the platform variable with config manager
+        self.config_manager.register_entry("platform", self.platform_var)
         
         # Add validation and auto-fill for Base URL
         base_url_entry = self.config_manager.get_entry("base_url")
@@ -362,7 +450,26 @@ class GKInstallBuilder:
         
         # Installation Configuration
         if "Installation Configuration" not in self.section_frames:
-            self.create_section("Installation Configuration", [
+            # Create the main section frame
+            section_frame = ctk.CTkFrame(self.main_frame)
+            section_frame.pack(fill="x", padx=10, pady=(0, 20))
+            
+            # Store reference to section frame
+            self.section_frames["Installation Configuration"] = section_frame
+            
+            # Title
+            ctk.CTkLabel(
+                section_frame, 
+                text="Installation Configuration", 
+                font=("Helvetica", 16, "bold")
+            ).pack(anchor="w", padx=10, pady=10)
+            
+            # Create a frame for form fields
+            form_frame = ctk.CTkFrame(section_frame)
+            form_frame.pack(fill="x", padx=10, pady=5)
+            
+            # Add the standard installation configuration fields
+            fields = [
                 "Base Install Directory",
                 "Tenant ID",
                 "POS System Type",
@@ -371,16 +478,61 @@ class GKInstallBuilder:
                 "LPA Service System Type",
                 "StoreHub Service System Type",
                 "Firebird Server Path"
-            ])
+            ]
+            
+            # Field tooltips for this section
+            tooltips = {
+                "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail' for Windows or '/usr/local/gkretail' for Linux)",
+                "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
+                "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
+                "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
+                "Firebird Server Path": "Path to the Firebird server (e.g., 'localhost')",
+            }
+            
+            # Create fields
+            for field in fields:
+                field_frame = ctk.CTkFrame(form_frame)
+                field_frame.pack(fill="x", padx=10, pady=5)
+                
+                # Label with tooltip
+                label = ctk.CTkLabel(
+                    field_frame, 
+                    text=f"{field}:",
+                    width=150
+                )
+                label.pack(side="left", padx=10)
+                
+                # Create tooltip for the label
+                if field in tooltips:
+                    self.create_tooltip(label, tooltips[field])
+                
+                # Special case for Base Install Directory - use base_install_dir instead of base_install_directory
+                if field == "Base Install Directory":
+                    config_key = "base_install_dir"
+                else:
+                    config_key = field.lower().replace(" ", "_")
+                
+                # Create entry
+                entry = ctk.CTkEntry(field_frame, width=400)
+                entry.pack(side="left", fill="x", expand=True, padx=10)
+                
+                # Set default value
+                if config_key in self.config_manager.config:
+                    entry.insert(0, self.config_manager.config[config_key])
+                
+                # Register entry with config manager
+                self.config_manager.register_entry(config_key, entry)
             
             # Ensure base install directory is set
             base_dir_entry = self.config_manager.get_entry("base_install_dir")
             if base_dir_entry:
                 current_value = base_dir_entry.get()
                 if not current_value:
+                    platform = self.platform_var.get()
+                    default_dir = "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail"
                     base_dir_entry.delete(0, 'end')
-                    base_dir_entry.insert(0, "C:\\gkretail")
-                    print("Set base install directory to C:\\gkretail in create_remaining_sections")
+                    base_dir_entry.insert(0, default_dir)
+                    print(f"Set base install directory to {default_dir} in create_remaining_sections")
         
         # Security Configuration
         if "Security Configuration" not in self.section_frames:
@@ -415,7 +567,8 @@ class GKInstallBuilder:
             for key in ["pos_system_type", "wdm_system_type", "base_install_dir"]:
                 value = self.config_manager.config.get(key, "")
                 if key == "base_install_dir" and not value:
-                    value = "C:\\gkretail"
+                    platform = self.platform_var.get() if hasattr(self, 'platform_var') else "Windows"
+                    value = "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail"
                     self.config_manager.config[key] = value
                 
                 entry = self.config_manager.get_entry(key)
@@ -496,78 +649,134 @@ class GKInstallBuilder:
         if base_url:
             # Auto-suggest values based on URL - always do this, not just on first run
             self.auto_fill_based_on_url(base_url)
+            
+            # Ensure the output directory field is updated
+            if hasattr(self, 'output_dir_entry'):
+                # Extract project name from URL if needed
+                extracted_project_name = ""
+                if "." in base_url:
+                    parts = base_url.split(".")
+                    if len(parts) > 1:
+                        extracted_project_name = parts[1].upper()
+                
+                # Get project name (from entry or extracted)
+                project_name = self.config_manager.get_entry("project_name").get() if self.config_manager.get_entry("project_name") else extracted_project_name
+                
+                if project_name:
+                    # Set the output directory
+                    output_dir = os.path.join(project_name, base_url)
+                    self.output_dir_entry.configure(state="normal")
+                    self.output_dir_entry.delete(0, 'end')
+                    self.output_dir_entry.insert(0, output_dir)
+                    self.config_manager.config["output_dir"] = output_dir
+                    self.config_manager.save_config_silent()
+                    print(f"Updated output directory to: {output_dir}")
     
     def auto_fill_based_on_url(self, base_url):
         """Auto-fill fields based on the base URL"""
-        print(f"\nAuto-filling based on URL: {base_url}")
+        # Skip if URL is empty
+        if not base_url:
+            return
         
-        # Extract domain parts
+        print(f"Auto-filling based on URL: {base_url}")
+        
+        # Get current platform
+        platform = self.platform_var.get() if hasattr(self, 'platform_var') else "Windows"
+        
+        # Determine default installation directory based on platform
+        default_install_dir = "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail"
+        
+        # Extract project name from URL as the part after the first dot
+        extracted_project_name = ""
+        project_code = ""
         if "." in base_url:
             parts = base_url.split(".")
+            if len(parts) > 1:
+                # Extract the part after the first dot (index 1) and uppercase it for project code
+                project_code = parts[1].upper()
+                # Use this for prefix detection in system types
+                print(f"Detected project code from URL: {project_code}")
+                
+                # Also use it as the project name if not set
+                extracted_project_name = project_code
+        
+        # Auto-fill system types based on the detected project code
+        if project_code:
+            # Use the detected project code for system types
+            pos_system_type = f"{project_code}-OPOS-CLOUD"
+            wdm_system_type = f"{project_code}-wdm"
+            # FLOWSERVICE always uses GKR prefix (exception)
+            flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
+            lpa_service_system_type = f"{project_code}-lps-lpa"
+            storehub_service_system_type = f"{project_code}-sh-cloud"
             
-            # Extract environment and project name
-            env_name = parts[0].upper() if parts[0] else "GKR"  # Default to GKR if empty
-            
-            # Extract project name from second part of domain (if available)
-            project_name = "GKR"  # Default project name
-            if len(parts) >= 2 and parts[1]:
-                project_name = parts[1].upper()
-            
-            print(f"Extracted project name: {project_name}")
-            
-            # Determine system types based on project name
-            pos_type = f"{project_name}-OPOS-CLOUD"
-            wdm_type = f"{project_name}-wdm"
-            lpa_type = f"{project_name}-lps-lpa"
-            storehub_type = f"{project_name}-sh-cloud"
-            # Flow Service typically remains GKR-based but can be overridden if needed
-            flow_service_type = "GKR-FLOWSERVICE-CLOUD"
-            
-            print(f"Setting POS system type to: {pos_type}")
-            print(f"Setting WDM system type to: {wdm_type}")
-            print(f"Setting LPA Service system type to: {lpa_type}")
-            print(f"Setting StoreHub Service system type to: {storehub_type}")
-            print(f"Setting Flow Service system type to: {flow_service_type}")
-            
-            # ALWAYS update system types using the new method
-            self.config_manager.update_entry_value("pos_system_type", pos_type)
-            self.config_manager.update_entry_value("wdm_system_type", wdm_type)
-            self.config_manager.update_entry_value("lpa_service_system_type", lpa_type)
-            self.config_manager.update_entry_value("storehub_service_system_type", storehub_type)
-            self.config_manager.update_entry_value("flow_service_system_type", flow_service_type)
-            
-            # ALWAYS update base install directory
-            self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
-            print("Setting base install directory to: C:\\gkretail")
-            
-            # Update output directory based on project name and base URL
-            # Create a structured output path: {project_name}/{base_url}
-            output_dir = os.path.join(project_name, base_url)
+            print(f"Setting system types based on detected project code: {project_code}")
+        else:
+            # Default to CSE system types if no project code detected
+            pos_system_type = "CSE-OPOS-CLOUD"
+            wdm_system_type = "CSE-wdm"
+            flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
+            lpa_service_system_type = "CSE-lps-lpa"
+            storehub_service_system_type = "CSE-sh-cloud"
+        
+        # Update project name entry if it's empty and we extracted a valid name
+        if extracted_project_name and self.config_manager.get_entry("project_name") and not self.config_manager.get_entry("project_name").get():
+            self.config_manager.update_entry_value("project_name", extracted_project_name)
+            print(f"Auto-filled project name: {extracted_project_name}")
+        
+        # Get current project name (either from entry or use the extracted name as fallback)
+        project_name = self.config_manager.get_entry("project_name").get() if self.config_manager.get_entry("project_name") else extracted_project_name
+        
+        # Create a structured output directory using the original pattern: ProjectName/base_url
+        if self.config_manager.get_entry("output_dir"):
+            if project_name:
+                # Use the project name and full URL to create the directory structure
+                output_dir = os.path.join(project_name, base_url)
+            else:
+                # Fallback to a simple directory if project name is missing
+                output_dir = "generated_scripts"
+                
             self.config_manager.update_entry_value("output_dir", output_dir)
-            print(f"Setting output directory to: {output_dir}")
+            print(f"Auto-filled output directory: {output_dir}")
+        
+        # Auto-fill certificate path
+        if self.config_manager.get_entry("certificate_path"):
+            # Use a certificate path inside the output directory
+            if project_name:
+                cert_path = os.path.join(project_name, base_url, "certificate.p12")
+            else:
+                # Fallback if project name is not set
+                cert_path = f"generated_scripts/{base_url}_certificate.p12"
             
-            # Update the output directory entry if it exists
-            output_dir_entry = self.config_manager.get_entry("output_dir")
-            if output_dir_entry:
-                # For read-only entry, we need to enable it temporarily
-                output_dir_entry.configure(state="normal")
-                output_dir_entry.delete(0, 'end')
-                output_dir_entry.insert(0, output_dir)
-                output_dir_entry.configure(state="readonly")
-                print(f"Updated output directory entry to: {output_dir}")
-            
-            # Update certificate path to be inside the output directory
-            # Use the actual output directory instead of a fixed path
-            certificate_path = os.path.join(output_dir, "certificate.p12")
-            self.config_manager.update_entry_value("certificate_path", certificate_path)
-            print(f"Setting certificate path to: {certificate_path}")
-            
-            # ALWAYS update certificate common name
-            self.config_manager.update_entry_value("certificate_common_name", "*gk-software.com")
-            
-            # Set default values for other fields only if they're empty
-            if self.config_manager.get_entry("tenant_id") and not self.config_manager.get_entry("tenant_id").get():
-                self.config_manager.update_entry_value("tenant_id", "001")
+            self.config_manager.update_entry_value("certificate_path", cert_path)
+            print(f"Auto-filled certificate path: {cert_path}")
+        
+        # Update system types
+        if self.config_manager.get_entry("pos_system_type"):
+            self.config_manager.update_entry_value("pos_system_type", pos_system_type)
+            print(f"Auto-filled POS system type: {pos_system_type}")
+        
+        if self.config_manager.get_entry("wdm_system_type"):
+            self.config_manager.update_entry_value("wdm_system_type", wdm_system_type)
+            print(f"Auto-filled WDM system type: {wdm_system_type}")
+        
+        if self.config_manager.get_entry("flow_service_system_type"):
+            self.config_manager.update_entry_value("flow_service_system_type", flow_service_system_type)
+            print(f"Auto-filled Flow Service system type: {flow_service_system_type}")
+        
+        if self.config_manager.get_entry("lpa_service_system_type"):
+            self.config_manager.update_entry_value("lpa_service_system_type", lpa_service_system_type)
+            print(f"Auto-filled LPA Service system type: {lpa_service_system_type}")
+        
+        if self.config_manager.get_entry("storehub_service_system_type"):
+            self.config_manager.update_entry_value("storehub_service_system_type", storehub_service_system_type)
+            print(f"Auto-filled StoreHub Service system type: {storehub_service_system_type}")
+        
+        # Set the base install directory only if other values were updated
+        if pos_system_type or wdm_system_type:
+            if self.config_manager.get_entry("base_install_dir"):
+                self.config_manager.update_entry_value("base_install_dir", default_install_dir)
+                print(f"Auto-filled base install directory: {default_install_dir}")
             
             if self.config_manager.get_entry("username") and not self.config_manager.get_entry("username").get():
                 self.config_manager.update_entry_value("username", "launchpad")
@@ -579,8 +788,8 @@ class GKInstallBuilder:
                 self.config_manager.update_entry_value("ssl_password", "changeit")
         else:
             # Even if there's no valid URL, still set the base install directory
-            self.config_manager.update_entry_value("base_install_dir", "C:\\gkretail")
-            print("Setting base install directory to: C:\\gkretail (no valid URL provided)")
+            self.config_manager.update_entry_value("base_install_dir", default_install_dir)
+            print(f"Setting base install directory to: {default_install_dir} (no valid URL pattern detected)")
     
     def create_section(self, title, fields):
         # Section Frame
@@ -1306,15 +1515,48 @@ class GKInstallBuilder:
         # Create tooltip for the label
         self.create_tooltip(label, "Directory where generated installation files will be saved (automatically set based on Project Name and Base URL)")
         
-        # Entry with tooltip - make it read-only
-        self.output_dir_entry = ctk.CTkEntry(frame, width=400, state="readonly")
+        # Allow the output directory to be edited
+        self.output_dir_entry = ctk.CTkEntry(frame, width=400)
         self.output_dir_entry.pack(side="left", padx=10)
-        self.output_dir_entry.insert(0, self.config_manager.config["output_dir"])
+        
+        # Get the initial value from config or set a default
+        initial_output_dir = self.config_manager.config.get("output_dir", "")
+        self.output_dir_entry.insert(0, initial_output_dir)
         
         # Create tooltip for the entry
         self.create_tooltip(self.output_dir_entry, "Directory where generated installation files will be saved (automatically set based on Project Name and Base URL)")
         
+        # Register with config manager
         self.config_manager.register_entry("output_dir", self.output_dir_entry)
+        
+        # Add a function to update output directory when project name or base URL changes
+        def update_output_dir_on_name_change(event=None):
+            # Get the base URL
+            base_url = self.config_manager.get_entry("base_url").get() if self.config_manager.get_entry("base_url") else ""
+            
+            # First try to extract project name from URL if needed
+            extracted_project_name = ""
+            if "." in base_url:
+                parts = base_url.split(".")
+                if len(parts) > 1:
+                    extracted_project_name = parts[1].upper()
+            
+            # Get current project name (from entry or extracted)
+            project_name = self.config_manager.get_entry("project_name").get() if self.config_manager.get_entry("project_name") else extracted_project_name
+            
+            if project_name and base_url:
+                # Create the output directory structure
+                output_dir = os.path.join(project_name, base_url)
+                self.output_dir_entry.delete(0, 'end')
+                self.output_dir_entry.insert(0, output_dir)
+                self.config_manager.config["output_dir"] = output_dir
+        
+        # Bind the project name and base URL fields to update output directory
+        if self.config_manager.get_entry("project_name"):
+            self.config_manager.get_entry("project_name").bind("<KeyRelease>", update_output_dir_on_name_change)
+        
+        if self.config_manager.get_entry("base_url"):
+            self.config_manager.get_entry("base_url").bind("<KeyRelease>", update_output_dir_on_name_change)
     
     def create_status_label(self):
         """Create a status label for auto-save feedback"""
@@ -2616,6 +2858,24 @@ class GKInstallBuilder:
         except Exception as e:
             self.show_error("Error", f"Failed to regenerate configuration: {str(e)}")
             print(f"Error in regenerate_configuration: {e}")
+
+    def on_platform_changed(self):
+        """Handle platform change"""
+        platform = self.platform_var.get()
+        
+        # Update the base install directory based on platform
+        if platform == "Windows":
+            default_dir = "C:\\gkretail"
+        else:  # Linux
+            default_dir = "/usr/local/gkretail"
+        
+        # Update entry value if it exists
+        self.config_manager.update_entry_value("base_install_dir", default_dir)
+        print(f"Platform changed to {platform}, updated base_install_dir to {default_dir}")
+        
+        # Update config
+        self.config_manager.config["platform"] = platform
+        self.config_manager.save_config_silent()
 
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:
