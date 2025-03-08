@@ -1461,21 +1461,24 @@ class GKInstallBuilder:
     
     def open_offline_package_creator(self):
         """Open the Offline Package Creator window"""
-        # Create a new toplevel window
+        # If window exists, bring it to front
+        if hasattr(self, 'offline_creator') and self.offline_creator:
+            try:
+                self.offline_creator.window.focus_force()
+                return
+            except:
+                self.offline_creator = None
+
+        # Create new offline package creator
         self.offline_creator = OfflinePackageCreator(
-            parent=self.window,
-            config_manager=self.config_manager,
-            project_generator=self.project_generator,
-            parent_app=self  # Pass the GKInstallBuilder instance
+            self.window,
+            self.config_manager,
+            self.project_generator,
+            parent_app=self
         )
         
-        # Set up a callback for when the window is closed
-        def cleanup_offline_creator():
-            if hasattr(self, 'offline_creator'):
-                delattr(self, 'offline_creator')
-        
-        # Add callback to be executed when the window is destroyed
-        self.offline_creator.window.bind("<Destroy>", lambda e: cleanup_offline_creator())
+        # Set up window close handler directly on the OfflinePackageCreator instance
+        # (the OfflinePackageCreator already sets up its own window close handler)
     
     def create_webdav_browser(self):
         # Create WebDAV browser frame
@@ -2583,22 +2586,36 @@ class GKInstallBuilder:
 
     def regenerate_configuration(self):
         """Regenerate configuration based on the base URL"""
-        # Get the current base URL
-        base_url = self.config_manager.config.get("base_url", "")
-        if not base_url:
-            self.show_error("Error", "Please enter a base URL first.")
-            return
-        
-        # Update configuration based on the base URL
-        self.auto_fill_based_on_url(base_url)
-        
-        # Show success message
-        self.show_info("Success", "Configuration regenerated successfully based on the base URL.")
-        
-        # If we have sections that were hidden, show them now
-        if hasattr(self, 'remaining_sections_created') and not self.remaining_sections_created:
-            self.create_remaining_sections()
-            self.remaining_sections_created = True
+        try:
+            # Get the base URL entry directly
+            base_url_entry = self.config_manager.get_entry("base_url")
+            if not base_url_entry:
+                self.show_error("Error", "Base URL entry not found.")
+                return
+                
+            # Get the base URL value
+            base_url = base_url_entry.get()
+            if not base_url:
+                self.show_error("Error", "Please enter a base URL first.")
+                return
+            
+            # Update configuration based on the base URL
+            self.auto_fill_based_on_url(base_url)
+            
+            # Show success message
+            self.show_info("Success", "Configuration regenerated successfully based on the base URL.")
+            
+            # If we have sections that were hidden, show them now
+            if hasattr(self, 'remaining_sections_created') and not self.remaining_sections_created:
+                self.create_remaining_sections()
+                self.remaining_sections_created = True
+                
+            # Make sure base URL entry events are properly bound
+            base_url_entry.bind("<FocusOut>", self.on_base_url_changed)
+            
+        except Exception as e:
+            self.show_error("Error", f"Failed to regenerate configuration: {str(e)}")
+            print(f"Error in regenerate_configuration: {e}")
 
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:
@@ -2629,57 +2646,38 @@ class OfflinePackageCreator:
     def on_window_close(self):
         """Handle window close event"""
         try:
-            # Force update of config from entries before unregistering them
+            # Update config from entries
             self.config_manager.update_config_from_entries()
             
-            # Explicitly handle the webdav entries
-            if hasattr(self, 'webdav_username'):
-                try:
-                    # Save the value to the main config key
-                    if hasattr(self.webdav_username, 'get'):
-                        self.config_manager.config["webdav_username"] = self.webdav_username.get()
-                    
-                    # Unregister the entry
-                    if "webdav_username" in self.config_manager.entries:
-                        self.config_manager.unregister_entry("webdav_username")
-                    if "offline_creator_webdav_username" in self.config_manager.entries:
-                        self.config_manager.unregister_entry("offline_creator_webdav_username")
-                except Exception:
-                    pass
+            # Clean up entries
+            for entry in list(self.config_manager.entries):
+                if hasattr(entry, 'widget') and entry.widget.winfo_toplevel() == self.window:
+                    self.config_manager.unregister_entry(entry)
             
-            if hasattr(self, 'webdav_password'):
-                try:
-                    # Save the value to the main config key
-                    if hasattr(self.webdav_password, 'get'):
-                        self.config_manager.config["webdav_password"] = self.webdav_password.get()
-                    
-                    # Unregister the entry
-                    if "webdav_password" in self.config_manager.entries:
-                        self.config_manager.unregister_entry("webdav_password")
-                    if "offline_creator_webdav_password" in self.config_manager.entries:
-                        self.config_manager.unregister_entry("offline_creator_webdav_password")
-                except Exception:
-                    pass
-            
-            # Get a copy of all entry keys
-            all_keys = list(self.config_manager.entries.keys())
-            
-            # Unregister all entries - this is a more aggressive approach
-            # but ensures no lingering references remain
-            for key in all_keys:
-                try:
-                    self.config_manager.unregister_entry(key)
-                except Exception:
-                    pass
-                    
-            # Save the configuration silently
-            self.config_manager.save_config_silent()
-        except Exception:
-            # Ignore any errors during cleanup
-            pass
-        finally:
-            # Always destroy the window
+            # Release window grab and destroy
+            self.window.grab_release()
             self.window.destroy()
+            
+            # Restore parent window and rebind events
+            if self.parent_app:
+                # Restore main window focus
+                self.parent_app.window.focus_force()
+                
+                # Rebind base URL events
+                base_url_entry = self.parent_app.config_manager.get_entry("base_url")
+                if base_url_entry:
+                    base_url_entry.bind("<FocusOut>", self.parent_app.on_base_url_changed)
+                    
+                # Ensure refresh button is properly set up
+                if hasattr(self.parent_app, 'refresh_button'):
+                    self.parent_app.refresh_button.configure(command=self.parent_app.regenerate_configuration)
+                    
+        except Exception as e:
+            print(f"Error during offline creator cleanup: {e}")
+        finally:
+            # Ensure parent app reference is cleaned up
+            if self.parent_app:
+                self.parent_app.offline_creator = None
     
     def create_offline_package_section(self):
         # Create frame for offline package options
