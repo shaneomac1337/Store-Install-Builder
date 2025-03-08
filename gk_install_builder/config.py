@@ -119,9 +119,11 @@ class ConfigManager:
             
             # Security Configuration
             "ssl_password": "changeit",
-            "username": "launchpad",
+            "eh_launchpad_username": "1001",
+            "eh_launchpad_password": "gkgkgk123!",
+            "auth_service_ba_user": "launchpad",
+            "launchpad_oauth2": "Enter Auth-service's pre-defined Launchpad password",
             "form_username": "1001",
-            "basic_auth_password": "Enter Auth-service's password for Launchpad BA",
             "form_password": "Enter your Launchpad password",
             
             # Certificate Configuration
