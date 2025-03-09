@@ -13,3 +13,8 @@ generated_scripts/helper/onboarding/wdm.onboarding.json
 generated_scripts/helper/tokens/access_token.txt
 generated_scripts/helper/tokens/basic_auth_password.txt
 generated_scripts/helper/tokens/form_password.txt
+gk_install_builder/__pycache__/config.cpython-313.pyc
+gk_install_builder/__pycache__/generator.cpython-313.pyc
+gk_install_builder/__pycache__/pleasant_password_client.cpython-313.pyc
+My Store Project/dev.cse.cloud4retail.co/offline_package_POS/Launcher.run
+My Store Project/dev.cse.cloud4retail.co/offline_package_POS/pos-full-launcher-cloud-1.1.0-b01-SNAPSHOT-installer.jar
