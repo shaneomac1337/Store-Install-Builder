@@ -3,5 +3,5 @@ Fix Webdav Browser UI
 Add LPS
 Add StoreHub
 Add FlowService
-Linux support
+Linux support - Launcher.run
 Linux binaries

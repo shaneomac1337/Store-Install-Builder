@@ -656,7 +656,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Get configuration values
             base_url = config.get("base_url", "test.cse.cloud4retail.co")
             username = config.get("username", "launchpad")
-            form_username = config.get("form_username", "1001")
+            form_username = config.get("eh_launchpad_username", "1001")
             tenant_id = config.get("tenant_id", "001")
             
             # Replace configurations based on platform
@@ -844,7 +844,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             timestamp = int(time.time() * 1000)  # Current time in milliseconds
             content = content.replace("{{TIMESTAMP}}", str(timestamp))
             content = content.replace("001", config.get("tenant_id", "001"))
-            content = content.replace("1001", config.get("form_username", "1001"))
+            content = content.replace("1001", config.get("eh_launchpad_username", "1001"))
             
             # Write file
             file_path = os.path.join(onboarding_dir, filename)
@@ -853,21 +853,22 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"  Created JSON file: {file_path}")
 
     def _create_password_files(self, helper_dir, config):
-        """Create base64 encoded password files"""
+        """Create password files for onboarding"""
         try:
+            # Create tokens directory
             tokens_dir = os.path.join(helper_dir, "tokens")
             os.makedirs(tokens_dir, exist_ok=True)
 
-            # Create basic auth password file
-            basic_auth_password = config.get("basic_auth_password", "")
+            # Create basic auth password file (using launchpad_oauth2)
+            basic_auth_password = config.get("launchpad_oauth2", "")
             if basic_auth_password:
                 encoded_basic = base64.b64encode(basic_auth_password.encode()).decode()
                 basic_auth_path = os.path.join(tokens_dir, "basic_auth_password.txt")
                 with open(basic_auth_path, 'w') as f:
                     f.write(encoded_basic)
 
-            # Create form password file
-            form_password = config.get("form_password", "")
+            # Create form password file (using eh_launchpad_password)
+            form_password = config.get("eh_launchpad_password", "")
             if form_password:
                 encoded_form = base64.b64encode(form_password.encode()).decode()
                 form_password_path = os.path.join(tokens_dir, "form_password.txt")
@@ -1176,7 +1177,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 
                 progress_dialog = ctk.CTkToplevel(parent)
                 progress_dialog.title("Downloading Files")
-                progress_dialog.geometry("500x400")
+                progress_dialog.geometry("700x600")  # Increased size to accommodate multiple progress bars
                 progress_dialog.transient(parent)
                 progress_dialog.grab_set()
                 progress_dialog.attributes("-topmost", True)
@@ -1200,7 +1201,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     font=("Helvetica", 12)
                 ).pack(pady=(10, 5), padx=10)
                 
-                progress_bar = ctk.CTkProgressBar(progress_frame, width=450)
+                progress_bar = ctk.CTkProgressBar(progress_frame, width=650)
                 progress_bar.pack(pady=(0, 10), padx=10)
                 progress_bar.set(0)
                 
@@ -1212,26 +1213,27 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 )
                 files_label.pack(pady=(0, 10), padx=10)
                 
-                # Current file progress
+                # Create a scrollable frame for individual file progress bars
                 ctk.CTkLabel(
                     progress_frame,
-                    text="Current File Progress:",
-                    font=("Helvetica", 12)
-                ).pack(pady=(5, 5), padx=10, anchor="w")
+                    text="Individual File Progress:",
+                    font=("Helvetica", 12, "bold")
+                ).pack(pady=(10, 5), padx=10, anchor="w")
                 
-                current_file_label = ctk.CTkLabel(
-                    progress_frame,
-                    text="Waiting to start...",
-                    font=("Helvetica", 12)
-                )
-                current_file_label.pack(pady=(0, 5), padx=10)
+                files_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=250)
+                files_frame.pack(fill="both", expand=True, padx=10, pady=10)
                 
-                current_file_progress = ctk.CTkProgressBar(progress_frame, width=450)
-                current_file_progress.pack(pady=(0, 10), padx=10)
-                current_file_progress.set(0)
+                # Dictionary to store progress bars and labels for each file
+                file_progress_widgets = {}
                 
                 # Create a scrollable frame for the log
-                log_frame = ctk.CTkScrollableFrame(progress_frame, width=450, height=120)
+                ctk.CTkLabel(
+                    progress_frame,
+                    text="Download Log:",
+                    font=("Helvetica", 12, "bold")
+                ).pack(pady=(10, 5), padx=10, anchor="w")
+                
+                log_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=120)
                 log_frame.pack(fill="both", expand=True, padx=10, pady=10)
                 
                 # Log label
@@ -1240,11 +1242,11 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     text="",
                     font=("Helvetica", 10),
                     justify="left",
-                    wraplength=430
+                    wraplength=630
                 )
                 log_label.pack(anchor="w", pady=5, padx=5)
                 
-                return progress_dialog, progress_bar, files_label, current_file_label, current_file_progress, log_label
+                return progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, log_label
             
             # Helper function to prompt user for file selection when multiple JAR files are found
             def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None):
@@ -1476,29 +1478,47 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             def download_dependencies_for_component(component_type, component_dir):
                 dependency_files = []
                 
+                # Get parent directory (one level up from component_dir)
+                parent_dir = os.path.dirname(component_dir)
+                
                 # Process Java
                 java_path = "/SoftwarePackage/Java"
                 print(f"\nChecking Java directory for {component_type}: {java_path}")
                 
                 try:
-                    java_files = self.webdav_browser.list_directories(java_path)
-                    print(f"Found Java files: {java_files}")
+                    # Create Java directory at the same level as component directories
+                    java_dir = os.path.join(parent_dir, "Java")
+                    os.makedirs(java_dir, exist_ok=True)
                     
-                    # Prompt user to select Java version
-                    selected_java_files = prompt_for_file_selection(
-                        java_files, 
-                        f"{component_type} Java", 
-                        f"Select Java Version for {component_type}", 
-                        f"Please select which Java version to download for {component_type}:",
-                        "zip"
-                    )
+                    # Check if Java files already exist
+                    existing_java_files = [f for f in os.listdir(java_dir) if f.endswith('.zip')]
+                    download_java = True
                     
-                    # Add selected files to dependency files list
-                    for file in selected_java_files:
-                        file_name = file['name']
-                        remote_path = f"{java_path}/{file_name}"
-                        local_path = os.path.join(component_dir, "Java_" + file_name)
-                        dependency_files.append((remote_path, local_path, file_name, f"{component_type} Java"))
+                    if existing_java_files:
+                        # Ask user if they want to download Java again
+                        download_java = self._ask_download_again(f"{component_type} Java", existing_java_files, dialog_parent)
+                        if not download_java:
+                            print(f"Skipping Java download for {component_type} as files already exist")
+                    
+                    if download_java:
+                        java_files = self.webdav_browser.list_directories(java_path)
+                        print(f"Found Java files: {java_files}")
+                        
+                        # Prompt user to select Java version
+                        selected_java_files = prompt_for_file_selection(
+                            java_files, 
+                            f"{component_type} Java", 
+                            f"Select Java Version for {component_type}", 
+                            f"Please select which Java version to download for {component_type}:",
+                            "zip"
+                        )
+                        
+                        # Add selected files to dependency files list
+                        for file in selected_java_files:
+                            file_name = file['name']
+                            remote_path = f"{java_path}/{file_name}"
+                            local_path = os.path.join(java_dir, file_name)
+                            dependency_files.append((remote_path, local_path, file_name, f"{component_type} Java"))
                 
                 except Exception as e:
                     print(f"Error accessing Java directory: {e}")
@@ -1509,24 +1529,39 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 print(f"\nChecking Tomcat directory for {component_type}: {tomcat_path}")
                 
                 try:
-                    tomcat_files = self.webdav_browser.list_directories(tomcat_path)
-                    print(f"Found Tomcat files: {tomcat_files}")
+                    # Create Tomcat directory at the same level as component directories
+                    tomcat_dir = os.path.join(parent_dir, "Tomcat")
+                    os.makedirs(tomcat_dir, exist_ok=True)
                     
-                    # Prompt user to select Tomcat version
-                    selected_tomcat_files = prompt_for_file_selection(
-                        tomcat_files, 
-                        f"{component_type} Tomcat", 
-                        f"Select Tomcat Version for {component_type}", 
-                        f"Please select which Tomcat version to download for {component_type}:",
-                        "zip"
-                    )
+                    # Check if Tomcat files already exist
+                    existing_tomcat_files = [f for f in os.listdir(tomcat_dir) if f.endswith('.zip')]
+                    download_tomcat = True
                     
-                    # Add selected files to dependency files list
-                    for file in selected_tomcat_files:
-                        file_name = file['name']
-                        remote_path = f"{tomcat_path}/{file_name}"
-                        local_path = os.path.join(component_dir, "Tomcat_" + file_name)
-                        dependency_files.append((remote_path, local_path, file_name, f"{component_type} Tomcat"))
+                    if existing_tomcat_files:
+                        # Ask user if they want to download Tomcat again
+                        download_tomcat = self._ask_download_again(f"{component_type} Tomcat", existing_tomcat_files, dialog_parent)
+                        if not download_tomcat:
+                            print(f"Skipping Tomcat download for {component_type} as files already exist")
+                    
+                    if download_tomcat:
+                        tomcat_files = self.webdav_browser.list_directories(tomcat_path)
+                        print(f"Found Tomcat files: {tomcat_files}")
+                        
+                        # Prompt user to select Tomcat version
+                        selected_tomcat_files = prompt_for_file_selection(
+                            tomcat_files, 
+                            f"{component_type} Tomcat", 
+                            f"Select Tomcat Version for {component_type}", 
+                            f"Please select which Tomcat version to download for {component_type}:",
+                            "zip"
+                        )
+                        
+                        # Add selected files to dependency files list
+                        for file in selected_tomcat_files:
+                            file_name = file['name']
+                            remote_path = f"{tomcat_path}/{file_name}"
+                            local_path = os.path.join(tomcat_dir, file_name)
+                            dependency_files.append((remote_path, local_path, file_name, f"{component_type} Tomcat"))
                 
                 except Exception as e:
                     print(f"Error accessing Tomcat directory: {e}")
@@ -1854,7 +1889,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Create progress dialog
             parent = dialog_parent or self.parent_window
             if parent:
-                progress_dialog, progress_bar, files_label, current_file_label, current_file_progress, log_label = create_progress_dialog(parent, len(files_to_download))
+                progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, log_label = create_progress_dialog(parent, len(files_to_download))
             
             # Start download threads
             download_threads = []
@@ -1876,7 +1911,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 downloaded_bytes = 0
                 
                 # Calculate total bytes if available
-                for _, _, file_name, _ in files_to_download:
+                for _, _, file_name, component_type in files_to_download:
                     file_progress[file_name] = (0, 0)  # (downloaded, total)
                 
                 while completed_files < len(files_to_download):
@@ -1890,18 +1925,57 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                                 file_name, component_type, downloaded, total = data
                                 file_progress[file_name] = (downloaded, total)
                                 
-                                # Update current file progress bar and label
+                                # Create progress bar for this file if it doesn't exist yet
+                                if file_name not in file_progress_widgets:
+                                    # Create a frame for this file
+                                    file_frame = ctk.CTkFrame(files_frame)
+                                    file_frame.pack(fill="x", expand=True, padx=5, pady=5, anchor="w")
+                                    
+                                    # File name and component label
+                                    file_label = ctk.CTkLabel(
+                                        file_frame,
+                                        text=f"{component_type}: {file_name}",
+                                        font=("Helvetica", 11),
+                                        anchor="w"
+                                    )
+                                    file_label.pack(fill="x", padx=5, pady=(5, 0), anchor="w")
+                                    
+                                    # Progress info label
+                                    progress_label = ctk.CTkLabel(
+                                        file_frame,
+                                        text="Starting download...",
+                                        font=("Helvetica", 10),
+                                        text_color="gray",
+                                        anchor="w"
+                                    )
+                                    progress_label.pack(fill="x", padx=5, pady=(0, 5), anchor="w")
+                                    
+                                    # Progress bar
+                                    progress_bar_file = ctk.CTkProgressBar(file_frame, width=600)
+                                    progress_bar_file.pack(fill="x", padx=5, pady=(0, 5))
+                                    progress_bar_file.set(0)
+                                    
+                                    # Store widgets for this file
+                                    file_progress_widgets[file_name] = {
+                                        "frame": file_frame,
+                                        "label": file_label,
+                                        "progress_label": progress_label,
+                                        "progress_bar": progress_bar_file
+                                    }
+                                
+                                # Update progress bar and label for this file
+                                widgets = file_progress_widgets[file_name]
                                 if total > 0:
-                                    current_file_progress.set(downloaded / total)
+                                    widgets["progress_bar"].set(downloaded / total)
                                     size_mb = total / (1024 * 1024)
                                     downloaded_mb = downloaded / (1024 * 1024)
-                                    current_file_label.configure(
-                                        text=f"Downloading {component_type}: {file_name} - {downloaded_mb:.2f} MB / {size_mb:.2f} MB"
+                                    widgets["progress_label"].configure(
+                                        text=f"{downloaded_mb:.2f} MB / {size_mb:.2f} MB ({(downloaded / total * 100):.1f}%)"
                                     )
                                 else:
-                                    current_file_progress.set(0)
-                                    current_file_label.configure(
-                                        text=f"Downloading {component_type}: {file_name} - Size unknown"
+                                    widgets["progress_bar"].set(0)
+                                    widgets["progress_label"].configure(
+                                        text="Size unknown"
                                     )
                                 
                                 # Calculate overall progress based on all files
@@ -1920,12 +1994,15 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                                 # Update files counter
                                 files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
                                 
-                                # Reset current file progress for the next file
-                                current_file_progress.set(0)
-                                if completed_files == len(files_to_download):
-                                    current_file_label.configure(text="All downloads complete!")
-                                else:
-                                    current_file_label.configure(text="Waiting for next file...")
+                                # Update the file's progress bar to show completion
+                                file_name = data.split(": ", 1)[1]  # Extract filename from success message
+                                if file_name in file_progress_widgets:
+                                    widgets = file_progress_widgets[file_name]
+                                    widgets["progress_bar"].set(1.0)  # Set to 100%
+                                    widgets["progress_label"].configure(
+                                        text="Download complete",
+                                        text_color="green"
+                                    )
                             
                             else:  # error
                                 download_errors.append(data)
@@ -1934,6 +2011,17 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                                 
                                 # Update files counter
                                 files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                                
+                                # Extract filename from error message if possible
+                                error_parts = data.split("Failed to download ", 1)
+                                if len(error_parts) > 1:
+                                    file_name = error_parts[1].split(":", 1)[0]
+                                    if file_name in file_progress_widgets:
+                                        widgets = file_progress_widgets[file_name]
+                                        widgets["progress_label"].configure(
+                                            text="Download failed",
+                                            text_color="red"
+                                        )
                             
                             # Update log
                             log_label.configure(text=log_text)
@@ -1944,6 +2032,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         
                     except Exception as e:
                         print(f"Error updating progress: {e}")
+                        import traceback
+                        traceback.print_exc()
                 
                 # Wait a moment before closing the progress dialog
                 time.sleep(1)
@@ -1981,3 +2071,117 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             import traceback
             traceback.print_exc()
             return False, f"Failed to create offline package: {str(e)}" 
+
+    def _ask_download_again(self, component_type, existing_files, parent=None):
+        """
+        Ask the user if they want to download files again when they already exist.
+        
+        Args:
+            component_type (str): The type of component (e.g., "POS Java")
+            existing_files (list): List of existing files
+            parent: Parent window for the dialog
+            
+        Returns:
+            bool: True if the user wants to download again, False otherwise
+        """
+        import customtkinter as ctk
+        import tkinter as tk
+        
+        # Use the parent if provided, otherwise use self.parent_window, or create a new root
+        parent = parent or self.parent_window
+        
+        # Format the list of existing files
+        files_str = "\n".join(existing_files)
+        
+        if parent:
+            # Create a dialog
+            result = [False]  # Use a list to store the result (to be modified by inner functions)
+            
+            dialog = ctk.CTkToplevel(parent)
+            dialog.title(f"Existing {component_type} Files Found")
+            dialog.geometry("500x350")
+            dialog.transient(parent)
+            dialog.grab_set()
+            dialog.attributes("-topmost", True)
+            dialog.focus_force()
+            
+            # Title
+            ctk.CTkLabel(
+                dialog,
+                text=f"Existing {component_type} Files Found",
+                font=("Helvetica", 16, "bold")
+            ).pack(pady=(20, 10), padx=20)
+            
+            # Message
+            ctk.CTkLabel(
+                dialog,
+                text=f"The following {component_type} files already exist:",
+                font=("Helvetica", 12)
+            ).pack(pady=(0, 10), padx=20)
+            
+            # Create a scrollable frame for the files list
+            files_frame = ctk.CTkScrollableFrame(dialog, width=450, height=150)
+            files_frame.pack(fill="both", expand=True, padx=20, pady=10)
+            
+            # Add files to the scrollable frame
+            for file in existing_files:
+                ctk.CTkLabel(
+                    files_frame,
+                    text=file,
+                    font=("Helvetica", 11),
+                    anchor="w"
+                ).pack(fill="x", padx=5, pady=2, anchor="w")
+            
+            # Question
+            ctk.CTkLabel(
+                dialog,
+                text="Do you want to download these files again?",
+                font=("Helvetica", 12)
+            ).pack(pady=(10, 20), padx=20)
+            
+            # Buttons
+            button_frame = ctk.CTkFrame(dialog)
+            button_frame.pack(fill="x", pady=(0, 20), padx=20)
+            
+            def on_yes():
+                result[0] = True
+                dialog.destroy()
+                
+            def on_no():
+                result[0] = False
+                dialog.destroy()
+                
+            ctk.CTkButton(
+                button_frame,
+                text="No, Skip Download",
+                command=on_no,
+                width=150,
+                fg_color="#555555",
+                hover_color="#333333"
+            ).pack(side="left", padx=10)
+            
+            ctk.CTkButton(
+                button_frame,
+                text="Yes, Download Again",
+                command=on_yes,
+                width=150
+            ).pack(side="right", padx=10)
+            
+            # Wait for the dialog to close
+            parent.wait_window(dialog)
+            
+            return result[0]
+        else:
+            # If no parent window, use console input
+            print(f"\nExisting {component_type} files found:")
+            for file in existing_files:
+                print(f"  - {file}")
+            
+            while True:
+                response = input(f"Do you want to download {component_type} files again? (y/n): ").lower()
+                if response in ['y', 'yes']:
+                    return True
+                elif response in ['n', 'no']:
+                    return False
+                else:
+                    print("Please enter 'y' or 'n'.")

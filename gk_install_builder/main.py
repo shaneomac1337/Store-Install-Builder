@@ -287,6 +287,9 @@ class GKInstallBuilder:
         # Initialize password visibility tracking dictionary
         self.password_visible = {}
         
+        # Initialize section frames dictionary
+        self.section_frames = {}
+        
         # Track whether this is first run (no config file)
         self.is_first_run = not os.path.exists(self.config_manager.config_file)
         
@@ -540,7 +543,7 @@ class GKInstallBuilder:
                 "EH/Launchpad Username",
                 "EH/Launchpad Password",
                 "Auth Service BA User",
-                "Launchpad oAuth2",
+                "Launchpad OAuth2",
                 "SSL Password"
             ]
             self.create_section("Security Configuration", fields)
@@ -782,8 +785,8 @@ class GKInstallBuilder:
             if self.config_manager.get_entry("username") and not self.config_manager.get_entry("username").get():
                 self.config_manager.update_entry_value("username", "launchpad")
             
-            if self.config_manager.get_entry("form_username") and not self.config_manager.get_entry("form_username").get():
-                self.config_manager.update_entry_value("form_username", "1001")
+            if self.config_manager.get_entry("eh_launchpad_username") and not self.config_manager.get_entry("eh_launchpad_username").get():
+                self.config_manager.update_entry_value("eh_launchpad_username", "1001")
             
             if self.config_manager.get_entry("ssl_password") and not self.config_manager.get_entry("ssl_password").get():
                 self.config_manager.update_entry_value("ssl_password", "changeit")
@@ -796,6 +799,9 @@ class GKInstallBuilder:
         # Section Frame
         section_frame = ctk.CTkFrame(self.main_frame)
         section_frame.pack(fill="x", pady=10, padx=20)
+        
+        # Store reference to the section frame
+        self.section_frames[title] = section_frame
         
         # Section Title
         ctk.CTkLabel(
@@ -817,18 +823,27 @@ class GKInstallBuilder:
                 width=200
             ).pack(side="left")
             
-            # Create entry
-            entry = ctk.CTkEntry(field_frame, width=400)
-            entry.pack(side="left", padx=5)
+            # Convert field name to config key
+            config_key = field.lower().replace(" ", "_").replace("/", "_")
+            
+            # Create entry - use password field for password fields
+            if "password" in field.lower():
+                # Create password field with show/hide toggle
+                entry, _ = self.create_password_field(field_frame, field, config_key)
+            else:
+                # Create regular entry
+                entry = ctk.CTkEntry(field_frame, width=400)
+                entry.pack(side="left", padx=5)
+                
+                # Load saved value if exists
+                if config_key in self.config_manager.config:
+                    entry.insert(0, self.config_manager.config[config_key])
             
             # Register entry with config manager
-            self.config_manager.register_entry(
-                field.lower().replace(" ", "_").replace("/", "_"),
-                entry
-            )
+            self.config_manager.register_entry(config_key, entry)
             
             # Add KeePass button only for specific fields
-            if field == "Launchpad oAuth2":
+            if field == "Launchpad OAuth2":
                 self.basic_auth_password_entry = entry  # Store reference to this entry
                 ctk.CTkButton(
                     field_frame,
@@ -860,20 +875,15 @@ class GKInstallBuilder:
                     command=self.regenerate_configuration
                 )
                 refresh_button.pack(side="left", padx=5)
-                # Add tooltip to the refresh button
-                self.create_tooltip(refresh_button, "Regenerate configuration based on new URL")
+                self.create_tooltip(refresh_button, "Regenerate configuration based on URL")
+                
+                # Bind the entry to the on_base_url_changed event
+                entry.bind("<KeyRelease>", self.on_base_url_changed)
         
         # Add certificate management section if this is the Security Configuration section
         if title == "Security Configuration":
             self.create_certificate_section(section_frame)
-            
-            # Update certificate common name
-            common_name_entry = self.config_manager.get_entry("certificate_common_name")
-            if common_name_entry:
-                common_name_entry.delete(0, 'end')
-                common_name_entry.insert(0, "*gk-software.com")
-                print("Updated certificate common name to: *gk-software.com")
-            
+        
         # Special handling for Installation Configuration section
         if title == "Installation Configuration":
             # Always ensure base_install_dir is set to C:\gkretail

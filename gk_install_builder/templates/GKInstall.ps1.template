@@ -176,30 +176,25 @@ if ($offline.IsPresent) {
 
     # Check for required files based on component type
     if ($ComponentType -eq 'WDM') {
-        # Find JRE and Tomcat packages dynamically with more flexible patterns
-        $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "jre-*.zip") -ErrorAction SilentlyContinue)
+        # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
+        $jre_files = @(Get-ChildItem -Path "Java\*.zip" -ErrorAction SilentlyContinue)
         
-        # If no jre files found, try java pattern
+        # If no jre files found, try more generic patterns
         if ($jre_files.Count -eq 0) {
-            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "java-*.zip") -ErrorAction SilentlyContinue)
-        }
-        
-        # If still no files found, try a more generic pattern
-        if ($jre_files.Count -eq 0) {
-            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*jre*.zip") -ErrorAction SilentlyContinue)
+            $jre_files = @(Get-ChildItem -Path "Java\*jre*.zip" -ErrorAction SilentlyContinue)
             if ($jre_files.Count -eq 0) {
-                $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*java*.zip") -ErrorAction SilentlyContinue)
+                $jre_files = @(Get-ChildItem -Path "Java\*java*.zip" -ErrorAction SilentlyContinue)
             }
         }
         
-        $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "tomcat-*.zip") -ErrorAction SilentlyContinue)
+        $tomcat_files = @(Get-ChildItem -Path "Tomcat\*.zip" -ErrorAction SilentlyContinue)
         
         # If no tomcat files found, try a more generic pattern
         if ($tomcat_files.Count -eq 0) {
-            $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "*tomcat*.zip") -ErrorAction SilentlyContinue)
+            $tomcat_files = @(Get-ChildItem -Path "Tomcat\*tomcat*.zip" -ErrorAction SilentlyContinue)
         }
         
-        # Look for any JAR file to use as installer
+        # Look for any JAR file to use as installer in the component directory
         $jar_files = @(Get-ChildItem -Path (Join-Path $package_dir "*.jar") -ErrorAction SilentlyContinue)
         $installer_jar = $null
         $has_installer_jar = $false
@@ -214,12 +209,12 @@ if ($offline.IsPresent) {
         }
         
         if ($jre_files.Count -eq 0) {
-            Write-Host "Error: No JRE/Java package found in $package_dir"
+            Write-Host "Error: No JRE/Java package found in Java directory"
             exit 1
         }
         
         if ($tomcat_files.Count -eq 0) {
-            Write-Host "Error: No Tomcat package found in $package_dir"
+            Write-Host "Error: No Tomcat package found in Tomcat directory"
             exit 1
         }
         
@@ -246,30 +241,25 @@ if ($offline.IsPresent) {
         }
     } else {
         # For other components - generic approach with improved detection
-        # Find JRE and Tomcat packages dynamically with more flexible patterns
-        $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "jre-*.zip") -ErrorAction SilentlyContinue)
+        # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
+        $jre_files = @(Get-ChildItem -Path "Java\*.zip" -ErrorAction SilentlyContinue)
         
-        # If no jre files found, try java pattern
+        # If no jre files found, try more generic patterns
         if ($jre_files.Count -eq 0) {
-            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "java-*.zip") -ErrorAction SilentlyContinue)
-        }
-        
-        # If still no files found, try a more generic pattern
-        if ($jre_files.Count -eq 0) {
-            $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*jre*.zip") -ErrorAction SilentlyContinue)
+            $jre_files = @(Get-ChildItem -Path "Java\*jre*.zip" -ErrorAction SilentlyContinue)
             if ($jre_files.Count -eq 0) {
-                $jre_files = @(Get-ChildItem -Path (Join-Path $package_dir "*java*.zip") -ErrorAction SilentlyContinue)
+                $jre_files = @(Get-ChildItem -Path "Java\*java*.zip" -ErrorAction SilentlyContinue)
             }
         }
         
-        $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "tomcat-*.zip") -ErrorAction SilentlyContinue)
+        $tomcat_files = @(Get-ChildItem -Path "Tomcat\*.zip" -ErrorAction SilentlyContinue)
         
         # If no tomcat files found, try a more generic pattern
         if ($tomcat_files.Count -eq 0) {
-            $tomcat_files = @(Get-ChildItem -Path (Join-Path $package_dir "*tomcat*.zip") -ErrorAction SilentlyContinue)
+            $tomcat_files = @(Get-ChildItem -Path "Tomcat\*tomcat*.zip" -ErrorAction SilentlyContinue)
         }
         
-        # Look for any JAR file to use as installer
+        # Look for any JAR file to use as installer in the component directory
         $jar_files = @(Get-ChildItem -Path (Join-Path $package_dir "*.jar") -ErrorAction SilentlyContinue)
         $installer_jar = $null
         $has_installer_jar = $false
@@ -523,7 +513,7 @@ $replacements = @{
     '@BASE64_TOKEN@' = $base64Token
     '@OFFLINE_MODE@' = $(if ($offline_mode) { "1" } else { "0" })
     '@JRE_VERSION@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version } else { "" })
-    '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { "$PWD\$package_dir\$($jre_files[0].Name)" } else { "" })
+    '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { "$PWD\$($jre_files[0].FullName)" } else { "" })
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
@@ -533,7 +523,7 @@ $replacements = @{
 # Add Tomcat replacements if Tomcat files were found
 if ($tomcat_files.Count -gt 0) {
     $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
-    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\$package_dir\$($tomcat_files[0].Name)" } else { "" })
+    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\$($tomcat_files[0].FullName)" } else { "" })
 }
 
 # Apply all replacements
