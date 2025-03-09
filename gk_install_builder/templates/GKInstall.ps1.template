@@ -513,7 +513,7 @@ $replacements = @{
     '@BASE64_TOKEN@' = $base64Token
     '@OFFLINE_MODE@' = $(if ($offline_mode) { "1" } else { "0" })
     '@JRE_VERSION@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version } else { "" })
-    '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { "$PWD\$($jre_files[0].FullName)" } else { "" })
+    '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { $jre_files[0].FullName } else { "" })
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
@@ -523,7 +523,7 @@ $replacements = @{
 # Add Tomcat replacements if Tomcat files were found
 if ($tomcat_files.Count -gt 0) {
     $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
-    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { "$PWD\$($tomcat_files[0].FullName)" } else { "" })
+    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { $tomcat_files[0].FullName } else { "" })
 }
 
 # Apply all replacements
