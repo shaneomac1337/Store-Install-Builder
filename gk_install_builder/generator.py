@@ -337,7 +337,7 @@ $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$
                 
                 template = template.replace(download_url_line, new_download_url_line)
             else:  # Linux
-                download_url_line = 'download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher"'
+                download_url_line = 'download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.run"'
                 
                 if use_version_override:
                     # Create the case statement with direct values instead of using format
@@ -367,7 +367,7 @@ esac
 if [ -z "$component_version" ]; then
     component_version="$version"
 fi
-download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher"'''
+download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"'''
                 else:
                     # If not using version override, all versions will be empty strings
                     new_download_url_line = f'''# Set component version directly based on system type
@@ -396,7 +396,7 @@ esac
 if [ -z "$component_version" ]; then
     component_version="$version"
 fi
-download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher"'''
+download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"'''
                 
                 template = template.replace(download_url_line, new_download_url_line)
             
