@@ -2980,7 +2980,7 @@ class OfflinePackageCreator:
             self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
         
         # Register WebDAV username with config manager using a unique key for this window
-        self.config_manager.register_entry("offline_creator_webdav_username", self.webdav_username)
+        self.config_manager.register_entry("webdav_username", self.webdav_username)
         
         # Password
         password_frame = ctk.CTkFrame(auth_frame)
@@ -3008,7 +3008,7 @@ class OfflinePackageCreator:
         ).pack(side="left", padx=5)
         
         # Register WebDAV password with config manager
-        self.config_manager.register_entry("offline_creator_webdav_password", self.webdav_password)
+        self.config_manager.register_entry("webdav_password", self.webdav_password)
             
         # Define a focus event handler to clear placeholder text
         def clear_placeholder(event):
@@ -3113,6 +3113,11 @@ class OfflinePackageCreator:
         
         if success:
             self.webdav_status.configure(text="Connected", text_color="green")
+            
+            # Explicitly save the WebDAV password to the config
+            self.config_manager.config["webdav_password"] = password
+            self.config_manager.save_config_silent()
+            
             # Navigate to SoftwarePackage after successful connection
             self.webdav.current_path = "/SoftwarePackage"
             self.refresh_listing()
