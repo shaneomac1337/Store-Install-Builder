@@ -3298,9 +3298,15 @@ class OfflinePackageCreator:
 
     def update_platform_info(self, *args):
         """Update platform information label"""
-        platform = self.parent_app.platform_var.get()
-        platform_color = "#3a7ebf" if platform == "Windows" else "#2eb82e"  # Blue for Windows, Green for Linux
-        self.platform_info_label.configure(text=f"{platform} Selected", text_color=platform_color)
+        # Check if the window and label still exist
+        try:
+            if hasattr(self, 'platform_info_label') and self.platform_info_label.winfo_exists():
+                platform = self.parent_app.platform_var.get()
+                platform_color = "#3a7ebf" if platform == "Windows" else "#2eb82e"  # Blue for Windows, Green for Linux
+                self.platform_info_label.configure(text=f"{platform} Selected", text_color=platform_color)
+        except Exception as e:
+            # Silently ignore errors when updating the label
+            print(f"Warning: Could not update platform info label: {e}")
 
 def main():
     app = GKInstallBuilder()
