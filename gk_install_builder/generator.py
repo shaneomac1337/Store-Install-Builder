@@ -993,10 +993,21 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         
         dialog.title(f"{component_type} Files Not Found")
         dialog.geometry("500x200")
-        dialog.attributes("-topmost", True)
         
-        # Make dialog modal
+        # Make sure the dialog is visible before setting grab
+        dialog.update_idletasks()
+        dialog.deiconify()
+        dialog.wait_visibility()
+        dialog.lift()
         dialog.focus_force()
+        
+        # Center the dialog on the parent window if available
+        if parent_window:
+            x = parent_window.winfo_x() + (parent_window.winfo_width() // 2) - (500 // 2)
+            y = parent_window.winfo_y() + (parent_window.winfo_height() // 2) - (200 // 2)
+            dialog.geometry(f"+{x}+{y}")
+        
+        # Now that the window is visible, set grab
         dialog.grab_set()
         
         # Result variable
@@ -1207,9 +1218,22 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 progress_dialog.title("Downloading Files")
                 progress_dialog.geometry("700x600")  # Increased size to accommodate multiple progress bars
                 progress_dialog.transient(parent)
+                
+                # Make sure the dialog is visible before setting grab
+                progress_dialog.update_idletasks()
+                progress_dialog.deiconify()
+                progress_dialog.wait_visibility()
+                progress_dialog.lift()
+                progress_dialog.focus_force()
+                
+                # Center the dialog on the parent window
+                x = parent.winfo_x() + (parent.winfo_width() // 2) - (700 // 2)
+                y = parent.winfo_y() + (parent.winfo_height() // 2) - (600 // 2)
+                progress_dialog.geometry(f"+{x}+{y}")
+                
+                # Now that the window is visible, set grab
                 progress_dialog.grab_set()
                 progress_dialog.attributes("-topmost", True)
-                progress_dialog.focus_force()
                 
                 # Title
                 ctk.CTkLabel(
@@ -1326,11 +1350,22 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     dialog = ctk.CTkToplevel(temp_root)
                 
                 dialog.title(title)
-                dialog.geometry("500x400")
-                dialog.attributes("-topmost", True)
+                dialog.geometry("600x500")  # Increased size for better visibility
                 
-                # Make dialog modal
+                # Make sure the dialog is visible before setting grab
+                dialog.update_idletasks()
+                dialog.deiconify()
+                dialog.wait_visibility()
+                dialog.lift()
                 dialog.focus_force()
+                
+                # Center the dialog on the parent window if available
+                if parent:
+                    x = parent.winfo_x() + (parent.winfo_width() // 2) - (600 // 2)
+                    y = parent.winfo_y() + (parent.winfo_height() // 2) - (500 // 2)
+                    dialog.geometry(f"+{x}+{y}")
+                
+                # Now that the window is visible, set grab
                 dialog.grab_set()
                 
                 # Title and description
