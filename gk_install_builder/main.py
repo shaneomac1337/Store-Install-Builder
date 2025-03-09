@@ -1769,7 +1769,7 @@ class GKInstallBuilder:
         
         ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
         env_var = ctk.StringVar(value="TEST")
-        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, values=["TEST", "PROD"])
+        env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, values=["TEST", "PROD"], state="disabled")
         env_combo.pack(side="left", padx=5)
         
         # Connect button frame
@@ -2071,6 +2071,9 @@ class GKInstallBuilder:
                 
                 # Update status with Environment Autodetect message
                 status_var.set(f"Environment Autodetect - {project_name}")
+                
+                # Enable environment selection ComboBox
+                env_combo.configure(state="normal")
                 
                 # Enable get password button
                 get_password_btn.configure(state="normal")
