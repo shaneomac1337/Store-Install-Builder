@@ -132,7 +132,7 @@ class ConfigManager:
             "output_dir": "PROJECT/BASEURL",  # Will be dynamically set based on URL
             
             # WebDAV Configuration
-            "webdav_username": "Enter your WebDAV username",
+            "webdav_username": "admin",
             "webdav_password": "Enter your WebDAV password"
         }
 

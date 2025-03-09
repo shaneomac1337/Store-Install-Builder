@@ -2717,6 +2717,10 @@ class OfflinePackageCreator:
         self.project_generator = project_generator
         self.parent_app = parent_app  # Store reference to the parent application (GKInstallBuilder instance)
         
+        # Register callback for platform changes
+        if parent_app and hasattr(parent_app, 'platform_var'):
+            parent_app.platform_var.trace_add("write", self.update_platform_info)
+        
         # Create main frame with scrollbar
         self.main_frame = ctk.CTkScrollableFrame(self.window)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -2774,6 +2778,26 @@ class OfflinePackageCreator:
             text="Create Offline Package",
             font=("Helvetica", 16, "bold")
         ).pack(pady=(10, 5), padx=10)
+        
+        # Platform information
+        platform = self.config_manager.config.get("platform", "Windows")
+        platform_color = "#3a7ebf" if platform == "Windows" else "#2eb82e"  # Blue for Windows, Green for Linux
+        platform_frame = ctk.CTkFrame(self.offline_package_frame, fg_color="transparent")
+        platform_frame.pack(pady=(0, 10), padx=10)
+        
+        ctk.CTkLabel(
+            platform_frame,
+            text="Platform:",
+            font=("Helvetica", 12)
+        ).pack(side="left", padx=(0, 5))
+        
+        self.platform_info_label = ctk.CTkLabel(
+            platform_frame,
+            text=f"{platform} Selected",
+            font=("Helvetica", 12, "bold"),
+            text_color=platform_color
+        )
+        self.platform_info_label.pack(side="left")
         
         # Description
         ctk.CTkLabel(
@@ -3271,6 +3295,12 @@ class OfflinePackageCreator:
         
         print(f"No matching credentials found for {self.config_manager.config['env_name']}-DSG-WEBDAV-ADMIN-PASSWORD")
         return None
+
+    def update_platform_info(self, *args):
+        """Update platform information label"""
+        platform = self.parent_app.platform_var.get()
+        platform_color = "#3a7ebf" if platform == "Windows" else "#2eb82e"  # Blue for Windows, Green for Linux
+        self.platform_info_label.configure(text=f"{platform} Selected", text_color=platform_color)
 
 def main():
     app = GKInstallBuilder()

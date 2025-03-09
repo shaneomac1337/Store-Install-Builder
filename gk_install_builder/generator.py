@@ -1301,9 +1301,13 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 return progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, log_label
             
             # Helper function to prompt user for file selection when multiple JAR files are found
-            def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None):
+            def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None, config=None):
                 import customtkinter as ctk
                 import tkinter as tk
+                
+                # Use default config if not provided
+                if config is None:
+                    config = {}
                 
                 # Use custom title and description if provided
                 title = title or f"Select {component_type} Installer"
@@ -1314,13 +1318,39 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     installable_files = [file for file in files if not file['is_directory'] and 
                                         file['name'].endswith('.zip')]
                 else:
-                    installable_files = [file for file in files if not file['is_directory'] and 
-                                        (file['name'].endswith('.jar') or file['name'].endswith('.exe'))]
+                    # Get platform from config (default to Windows if not specified)
+                    platform = config.get("platform", "Windows")
+                    
+                    # Filter out Launcher files that don't match the current platform
+                    installable_files = []
+                    for file in files:
+                        if file['is_directory']:
+                            continue
+                            
+                        file_name = file['name']
+                        
+                        # Include JAR files
+                        if file_name.endswith('.jar'):
+                            installable_files.append(file)
+                        # Include EXE files only for Windows
+                        elif file_name.endswith('.exe'):
+                            if platform == 'Windows' or not file_name.startswith('Launcher'):
+                                installable_files.append(file)
+                        # Include RUN files only for Linux
+                        elif file_name.endswith('.run'):
+                            if platform == 'Linux' or not file_name.startswith('Launcher'):
+                                installable_files.append(file)
                 
-                # Separate Launcher.exe from other files (only for regular components)
+                # Separate Launcher file from other files (only for regular components)
                 if file_type != "zip":
-                    launcher_files = [file for file in installable_files if file['name'] == 'Launcher.exe']
-                    other_files = [file for file in installable_files if file['name'] != 'Launcher.exe']
+                    # Get platform from config (default to Windows if not specified)
+                    platform = config.get("platform", "Windows")
+                    
+                    # Use appropriate launcher filename based on platform
+                    launcher_filename = 'Launcher.run' if platform == 'Linux' else 'Launcher.exe'
+                    
+                    launcher_files = [file for file in installable_files if file['name'] == launcher_filename]
+                    other_files = [file for file in installable_files if file['name'] != launcher_filename]
                 else:
                     launcher_files = []
                     other_files = installable_files
@@ -1383,9 +1413,15 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 
                 # If Launcher.exe exists, show a message that it will be downloaded automatically
                 if launcher_files:
+                    # Get platform from config (default to Windows if not specified)
+                    platform = config.get("platform", "Windows")
+                    
+                    # Use appropriate launcher filename based on platform
+                    launcher_filename = 'Launcher.run' if platform == 'Linux' else 'Launcher.exe'
+                    
                     launcher_label = ctk.CTkLabel(
                         dialog,
-                        text="Note: Launcher.exe will be downloaded automatically",
+                        text=f"Note: {launcher_filename} will be downloaded automatically",
                         font=("Helvetica", 12, "italic"),
                         text_color="gray"
                     )
@@ -1573,7 +1609,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             f"{component_type} Java", 
                             f"Select Java Version for {component_type}", 
                             f"Please select which Java version to download for {component_type}:",
-                            "zip"
+                            "zip",
+                            config
                         )
                         
                         # Add selected files to dependency files list
@@ -1616,7 +1653,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             f"{component_type} Tomcat", 
                             f"Select Tomcat Version for {component_type}", 
                             f"Please select which Tomcat version to download for {component_type}:",
-                            "zip"
+                            "zip",
+                            config
                         )
                         
                         # Add selected files to dependency files list
@@ -1658,7 +1696,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "POS")
+                    selected_files = prompt_for_file_selection(files, "POS", config=config)
                     
                     # Add selected files to download list
                     for file in selected_files:
@@ -1714,7 +1752,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "WDM")
+                    selected_files = prompt_for_file_selection(files, "WDM", config=config)
                     
                     # Add selected files to download list
                     for file in selected_files:
@@ -1770,7 +1808,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "Flow Service")
+                    selected_files = prompt_for_file_selection(files, "Flow Service", config=config)
                     
                     # Add selected files to download list
                     for file in selected_files:
@@ -1836,7 +1874,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "LPA Service")
+                    selected_files = prompt_for_file_selection(files, "LPA Service", config=config)
                     
                     # Add selected files to download list
                     for file in selected_files:
@@ -1902,7 +1940,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "StoreHub Service")
+                    selected_files = prompt_for_file_selection(files, "StoreHub Service", config=config)
                     
                     # Add selected files to download list
                     for file in selected_files:
