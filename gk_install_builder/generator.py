@@ -14,6 +14,8 @@ from string import Template
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
 import time
+import threading
+import queue
 
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -1168,8 +1170,6 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Helper function to download a file in a separate thread
             def download_file_thread(remote_path, local_path, file_name, component_type):
                 try:
-                    print(f"\nDownloading {file_name}...")
-                    
                     # Get the full URL for the file
                     webdav_url = f"{self.webdav_browser.options['webdav_hostname']}{remote_path}"
                     auth = (self.webdav_browser.username, self.webdav_browser.password)
@@ -1204,11 +1204,11 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             # Final progress update
                             download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
                     
-                    print(f"Successfully downloaded to {local_path}")
-                    download_queue.put(("success", f"{component_type}: {file_name}"))
+                    # Successfully downloaded
+                    download_queue.put(("complete", (file_name, component_type)))
                 except Exception as e:
                     print(f"Error downloading {file_name}: {e}")
-                    download_queue.put(("error", f"Failed to download {file_name}: {str(e)}"))
+                    download_queue.put(("error", (file_name, component_type, str(e))))
             
             # Helper function to create a progress dialog
             def create_progress_dialog(parent, total_files):
@@ -2000,171 +2000,392 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     args=(remote_path, local_path, file_name, component_type)
                 )
                 thread.daemon = True
-                download_threads.append(thread)
                 thread.start()
+                download_threads.append(thread)
             
-            # Update progress while downloads are running
-            if parent:
-                log_text = ""
-                completed_files = 0
-                file_progress = {}  # Track progress for each file
-                total_bytes = 0
-                downloaded_bytes = 0
+            # Initialize tracking variables
+            completed_files = 0
+            file_progress = {}  # Track progress for each file
+            total_bytes = 0
+            downloaded_bytes = 0
+            
+            # Flag to track if dialog is still open
+            dialog_closed = [False]  # Using a list to allow modification in nested functions
+            
+            # Store references to UI elements that need to be accessed later
+            float_windows = [None]  # To store the floating window reference
+            downloads_cancelled = [False]  # To track if downloads are cancelled
+            
+            # Define cancel_downloads function first - make it simpler and more robust
+            def cancel_downloads(*args):
+                # Set the cancelled flag first
+                downloads_cancelled[0] = True
                 
-                # Calculate total bytes if available
-                for _, _, file_name, component_type in files_to_download:
-                    file_progress[file_name] = (0, 0)  # (downloaded, total)
+                # Force the loop to end by setting completed_files
+                nonlocal completed_files
+                completed_files = len(files_to_download)
                 
-                while completed_files < len(files_to_download):
+                # Clear the download queue
+                while not download_queue.empty():
                     try:
-                        # Check for new download results
-                        while not download_queue.empty():
-                            status, data = download_queue.get_nowait()
+                        download_queue.get_nowait()
+                    except:
+                        pass
+                
+                # Destroy the floating window if it exists
+                if float_windows[0] is not None:
+                    try:
+                        float_windows[0].destroy()
+                    except:
+                        pass
+                
+                # Make sure the main progress dialog is destroyed
+                try:
+                    progress_dialog.destroy()
+                except:
+                    pass
+                
+                # Show cancellation message
+                try:
+                    import tkinter.messagebox as messagebox
+                    messagebox.showinfo("Downloads Cancelled", "Download process has been cancelled.")
+                except:
+                    pass
+                
+                return True  # Return True to allow the window to close
+            
+            # Create a function to process the download queue in the main thread
+            def process_download_queue():
+                nonlocal completed_files, downloaded_bytes, total_bytes
+                
+                # Check if downloads were cancelled
+                if downloads_cancelled[0]:
+                    return
+                
+                # Process a limited number of items from the queue to keep UI responsive
+                queue_items_processed = 0
+                max_items_per_cycle = 10
+                
+                while not download_queue.empty() and queue_items_processed < max_items_per_cycle:
+                    try:
+                        status, data = download_queue.get_nowait()
+                        queue_items_processed += 1
+                        
+                        # Skip updates if dialog was closed
+                        if dialog_closed[0]:
+                            continue
+                        
+                        if status == "progress":
+                            # Update file progress
+                            file_name, component_type, downloaded, total = data
                             
-                            if status == "progress":
-                                # Update file progress
-                                file_name, component_type, downloaded, total = data
-                                file_progress[file_name] = (downloaded, total)
-                                
-                                # Create progress bar for this file if it doesn't exist yet
-                                if file_name not in file_progress_widgets:
-                                    # Create a frame for this file
-                                    file_frame = ctk.CTkFrame(files_frame)
-                                    file_frame.pack(fill="x", expand=True, padx=5, pady=5, anchor="w")
-                                    
-                                    # File name and component label
-                                    file_label = ctk.CTkLabel(
-                                        file_frame,
-                                        text=f"{component_type}: {file_name}",
-                                        font=("Helvetica", 11),
-                                        anchor="w"
-                                    )
-                                    file_label.pack(fill="x", padx=5, pady=(5, 0), anchor="w")
-                                    
-                                    # Progress info label
-                                    progress_label = ctk.CTkLabel(
-                                        file_frame,
-                                        text="Starting download...",
-                                        font=("Helvetica", 10),
-                                        text_color="gray",
-                                        anchor="w"
-                                    )
-                                    progress_label.pack(fill="x", padx=5, pady=(0, 5), anchor="w")
-                                    
-                                    # Progress bar
-                                    progress_bar_file = ctk.CTkProgressBar(file_frame, width=600)
-                                    progress_bar_file.pack(fill="x", padx=5, pady=(0, 5))
-                                    progress_bar_file.set(0)
-                                    
-                                    # Store widgets for this file
-                                    file_progress_widgets[file_name] = {
-                                        "frame": file_frame,
-                                        "label": file_label,
-                                        "progress_label": progress_label,
-                                        "progress_bar": progress_bar_file
-                                    }
-                                
-                                # Update progress bar and label for this file
-                                widgets = file_progress_widgets[file_name]
-                                if total > 0:
-                                    widgets["progress_bar"].set(downloaded / total)
-                                    size_mb = total / (1024 * 1024)
-                                    downloaded_mb = downloaded / (1024 * 1024)
-                                    widgets["progress_label"].configure(
-                                        text=f"{downloaded_mb:.2f} MB / {size_mb:.2f} MB ({(downloaded / total * 100):.1f}%)"
-                                    )
-                                else:
-                                    widgets["progress_bar"].set(0)
-                                    widgets["progress_label"].configure(
-                                        text="Size unknown"
-                                    )
-                                
-                                # Calculate overall progress based on all files
-                                total_bytes = sum(total for _, total in file_progress.values())
-                                downloaded_bytes = sum(downloaded for downloaded, _ in file_progress.values())
-                                
-                                if total_bytes > 0:
-                                    overall_progress = downloaded_bytes / total_bytes
-                                    progress_bar.set(overall_progress)
+                            # Store the progress in the file_progress dictionary
+                            file_progress[file_name] = (downloaded, total)
                             
-                            elif status == "success":
-                                downloaded_files.append(data)
-                                log_text += f"✓ {data}\n"
-                                completed_files += 1
+                            # Create progress bar for this file if it doesn't exist yet
+                            if file_name not in file_progress_widgets:
+                                file_frame = ctk.CTkFrame(files_frame)
+                                file_frame.pack(fill="x", padx=10, pady=(0, 5))
                                 
-                                # Update files counter
-                                files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                                file_label = ctk.CTkLabel(file_frame, text=f"{file_name} ({component_type})", anchor="w")
+                                file_label.pack(side="top", fill="x")
                                 
-                                # Update the file's progress bar to show completion
-                                file_name = data.split(": ", 1)[1]  # Extract filename from success message
-                                if file_name in file_progress_widgets:
-                                    widgets = file_progress_widgets[file_name]
-                                    widgets["progress_bar"].set(1.0)  # Set to 100%
-                                    widgets["progress_label"].configure(
-                                        text="Download complete",
-                                        text_color="green"
-                                    )
+                                file_progress_bar = ctk.CTkProgressBar(file_frame, width=400)
+                                file_progress_bar.pack(side="top", fill="x", pady=(0, 5))
+                                file_progress_bar.set(0)
+                                
+                                file_progress_widgets[file_name] = (file_frame, file_label, file_progress_bar)
                             
-                            else:  # error
-                                download_errors.append(data)
-                                log_text += f"✗ {data}\n"
-                                completed_files += 1
+                            # Update progress bar for this file
+                            _, _, file_progress_bar = file_progress_widgets[file_name]
+                            if total > 0:
+                                progress_value = downloaded / total
+                                file_progress_bar.set(progress_value)
+                            
+                            # Calculate and update total progress
+                            nonlocal downloaded_bytes, total_bytes
+                            downloaded_bytes = sum(d for d, _ in file_progress.values())
+                            total_bytes = sum(t for _, t in file_progress.values() if t > 0)
+                            
+                            if total_bytes > 0:
+                                # Calculate overall percentage for the label
+                                overall_percentage = downloaded_bytes / total_bytes * 100
                                 
-                                # Update files counter
-                                files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                                # Update the main progress bar
+                                progress_value = downloaded_bytes / total_bytes
+                                progress_bar.set(progress_value)
                                 
-                                # Extract filename from error message if possible
-                                error_parts = data.split("Failed to download ", 1)
-                                if len(error_parts) > 1:
-                                    file_name = error_parts[1].split(":", 1)[0]
-                                    if file_name in file_progress_widgets:
-                                        widgets = file_progress_widgets[file_name]
-                                        widgets["progress_label"].configure(
-                                            text="Download failed",
-                                            text_color="red"
-                                        )
+                                # Update the files label with percentage
+                                files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed ({overall_percentage:.1f}%)")
                             
                             # Update log
-                            log_label.configure(text=log_text)
+                            log_label.configure(text=f"Downloading {file_name}... {downloaded / (1024*1024):.2f} MB / {total / (1024*1024):.2f} MB")
+                            
+                            # Force an update of the dialog to ensure changes are visible
+                            progress_dialog.update_idletasks()
                         
-                        # Update UI
-                        parent.update()
-                        time.sleep(0.05)
+                        elif status == "complete":
+                            file_name, component_type = data
+                            completed_files += 1
+                            
+                            # Update file progress widget to show completion
+                            if file_name in file_progress_widgets:
+                                _, file_label, file_progress_bar = file_progress_widgets[file_name]
+                                file_progress_bar.set(1.0)  # Set to 100%
+                                file_label.configure(text=f"{file_name} ({component_type}) - Complete")
+                            
+                            # Update overall progress
+                            files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
+                            progress_bar.set(completed_files / len(files_to_download))
+                            
+                            # Update log
+                            log_label.configure(text=f"Downloaded {file_name}")
                         
+                        elif status == "error":
+                            file_name, component_type, error_message = data
+                            
+                            # Update file progress widget
+                            if file_name in file_progress_widgets:
+                                _, file_label, file_progress_bar = file_progress_widgets[file_name]
+                                file_label.configure(text=f"{file_name} ({component_type}) - Error: {error_message}")
+                            
+                            # Add to download errors
+                            download_errors.append(f"Error downloading {file_name} ({component_type}): {error_message}")
+                            
+                            # Update log
+                            log_label.configure(text=f"Error downloading {file_name}: {error_message}")
                     except Exception as e:
-                        print(f"Error updating progress: {e}")
-                        import traceback
-                        traceback.print_exc()
+                        print(f"Error processing download queue: {e}")
                 
-                # Wait a moment before closing the progress dialog
-                time.sleep(1)
-                progress_dialog.destroy()
-            else:
-                # If no parent window, just wait for all threads to complete
-                for thread in download_threads:
-                    thread.join()
-                
-                # Process all download results
-                while not download_queue.empty():
-                    status, data = download_queue.get()
-                    if status == "success":
-                        downloaded_files.append(data)
-                    elif status == "error":
-                        download_errors.append(data)
-                    # Ignore progress updates when no UI
+                # Check if all downloads are complete
+                if completed_files >= len(files_to_download):
+                    # All downloads complete, close dialog if it's still open
+                    if not dialog_closed[0]:
+                        dialog_closed[0] = True
+                        try:
+                            progress_dialog.destroy()
+                        except:
+                            pass
+                        
+                        # Show success or error message
+                        if download_errors:
+                            error_message = "\n".join(download_errors)
+                            self._show_error(f"Some files failed to download:\n{error_message}")
+                        else:
+                            self._show_success("All files downloaded successfully")
+                else:
+                    # Schedule the next queue processing
+                    if parent and not downloads_cancelled[0]:
+                        parent.after(100, process_download_queue)
             
-            # Create summary
-            if downloaded_files:
-                success_message = "Downloaded files:\n" + "\n".join(downloaded_files)
-                if download_errors:
-                    success_message += "\n\nErrors:\n" + "\n".join(download_errors)
-                success_message += f"\n\nFiles saved in: {output_dir}"
-                return True, success_message
-            else:
-                error_message = "No files were downloaded successfully"
-                if download_errors:
-                    error_message += "\n\nErrors:\n" + "\n".join(download_errors)
-                return False, error_message
+            # Define dialog close handler
+            def on_dialog_close():
+                # Instead of closing completely, minimize to a small floating window
+                dialog_closed[0] = True
+                
+                try:
+                    # Hide the main dialog
+                    progress_dialog.withdraw()
+                    
+                    # Create a small floating window to show progress
+                    float_window = ctk.CTkToplevel()
+                    float_window.title("Downloads in Progress")
+                    float_window.geometry("300x120")
+                    float_window.resizable(False, False)
+                    float_window.attributes("-topmost", True)
+                    float_window.focus_force()
+                    
+                    # Store reference to the window
+                    float_windows[0] = float_window
+                    
+                    # Position in bottom right corner
+                    screen_width = parent.winfo_screenwidth()
+                    screen_height = parent.winfo_screenheight()
+                    x = screen_width - 320
+                    y = screen_height - 140
+                    float_window.geometry(f"+{x}+{y}")
+                    
+                    # Add a label showing download status
+                    status_label = ctk.CTkLabel(
+                        float_window,
+                        text=f"Downloading: {completed_files}/{len(files_to_download)} files",
+                        font=("Helvetica", 12)
+                    )
+                    status_label.pack(pady=(15, 5), padx=10)
+                    
+                    # Add a small progress bar
+                    mini_progress = ctk.CTkProgressBar(float_window, width=280)
+                    mini_progress.pack(pady=(0, 15), padx=10)
+                    
+                    # Initialize progress bar with current progress
+                    current_downloaded = sum(d for d, _ in file_progress.values())
+                    current_total = sum(t for _, t in file_progress.values() if t > 0)
+                    
+                    if current_total > 0:
+                        mini_progress.set(current_downloaded / current_total)
+                    else:
+                        mini_progress.set(completed_files / len(files_to_download) if len(files_to_download) > 0 else 0)
+                    
+                    # Add close handler for the floating window - use a lambda to ensure it's called correctly
+                    float_window.protocol("WM_DELETE_WINDOW", lambda: cancel_downloads())
+                    
+                    # Create a function to process the download queue specifically for the mini window
+                    def process_mini_download_queue():
+                        nonlocal completed_files, downloaded_bytes, total_bytes
+                        
+                        # Check if downloads were cancelled
+                        if downloads_cancelled[0]:
+                            return
+                        
+                        # Check if window still exists
+                        try:
+                            if not float_window.winfo_exists():
+                                return
+                        except:
+                            return
+                        
+                        # Process a limited number of items from the queue to keep UI responsive
+                        queue_items_processed = 0
+                        max_items_per_cycle = 10
+                        
+                        while not download_queue.empty() and queue_items_processed < max_items_per_cycle:
+                            try:
+                                status, data = download_queue.get_nowait()
+                                queue_items_processed += 1
+                                
+                                if status == "progress":
+                                    # Update file progress
+                                    file_name, component_type, downloaded, total = data
+                                    file_progress[file_name] = (downloaded, total)
+                                
+                                elif status == "complete":
+                                    # Update completed files count
+                                    file_name, component_type = data
+                                    completed_files += 1
+                            except:
+                                pass
+                        
+                        # Recalculate the current progress values
+                        current_downloaded = sum(d for d, _ in file_progress.values())
+                        current_total = sum(t for _, t in file_progress.values() if t > 0)
+                        
+                        # Update status label with current values and percentage
+                        if current_total > 0:
+                            percentage = current_downloaded / current_total * 100
+                            status_label.configure(text=f"Downloading: {completed_files}/{len(files_to_download)} files ({percentage:.1f}%)")
+                        else:
+                            status_label.configure(text=f"Downloading: {completed_files}/{len(files_to_download)} files")
+                        
+                        # Update progress bar with current progress
+                        if current_total > 0:
+                            progress_value = current_downloaded / current_total
+                            mini_progress.set(progress_value)
+                        else:
+                            # Use file count as fallback if bytes not available
+                            progress_value = completed_files / len(files_to_download) if len(files_to_download) > 0 else 0
+                            mini_progress.set(progress_value)
+                        
+                        # Check if all downloads are complete
+                        if completed_files >= len(files_to_download):
+                            try:
+                                float_window.destroy()
+                            except:
+                                pass
+                            
+                            # Show success or error message
+                            if download_errors:
+                                error_message = "\n".join(download_errors)
+                                parent.after_idle(lambda: self._show_error(f"Some files failed to download:\n{error_message}"))
+                            else:
+                                parent.after_idle(lambda: self._show_success("All files downloaded successfully"))
+                        else:
+                            # Schedule the next queue processing
+                            if not downloads_cancelled[0]:
+                                float_window.after(100, process_mini_download_queue)
+                    
+                    # Start processing the download queue for the mini window
+                    process_mini_download_queue()
+                    
+                    # Update the mini progress window periodically
+                    def update_mini_progress():
+                        nonlocal downloaded_bytes, total_bytes, completed_files
+                        
+                        # First check if downloads were cancelled
+                        if downloads_cancelled[0]:
+                            return
+                            
+                        # Then check if window still exists
+                        try:
+                            if not float_window.winfo_exists():
+                                return
+                        except:
+                            return
+                        
+                        try:
+                            # Recalculate the current progress values to ensure they're up-to-date
+                            current_downloaded = 0
+                            current_total = 0
+                            
+                            # Calculate progress for each file
+                            for fname, (downloaded, total) in file_progress.items():
+                                current_downloaded += downloaded
+                                if total > 0:
+                                    current_total += total
+                            
+                            # Schedule next update - only if not cancelled
+                            if not downloads_cancelled[0]:
+                                try:
+                                    float_window.after(1000, update_mini_progress)
+                                except:
+                                    pass
+                        except Exception as e:
+                            # Only print actual errors, not debug info
+                            print(f"Error updating mini progress: {e}")
+                    
+                    # Start updating mini progress
+                    update_mini_progress()
+                except Exception as e:
+                    print(f"Error creating floating window: {e}")
+            
+            # Store the cancel flag
+            progress_dialog.protocol("WM_DELETE_WINDOW", on_dialog_close)
+            
+            # Calculate total bytes if available
+            for _, _, file_name, component_type in files_to_download:
+                file_progress[file_name] = (0, 0)  # (downloaded, total)
+            
+            # Start processing the download queue in the main thread
+            if parent:
+                parent.after(100, process_download_queue)
+            
+            # Create a monitoring thread to check if all downloads are complete
+            def monitor_downloads():
+                while completed_files < len(files_to_download) and not downloads_cancelled[0]:
+                    time.sleep(0.5)
+                
+                # If we're here, either all downloads are complete or they were cancelled
+                if not downloads_cancelled[0] and not dialog_closed[0]:
+                    # All downloads complete, close dialog
+                    dialog_closed[0] = True
+                    try:
+                        parent.after_idle(progress_dialog.destroy)
+                    except:
+                        pass
+                    
+                    # Show success or error message
+                    if download_errors:
+                        error_message = "\n".join(download_errors)
+                        parent.after_idle(lambda: self._show_error(f"Some files failed to download:\n{error_message}"))
+                    else:
+                        parent.after_idle(lambda: self._show_success("All files downloaded successfully"))
+            
+            # Start monitoring thread
+            monitor_thread = threading.Thread(target=monitor_downloads)
+            monitor_thread.daemon = True
+            monitor_thread.start()
+            
+            # Return immediately, downloads will continue in background
+            return True, "Downloads started"
             
         except Exception as e:
             print(f"\nError in prepare_offline_package: {str(e)}")
@@ -2286,3 +2507,11 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     return False
                 else:
                     print("Please enter 'y' or 'n'.")
+
+    def _show_info(self, title, message):
+        """Show an info message dialog."""
+        if self.parent_window:
+            import tkinter.messagebox as messagebox
+            messagebox.showinfo(title, message)
+        else:
+            print(f"\n{title}: {message}")
