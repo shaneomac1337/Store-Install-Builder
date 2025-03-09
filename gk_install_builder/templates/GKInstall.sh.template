@@ -277,7 +277,7 @@ if [ "$offline_mode" = true ]; then
     fi
     
     # Initialize required files with Launcher binary
-    required_files=("$package_dir/Launcher")
+    required_files=("$package_dir/Launcher.run")
     
     # Process JRE files if available
     if [ "${#jre_files[@]}" -gt 0 ]; then
@@ -346,7 +346,7 @@ if [ "$offline_mode" = true ]; then
     fi
     
     # Initialize required files with Launcher binary
-    required_files=("$package_dir/Launcher")
+    required_files=("$package_dir/Launcher.run")
     
     # Process JRE files if available
     if [ "${#jre_files[@]}" -gt 0 ]; then
@@ -382,7 +382,7 @@ if [ "$offline_mode" = true ]; then
   done
 
   # Update file paths to use component-specific directory
-  launcher_path="$package_dir/Launcher"
+  launcher_path="$package_dir/Launcher.run"
   # JRE and Tomcat files are already set in the dynamic detection code above
 fi
 
@@ -517,8 +517,8 @@ onboarding.token=$onboardingToken
 dsg.url=https://$dsg_server/dsg/content/cep/SoftwarePackage
 EOF
 
-# Create base64 token
-base64Token=$(base64 installationtoken.txt)
+# Create base64 token - ensure it's a single line without line breaks
+base64Token=$(base64 -w 0 installationtoken.txt)
 echo "$base64Token" > "installationtoken.base64"
 
 # Create addonpack.properties
@@ -659,31 +659,31 @@ cat "launcher.properties"
 
 # Download or use local Launcher
 if [ "$offline_mode" = false ]; then
-  download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher"
-  echo "Attempting to download Launcher from: $download_url"
-  if ! curl -o "Launcher" "$download_url"; then
-    echo "Error downloading Launcher"
+  download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.run"
+  echo "Attempting to download Launcher.run from: $download_url"
+  if ! curl -o "Launcher.run" "$download_url"; then
+    echo "Error downloading Launcher.run"
     exit 1
   fi
-  echo "Successfully downloaded Launcher"
-  chmod +x "./Launcher"
+  echo "Successfully downloaded Launcher.run"
+  chmod +x "./Launcher.run"
 else
   # In offline mode, copy the Launcher from the package directory to the current directory
-  echo "Copying Launcher from $package_dir to current directory..."
-  if ! cp "$launcher_path" "./Launcher"; then
-    echo "Error copying Launcher"
+  echo "Copying Launcher.run from $package_dir to current directory..."
+  if ! cp "$launcher_path" "./Launcher.run"; then
+    echo "Error copying Launcher.run"
     exit 1
   fi
-  echo "Successfully copied Launcher"
-  chmod +x "./Launcher"
+  echo "Successfully copied Launcher.run"
+  chmod +x "./Launcher.run"
 fi
 
 # Start the installation
 echo "Starting installation..."
-echo "Running Launcher with arguments: --defaultsFile launcher.properties --mode unattended"
+echo "Running Launcher.run with arguments: --defaultsFile launcher.properties --mode unattended"
 
 # Start Launcher without waiting
-./Launcher --defaultsFile launcher.properties --mode unattended &
+./Launcher.run --defaultsFile launcher.properties --mode unattended &
 launcher_pid=$!
 
 # Check installation logs
