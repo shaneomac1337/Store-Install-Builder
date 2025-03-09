@@ -1600,74 +1600,47 @@ class GKInstallBuilder:
     
     def on_window_close(self):
         """Handle window close event"""
-        # Clear KeePass credentials
-        GKInstallBuilder.keepass_client = None
-        GKInstallBuilder.keepass_username = None
-        GKInstallBuilder.keepass_password = None
-        
-        # Ensure all configuration is saved before exit
         try:
-            # Clean up any lingering references to child windows
-            if hasattr(self, 'offline_creator'):
-                if hasattr(self.offline_creator, 'window') and self.offline_creator.window.winfo_exists():
-                    self.offline_creator.window.destroy()
-                delattr(self, 'offline_creator')
+            # Update config from entries
+            self.config_manager.update_config_from_entries()
             
-            # First, create a list of valid entries
-            valid_entries = {}
-            invalid_keys = []
+            # Clean up entries
+            for entry in list(self.config_manager.entries):
+                if hasattr(entry, 'widget') and entry.widget.winfo_toplevel() == self.window:
+                    self.config_manager.unregister_entry(entry)
             
-            for key, entry in list(self.config_manager.entries.items()):
-                try:
-                    # Check if the entry widget still exists
-                    if hasattr(entry, 'winfo_exists'):
-                        try:
-                            if entry.winfo_exists():
-                                valid_entries[key] = entry
-                            else:
-                                invalid_keys.append(key)
-                        except Exception:
-                            # If checking existence fails, mark as invalid
-                            invalid_keys.append(key)
-                    else:
-                        # If it's not a widget with winfo_exists, keep it
-                        valid_entries[key] = entry
-                except Exception:
-                    # If there's any error, mark as invalid
-                    invalid_keys.append(key)
-            
-            # Unregister all invalid entries
-            for key in invalid_keys:
-                try:
-                    self.config_manager.unregister_entry(key)
-                except Exception:
-                    pass
-            
-            # Final safety check - remove any entries with "offline_creator" in the key
-            for key in list(self.config_manager.entries.keys()):
-                if "offline_creator" in key:
+            # Force close any active download dialogs
+            for widget in self.window.winfo_children():
+                if isinstance(widget, ctk.CTkToplevel):
                     try:
-                        self.config_manager.unregister_entry(key)
+                        widget.destroy()
                     except Exception:
                         pass
             
-            # Update config from all remaining entries
-            self.config_manager.update_config_from_entries()
+            # Release window grab and destroy
+            try:
+                self.window.grab_release()
+            except Exception:
+                pass
+                
+            self.window.destroy()
             
-            # Save configuration
-            if self.config_manager.save_config_silent():
-                # If save was successful, destroy the window
-                self.window.destroy()
-            else:
-                # If save failed, ask user if they want to exit anyway
-                if messagebox.askyesno("Save Failed", 
-                                      "Failed to save configuration. Exit anyway?"):
-                    self.window.destroy()
+            # Restore parent window and rebind events
+            if self.parent_app:
+                # Restore main window focus
+                self.parent_app.window.focus_force()
+                
+                # Rebind base URL events
+                base_url_entry = self.parent_app.config_manager.get_entry("base_url")
+                if base_url_entry:
+                    base_url_entry.bind("<FocusOut>", self.parent_app.on_base_url_changed)
+                    
+                # Ensure refresh button is properly set up
+                if hasattr(self.parent_app, 'refresh_button'):
+                    self.parent_app.refresh_button.configure(command=self.parent_app.regenerate_configuration)
+                    
         except Exception as e:
-            # If an error occurred, show error and ask if user wants to exit anyway
-            if messagebox.askyesno("Error", 
-                                  f"An error occurred while saving: {str(e)}\nExit anyway?"):
-                self.window.destroy()
+            print(f"Error during window close: {e}")
     
     def open_offline_package_creator(self):
         """Open the Offline Package Creator window"""
