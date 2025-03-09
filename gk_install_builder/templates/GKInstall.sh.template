@@ -238,11 +238,11 @@ if [ "$offline_mode" = true ]; then
 
   # Check for required files based on component type
   if [ "$COMPONENT_TYPE" = "WDM" ]; then
-    # Find JRE and Tomcat packages dynamically with more flexible patterns
+    # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
     jre_files=()
     
-    # Try different JRE patterns
-    for pattern in "$package_dir/jre-*.zip" "$package_dir/java-*.zip" "$package_dir/*jre*.zip" "$package_dir/*java*.zip"; do
+    # Try different JRE patterns in Java directory
+    for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
         mapfile -t new_files < <(ls $pattern 2>/dev/null)
         jre_files+=("${new_files[@]}")
@@ -250,15 +250,15 @@ if [ "$offline_mode" = true ]; then
     done
     
     tomcat_files=()
-    # Try different Tomcat patterns
-    for pattern in "$package_dir/tomcat-*.zip" "$package_dir/*tomcat*.zip"; do
+    # Try different Tomcat patterns in Tomcat directory
+    for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
         mapfile -t new_files < <(ls $pattern 2>/dev/null)
         tomcat_files+=("${new_files[@]}")
       fi
     done
     
-    # Look for any JAR file to use as installer
+    # Look for any JAR file to use as installer in the component directory
     jar_files=()
     if compgen -G "$package_dir/*.jar" > /dev/null; then
       mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
@@ -286,7 +286,8 @@ if [ "$offline_mode" = true ]; then
       echo "Found JRE/Java package: $(basename ${jre_files[0]}), version: $jre_version"
       required_files+=("$jre_file")
     else
-      echo "No JRE/Java package found for $COMPONENT_TYPE."
+      echo "Error: No JRE/Java package found in Java directory"
+      exit 1
     fi
     
     # Process Tomcat files if available
@@ -296,7 +297,8 @@ if [ "$offline_mode" = true ]; then
       echo "Found Tomcat package: $(basename ${tomcat_files[0]}), version: $tomcat_version"
       required_files+=("$tomcat_file")
     else
-      echo "No Tomcat package found for $COMPONENT_TYPE."
+      echo "Error: No Tomcat package found in Tomcat directory"
+      exit 1
     fi
     
     # Add installer.jar to required files if it exists
@@ -305,11 +307,11 @@ if [ "$offline_mode" = true ]; then
     fi
   else
     # For other components - generic approach with improved detection
-    # Find JRE and Tomcat packages dynamically with more flexible patterns
+    # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
     jre_files=()
     
-    # Try different JRE patterns
-    for pattern in "$package_dir/jre-*.zip" "$package_dir/java-*.zip" "$package_dir/*jre*.zip" "$package_dir/*java*.zip"; do
+    # Try different JRE patterns in Java directory
+    for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
         mapfile -t new_files < <(ls $pattern 2>/dev/null)
         jre_files+=("${new_files[@]}")
@@ -317,15 +319,15 @@ if [ "$offline_mode" = true ]; then
     done
     
     tomcat_files=()
-    # Try different Tomcat patterns
-    for pattern in "$package_dir/tomcat-*.zip" "$package_dir/*tomcat*.zip"; do
+    # Try different Tomcat patterns in Tomcat directory
+    for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
         mapfile -t new_files < <(ls $pattern 2>/dev/null)
         tomcat_files+=("${new_files[@]}")
       fi
     done
     
-    # Look for any JAR file to use as installer
+    # Look for any JAR file to use as installer in the component directory
     jar_files=()
     if compgen -G "$package_dir/*.jar" > /dev/null; then
       mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
@@ -620,7 +622,7 @@ else
 fi
 
 if [ "$offline_mode" = true ] && [ "${#jre_files[@]}" -gt 0 ]; then
-  launcher_props="${launcher_props//@JRE_PACKAGE@/$PWD\/$package_dir\/$(basename ${jre_files[0]})}"
+  launcher_props="${launcher_props//@JRE_PACKAGE@/$PWD\/${jre_files[0]}}"
 else
   launcher_props="${launcher_props//@JRE_PACKAGE@/}"
 fi
@@ -644,7 +646,7 @@ fi
 if [ "${#tomcat_files[@]}" -gt 0 ]; then
   if [ "$offline_mode" = true ]; then
     launcher_props="${launcher_props//@TOMCAT_VERSION@/$tomcat_version}"
-    launcher_props="${launcher_props//@TOMCAT_PACKAGE@/$PWD\/$package_dir\/$(basename ${tomcat_files[0]})}"
+    launcher_props="${launcher_props//@TOMCAT_PACKAGE@/$PWD\/${tomcat_files[0]}}"
   else
     launcher_props="${launcher_props//@TOMCAT_VERSION@/}"
     launcher_props="${launcher_props//@TOMCAT_PACKAGE@/}"

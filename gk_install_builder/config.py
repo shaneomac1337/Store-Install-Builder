@@ -123,8 +123,6 @@ class ConfigManager:
             "eh_launchpad_password": "gkgkgk123!",
             "auth_service_ba_user": "launchpad",
             "launchpad_oauth2": "Enter Auth-service's pre-defined Launchpad password",
-            "form_username": "1001",
-            "form_password": "Enter your Launchpad password",
             
             # Certificate Configuration
             "certificate_path": "PROJECT/BASEURL/certificate.p12",  # Will be dynamically set based on URL
