@@ -1709,6 +1709,20 @@ class GKInstallBuilder:
         dialog.title("KeePass Authentication")
         dialog.geometry("500x550")  # Increased from 450x400
         dialog.transient(self.window)
+        
+        # Make sure the dialog is visible before setting grab
+        dialog.update_idletasks()
+        dialog.deiconify()
+        dialog.wait_visibility()
+        dialog.lift()
+        dialog.focus_force()
+        
+        # Center the dialog on the parent window
+        x = self.window.winfo_x() + (self.window.winfo_width() // 2) - (500 // 2)
+        y = self.window.winfo_y() + (self.window.winfo_height() // 2) - (550 // 2)
+        dialog.geometry(f"+{x}+{y}")
+        
+        # Now that the window is visible, set grab
         dialog.grab_set()
         
         # Add window close protocol handler
@@ -1873,6 +1887,20 @@ class GKInstallBuilder:
                 project_dialog.title("Select Project")
                 project_dialog.geometry("400x600")  # Increased from 300x450
                 project_dialog.transient(dialog)
+                
+                # Make sure the dialog is visible before setting grab
+                project_dialog.update_idletasks()
+                project_dialog.deiconify()
+                project_dialog.wait_visibility()
+                project_dialog.lift()
+                project_dialog.focus_force()
+                
+                # Center the dialog on the parent dialog
+                x = dialog.winfo_x() + (dialog.winfo_width() // 2) - (400 // 2)
+                y = dialog.winfo_y() + (dialog.winfo_height() // 2) - (600 // 2)
+                project_dialog.geometry(f"+{x}+{y}")
+                
+                # Now that the window is visible, set grab
                 project_dialog.grab_set()
                 
                 # Add window close protocol handler
