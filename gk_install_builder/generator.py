@@ -269,31 +269,11 @@ class ProjectGenerator:
                 
                 # Add version function for component-specific versions
                 if use_version_override:
-                    version_function = f'''
-function Get-ComponentVersion {{
-    param([string]$SystemType)
-    
-    switch ($SystemType) {{
-        "{pos_system_type}" {{ return "{pos_version}" }}
-        "{wdm_system_type}" {{ return "{wdm_version}" }}
-        "{flow_service_system_type}" {{ return "{flow_service_version}" }}
-        "{lpa_service_system_type}" {{ return "{lpa_service_version}" }}
-        "{storehub_service_system_type}" {{ return "{storehub_service_version}" }}
-        default {{ return "" }}
-    }}
-}}
-'''
-                    # Add the version function after the Handle-Error function
-                    template = template.replace("function Handle-Error {", f"function Handle-Error {{\n\n{version_function}")
+                    # We're no longer using the function approach, so we don't need to add the function
+                    pass
                 else:
-                    version_function = '''
-function Get-ComponentVersion {
-    param([string]$SystemType)
-    return ""  # Return empty string to use default version
-}
-'''
-                    # Add the version function after the Handle-Error function
-                    template = template.replace("function Handle-Error {", f"function Handle-Error {{\n\n{version_function}")
+                    # We're no longer using the function approach, so we don't need to add the function
+                    pass
                 
             else:  # Linux
                 # Linux-specific replacements
@@ -310,60 +290,108 @@ function Get-ComponentVersion {
                 
                 # Add version function for component-specific versions (bash version)
                 if use_version_override:
-                    version_function = f'''
-# Function to get version based on system type
-get_component_version() {{
-  local system_type="$1"
-  
-  case "$system_type" in
-    "{pos_system_type}")
-      echo "{pos_version}"
-      ;;
-    "{wdm_system_type}")
-      echo "{wdm_version}"
-      ;;
-    "{flow_service_system_type}")
-      echo "{flow_service_version}"
-      ;;
-    "{lpa_service_system_type}")
-      echo "{lpa_service_version}"
-      ;;
-    "{storehub_service_system_type}")
-      echo "{storehub_service_version}"
-      ;;
-    *)
-      echo ""
-      ;;
-  esac
-}}
-'''
-                    # Add the version function after the handle_error function
-                    template = template.replace("trap 'handle_error $LINENO' ERR", f"trap 'handle_error $LINENO' ERR\n\n{version_function}")
+                    # We're no longer using the function approach, so we don't need to add the function
+                    pass
                 else:
-                    version_function = '''
-# Function to get version based on system type
-get_component_version() {
-  local system_type="$1"
-  echo ""  # Return empty string to use default version
-}
-'''
-                    # Add the version function after the handle_error function
-                    template = template.replace("trap 'handle_error $LINENO' ERR", f"trap 'handle_error $LINENO' ERR\n\n{version_function}")
+                    # We're no longer using the function approach, so we don't need to add the function
+                    pass
             
             # Update the download URL to use the component-specific version with fallback logic
             if platform == "Windows":
                 download_url_line = '$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"'
-                new_download_url_line = '''$component_version = Get-ComponentVersion -SystemType $systemType
+                
+                if use_version_override:
+                    # Create the switch statement with direct values instead of using format
+                    new_download_url_line = f'''# Set component version directly based on system type instead of calling the function
+$component_version = switch ($systemType) {{
+    "{pos_system_type}" {{ "{pos_version}" }}
+    "{wdm_system_type}" {{ "{wdm_version}" }}
+    "{flow_service_system_type}" {{ "{flow_service_version}" }}
+    "{lpa_service_system_type}" {{ "{lpa_service_version}" }}
+    "{storehub_service_system_type}" {{ "{storehub_service_version}" }}
+    default {{ "" }}
+}}
+
 # If the component version is empty or null, fall back to the default version
-if ([string]::IsNullOrEmpty($component_version)) {
+if ([string]::IsNullOrEmpty($component_version)) {{
     $component_version = $version
-}
+}}
+$download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"'''
+                else:
+                    # If not using version override, all versions will be empty strings
+                    new_download_url_line = f'''# Set component version directly based on system type instead of calling the function
+$component_version = switch ($systemType) {{
+    "{pos_system_type}" {{ "" }}
+    "{wdm_system_type}" {{ "" }}
+    "{flow_service_system_type}" {{ "" }}
+    "{lpa_service_system_type}" {{ "" }}
+    "{storehub_service_system_type}" {{ "" }}
+    default {{ "" }}
+}}
+
+# If the component version is empty or null, fall back to the default version
+if ([string]::IsNullOrEmpty($component_version)) {{
+    $component_version = $version
+}}
 $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"'''
                 
                 template = template.replace(download_url_line, new_download_url_line)
             else:  # Linux
                 download_url_line = 'download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher"'
-                new_download_url_line = '''component_version=$(get_component_version "$systemType")
+                
+                if use_version_override:
+                    # Create the case statement with direct values instead of using format
+                    new_download_url_line = f'''# Set component version directly based on system type
+case "$systemType" in
+    "{pos_system_type}")
+        component_version="{pos_version}"
+        ;;
+    "{wdm_system_type}")
+        component_version="{wdm_version}"
+        ;;
+    "{flow_service_system_type}")
+        component_version="{flow_service_version}"
+        ;;
+    "{lpa_service_system_type}")
+        component_version="{lpa_service_version}"
+        ;;
+    "{storehub_service_system_type}")
+        component_version="{storehub_service_version}"
+        ;;
+    *)
+        component_version=""
+        ;;
+esac
+
+# If the component version is empty or null, fall back to the default version
+if [ -z "$component_version" ]; then
+    component_version="$version"
+fi
+download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher"'''
+                else:
+                    # If not using version override, all versions will be empty strings
+                    new_download_url_line = f'''# Set component version directly based on system type
+case "$systemType" in
+    "{pos_system_type}")
+        component_version=""
+        ;;
+    "{wdm_system_type}")
+        component_version=""
+        ;;
+    "{flow_service_system_type}")
+        component_version=""
+        ;;
+    "{lpa_service_system_type}")
+        component_version=""
+        ;;
+    "{storehub_service_system_type}")
+        component_version=""
+        ;;
+    *)
+        component_version=""
+        ;;
+esac
+
 # If the component version is empty or null, fall back to the default version
 if [ -z "$component_version" ]; then
     component_version="$version"
