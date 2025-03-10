@@ -90,6 +90,12 @@ class ConfigManager:
 
     def _get_default_config(self):
         """Return default configuration with descriptive examples"""
+        # Determine default platform
+        default_platform = "Windows"
+        
+        # Set platform-specific paths
+        default_firebird_path = "C:\\Program Files\\Firebird" if default_platform == "Windows" else "/opt/Firebird"
+        
         return {
             # Project Configuration
             "project_name": "My Store Project",
@@ -97,7 +103,7 @@ class ConfigManager:
             "version": "v1.0.0",
             
             # Platform Selection
-            "platform": "Windows",  # Default platform (Windows or Linux)
+            "platform": default_platform,  # Default platform (Windows or Linux)
             
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override
@@ -115,7 +121,7 @@ class ConfigManager:
             "flow_service_system_type": "GKR-FLOWSERVICE-CLOUD",  # Default to GKR but still configurable
             "lpa_service_system_type": "",  # Will be dynamically set based on URL
             "storehub_service_system_type": "",  # Will be dynamically set based on URL
-            "firebird_server_path": "localhost",
+            "firebird_server_path": default_firebird_path,
             
             # Security Configuration
             "ssl_password": "changeit",
