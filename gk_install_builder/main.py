@@ -2666,12 +2666,15 @@ class GKInstallBuilder:
         # Update the base install directory based on platform
         if platform == "Windows":
             default_dir = "C:\\gkretail"
+            firebird_path = "C:\\Program Files\\Firebird"
         else:  # Linux
             default_dir = "/usr/local/gkretail"
+            firebird_path = "/opt/Firebird"
         
-        # Update entry value if it exists
+        # Update entry values if they exist
         self.config_manager.update_entry_value("base_install_dir", default_dir)
-        print(f"Platform changed to {platform}, updated base_install_dir to {default_dir}")
+        self.config_manager.update_entry_value("firebird_server_path", firebird_path)
+        print(f"Platform changed to {platform}, updated base_install_dir to {default_dir} and firebird_server_path to {firebird_path}")
         
         # Update config
         self.config_manager.config["platform"] = platform
