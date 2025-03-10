@@ -284,6 +284,9 @@ class GKInstallBuilder:
         self.config_manager = ConfigManager()
         self.project_generator = ProjectGenerator(parent_window=self.window)
         
+        # Initialize parent_app to None (for window close handler)
+        self.parent_app = None
+        
         # Initialize password visibility tracking dictionary
         self.password_visible = {}
         
@@ -1626,7 +1629,7 @@ class GKInstallBuilder:
             self.window.destroy()
             
             # Restore parent window and rebind events
-            if self.parent_app:
+            if hasattr(self, 'parent_app') and self.parent_app:
                 # Restore main window focus
                 self.parent_app.window.focus_force()
                 
