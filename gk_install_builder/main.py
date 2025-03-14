@@ -141,22 +141,22 @@ class LauncherSettingsEditor:
         
         # LPA Service settings
         self.settings["LPA-SERVICE"] = {
-            "applicationServerHttpPort": "8280",
-            "applicationServerHttpsPort": "8643",
-            "applicationServerShutdownPort": "8006",
-            "applicationServerJmxPort": "52223",
-            "updaterJmxPort": "4334",
+            "applicationServerHttpPort": "8180",
+            "applicationServerHttpsPort": "8543",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "updaterJmxPort": "4333",
             "keepFiles": "0"
         }
         
         # StoreHub Service settings
         self.settings["STOREHUB-SERVICE"] = {
-            "applicationServerHttpPort": "8380",
-            "applicationServerHttpsPort": "8743",
-            "applicationServerShutdownPort": "8007",
-            "applicationServerJmxPort": "52224",
-            "applicationJmsPort": "7001",
-            "updaterJmxPort": "4335",
+            "applicationServerHttpPort": "8180",
+            "applicationServerHttpsPort": "8543",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "applicationJmsPort": "7000",
+            "updaterJmxPort": "4333",
             "firebirdServerPath": "localhost",
             "firebirdServerPort": "3050",
             "firebirdServerUser": "SYSDBA",
@@ -273,16 +273,24 @@ class GKInstallBuilder:
     keepass_password = None
     
     def __init__(self):
-        self.window = ctk.CTk()
-        self.window.title("GK Install Builder")
-        self.window.geometry("1200x900")  # Increased from 1000x800
+        # Set up customtkinter
+        ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
+        ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
         
-        # Set theme
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        # Create the main window
+        self.root = ctk.CTk()
+        self.root.title("GK Install Builder")
+        self.root.geometry("1000x800")
+        self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
+        # Initialize config manager
         self.config_manager = ConfigManager()
-        self.project_generator = ProjectGenerator(parent_window=self.window)
+        
+        # Ensure auth_service_ba_user is always set to "launchpad"
+        self.config_manager.config["auth_service_ba_user"] = "launchpad"
+        
+        # Initialize project generator
+        self.project_generator = ProjectGenerator(self.root)
         
         # Initialize parent_app to None (for window close handler)
         self.parent_app = None
@@ -310,7 +318,7 @@ class GKInstallBuilder:
         self.keepass_password = GKInstallBuilder.keepass_password
         
         # Create launcher settings editor
-        self.launcher_editor = LauncherSettingsEditor(self.window, self.config_manager, self.project_generator)
+        self.launcher_editor = LauncherSettingsEditor(self.root, self.config_manager, self.project_generator)
         
         # Create the GUI
         self.create_gui()
@@ -322,11 +330,11 @@ class GKInstallBuilder:
             self.auto_fill_based_on_url(base_url)
         
         # Set up window close handler
-        self.window.protocol("WM_DELETE_WINDOW", self.on_window_close)
+        self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
     def create_gui(self):
         # Create main container with scrollbar
-        self.main_frame = ctk.CTkScrollableFrame(self.window, width=900, height=700)
+        self.main_frame = ctk.CTkScrollableFrame(self.root, width=900, height=700)
         self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
         
         # Project Configuration - Create the main section frame
@@ -830,9 +838,24 @@ class GKInstallBuilder:
             config_key = field.lower().replace(" ", "_").replace("/", "_")
             
             # Create entry - use password field for password fields
-            if "password" in field.lower():
+            if "password" in field.lower() or field == "Launchpad OAuth2":
                 # Create password field with show/hide toggle
                 entry, _ = self.create_password_field(field_frame, field, config_key)
+            elif field == "Auth Service BA User":
+                # Create a read-only entry with fixed value "launchpad"
+                entry = ctk.CTkEntry(field_frame, width=400)
+                entry.pack(side="left", padx=5)
+                entry.insert(0, "launchpad")
+                entry.configure(state="readonly")  # Make it read-only
+                
+                # Store the fixed value in the config
+                self.config_manager.config[config_key] = "launchpad"
+                
+                # Register entry with config manager with a fixed value
+                self.config_manager.register_entry(config_key, entry, fixed_value="launchpad")
+                
+                # Add tooltip to explain that this field is read-only
+                self.create_tooltip(entry, "This field is read-only. 'launchpad' is the only supported value.")
             else:
                 # Create regular entry
                 entry = ctk.CTkEntry(field_frame, width=400)
@@ -1609,11 +1632,11 @@ class GKInstallBuilder:
             
             # Clean up entries
             for entry in list(self.config_manager.entries):
-                if hasattr(entry, 'widget') and entry.widget.winfo_toplevel() == self.window:
+                if hasattr(entry, 'widget') and entry.widget.winfo_toplevel() == self.root:
                     self.config_manager.unregister_entry(entry)
             
             # Force close any active download dialogs
-            for widget in self.window.winfo_children():
+            for widget in self.root.winfo_children():
                 if isinstance(widget, ctk.CTkToplevel):
                     try:
                         widget.destroy()
@@ -1622,16 +1645,16 @@ class GKInstallBuilder:
             
             # Release window grab and destroy
             try:
-                self.window.grab_release()
+                self.root.grab_release()
             except Exception:
                 pass
                 
-            self.window.destroy()
+            self.root.destroy()
             
             # Restore parent window and rebind events
             if hasattr(self, 'parent_app') and self.parent_app:
                 # Restore main window focus
-                self.parent_app.window.focus_force()
+                self.parent_app.root.focus_force()
                 
                 # Rebind base URL events
                 base_url_entry = self.parent_app.config_manager.get_entry("base_url")
@@ -1657,7 +1680,7 @@ class GKInstallBuilder:
 
         # Create new offline package creator
         self.offline_creator = OfflinePackageCreator(
-            self.window,
+            self.root,
             self.config_manager,
             self.project_generator,
             parent_app=self
@@ -1681,10 +1704,10 @@ class GKInstallBuilder:
                 target_entry = self.webdav_admin_password_entry
             
         # Create a toplevel window
-        dialog = ctk.CTkToplevel(self.window)
+        dialog = ctk.CTkToplevel(self.root)
         dialog.title("KeePass Authentication")
         dialog.geometry("500x550")  # Increased from 450x400
-        dialog.transient(self.window)
+        dialog.transient(self.root)
         
         # Make sure the dialog is visible before setting grab
         dialog.update_idletasks()
@@ -1694,8 +1717,8 @@ class GKInstallBuilder:
         dialog.focus_force()
         
         # Center the dialog on the parent window
-        x = self.window.winfo_x() + (self.window.winfo_width() // 2) - (500 // 2)
-        y = self.window.winfo_y() + (self.window.winfo_height() // 2) - (550 // 2)
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - (500 // 2)
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - (550 // 2)
         dialog.geometry(f"+{x}+{y}")
         
         # Now that the window is visible, set grab
@@ -2530,7 +2553,7 @@ class GKInstallBuilder:
                     pass
             
             # Create a toplevel window for the tooltip
-            tooltip_window = ctk.CTkToplevel(self.window)
+            tooltip_window = ctk.CTkToplevel(self.root)
             tooltip_window.wm_overrideredirect(True)  # Remove window decorations
             tooltip_window.wm_geometry(f"+{x+15}+{y+10}")
             tooltip_window.attributes("-topmost", True)  # Keep tooltip on top
@@ -2590,10 +2613,10 @@ class GKInstallBuilder:
         widget.bind("<Leave>", leave)
         
         # Also bind to window close to ensure tooltips are cleaned up
-        self.window.bind("<Destroy>", lambda e: leave(e), add="+")
+        self.root.bind("<Destroy>", lambda e: leave(e), add="+")
 
     def run(self):
-        self.window.mainloop()
+        self.root.mainloop()
 
     def clear_keepass_credentials(self):
         """Clear stored KeePass credentials"""
