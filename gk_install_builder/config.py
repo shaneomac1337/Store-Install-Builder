@@ -14,9 +14,15 @@ class ConfigManager:
         self.config_file = "gk_install_config.json"
         self.load_config()
 
-    def register_entry(self, key, entry):
+    def register_entry(self, key, entry, fixed_value=None):
         """Register an entry widget for a config key"""
         self.entries[key] = entry
+        
+        # Store fixed value if provided
+        if fixed_value is not None:
+            self.config[key] = fixed_value
+            # Mark this entry as having a fixed value
+            setattr(entry, "_fixed_value", fixed_value)
         
         # Add trace to entry for auto-save
         if hasattr(entry, "bind"):
@@ -269,6 +275,11 @@ class ConfigManager:
         """Update config from registered entries, skipping any that cause errors"""
         for key, entry in list(self.entries.items()):
             try:
+                # Skip entries with fixed values
+                if hasattr(entry, "_fixed_value"):
+                    self.config[key] = entry._fixed_value
+                    continue
+                    
                 if hasattr(entry, "get"):
                     # Only try to get the value if the widget exists
                     if not hasattr(entry, 'winfo_exists') or entry.winfo_exists():

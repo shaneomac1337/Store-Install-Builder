@@ -603,11 +603,11 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             template_content = """# Launcher defaults for LPA Service
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
-applicationServerHttpPort=8280
-applicationServerHttpsPort=8643
-applicationServerShutdownPort=8006
-applicationServerJmxPort=52223
-updaterJmxPort=4334
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
 ssl_path=@SSL_PATH@
 ssl_password=@SSL_PASSWORD@
 identifierExpert=@OFFLINE_MODE@
@@ -623,12 +623,12 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             template_content = """# Launcher defaults for StoreHub Service
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
-applicationServerHttpPort=8380
-applicationServerHttpsPort=8743
-applicationServerShutdownPort=8007
-applicationServerJmxPort=52224
-applicationJmsPort=7001
-updaterJmxPort=4335
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+applicationJmsPort=7000
+updaterJmxPort=4333
 ssl_path=@SSL_PATH@
 ssl_password=@SSL_PASSWORD@
 firebirdServerPath=@FIREBIRD_SERVER_PATH@
@@ -1790,15 +1790,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing POS version directory: {e}")
                     raise
                 
-                # Copy launcher template for POS
-                try:
-                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.pos.template")
-                    launcher_output_path = os.path.join(pos_dir, "launcher.properties.template")
-                    shutil.copy(launcher_template_path, launcher_output_path)
-                    print(f"Copied POS launcher template to {launcher_output_path}")
-                except Exception as e:
-                    print(f"Error copying POS launcher template: {e}")
-                    download_errors.append(f"Failed to copy POS launcher template: {str(e)}")
+                # We're removing the launcher template copying code
             
             # Process WDM component
             if "WDM" in selected_components:
@@ -1842,15 +1834,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing WDM version directory: {e}")
                     raise
                 
-                # Copy launcher template for WDM
-                try:
-                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.wdm.template")
-                    launcher_output_path = os.path.join(wdm_dir, "launcher.properties.template")
-                    shutil.copy(launcher_template_path, launcher_output_path)
-                    print(f"Copied WDM launcher template to {launcher_output_path}")
-                except Exception as e:
-                    print(f"Error copying WDM launcher template: {e}")
-                    download_errors.append(f"Failed to copy WDM launcher template: {str(e)}")
+                # We're removing the launcher template copying code
             
             # Process Flow Service component
             if "FLOW-SERVICE" in selected_components:
@@ -1894,15 +1878,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing Flow Service version directory: {e}")
                     raise
                 
-                # Copy launcher template for Flow Service
-                try:
-                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.flow-service.template")
-                    launcher_output_path = os.path.join(flow_service_dir, "launcher.properties.template")
-                    shutil.copy(launcher_template_path, launcher_output_path)
-                    print(f"Copied Flow Service launcher template to {launcher_output_path}")
-                except Exception as e:
-                    print(f"Error copying Flow Service launcher template: {e}")
-                    download_errors.append(f"Failed to copy Flow Service launcher template: {str(e)}")
+                # We're removing the launcher template copying code
             
             # Process LPA Service component
             if "LPA-SERVICE" in selected_components:
@@ -1946,15 +1922,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing LPA Service version directory: {e}")
                     raise
                 
-                # Copy launcher template for LPA Service
-                try:
-                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.lpa-service.template")
-                    launcher_output_path = os.path.join(lpa_service_dir, "launcher.properties.template")
-                    shutil.copy(launcher_template_path, launcher_output_path)
-                    print(f"Copied LPA Service launcher template to {launcher_output_path}")
-                except Exception as e:
-                    print(f"Error copying LPA Service launcher template: {e}")
-                    download_errors.append(f"Failed to copy LPA Service launcher template: {str(e)}")
+                # We're removing the launcher template copying code
             
             # Process StoreHub Service component
             if "STOREHUB-SERVICE" in selected_components:
@@ -1998,15 +1966,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing StoreHub Service version directory: {e}")
                     raise
                 
-                # Copy launcher template for StoreHub Service
-                try:
-                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.storehub-service.template")
-                    launcher_output_path = os.path.join(storehub_service_dir, "launcher.properties.template")
-                    shutil.copy(launcher_template_path, launcher_output_path)
-                    print(f"Copied StoreHub Service launcher template to {launcher_output_path}")
-                except Exception as e:
-                    print(f"Error copying StoreHub Service launcher template: {e}")
-                    download_errors.append(f"Failed to copy StoreHub Service launcher template: {str(e)}")
+                # We're removing the launcher template copying code
             
             # If no files to download, return
             if not files_to_download:
