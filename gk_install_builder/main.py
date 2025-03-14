@@ -2712,7 +2712,7 @@ class OfflinePackageCreator:
         
         # Create offline package section
         self.create_offline_package_section()
-        
+    
     def on_window_close(self):
         """Handle window close event"""
         try:
@@ -2751,8 +2751,8 @@ class OfflinePackageCreator:
     
     def create_offline_package_section(self):
         # Create frame for offline package options
-        self.offline_package_frame = ctk.CTkFrame(self.window)
-        self.offline_package_frame.pack(fill="both", expand=True, padx=20, pady=10)
+        self.offline_package_frame = ctk.CTkFrame(self.main_frame)
+        self.offline_package_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Title
         ctk.CTkLabel(
@@ -2792,6 +2792,52 @@ class OfflinePackageCreator:
         self.components_frame = ctk.CTkFrame(self.offline_package_frame)
         self.components_frame.pack(fill="x", padx=10, pady=5)
         
+        # Platform dependencies section
+        platform_section_frame = ctk.CTkFrame(self.components_frame)
+        platform_section_frame.pack(fill="x", pady=5, padx=10)
+        
+        # Platform section header
+        ctk.CTkLabel(
+            platform_section_frame,
+            text="Platform Dependencies",
+            font=("Helvetica", 12, "bold"),
+            text_color=platform_color
+        ).pack(anchor="w", pady=(5, 10), padx=10)
+        
+        # Platform components frame
+        platform_components_frame = ctk.CTkFrame(platform_section_frame)
+        platform_components_frame.pack(fill="x", pady=0, padx=10)
+        
+        # Java checkbox
+        self.include_java = ctk.BooleanVar(value=False)
+        java_checkbox = ctk.CTkCheckBox(
+            platform_components_frame,
+            text="Java",
+            variable=self.include_java,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        java_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # Tomcat checkbox
+        self.include_tomcat = ctk.BooleanVar(value=False)
+        tomcat_checkbox = ctk.CTkCheckBox(
+            platform_components_frame,
+            text="Tomcat",
+            variable=self.include_tomcat,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        tomcat_checkbox.pack(side="left", pady=5, padx=20)
+        
+        # Application components section header
+        app_section_header = ctk.CTkLabel(
+            self.components_frame,
+            text="Application Components",
+            font=("Helvetica", 12, "bold")
+        )
+        app_section_header.pack(anchor="w", pady=(15, 5), padx=20)
+        
         # POS component frame
         pos_component_frame = ctk.CTkFrame(self.components_frame)
         pos_component_frame.pack(fill="x", pady=5, padx=10)
@@ -2806,17 +2852,6 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         pos_checkbox.pack(side="left", pady=5, padx=10)
-        
-        # POS dependencies checkbox
-        self.pos_dependencies_needed = ctk.BooleanVar(value=False)
-        pos_dependencies_checkbox = ctk.CTkCheckBox(
-            pos_component_frame,
-            text="Include Java & Tomcat",
-            variable=self.pos_dependencies_needed,
-            checkbox_width=20,
-            checkbox_height=20
-        )
-        pos_dependencies_checkbox.pack(side="left", pady=5, padx=20)
         
         # WDM component frame
         wdm_component_frame = ctk.CTkFrame(self.components_frame)
@@ -2833,17 +2868,6 @@ class OfflinePackageCreator:
         )
         wdm_checkbox.pack(side="left", pady=5, padx=10)
         
-        # WDM dependencies checkbox
-        self.wdm_dependencies_needed = ctk.BooleanVar(value=False)
-        wdm_dependencies_checkbox = ctk.CTkCheckBox(
-            wdm_component_frame,
-            text="Include Java & Tomcat",
-            variable=self.wdm_dependencies_needed,
-            checkbox_width=20,
-            checkbox_height=20
-        )
-        wdm_dependencies_checkbox.pack(side="left", pady=5, padx=20)
-        
         # Flow Service component frame
         flow_service_component_frame = ctk.CTkFrame(self.components_frame)
         flow_service_component_frame.pack(fill="x", pady=5, padx=10)
@@ -2858,17 +2882,6 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         flow_service_checkbox.pack(side="left", pady=5, padx=10)
-        
-        # Flow Service dependencies checkbox
-        self.flow_service_dependencies_needed = ctk.BooleanVar(value=False)
-        flow_service_dependencies_checkbox = ctk.CTkCheckBox(
-            flow_service_component_frame,
-            text="Include Java & Tomcat",
-            variable=self.flow_service_dependencies_needed,
-            checkbox_width=20,
-            checkbox_height=20
-        )
-        flow_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
         
         # LPA Service component frame
         lpa_service_component_frame = ctk.CTkFrame(self.components_frame)
@@ -2885,17 +2898,6 @@ class OfflinePackageCreator:
         )
         lpa_service_checkbox.pack(side="left", pady=5, padx=10)
         
-        # LPA Service dependencies checkbox
-        self.lpa_service_dependencies_needed = ctk.BooleanVar(value=False)
-        lpa_service_dependencies_checkbox = ctk.CTkCheckBox(
-            lpa_service_component_frame,
-            text="Include Java & Tomcat",
-            variable=self.lpa_service_dependencies_needed,
-            checkbox_width=20,
-            checkbox_height=20
-        )
-        lpa_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
-        
         # StoreHub Service component frame
         storehub_service_component_frame = ctk.CTkFrame(self.components_frame)
         storehub_service_component_frame.pack(fill="x", pady=5, padx=10)
@@ -2910,17 +2912,6 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         storehub_service_checkbox.pack(side="left", pady=5, padx=10)
-        
-        # StoreHub Service dependencies checkbox
-        self.storehub_service_dependencies_needed = ctk.BooleanVar(value=False)
-        storehub_service_dependencies_checkbox = ctk.CTkCheckBox(
-            storehub_service_component_frame,
-            text="Include Java & Tomcat",
-            variable=self.storehub_service_dependencies_needed,
-            checkbox_width=20,
-            checkbox_height=20
-        )
-        storehub_service_dependencies_checkbox.pack(side="left", pady=5, padx=20)
         
         # Create button
         self.create_button = ctk.CTkButton(
@@ -2941,100 +2932,72 @@ class OfflinePackageCreator:
     def create_webdav_browser(self):
         # Create WebDAV browser frame
         webdav_frame = ctk.CTkFrame(self.main_frame)
-        webdav_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        webdav_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Header section
+        header_frame = ctk.CTkFrame(webdav_frame)
+        header_frame.pack(fill="x", padx=5, pady=5)
         
         # Title
         title_label = ctk.CTkLabel(
-            webdav_frame,
+            header_frame,
             text="WebDAV Browser",
             font=("Helvetica", 16, "bold")
         )
-        title_label.pack(anchor="w", padx=10, pady=(10, 5))
-        
-        # Description
-        description = ctk.CTkLabel(
-            webdav_frame,
-            text="Browse and download files from the WebDAV server.\n"
-                 "Connect to the server using your credentials and navigate to the desired files.",
-            justify="left"
-        )
-        description.pack(anchor="w", padx=10, pady=(0, 5))
+        title_label.pack(side="left", padx=10)
         
         # Current path
-        self.path_label = ctk.CTkLabel(webdav_frame, text="Current Path: /SoftwarePackage")
-        self.path_label.pack(anchor="w", padx=10, pady=5)
+        self.path_label = ctk.CTkLabel(header_frame, text="Current Path: /SoftwarePackage")
+        self.path_label.pack(side="right", padx=10)
         
-        # Authentication frame
+        # Authentication section
         auth_frame = ctk.CTkFrame(webdav_frame)
-        auth_frame.pack(fill="x", padx=10, pady=5)
+        auth_frame.pack(fill="x", padx=5, pady=5)
         
         # Username
-        username_frame = ctk.CTkFrame(auth_frame)
-        username_frame.pack(side="left", padx=5)
-        username_label = ctk.CTkLabel(
-            username_frame,
-            text="Username:",
-            width=100
-        )
-        username_label.pack(side="left")
+        username_label = ctk.CTkLabel(auth_frame, text="Username:", width=80)
+        username_label.pack(side="left", padx=5)
         
-        self.webdav_username = ctk.CTkEntry(username_frame, width=150)
+        self.webdav_username = ctk.CTkEntry(auth_frame, width=120)
         self.webdav_username.pack(side="left", padx=5)
         
         # Load saved username
-        if self.config_manager.config["webdav_username"]:
+        if self.config_manager.config.get("webdav_username"):
             self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
         
-        # Register WebDAV username with config manager using a unique key for this window
+        # Register WebDAV username with config manager
         self.config_manager.register_entry("webdav_username", self.webdav_username)
         
         # Password
-        password_frame = ctk.CTkFrame(auth_frame)
-        password_frame.pack(side="left", padx=5)
-        password_label = ctk.CTkLabel(
-            password_frame,
-            text="Password:",
-            width=100
-        )
-        password_label.pack(side="left")
+        password_label = ctk.CTkLabel(auth_frame, text="Password:", width=80)
+        password_label.pack(side="left", padx=5)
         
-        self.webdav_password = ctk.CTkEntry(password_frame, width=150, show="*")
+        self.webdav_password = ctk.CTkEntry(auth_frame, width=120, show="*")
         self.webdav_password.pack(side="left", padx=5)
         
         # Load saved password
-        if self.config_manager.config["webdav_password"]:
+        if self.config_manager.config.get("webdav_password"):
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
-            
-        # Add KeePass button for WebDAV password
+        
+        # KeePass button
         ctk.CTkButton(
-            password_frame,
-            text="🔑",  # Key icon
-            width=40,
-            command=lambda: self.get_basic_auth_password_from_keepass(target_entry=self.webdav_password, password_type="webdav_admin")
+            auth_frame,
+            text="🔑",
+            width=30,
+            command=lambda: self.get_basic_auth_password_from_keepass(
+                target_entry=self.webdav_password, 
+                password_type="webdav_admin"
+            )
         ).pack(side="left", padx=5)
         
         # Register WebDAV password with config manager
         self.config_manager.register_entry("webdav_password", self.webdav_password)
-            
-        # Define a focus event handler to clear placeholder text
-        def clear_placeholder(event):
-            if self.webdav_password.get() == self.config_manager.config.get("webdav_password", ''):
-                self.webdav_password.delete(0, 'end')
-
-        # Define a focus out event handler to restore placeholder text
-        def restore_placeholder(event):
-            if self.webdav_password.get() == '':
-                self.webdav_password.insert(0, self.config_manager.config.get("webdav_password", ''))
-
-        # Bind the focus in and focus out events to the handlers
-        self.webdav_password.bind('<FocusIn>', clear_placeholder)
-        self.webdav_password.bind('<FocusOut>', restore_placeholder)
         
         # Connect button
         connect_btn = ctk.CTkButton(
             auth_frame,
             text="Connect",
-            width=100,
+            width=80,
             command=self.connect_webdav
         )
         connect_btn.pack(side="left", padx=10)
@@ -3047,10 +3010,11 @@ class OfflinePackageCreator:
         )
         self.webdav_status.pack(side="left", padx=10)
         
-        # Navigation buttons
+        # Navigation section
         nav_frame = ctk.CTkFrame(webdav_frame)
-        nav_frame.pack(fill="x", padx=10, pady=5)
+        nav_frame.pack(fill="x", padx=5, pady=5)
         
+        # Up button
         up_btn = ctk.CTkButton(
             nav_frame,
             text="Up",
@@ -3059,6 +3023,7 @@ class OfflinePackageCreator:
         )
         up_btn.pack(side="left", padx=5)
         
+        # Refresh button
         refresh_btn = ctk.CTkButton(
             nav_frame,
             text="Refresh",
@@ -3067,116 +3032,13 @@ class OfflinePackageCreator:
         )
         refresh_btn.pack(side="left", padx=5)
         
-        # Directory listing - increase height and make it expand to fill available space
-        self.dir_listbox = ctk.CTkScrollableFrame(webdav_frame, height=400)
-        self.dir_listbox.pack(fill="both", expand=True, padx=10, pady=10)
-    
-    def connect_webdav(self):
-        """Handle WebDAV connection"""
-        base_url = self.config_manager.config["base_url"]
-        username = self.webdav_username.get()
-        password = self.webdav_password.get()
+        # Directory listing frame - separate frame with fixed height
+        dir_frame = ctk.CTkFrame(webdav_frame)
+        dir_frame.pack(fill="x", padx=5, pady=5)
         
-        if not all([base_url, username]):
-            self.webdav_status.configure(
-                text="Error: Base URL and username are required",
-                text_color="red"
-            )
-            return
-            
-        # If password is the placeholder text, try to get it from KeePass
-        if password == self.config_manager.config.get("webdav_password", '') and "Enter" in password:
-            # Show a message that we're using the same password as basic auth
-            self.webdav_status.configure(
-                text="Using KeePass to get password...",
-                text_color="orange"
-            )
-            self.window.update()
-            
-            # Try to use the same password as basic auth if it's available
-            basic_auth_password = self.basic_auth_password_entry.get()
-            if basic_auth_password and "Enter" not in basic_auth_password:
-                password = basic_auth_password
-                self.webdav_password.delete(0, 'end')
-                self.webdav_password.insert(0, password)
-        
-        if not password:
-            self.webdav_status.configure(
-                text="Error: Password is required",
-                text_color="red"
-            )
-            return
-        
-        # No need to manually update config as the entries are registered for auto-save
-        
-        self.webdav = self.project_generator.create_webdav_browser(
-            base_url,
-            username,
-            password
-        )
-        
-        success, message = self.webdav.connect()
-        
-        if success:
-            self.webdav_status.configure(text="Connected", text_color="green")
-            
-            # Explicitly save the WebDAV password to the config
-            self.config_manager.config["webdav_password"] = password
-            self.config_manager.save_config_silent()
-            
-            # Navigate to SoftwarePackage after successful connection
-            self.webdav.current_path = "/SoftwarePackage"
-            self.refresh_listing()
-        else:
-            self.webdav_status.configure(text=f"Connection failed: {message}", text_color="red")
-    
-    def refresh_listing(self):
-        """Refresh the current directory listing"""
-        try:
-            # Clear existing items
-            for widget in self.dir_listbox.winfo_children():
-                widget.destroy()
-            
-            # Get all items
-            items = self.webdav.list_directories(self.webdav.current_path)
-            
-            # Update path label
-            self.path_label.configure(text=f"Current Path: {self.webdav.current_path}")
-            
-            # Sort items - directories first, then files
-            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
-            
-            # Add buttons for directories and files
-            for item in items:
-                icon = "📁" if item['is_directory'] else "📄"
-                btn = ctk.CTkButton(
-                    self.dir_listbox,
-                    text=f"{icon} {item['name']}",
-                    anchor="w",
-                    command=lambda d=item['name'], is_dir=item['is_directory']: 
-                        self.handle_item_click(d, is_dir)
-                )
-                btn.pack(fill="x", padx=5, pady=2)
-        
-        except Exception as e:
-            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="red")
-    
-    def handle_item_click(self, name, is_directory):
-        """Handle clicking on an item"""
-        if is_directory:
-            self.enter_directory(name)
-    
-    def enter_directory(self, dirname):
-        """Enter a directory"""
-        new_path = os.path.join(self.webdav.current_path, dirname)
-        self.webdav.current_path = new_path
-        self.refresh_listing()
-    
-    def navigate_up(self):
-        """Navigate to parent directory"""
-        if self.webdav.current_path != "/":
-            self.webdav.current_path = os.path.dirname(self.webdav.current_path.rstrip('/'))
-            self.refresh_listing()
+        # Directory listing - use a scrollable frame with fixed height
+        self.dir_listbox = ctk.CTkScrollableFrame(dir_frame, height=200)
+        self.dir_listbox.pack(fill="both", expand=True, padx=5, pady=5)
     
     def create_offline_package(self):
         """Create offline package with selected components"""
@@ -3186,36 +3048,36 @@ class OfflinePackageCreator:
                    self.include_wdm.get() or 
                    self.include_flow_service.get() or 
                    self.include_lpa_service.get() or 
-                   self.include_storehub_service.get()):
+                   self.include_storehub_service.get() or
+                   self.include_java.get() or
+                   self.include_tomcat.get()):
                 self.show_error("Error", "Please select at least one component")
                 return
             
             # Get selected components and their dependencies
             selected_components = []
-            component_dependencies = {}
+            platform_dependencies = {
+                "JAVA": self.include_java.get(),
+                "TOMCAT": self.include_tomcat.get()
+            }
             
             if self.include_pos.get():
                 selected_components.append("POS")
-                component_dependencies["POS"] = self.pos_dependencies_needed.get()
                 
             if self.include_wdm.get():
                 selected_components.append("WDM")
-                component_dependencies["WDM"] = self.wdm_dependencies_needed.get()
             
             if self.include_flow_service.get():
                 selected_components.append("FLOW-SERVICE")
-                component_dependencies["FLOW-SERVICE"] = self.flow_service_dependencies_needed.get()
                 
             if self.include_lpa_service.get():
                 selected_components.append("LPA-SERVICE")
-                component_dependencies["LPA-SERVICE"] = self.lpa_service_dependencies_needed.get()
                 
             if self.include_storehub_service.get():
                 selected_components.append("STOREHUB-SERVICE")
-                component_dependencies["STOREHUB-SERVICE"] = self.storehub_service_dependencies_needed.get()
             
-            # Update config with component dependencies
-            self.config_manager.config["component_dependencies"] = component_dependencies
+            # Update config with platform dependencies
+            self.config_manager.config["platform_dependencies"] = platform_dependencies
             
             # Create offline package
             success, message = self.project_generator.prepare_offline_package(
@@ -3294,6 +3156,99 @@ class OfflinePackageCreator:
         except Exception as e:
             # Silently ignore errors when updating the label
             print(f"Warning: Could not update platform info label: {e}")
+
+    def refresh_listing(self):
+        """Refresh directory listing"""
+        # Clear existing items
+        for widget in self.dir_listbox.winfo_children():
+            widget.destroy()
+        
+        try:
+            # Get all items
+            items = self.webdav.list_directories(self.webdav.current_path)
+            
+            # Update path label
+            self.path_label.configure(text=f"Current Path: {self.webdav.current_path}")
+            
+            # Sort items - directories first, then files
+            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
+            
+            # Add buttons for directories and files
+            for item in items:
+                icon = "📁" if item['is_directory'] else "📄"
+                
+                # Create a frame for each item to better control layout
+                item_frame = ctk.CTkFrame(self.dir_listbox)
+                item_frame.pack(fill="x", padx=2, pady=2)
+                
+                # Create button with icon and name
+                btn = ctk.CTkButton(
+                    item_frame,
+                    text=f"{icon} {item['name']}",
+                    anchor="w",
+                    height=30,  # Fixed height for better visibility
+                    fg_color="#2B2B2B" if item['is_directory'] else "#1F1F1F",  # Different colors for dirs/files
+                    command=lambda d=item['name'], is_dir=item['is_directory']: 
+                        self.handle_item_click(d, is_dir)
+                )
+                btn.pack(fill="x", padx=2, pady=2)
+        
+        except Exception as e:
+            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="red")
+
+    def connect_webdav(self):
+        """Handle WebDAV connection"""
+        base_url = self.config_manager.config["base_url"]
+        username = self.webdav_username.get()
+        password = self.webdav_password.get()
+        
+        if not all([base_url, username, password]):
+            self.webdav_status.configure(
+                text="Error: Base URL, username and password are required",
+                text_color="red"
+            )
+            return
+        
+        # Create WebDAV browser instance
+        self.webdav = self.project_generator.create_webdav_browser(
+            base_url,
+            username,
+            password
+        )
+        
+        # Connect to WebDAV server
+        success, message = self.webdav.connect()
+        
+        if success:
+            self.webdav_status.configure(text="Connected", text_color="green")
+            
+            # Save credentials to config
+            self.config_manager.config["webdav_username"] = username
+            self.config_manager.config["webdav_password"] = password
+            self.config_manager.save_config_silent()
+            
+            # Navigate to SoftwarePackage directory
+            self.webdav.current_path = "/SoftwarePackage"
+            self.refresh_listing()
+        else:
+            self.webdav_status.configure(text=f"Connection failed: {message}", text_color="red")
+    
+    def handle_item_click(self, name, is_directory):
+        """Handle clicking on an item in the directory listing"""
+        if is_directory:
+            self.enter_directory(name)
+    
+    def enter_directory(self, dirname):
+        """Enter a directory"""
+        new_path = os.path.join(self.webdav.current_path, dirname)
+        self.webdav.current_path = new_path
+        self.refresh_listing()
+    
+    def navigate_up(self):
+        """Navigate to parent directory"""
+        if self.webdav.current_path != "/":
+            self.webdav.current_path = os.path.dirname(self.webdav.current_path.rstrip('/'))
+            self.refresh_listing()
 
 def main():
     app = GKInstallBuilder()

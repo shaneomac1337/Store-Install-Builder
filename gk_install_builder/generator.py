@@ -1134,8 +1134,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             lpa_service_version = config.get("lpa_service_version", default_version)
             storehub_service_version = config.get("storehub_service_version", default_version)
             
-            # Get component dependencies
-            component_dependencies = config.get("component_dependencies", {})
+            # Get platform dependencies
+            platform_dependencies = config.get("platform_dependencies", {})
             
             print(f"\nPreparing offline package:")
             print(f"Output dir: {output_dir}")
@@ -1147,7 +1147,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"LPA Service version: {lpa_service_version}")
             print(f"StoreHub Service version: {storehub_service_version}")
             print(f"Selected components: {selected_components}")
-            print(f"Component dependencies: {component_dependencies}")
+            print(f"Platform dependencies: {platform_dependencies}")
             
             # Initialize WebDAV browser if not already initialized
             if not self.webdav_browser:
@@ -1272,33 +1272,15 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     font=("Helvetica", 12, "bold")
                 ).pack(pady=(10, 5), padx=10, anchor="w")
                 
-                files_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=250)
+                files_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=350)
                 files_frame.pack(fill="both", expand=True, padx=10, pady=10)
                 
                 # Dictionary to store progress bars and labels for each file
                 file_progress_widgets = {}
                 
-                # Create a scrollable frame for the log
-                ctk.CTkLabel(
-                    progress_frame,
-                    text="Download Log:",
-                    font=("Helvetica", 12, "bold")
-                ).pack(pady=(10, 5), padx=10, anchor="w")
-                
-                log_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=120)
-                log_frame.pack(fill="both", expand=True, padx=10, pady=10)
-                
-                # Log label
-                log_label = ctk.CTkLabel(
-                    log_frame,
-                    text="",
-                    font=("Helvetica", 10),
-                    justify="left",
-                    wraplength=630
-                )
-                log_label.pack(anchor="w", pady=5, padx=5)
-                
-                return progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, log_label
+                # We're removing the download log section
+                # Return None for log_label since we're not using it anymore
+                return progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, None
             
             # Helper function to prompt user for file selection when multiple JAR files are found
             def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None, config=None):
@@ -1673,6 +1655,96 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Collect all files to download first
             files_to_download = []
             
+            # Process Java if selected
+            if platform_dependencies.get("JAVA", False):
+                print(f"\nProcessing Java platform dependency...")
+                java_dir = os.path.join(output_dir, "Java")
+                os.makedirs(java_dir, exist_ok=True)
+                
+                java_path = "/SoftwarePackage/Java"
+                print(f"Checking Java directory: {java_path}")
+                
+                try:
+                    # Check if Java files already exist
+                    existing_java_files = [f for f in os.listdir(java_dir) if f.endswith('.zip')]
+                    download_java = True
+                    
+                    if existing_java_files:
+                        # Ask user if they want to download Java again
+                        download_java = self._ask_download_again("Java", existing_java_files, dialog_parent)
+                        if not download_java:
+                            print(f"Skipping Java download as files already exist")
+                    
+                    if download_java:
+                        java_files = self.webdav_browser.list_directories(java_path)
+                        print(f"Found Java files: {java_files}")
+                        
+                        # Prompt user to select Java version
+                        selected_java_files = prompt_for_file_selection(
+                            java_files, 
+                            "Java", 
+                            "Select Java Version", 
+                            "Please select which Java version to download:",
+                            "zip",
+                            config
+                        )
+                        
+                        # Add selected files to download list
+                        for file in selected_java_files:
+                            file_name = file['name']
+                            remote_path = f"{java_path}/{file_name}"
+                            local_path = os.path.join(java_dir, file_name)
+                            files_to_download.append((remote_path, local_path, file_name, "Java"))
+                
+                except Exception as e:
+                    print(f"Error accessing Java directory: {e}")
+                    download_errors.append(f"Failed to access Java directory: {str(e)}")
+            
+            # Process Tomcat if selected
+            if platform_dependencies.get("TOMCAT", False):
+                print(f"\nProcessing Tomcat platform dependency...")
+                tomcat_dir = os.path.join(output_dir, "Tomcat")
+                os.makedirs(tomcat_dir, exist_ok=True)
+                
+                tomcat_path = "/SoftwarePackage/Tomcat"
+                print(f"Checking Tomcat directory: {tomcat_path}")
+                
+                try:
+                    # Check if Tomcat files already exist
+                    existing_tomcat_files = [f for f in os.listdir(tomcat_dir) if f.endswith('.zip')]
+                    download_tomcat = True
+                    
+                    if existing_tomcat_files:
+                        # Ask user if they want to download Tomcat again
+                        download_tomcat = self._ask_download_again("Tomcat", existing_tomcat_files, dialog_parent)
+                        if not download_tomcat:
+                            print(f"Skipping Tomcat download as files already exist")
+                    
+                    if download_tomcat:
+                        tomcat_files = self.webdav_browser.list_directories(tomcat_path)
+                        print(f"Found Tomcat files: {tomcat_files}")
+                        
+                        # Prompt user to select Tomcat version
+                        selected_tomcat_files = prompt_for_file_selection(
+                            tomcat_files, 
+                            "Tomcat", 
+                            "Select Tomcat Version", 
+                            "Please select which Tomcat version to download:",
+                            "zip",
+                            config
+                        )
+                        
+                        # Add selected files to download list
+                        for file in selected_tomcat_files:
+                            file_name = file['name']
+                            remote_path = f"{tomcat_path}/{file_name}"
+                            local_path = os.path.join(tomcat_dir, file_name)
+                            files_to_download.append((remote_path, local_path, file_name, "Tomcat"))
+                
+                except Exception as e:
+                    print(f"Error accessing Tomcat directory: {e}")
+                    download_errors.append(f"Failed to access Tomcat directory: {str(e)}")
+            
             # Process POS component
             if "POS" in selected_components:
                 pos_dir = os.path.join(output_dir, "offline_package_POS")
@@ -1703,31 +1775,30 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         file_name = file['name']
                         remote_path = f"{pos_version_path}/{file_name}"
                         local_path = os.path.join(pos_dir, file_name)
-                        files_to_download.append((remote_path, local_path, file_name, "POS"))
+                        
+                        # Make launcher names more specific by adding component name
+                        display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            display_name = f"POS {file_name}"
+                        
+                        files_to_download.append((remote_path, local_path, display_name, "POS"))
                     
-                    # Check if no files were found but dependencies are needed
-                    if not selected_files and component_dependencies.get("POS", False):
-                        # Ask user if they want to download dependencies even though no component files were found
-                        if self._ask_download_dependencies_only("POS", dialog_parent):
-                            # Download Java and Tomcat for POS
-                            dependency_files = download_dependencies_for_component("POS", pos_dir)
-                            files_to_download.extend(dependency_files)
-                    # Check if dependencies are needed for POS
-                    elif component_dependencies.get("POS", False):
-                        # Download Java and Tomcat for POS
-                        dependency_files = download_dependencies_for_component("POS", pos_dir)
-                        files_to_download.extend(dependency_files)
+                    # We don't download Java and Tomcat as dependencies here anymore
+                    # They should be downloaded once as standalone components if needed
                 
                 except Exception as e:
                     print(f"Error accessing POS version directory: {e}")
-                    # Ask if user wants to download dependencies even though component files couldn't be accessed
-                    if component_dependencies.get("POS", False):
-                        if self._ask_download_dependencies_only("POS", dialog_parent, error_message=str(e)):
-                            # Download Java and Tomcat for POS
-                            dependency_files = download_dependencies_for_component("POS", pos_dir)
-                            files_to_download.extend(dependency_files)
-                    else:
-                        raise
+                    raise
+                
+                # Copy launcher template for POS
+                try:
+                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.pos.template")
+                    launcher_output_path = os.path.join(pos_dir, "launcher.properties.template")
+                    shutil.copy(launcher_template_path, launcher_output_path)
+                    print(f"Copied POS launcher template to {launcher_output_path}")
+                except Exception as e:
+                    print(f"Error copying POS launcher template: {e}")
+                    download_errors.append(f"Failed to copy POS launcher template: {str(e)}")
             
             # Process WDM component
             if "WDM" in selected_components:
@@ -1759,31 +1830,27 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         file_name = file['name']
                         remote_path = f"{wdm_version_path}/{file_name}"
                         local_path = os.path.join(wdm_dir, file_name)
-                        files_to_download.append((remote_path, local_path, file_name, "WDM"))
+                        
+                        # Make launcher names more specific by adding component name
+                        display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            display_name = f"WDM {file_name}"
+                        
+                        files_to_download.append((remote_path, local_path, display_name, "WDM"))
                     
-                    # Check if no files were found but dependencies are needed
-                    if not selected_files and component_dependencies.get("WDM", False):
-                        # Ask user if they want to download dependencies even though no component files were found
-                        if self._ask_download_dependencies_only("WDM", dialog_parent):
-                            # Download Java and Tomcat for WDM
-                            dependency_files = download_dependencies_for_component("WDM", wdm_dir)
-                            files_to_download.extend(dependency_files)
-                    # Check if dependencies are needed for WDM
-                    elif component_dependencies.get("WDM", False):
-                        # Download Java and Tomcat for WDM
-                        dependency_files = download_dependencies_for_component("WDM", wdm_dir)
-                        files_to_download.extend(dependency_files)
-                
                 except Exception as e:
                     print(f"Error accessing WDM version directory: {e}")
-                    # Ask if user wants to download dependencies even though component files couldn't be accessed
-                    if component_dependencies.get("WDM", False):
-                        if self._ask_download_dependencies_only("WDM", dialog_parent, error_message=str(e)):
-                            # Download Java and Tomcat for WDM
-                            dependency_files = download_dependencies_for_component("WDM", wdm_dir)
-                            files_to_download.extend(dependency_files)
-                    else:
-                        raise
+                    raise
+                
+                # Copy launcher template for WDM
+                try:
+                    launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.wdm.template")
+                    launcher_output_path = os.path.join(wdm_dir, "launcher.properties.template")
+                    shutil.copy(launcher_template_path, launcher_output_path)
+                    print(f"Copied WDM launcher template to {launcher_output_path}")
+                except Exception as e:
+                    print(f"Error copying WDM launcher template: {e}")
+                    download_errors.append(f"Failed to copy WDM launcher template: {str(e)}")
             
             # Process Flow Service component
             if "FLOW-SERVICE" in selected_components:
@@ -1815,33 +1882,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         file_name = file['name']
                         remote_path = f"{flow_service_version_path}/{file_name}"
                         local_path = os.path.join(flow_service_dir, file_name)
-                        files_to_download.append((remote_path, local_path, file_name, "Flow Service"))
+                        
+                        # Make launcher names more specific by adding component name
+                        display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            display_name = f"Flow Service {file_name}"
+                        
+                        files_to_download.append((remote_path, local_path, display_name, "Flow Service"))
                     
-                    # Check if no files were found but dependencies are needed
-                    if not selected_files and component_dependencies.get("FLOW-SERVICE", False):
-                        # Ask user if they want to download dependencies even though no component files were found
-                        if self._ask_download_dependencies_only("Flow Service", dialog_parent):
-                            # Download Java and Tomcat for Flow Service
-                            dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
-                            files_to_download.extend(dependency_files)
-                    # Check if dependencies are needed for Flow Service
-                    elif component_dependencies.get("FLOW-SERVICE", False):
-                        # Download Java and Tomcat for Flow Service
-                        dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
-                        files_to_download.extend(dependency_files)
-                
                 except Exception as e:
                     print(f"Error accessing Flow Service version directory: {e}")
-                    # Ask if user wants to download dependencies even though component files couldn't be accessed
-                    if component_dependencies.get("FLOW-SERVICE", False):
-                        if self._ask_download_dependencies_only("Flow Service", dialog_parent, error_message=str(e)):
-                            # Download Java and Tomcat for Flow Service
-                            dependency_files = download_dependencies_for_component("Flow Service", flow_service_dir)
-                            files_to_download.extend(dependency_files)
-                    else:
-                        raise
+                    raise
                 
-                # Copy launcher template
+                # Copy launcher template for Flow Service
                 try:
                     launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.flow-service.template")
                     launcher_output_path = os.path.join(flow_service_dir, "launcher.properties.template")
@@ -1881,33 +1934,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         file_name = file['name']
                         remote_path = f"{lpa_service_version_path}/{file_name}"
                         local_path = os.path.join(lpa_service_dir, file_name)
-                        files_to_download.append((remote_path, local_path, file_name, "LPA Service"))
+                        
+                        # Make launcher names more specific by adding component name
+                        display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            display_name = f"LPA Service {file_name}"
+                        
+                        files_to_download.append((remote_path, local_path, display_name, "LPA Service"))
                     
-                    # Check if no files were found but dependencies are needed
-                    if not selected_files and component_dependencies.get("LPA-SERVICE", False):
-                        # Ask user if they want to download dependencies even though no component files were found
-                        if self._ask_download_dependencies_only("LPA Service", dialog_parent):
-                            # Download Java and Tomcat for LPA Service
-                            dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
-                            files_to_download.extend(dependency_files)
-                    # Check if dependencies are needed for LPA Service
-                    elif component_dependencies.get("LPA-SERVICE", False):
-                        # Download Java and Tomcat for LPA Service
-                        dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
-                        files_to_download.extend(dependency_files)
-                
                 except Exception as e:
                     print(f"Error accessing LPA Service version directory: {e}")
-                    # Ask if user wants to download dependencies even though component files couldn't be accessed
-                    if component_dependencies.get("LPA-SERVICE", False):
-                        if self._ask_download_dependencies_only("LPA Service", dialog_parent, error_message=str(e)):
-                            # Download Java and Tomcat for LPA Service
-                            dependency_files = download_dependencies_for_component("LPA Service", lpa_service_dir)
-                            files_to_download.extend(dependency_files)
-                    else:
-                        raise
+                    raise
                 
-                # Copy launcher template
+                # Copy launcher template for LPA Service
                 try:
                     launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.lpa-service.template")
                     launcher_output_path = os.path.join(lpa_service_dir, "launcher.properties.template")
@@ -1947,33 +1986,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         file_name = file['name']
                         remote_path = f"{storehub_service_version_path}/{file_name}"
                         local_path = os.path.join(storehub_service_dir, file_name)
-                        files_to_download.append((remote_path, local_path, file_name, "StoreHub Service"))
+                        
+                        # Make launcher names more specific by adding component name
+                        display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            display_name = f"StoreHub Service {file_name}"
+                        
+                        files_to_download.append((remote_path, local_path, display_name, "StoreHub Service"))
                     
-                    # Check if no files were found but dependencies are needed
-                    if not selected_files and component_dependencies.get("STOREHUB-SERVICE", False):
-                        # Ask user if they want to download dependencies even though no component files were found
-                        if self._ask_download_dependencies_only("StoreHub Service", dialog_parent):
-                            # Download Java and Tomcat for StoreHub Service
-                            dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
-                            files_to_download.extend(dependency_files)
-                    # Check if dependencies are needed for StoreHub Service
-                    elif component_dependencies.get("STOREHUB-SERVICE", False):
-                        # Download Java and Tomcat for StoreHub Service
-                        dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
-                        files_to_download.extend(dependency_files)
-                
                 except Exception as e:
                     print(f"Error accessing StoreHub Service version directory: {e}")
-                    # Ask if user wants to download dependencies even though component files couldn't be accessed
-                    if component_dependencies.get("STOREHUB-SERVICE", False):
-                        if self._ask_download_dependencies_only("StoreHub Service", dialog_parent, error_message=str(e)):
-                            # Download Java and Tomcat for StoreHub Service
-                            dependency_files = download_dependencies_for_component("StoreHub Service", storehub_service_dir)
-                            files_to_download.extend(dependency_files)
-                    else:
-                        raise
+                    raise
                 
-                # Copy launcher template
+                # Copy launcher template for StoreHub Service
                 try:
                     launcher_template_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers", "launcher.storehub-service.template")
                     launcher_output_path = os.path.join(storehub_service_dir, "launcher.properties.template")
@@ -1990,7 +2015,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Create progress dialog
             parent = dialog_parent or self.parent_window
             if parent:
-                progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, log_label = create_progress_dialog(parent, len(files_to_download))
+                progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, _ = create_progress_dialog(parent, len(files_to_download))
             
             # Start download threads
             download_threads = []
@@ -2118,9 +2143,6 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                                 # Update the files label with percentage
                                 files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed ({overall_percentage:.1f}%)")
                             
-                            # Update log
-                            log_label.configure(text=f"Downloading {file_name}... {downloaded / (1024*1024):.2f} MB / {total / (1024*1024):.2f} MB")
-                            
                             # Force an update of the dialog to ensure changes are visible
                             progress_dialog.update_idletasks()
                         
@@ -2138,8 +2160,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             files_label.configure(text=f"{completed_files}/{len(files_to_download)} files completed")
                             progress_bar.set(completed_files / len(files_to_download))
                             
-                            # Update log
-                            log_label.configure(text=f"Downloaded {file_name}")
+                            # Force an update of the dialog to ensure changes are visible
+                            progress_dialog.update_idletasks()
                         
                         elif status == "error":
                             file_name, component_type, error_message = data
@@ -2152,8 +2174,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             # Add to download errors
                             download_errors.append(f"Error downloading {file_name} ({component_type}): {error_message}")
                             
-                            # Update log
-                            log_label.configure(text=f"Error downloading {file_name}: {error_message}")
+                            # Force an update of the dialog to ensure changes are visible
+                            progress_dialog.update_idletasks()
                     except Exception as e:
                         print(f"Error processing download queue: {e}")
                 
@@ -2180,172 +2202,21 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             
             # Define dialog close handler
             def on_dialog_close():
-                # Instead of closing completely, minimize to a small floating window
-                dialog_closed[0] = True
-                
+                # Show confirmation dialog asking if user wants to interrupt the download
                 try:
-                    # Hide the main dialog
-                    progress_dialog.withdraw()
-                    
-                    # Create a small floating window to show progress
-                    float_window = ctk.CTkToplevel()
-                    float_window.title("Downloads in Progress")
-                    float_window.geometry("300x120")
-                    float_window.resizable(False, False)
-                    float_window.attributes("-topmost", True)
-                    float_window.focus_force()
-                    
-                    # Store reference to the window
-                    float_windows[0] = float_window
-                    
-                    # Position in bottom right corner
-                    screen_width = parent.winfo_screenwidth()
-                    screen_height = parent.winfo_screenheight()
-                    x = screen_width - 320
-                    y = screen_height - 140
-                    float_window.geometry(f"+{x}+{y}")
-                    
-                    # Add a label showing download status
-                    status_label = ctk.CTkLabel(
-                        float_window,
-                        text=f"Downloading: {completed_files}/{len(files_to_download)} files",
-                        font=("Helvetica", 12)
-                    )
-                    status_label.pack(pady=(15, 5), padx=10)
-                    
-                    # Add a small progress bar
-                    mini_progress = ctk.CTkProgressBar(float_window, width=280)
-                    mini_progress.pack(pady=(0, 15), padx=10)
-                    
-                    # Initialize progress bar with current progress
-                    current_downloaded = sum(d for d, _ in file_progress.values())
-                    current_total = sum(t for _, t in file_progress.values() if t > 0)
-                    
-                    if current_total > 0:
-                        mini_progress.set(current_downloaded / current_total)
+                    import tkinter.messagebox as messagebox
+                    if messagebox.askyesno("Interrupt Download", "The download will be interrupted if you close this window. Do you want to continue?"):
+                        # User confirmed they want to cancel the download
+                        cancel_downloads()
                     else:
-                        mini_progress.set(completed_files / len(files_to_download) if len(files_to_download) > 0 else 0)
-                    
-                    # Add close handler for the floating window - use a lambda to ensure it's called correctly
-                    float_window.protocol("WM_DELETE_WINDOW", lambda: cancel_downloads())
-                    
-                    # Create a function to process the download queue specifically for the mini window
-                    def process_mini_download_queue():
-                        nonlocal completed_files, downloaded_bytes, total_bytes
-                        
-                        # Check if downloads were cancelled
-                        if downloads_cancelled[0]:
-                            return
-                        
-                        # Check if window still exists
-                        try:
-                            if not float_window.winfo_exists():
-                                return
-                        except:
-                            return
-                        
-                        # Process a limited number of items from the queue to keep UI responsive
-                        queue_items_processed = 0
-                        max_items_per_cycle = 10
-                        
-                        while not download_queue.empty() and queue_items_processed < max_items_per_cycle:
-                            try:
-                                status, data = download_queue.get_nowait()
-                                queue_items_processed += 1
-                                
-                                if status == "progress":
-                                    # Update file progress
-                                    file_name, component_type, downloaded, total = data
-                                    file_progress[file_name] = (downloaded, total)
-                                
-                                elif status == "complete":
-                                    # Update completed files count
-                                    file_name, component_type = data
-                                    completed_files += 1
-                            except:
-                                pass
-                        
-                        # Recalculate the current progress values
-                        current_downloaded = sum(d for d, _ in file_progress.values())
-                        current_total = sum(t for _, t in file_progress.values() if t > 0)
-                        
-                        # Update status label with current values and percentage
-                        if current_total > 0:
-                            percentage = current_downloaded / current_total * 100
-                            status_label.configure(text=f"Downloading: {completed_files}/{len(files_to_download)} files ({percentage:.1f}%)")
-                        else:
-                            status_label.configure(text=f"Downloading: {completed_files}/{len(files_to_download)} files")
-                        
-                        # Update progress bar with current progress
-                        if current_total > 0:
-                            progress_value = current_downloaded / current_total
-                            mini_progress.set(progress_value)
-                        else:
-                            # Use file count as fallback if bytes not available
-                            progress_value = completed_files / len(files_to_download) if len(files_to_download) > 0 else 0
-                            mini_progress.set(progress_value)
-                        
-                        # Check if all downloads are complete
-                        if completed_files >= len(files_to_download):
-                            try:
-                                float_window.destroy()
-                            except:
-                                pass
-                            
-                            # Show success or error message
-                            if download_errors:
-                                error_message = "\n".join(download_errors)
-                                parent.after_idle(lambda: self._show_error(f"Some files failed to download:\n{error_message}"))
-                            else:
-                                parent.after_idle(lambda: self._show_success("All files downloaded successfully"))
-                        else:
-                            # Schedule the next queue processing
-                            if not downloads_cancelled[0]:
-                                float_window.after(100, process_mini_download_queue)
-                    
-                    # Start processing the download queue for the mini window
-                    process_mini_download_queue()
-                    
-                    # Update the mini progress window periodically
-                    def update_mini_progress():
-                        nonlocal downloaded_bytes, total_bytes, completed_files
-                        
-                        # First check if downloads were cancelled
-                        if downloads_cancelled[0]:
-                            return
-                            
-                        # Then check if window still exists
-                        try:
-                            if not float_window.winfo_exists():
-                                return
-                        except:
-                            return
-                        
-                        try:
-                            # Recalculate the current progress values to ensure they're up-to-date
-                            current_downloaded = 0
-                            current_total = 0
-                            
-                            # Calculate progress for each file
-                            for fname, (downloaded, total) in file_progress.items():
-                                current_downloaded += downloaded
-                                if total > 0:
-                                    current_total += total
-                            
-                            # Schedule next update - only if not cancelled
-                            if not downloads_cancelled[0]:
-                                try:
-                                    float_window.after(1000, update_mini_progress)
-                                except:
-                                    pass
-                        except Exception as e:
-                            # Only print actual errors, not debug info
-                            print(f"Error updating mini progress: {e}")
-                    
-                    # Start updating mini progress
-                    update_mini_progress()
+                        # User chose to continue downloading, don't close the dialog
+                        return
                 except Exception as e:
-                    print(f"Error creating floating window: {e}")
+                    print(f"Error showing confirmation dialog: {e}")
+                    # If there's an error showing the dialog, default to cancelling
+                    cancel_downloads()
+                
+                return True  # Return True to allow the window to close
             
             # Store the cancel flag
             progress_dialog.protocol("WM_DELETE_WINDOW", on_dialog_close)
