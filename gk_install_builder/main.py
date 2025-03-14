@@ -499,7 +499,7 @@ class GKInstallBuilder:
                 "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail' for Windows or '/usr/local/gkretail' for Linux)",
                 "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
                 "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
-                "WDM System Type": "Type of Workforce Management system (e.g., 'CSE-wdm')",
+                "WDM System Type": "Type of Wall Device Manager (e.g., 'CSE-wdm')",
                 "Firebird Server Path": "Path to the Firebird server (e.g., 'localhost')",
             }
             
