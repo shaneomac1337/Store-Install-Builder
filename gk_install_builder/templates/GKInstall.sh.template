@@ -444,13 +444,18 @@ if [ "$hostnameDetected" = false ]; then
   fi
   
   # Prompt for Store Number
-  while true; do
-    read -p "Please enter the Store Number (4 digits): " storeNumber
-    if [[ "$storeNumber" =~ ^[0-9]{4}$ ]]; then
-      break
-    fi
-    echo "Invalid input. Please enter exactly 4 digits."
-  done
+  echo "Please enter the Store Number in one of these formats (or any custom format):"
+  echo "  - 4 digits (e.g., 1234)"
+  echo "  - 1 letter + 3 digits (e.g., R005)"
+  echo "  - 2 letters + 2 digits (e.g., CA45)"
+  echo "  - Custom format (e.g., STORE-105)"
+  read -p "Store Number: " storeNumber
+
+  # Validate that something was entered
+  if [ -z "$storeNumber" ]; then
+    echo "Store Number cannot be empty. Please try again."
+    read -p "Store Number: " storeNumber
+  fi
   
   # Prompt for Workstation ID
   while true; do
