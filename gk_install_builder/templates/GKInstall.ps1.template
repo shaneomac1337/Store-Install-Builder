@@ -150,6 +150,12 @@ $security_dir = Join-Path $base_install_dir "security"
 # We'll find the actual certificate file dynamically later
 $ssl_password = "changeit"
 
+# For StoreHub, set the Firebird server path
+$firebird_server_path = "C:\Program Files\Firebird"
+if ($ComponentType -eq 'STOREHUB-SERVICE' -and (Test-Path env:FIREBIRD_SERVER_PATH)) {
+    $firebird_server_path = $env:FIREBIRD_SERVER_PATH
+}
+
 # Check offline mode
 $offline_mode = $offline.IsPresent
 
@@ -538,7 +544,7 @@ $replacements = @{
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
-    '@FIREBIRD_SERVER_PATH@' = $(if ($ComponentType -eq 'STOREHUB-SERVICE') { "localhost" } else { "" })
+    '@FIREBIRD_SERVER_PATH@' = $firebird_server_path
 }
 
 # Add Tomcat replacements if Tomcat files were found
