@@ -775,6 +775,31 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"  Source: {helper_src}")
             print(f"  Destination: {helper_dst}")
             
+            # Copy store initialization scripts from templates
+            templates_dir = os.path.join(script_dir, 'templates')
+            platform = config.get("platform", "Windows")
+            
+            # Copy the appropriate store initialization script based on platform
+            if platform == "Windows":
+                src_script = os.path.join(templates_dir, "store-initialization.ps1.template")
+                dst_script = os.path.join(output_dir, "store-initialization.ps1")
+            else:  # Linux
+                src_script = os.path.join(templates_dir, "store-initialization.sh.template")
+                dst_script = os.path.join(output_dir, "store-initialization.sh")
+            
+            # Copy the script if it exists
+            if os.path.exists(src_script):
+                shutil.copy2(src_script, dst_script)
+                print(f"  Copied store initialization script to: {dst_script}")
+                
+                # For Linux scripts, make them executable
+                if platform == "Linux":
+                    try:
+                        os.chmod(dst_script, 0o755)  # rwxr-xr-x
+                        print(f"  Made {os.path.basename(dst_script)} executable")
+                    except Exception as e:
+                        print(f"  Warning: Failed to make {os.path.basename(dst_script)} executable: {e}")
+            
             # Check if source directory exists
             if not os.path.exists(helper_src):
                 # Try to find helper directory in parent directory
