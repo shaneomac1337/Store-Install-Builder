@@ -236,9 +236,11 @@ security_dir="$base_install_dir/security"
 ssl_password="changeit"
 
 # For StoreHub, set the Firebird server path
-firebird_server_path="/opt/firebird"
-if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] && [ -n "$FIREBIRD_SERVER_PATH" ]; then
-  firebird_server_path="$FIREBIRD_SERVER_PATH"
+firebird_server_path="@FIREBIRD_SERVER_PATH@"
+# If the placeholder wasn't replaced (still contains @), use a default value
+if [[ "$firebird_server_path" == *@* ]]; then
+  firebird_server_path="/opt/firebird"
+  echo "Using default Firebird server path: $firebird_server_path"
 fi
 
 # Check offline mode
@@ -656,11 +658,8 @@ fi
 launcher_props="${launcher_props//@SSL_PATH@/$ssl_path}"
 launcher_props="${launcher_props//@SSL_PASSWORD@/$ssl_password}"
 
-if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-  launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
-else
-  launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/}"
-fi
+# For StoreHub, set the Firebird server path
+launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
 
 # Add Tomcat replacements if Tomcat files were found
 if [ "${#tomcat_files[@]}" -gt 0 ]; then

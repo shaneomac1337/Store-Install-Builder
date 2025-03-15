@@ -208,6 +208,8 @@ class ProjectGenerator:
             if firebird_server_path:
                 os.environ["FIREBIRD_SERVER_PATH"] = firebird_server_path
                 print(f"Setting FIREBIRD_SERVER_PATH environment variable to: {firebird_server_path}")
+            else:
+                print("Warning: firebird_server_path is not set in config")
             
             # Determine template and output paths based on platform
             if platform == "Windows":
@@ -262,6 +264,9 @@ class ProjectGenerator:
             base_url = config.get("base_url", "test.cse.cloud4retail.co")
             base_install_dir = config.get("base_install_dir", "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail")
             
+            # Get Firebird server path from config
+            firebird_server_path = config.get("firebird_server_path", "")
+            
             if platform == "Windows":
                 # Windows-specific replacements
                 replacements = [
@@ -277,7 +282,8 @@ class ProjectGenerator:
                     ("@WDM_VERSION@", wdm_version),
                     ("@FLOW_SERVICE_VERSION@", flow_service_version),
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
-                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version)
+                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
+                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path)
                 ]
                 
                 # Add version function for component-specific versions
@@ -303,7 +309,8 @@ class ProjectGenerator:
                     ("@WDM_VERSION@", wdm_version),
                     ("@FLOW_SERVICE_VERSION@", flow_service_version),
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
-                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version)
+                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
+                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path)
                 ]
                 
                 # Add version function for component-specific versions (bash version)
@@ -508,10 +515,20 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
             # Create a copy of the template content to modify if needed
             modified_template = template_content
             
+            # Get Firebird server path from config for direct replacement
+            firebird_server_path = config.get("firebird_server_path", "")
+            if filename == "launcher.storehub-service.template":
+                # Only replace if we have a value, otherwise leave the placeholder
+                if firebird_server_path:
+                    print(f"Replacing @FIREBIRD_SERVER_PATH@ with {firebird_server_path} in {filename}")
+                    modified_template = modified_template.replace("@FIREBIRD_SERVER_PATH@", firebird_server_path)
+                else:
+                    print(f"Warning: firebird_server_path is empty, leaving placeholder in {filename}")
+            
             # Only apply settings if there are any
             if settings:
                 # Update the template with the settings
-                lines = template_content.strip().split('\n')
+                lines = modified_template.strip().split('\n')
                 new_lines = []
                 
                 for line in lines:
@@ -521,9 +538,10 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
                     
                     if '=' in line:
                         key, value = line.split('=', 1)
+                        key = key.strip()
                         
-                        # If this key has a setting and the value doesn't contain a placeholder
-                        if key in settings and '@' not in value:
+                        # If this key has a setting
+                        if key in settings:
                             # Update the value
                             new_value = settings[key]
                             print(f"Setting {key} to {new_value} in {filename}")
