@@ -53,15 +53,62 @@ try {
 
     Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
 
-    # Second API call - Get Workstation
+    # Second API call - Try to Get Workstation first
     $wsUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
-    $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
-    Write-Host "Successfully retrieved workstation information"
+    try {
+        $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
+        Write-Host "Successfully retrieved existing workstation information"
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -eq 404) {
+            Write-Host "Workstation not found, creating new workstation..."
+            
+            # Determine workstation type based on ComponentType
+            $typeCode = switch ($ComponentType) {
+                'LPA-SERVICE' { 'LPAS' }
+                'STOREHUB-SERVICE' { 'SHS' }
+                'POS' { 'POS' }
+                'WDM' { 'WDM' }
+                default { 'POS' }
+            }
+
+            # Create workstation payload
+            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
+            $wsPayload = @{
+                workstation = @{
+                    key = @{
+                        workstationID = $WorkstationId
+                        businessUnitGroupID = $businessUnitGroupId
+                    }
+                    typeCode = $typeCode
+                    createTimestampUTC0 = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                }
+            } | ConvertTo-Json -Depth 10
+
+            $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
+            Write-Host "Successfully created new workstation"
+        }
+        else {
+            Write-Host "Error accessing workstation:"
+            Write-Host $_
+            if ($_.Exception.Response) {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $reader.BaseStream.Position = 0
+                $reader.DiscardBufferedData()
+                $responseBody = $reader.ReadToEnd()
+                Write-Host "Response body: $responseBody"
+            }
+            exit 1
+        }
+    }
 
     # Save responses to files for reference
     $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
     $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
     Write-Host "Saved response data to business-unit.json and workstation.json"
+
+    # Explicitly return success
+    exit 0
 }
 catch {
     Write-Host "Error occurred: $_"

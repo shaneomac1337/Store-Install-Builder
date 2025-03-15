@@ -1,10 +1,13 @@
 #!/bin/bash
 
-# Default values
-COMPONENT_TYPE="POS"
-base_url="test.cse.cloud4retail.co"
-STORE_ID="1001"
-WORKSTATION_ID="160"
+# Exit on any error
+set -e
+
+# Default values will be overridden by command line arguments
+COMPONENT_TYPE=""
+base_url=""
+STORE_ID=""
+WORKSTATION_ID=""
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -27,11 +30,18 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>]"
+      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>]"
       exit 1
       ;;
   esac
 done
+
+# Verify all required parameters are provided
+if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z "$WORKSTATION_ID" ]; then
+  echo "Error: All parameters are required"
+  echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id>"
+  exit 1
+fi
 
 # Paths
 tokens_path="$PWD/helper/tokens"
@@ -61,12 +71,13 @@ headers=(
 
 # First API call - Get Business Unit
 bu_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$STORE_ID"
-bu_response=$(curl -s -X GET "$bu_url" "${headers[@]}")
-
+bu_response=$(curl -s -f -X GET "$bu_url" "${headers[@]}")
 if [ $? -ne 0 ]; then
   echo "Error occurred during business unit API call"
   exit 1
 fi
+
+echo "Successfully retrieved business unit information"
 
 # Parse the business unit response for businessUnitGroupID from the key object
 if command -v jq >/dev/null 2>&1; then
@@ -85,18 +96,62 @@ fi
 
 echo "Found businessUnitGroupID: $business_unit_group_id"
 
-# Second API call - Get Workstation
+# Second API call - Try to Get Workstation first
 ws_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
-ws_response=$(curl -s -X GET "$ws_url" "${headers[@]}")
+ws_response=$(curl -s -f -X GET "$ws_url" "${headers[@]}" || echo "HTTP_ERROR")
 
-if [ $? -ne 0 ]; then
-  echo "Error occurred during workstation API call"
-  exit 1
+if [ "$ws_response" = "HTTP_ERROR" ]; then
+  # Check if it's a 404 error
+  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$ws_url" "${headers[@]}")
+  
+  if [ "$status_code" = "404" ]; then
+    echo "Workstation not found, creating new workstation..."
+    
+    # Determine workstation type based on ComponentType
+    case "$COMPONENT_TYPE" in
+      'LPA-SERVICE')
+        type_code="LPAS"
+        ;;
+      'STOREHUB-SERVICE')
+        type_code="SH"
+        ;;
+      'POS')
+        type_code="POS"
+        ;;
+      'WDM')
+        type_code="WDM"
+        ;;
+      *)
+        type_code="POS"
+        ;;
+    esac
+
+    # Create workstation payload
+    current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+    ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
+    
+    ws_create_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
+    ws_response=$(curl -s -f -X POST "$ws_create_url" "${headers[@]}" -d "$ws_payload")
+    
+    if [ $? -ne 0 ]; then
+      echo "Error creating workstation"
+      echo "Response: $ws_response"
+      exit 1
+    fi
+    echo "Successfully created new workstation"
+  else
+    echo "Error accessing workstation. Status code: $status_code"
+    echo "Response: $ws_response"
+    exit 1
+  fi
+else
+  echo "Successfully retrieved existing workstation information"
 fi
-
-echo "Successfully retrieved workstation information"
 
 # Save responses to files
 echo "$bu_response" > "business-unit.json"
 echo "$ws_response" > "workstation.json"
-echo "Saved response data to business-unit.json and workstation.json" 
+echo "Saved response data to business-unit.json and workstation.json"
+
+# Exit successfully
+exit 0 
