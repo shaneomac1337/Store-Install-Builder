@@ -152,6 +152,11 @@ class LauncherSettingsEditor:
     
     def load_default_settings(self):
         """Load default settings for each component type"""
+        # Get platform-specific defaults
+        platform = self.config_manager.config.get("platform", "Windows")
+        default_firebird_path = "C:\\Program Files\\Firebird" if platform == "Windows" else "/opt/firebird"
+        firebird_path = self.config_manager.config.get("firebird_server_path", default_firebird_path)
+
         # POS settings
         self.settings["POS"] = {
             "applicationJmxPort": "",
@@ -198,7 +203,7 @@ class LauncherSettingsEditor:
             "applicationServerJmxPort": "52222",
             "applicationJmsPort": "7000",
             "updaterJmxPort": "4333",
-            "firebirdServerPath": "localhost",
+            "firebirdServerPath": firebird_path,
             "firebirdServerPort": "3050",
             "firebirdServerUser": "SYSDBA",
             "firebirdServerPassword": "masterkey",
@@ -217,7 +222,7 @@ class LauncherSettingsEditor:
                 for key in self.settings[component_type].keys():
                     if key in saved_settings:
                         self.settings[component_type][key] = saved_settings[key]
-                    
+    
     def _load_existing_templates(self):
         """Load settings from existing templates in the output directory"""
         # Get the output directory from the config

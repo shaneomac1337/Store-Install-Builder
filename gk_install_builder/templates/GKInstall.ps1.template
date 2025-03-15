@@ -167,9 +167,11 @@ $security_dir = Join-Path $base_install_dir "security"
 $ssl_password = "changeit"
 
 # For StoreHub, set the Firebird server path
-$firebird_server_path = "C:\Program Files\Firebird"
-if ($ComponentType -eq 'STOREHUB-SERVICE' -and (Test-Path env:FIREBIRD_SERVER_PATH)) {
-    $firebird_server_path = $env:FIREBIRD_SERVER_PATH
+$firebird_server_path = "@FIREBIRD_SERVER_PATH@"
+# If the placeholder wasn't replaced (still contains @), use a default value
+if ($firebird_server_path -like "*@*") {
+    $firebird_server_path = "C:\Program Files\Firebird"
+    Write-Host "Using default Firebird server path: $firebird_server_path"
 }
 
 # Check offline mode
