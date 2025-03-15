@@ -203,6 +203,12 @@ class ProjectGenerator:
             # Get platform from config (default to Windows if not specified)
             platform = config.get("platform", "Windows")
             
+            # Set environment variable for Firebird server path
+            firebird_server_path = config.get("firebird_server_path", "")
+            if firebird_server_path:
+                os.environ["FIREBIRD_SERVER_PATH"] = firebird_server_path
+                print(f"Setting FIREBIRD_SERVER_PATH environment variable to: {firebird_server_path}")
+            
             # Determine template and output paths based on platform
             if platform == "Windows":
                 template_filename = "GKInstall.ps1.template"
