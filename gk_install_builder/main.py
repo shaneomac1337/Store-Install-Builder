@@ -20,6 +20,40 @@ class LauncherSettingsEditor:
         self.window = None
         self.settings = {}
         
+        # Translation dictionary for parameter names
+        self.parameter_labels = {
+            "applicationJmxPort": "Application JMX listen port",
+            "updaterJmxPort": "Updater JMX listen port",
+            "createShortcuts": "Create Desktop Shortcuts",
+            "keepFiles": "Keep Installer Files",
+            "applicationServerHttpPort": "Tomcat HTTP port",
+            "applicationServerHttpsPort": "Tomcat HTTPS port",
+            "applicationServerShutdownPort": "Tomcat Shutdown port",
+            "applicationServerJmxPort": "Tomcat JMX listen port",
+            "applicationJmsPort": "JMS Port",
+            "firebirdServerPath": "Firebird Installation directory",
+            "firebirdServerPort": "Firebird listen port",
+            "firebirdServerUser": "Firebird DB Admin",
+            "firebirdServerPassword": "Firebird DB Password"
+        }
+        
+        # Tooltips for parameters
+        self.parameter_tooltips = {
+            "applicationJmxPort": "Port used for JMX monitoring of the main application",
+            "updaterJmxPort": "Port used for JMX monitoring of the updater service",
+            "createShortcuts": "Set to 1 to create desktop shortcuts, 0 to disable",
+            "keepFiles": "Set to 1 to keep installer files after installation, 0 to delete them",
+            "applicationServerHttpPort": "HTTP port for Tomcat server (default: 8080 for WDM, 8180 for services)",
+            "applicationServerHttpsPort": "HTTPS port for Tomcat server (default: 8443 for WDM, 8543 for services)",
+            "applicationServerShutdownPort": "Port used to shut down Tomcat server (default: 8005)",
+            "applicationServerJmxPort": "Port used for JMX monitoring of Tomcat (default: 52222)",
+            "applicationJmsPort": "Port used for JMS messaging (StoreHub only, default: 7000)",
+            "firebirdServerPath": "Path to Firebird server installation (not 'localhost')",
+            "firebirdServerPort": "Port used by Firebird database server (default: 3050)",
+            "firebirdServerUser": "Username for Firebird database administrator (default: SYSDBA)",
+            "firebirdServerPassword": "Password for Firebird database administrator (default: masterkey)"
+        }
+    
     def open_editor(self):
         if self.window is not None and self.window.winfo_exists():
             self.window.lift()
@@ -76,12 +110,19 @@ class LauncherSettingsEditor:
                 frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
                 frame.grid_columnconfigure(1, weight=1)
                 
-                label = ctk.CTkLabel(frame, text=key, width=150, anchor="w")
+                # Use the translated label if available, otherwise use the original key
+                display_label = self.parameter_labels.get(key, key)
+                label = ctk.CTkLabel(frame, text=display_label, width=250, anchor="w")
                 label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
                 
                 entry = ctk.CTkEntry(frame, width=400)
                 entry.insert(0, value)
                 entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
+                
+                # Add tooltip if available
+                if key in self.parameter_tooltips:
+                    self.create_tooltip(label, self.parameter_tooltips[key])
+                    self.create_tooltip(entry, self.parameter_tooltips[key])
                 
                 # Store the entry widget in the settings dictionary
                 self.settings[component_type][key] = {"value": value, "entry": entry}
@@ -265,6 +306,75 @@ class LauncherSettingsEditor:
             messagebox.showinfo("Success", "Launcher settings saved successfully!")
         
         self.window.destroy()
+    
+    def create_tooltip(self, widget, text):
+        """Create a tooltip for a widget"""
+        tooltip_window = None
+        
+        def show_tooltip(x, y):
+            nonlocal tooltip_window
+            tooltip_window = ctk.CTkToplevel(self.window)
+            tooltip_window.wm_overrideredirect(True)  # Remove window decorations
+            tooltip_window.wm_geometry(f"+{x+15}+{y+10}")
+            tooltip_window.attributes("-topmost", True)
+            
+            # Create a frame with a border
+            frame = ctk.CTkFrame(tooltip_window, border_width=1)
+            frame.pack(fill="both", expand=True)
+            
+            # Add the tooltip text
+            label = ctk.CTkLabel(
+                frame,
+                text=text,
+                wraplength=300,
+                justify="left",
+                padx=5,
+                pady=5
+            )
+            label.pack()
+            
+            # Ensure the tooltip is shown
+            tooltip_window.update_idletasks()
+            tooltip_window.deiconify()
+        
+        def enter(event):
+            x, y = event.x_root, event.y_root
+            # Schedule showing the tooltip after a delay
+            widget._tooltip_after_id = widget.after(500, lambda: show_tooltip(x, y))
+        
+        def leave(event):
+            # Cancel showing the tooltip if it hasn't been shown yet
+            if hasattr(widget, '_tooltip_after_id'):
+                try:
+                    widget.after_cancel(widget._tooltip_after_id)
+                    widget._tooltip_after_id = None
+                except ValueError:
+                    # The after_id was already cancelled or is invalid
+                    pass
+            
+            # Destroy the tooltip window if it exists
+            nonlocal tooltip_window
+            if tooltip_window is not None:
+                try:
+                    tooltip_window.destroy()
+                    tooltip_window = None
+                except:
+                    pass
+        
+        # Bind events to show/hide the tooltip
+        widget.bind("<Enter>", enter)
+        widget.bind("<Leave>", leave)
+        widget.bind("<Motion>", lambda e: leave(e) or enter(e))
+        
+        # Also bind to window close to ensure tooltips are cleaned up
+        # Use a safer approach that doesn't trigger errors
+        def safe_leave(event):
+            try:
+                leave(event)
+            except:
+                pass
+                
+        self.window.bind("<Destroy>", safe_leave, add="+")
 
 class GKInstallBuilder:
     # Class variables to store KeePass client and credentials
@@ -2613,7 +2723,14 @@ class GKInstallBuilder:
         widget.bind("<Leave>", leave)
         
         # Also bind to window close to ensure tooltips are cleaned up
-        self.root.bind("<Destroy>", lambda e: leave(e), add="+")
+        # Use a safer approach that doesn't trigger errors
+        def safe_leave(event):
+            try:
+                leave(event)
+            except:
+                pass
+                
+        self.root.bind("<Destroy>", safe_leave, add="+")
 
     def run(self):
         self.root.mainloop()
