@@ -376,9 +376,18 @@ if (-not $hostnameDetected) {
     }
     
     # Prompt for Store Number
-    do {
-        $storeNumber = Read-Host "Please enter the Store Number (4 digits)"
-    } while ($storeNumber -notmatch '^\d{4}$')
+    Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
+    Write-Host "  - 4 digits (e.g., 1234)"
+    Write-Host "  - 1 letter + 3 digits (e.g., R005)"
+    Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
+    Write-Host "  - Custom format (e.g., STORE-105)"
+    $storeNumber = Read-Host "Store Number"
+
+    # Validate that something was entered
+    if ([string]::IsNullOrWhiteSpace($storeNumber)) {
+        Write-Host "Store Number cannot be empty. Please try again."
+        $storeNumber = Read-Host "Store Number"
+    }
     
     # Prompt for Workstation ID
     do {
