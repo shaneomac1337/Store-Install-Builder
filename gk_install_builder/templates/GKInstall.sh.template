@@ -197,6 +197,33 @@ case "$COMPONENT_TYPE" in
     ;;
 esac
 
+# Set component-specific version if available
+case "$systemType" in
+  "CSE-OPOS-CLOUD")
+    component_version="@POS_VERSION@"
+    ;;
+  "CSE-wdm")
+    component_version="@WDM_VERSION@"
+    ;;
+  "CSE-FLOWSERVICE-CLOUD")
+    component_version="@FLOW_SERVICE_VERSION@"
+    ;;
+  "CSE-lps-lpa")
+    component_version="@LPA_SERVICE_VERSION@"
+    ;;
+  "CSE-sh-cloud")
+    component_version="@STOREHUB_SERVICE_VERSION@"
+    ;;
+  *)
+    component_version=""
+    ;;
+esac
+
+# If component version is empty, use default version
+if [ -z "$component_version" ]; then
+  component_version="$version"
+fi
+
 # Initialize offline variables
 jre_version=""
 jre_file=""
@@ -504,7 +531,7 @@ cims.url=https://$server/cims
 station.tenantId=001
 station.storeId=$storeNumber
 station.workstationId=$workstationId
-station.applicationVersion=$version
+station.applicationVersion=$component_version
 station.systemType=$systemType
 onboarding.token=$onboardingToken
 dsg.url=https://$dsg_server/dsg/content/cep/SoftwarePackage
@@ -652,7 +679,7 @@ cat "launcher.properties"
 
 # Download or use local Launcher
 if [ "$offline_mode" = false ]; then
-  download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.run"
+  download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
   echo "Attempting to download Launcher.run from: $download_url"
   if ! curl -o "Launcher.run" "$download_url"; then
     echo "Error downloading Launcher.run"

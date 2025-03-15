@@ -272,7 +272,12 @@ class ProjectGenerator:
                     ("CSE-wdm", wdm_system_type),
                     ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
                     ("CSE-lps-lpa", lpa_service_system_type),
-                    ("CSE-sh-cloud", storehub_service_system_type)
+                    ("CSE-sh-cloud", storehub_service_system_type),
+                    ("@POS_VERSION@", pos_version),
+                    ("@WDM_VERSION@", wdm_version),
+                    ("@FLOW_SERVICE_VERSION@", flow_service_version),
+                    ("@LPA_SERVICE_VERSION@", lpa_service_version),
+                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version)
                 ]
                 
                 # Add version function for component-specific versions
@@ -293,7 +298,12 @@ class ProjectGenerator:
                     ("CSE-wdm", wdm_system_type),
                     ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
                     ("CSE-lps-lpa", lpa_service_system_type),
-                    ("CSE-sh-cloud", storehub_service_system_type)
+                    ("CSE-sh-cloud", storehub_service_system_type),
+                    ("@POS_VERSION@", pos_version),
+                    ("@WDM_VERSION@", wdm_version),
+                    ("@FLOW_SERVICE_VERSION@", flow_service_version),
+                    ("@LPA_SERVICE_VERSION@", lpa_service_version),
+                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version)
                 ]
                 
                 # Add version function for component-specific versions (bash version)
