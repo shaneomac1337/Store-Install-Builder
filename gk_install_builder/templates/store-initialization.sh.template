@@ -1,0 +1,102 @@
+#!/bin/bash
+
+# Default values
+COMPONENT_TYPE="POS"
+base_url="test.cse.cloud4retail.co"
+STORE_ID="1001"
+WORKSTATION_ID="160"
+
+# Process command line options
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ComponentType)
+      COMPONENT_TYPE="$2"
+      shift 2
+      ;;
+    --base_url)
+      base_url="$2"
+      shift 2
+      ;;
+    --StoreId)
+      STORE_ID="$2"
+      shift 2
+      ;;
+    --WorkstationId)
+      WORKSTATION_ID="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>]"
+      exit 1
+      ;;
+  esac
+done
+
+# Paths
+tokens_path="$PWD/helper/tokens"
+
+# Verify paths exist
+if [ ! -d "$tokens_path" ]; then
+  echo "Tokens path does not exist: $tokens_path"
+  exit 1
+fi
+
+# Read the access token created by onboarding.sh
+access_token_path="$tokens_path/access_token.txt"
+if [ ! -f "$access_token_path" ]; then
+  echo "Access token file does not exist. Please run onboarding.sh first."
+  exit 1
+fi
+
+access_token=$(cat "$access_token_path")
+
+# Common headers for all API calls
+headers=(
+  -H "Authorization: Bearer $access_token"
+  -H "Content-Type: application/json; variant=Plain; charset=UTF-8"
+  -H "Accept: application/json; variant=Plain; charset=UTF-8"
+  -H "GK-Accept-Redirect: 308"
+)
+
+# First API call - Get Business Unit
+bu_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$STORE_ID"
+bu_response=$(curl -s -X GET "$bu_url" "${headers[@]}")
+
+if [ $? -ne 0 ]; then
+  echo "Error occurred during business unit API call"
+  exit 1
+fi
+
+# Parse the business unit response for businessUnitGroupID from the key object
+if command -v jq >/dev/null 2>&1; then
+  # Use jq if available
+  business_unit_group_id=$(echo "$bu_response" | jq -r '.key.businessUnitGroupID // empty')
+else
+  # Fallback to grep and cut if jq is not available - this is more complex for nested JSON
+  business_unit_group_id=$(echo "$bu_response" | grep -o '"key":{[^}]*"businessUnitGroupID":"[^"]*"' | grep -o '"businessUnitGroupID":"[^"]*"' | cut -d'"' -f4)
+fi
+
+if [ -z "$business_unit_group_id" ]; then
+  echo "Failed to get businessUnitGroupID from response:"
+  echo "$bu_response"
+  exit 1
+fi
+
+echo "Found businessUnitGroupID: $business_unit_group_id"
+
+# Second API call - Get Workstation
+ws_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
+ws_response=$(curl -s -X GET "$ws_url" "${headers[@]}")
+
+if [ $? -ne 0 ]; then
+  echo "Error occurred during workstation API call"
+  exit 1
+fi
+
+echo "Successfully retrieved workstation information"
+
+# Save responses to files
+echo "$bu_response" > "business-unit.json"
+echo "$ws_response" > "workstation.json"
+echo "Saved response data to business-unit.json and workstation.json" 
