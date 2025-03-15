@@ -130,6 +130,22 @@ $systemType = switch ($ComponentType) {
     'STOREHUB-SERVICE' { "CSE-sh-cloud" }
     default { "CSE-OPOS-CLOUD" }
 }
+
+# Set component-specific version if available
+$component_version = switch ($systemType) {
+    "CSE-OPOS-CLOUD" { "@POS_VERSION@" }
+    "CSE-wdm" { "@WDM_VERSION@" }
+    "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
+    "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
+    "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
+    default { "" }
+}
+
+# If component version is empty, use default version
+if ([string]::IsNullOrEmpty($component_version)) {
+    $component_version = $version
+}
+
 $install_dir = Join-Path $base_install_dir $(
     if ($ComponentType -eq 'POS') { "pos-full" } 
     elseif ($ComponentType -eq 'WDM') { "wdm" }
@@ -444,7 +460,7 @@ dsg.url=https://@DsgServer@/dsg/content/cep/SoftwarePackage
 
 $installationToken = $installationToken.Replace("@StoreNr@", $storeNumber)
 $installationToken = $installationToken.Replace("@WorkstationId@", $workstationId)
-$installationToken = $installationToken.Replace("@Version@", $version)
+$installationToken = $installationToken.Replace("@Version@", $component_version)
 $installationToken = $installationToken.Replace("@Server@", $server)
 $installationToken = $installationToken.Replace("@DsgServer@", $dsg_server)
 
@@ -564,7 +580,7 @@ Get-Content -Path "launcher.properties" | Write-Host
 
 # Download or use local Launcher
 if (-not $offline_mode) {
-    $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$version/Launcher.exe"
+    $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"
     Write-Host "Attempting to download Launcher.exe from: $download_url"
     try {
         Invoke-WebRequest -Uri $download_url -OutFile "Launcher.exe"
