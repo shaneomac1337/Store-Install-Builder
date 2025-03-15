@@ -329,54 +329,67 @@ if ([string]::IsNullOrEmpty($hs)) {
     Write-Host "-------------------"
     Write-Host "Hostname  : $hs"
     Write-Host "==================="
-    $hostname = $hs
 }
 
-# Try to extract parts from hostname first
-try {
-    if ([string]::IsNullOrEmpty($hs)) { throw "No hostname available" }
+# Initialize variables for Store Number and Workstation ID
+$storeNumber = ""
+$workstationId = ""
+
+# Try to extract Store Number and Workstation ID from hostname
+$hostnameDetected = $false
+
+if (-not [string]::IsNullOrEmpty($hs)) {
+    # Try different patterns:
+    # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
+    # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
     
-    $part1 = $hostname.Substring(0,2)   # Country
-    $part3 = $hostname.Substring(8,1)   # Test/Prod flag
-    $part5 = $hostname.Substring(13,3)  # POS number
-
-    # Validate extracted parts
-    if ($part1 -notmatch '^[A-Z]{2}$') { throw "Invalid country code" }
-    if ($part3 -notmatch '^[TP]$') { throw "Invalid environment" }
-    if ($part5 -notmatch '^\d{3}$') { throw "Invalid POS number" }
-
-    Write-Host "Successfully detected values from hostname:"
-    Write-Host "Country: $part1"
-    Write-Host "Environment: $part3"
-    Write-Host "POS Number: $part5"
+    if ($hs -match '(\w+)-(\d{3})$') {
+        # Pattern like R005-101 or SOMENAME-1674-101 where last part is 3 digits
+        $storeId = $matches[1]
+        $workstationId = $matches[2]
+        
+        # If storeId contains a dash, it might be SOMENAME-1674-101 format
+        if ($storeId -match '.*-(\d{4})$') {
+            $storeNumber = $matches[1]
+        } else {
+            # Direct format like R005-101
+            $storeNumber = $storeId
+        }
+        
+        # Validate extracted parts
+        if ($storeNumber -match '^\d{4}$' -or $storeNumber -match '^[A-Za-z]\d{3}$' -or $storeNumber -match '^[A-Za-z]{2}\d{2}$') {
+            if ($workstationId -match '^\d{3}$') {
+                $hostnameDetected = $true
+                Write-Host "Successfully detected values from hostname:"
+                Write-Host "Store Number: $storeNumber"
+                Write-Host "Workstation ID: $workstationId"
+            }
+        }
+    }
 }
-catch {
-    Write-Host "Could not extract valid values from hostname. Falling back to manual input."
+
+# If hostname detection failed, prompt for manual input
+if (-not $hostnameDetected) {
+    if (-not [string]::IsNullOrEmpty($hs)) {
+        Write-Host "Could not extract valid Store Number and Workstation ID from hostname."
+        Write-Host "Falling back to manual input."
+    }
     
+    # Prompt for Store Number
     do {
-        $part1 = Read-Host "Please enter the Country Code (2 letters)"
-    } while ($part1 -notmatch '^[A-Z]{2}$')
-
+        $storeNumber = Read-Host "Please enter the Store Number (4 digits)"
+    } while ($storeNumber -notmatch '^\d{4}$')
+    
+    # Prompt for Workstation ID
     do {
-        $part3 = Read-Host "Please enter the Environment (T for Test, P for Production)"
-    } while ($part3 -notmatch '^[TP]$')
-
-    do {
-        $part5 = Read-Host "Please enter the POS Number (3 digits)"
-    } while ($part5 -notmatch '^\d{3}$')
+        $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
+    } while ($workstationId -notmatch '^\d{3}$')
 }
-
-# Always prompt for Store Number
-do {
-    $part4 = Read-Host "Please enter the Store Number (4 digits)"
-} while ($part4 -notmatch '^\d{4}$')
 
 # Print final results
 Write-Host "-------------------"
-Write-Host "Country   : $part1"
-Write-Host "Environment: $part3"
-Write-Host "StoreNr   : $part4"
-Write-Host "PosNr     : $part5"
+Write-Host "StoreNr   : $storeNumber"
+Write-Host "WorkstationId: $workstationId"
 Write-Host "-------------------"
 
 # After the basic configuration section, update the onboarding call
@@ -407,16 +420,15 @@ configService.url=https://@Server@/config-service
 cims.url=https://@Server@/cims
 station.tenantId=001
 station.storeId=@StoreNr@
-station.workstationId=@PosNr@
+station.workstationId=@WorkstationId@
 station.applicationVersion=@Version@
 station.systemType=$systemType
 onboarding.token=$onboardingToken
 dsg.url=https://@DsgServer@/dsg/content/cep/SoftwarePackage
 "@
 
-$installationToken = $installationToken.Replace("@Country@", $part1)
-$installationToken = $installationToken.Replace("@StoreNr@", $part4)
-$installationToken = $installationToken.Replace("@PosNr@", $part5)
+$installationToken = $installationToken.Replace("@StoreNr@", $storeNumber)
+$installationToken = $installationToken.Replace("@WorkstationId@", $workstationId)
 $installationToken = $installationToken.Replace("@Version@", $version)
 $installationToken = $installationToken.Replace("@Server@", $server)
 $installationToken = $installationToken.Replace("@DsgServer@", $dsg_server)
