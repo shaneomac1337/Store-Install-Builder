@@ -428,8 +428,31 @@ Write-Host "Starting onboarding process for $ComponentType"
 
 # Call the onboarding script with the appropriate component type
 try {
-    .\onboarding.ps1 -ComponentType $ComponentType
+    .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url
     Write-Host "$ComponentType onboarding completed successfully"
+
+    # Execute store initialization right after successful onboarding
+    Write-Host "Starting store initialization..."
+    $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
+    if (Test-Path $storeInitScript) {
+        try {
+            # Pass the values collected from hostname or user input
+            & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Store initialization completed successfully"
+            } else {
+                Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                exit 1
+            }
+        }
+        catch {
+            Write-Host "Error during store initialization: $_"
+            exit 1
+        }
+    } else {
+        Write-Host "Error: Store initialization script not found at: $storeInitScript"
+        exit 1
+    }
 }
 catch {
     Write-Host "Error during $ComponentType onboarding: $_"

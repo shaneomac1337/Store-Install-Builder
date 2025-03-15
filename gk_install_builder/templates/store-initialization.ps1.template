@@ -1,0 +1,76 @@
+param (
+    [Parameter(Mandatory=$true)]
+    [string]$ComponentType,
+    [Parameter(Mandatory=$true)]
+    [string]$base_url,
+    [Parameter(Mandatory=$true)]
+    [string]$StoreId,
+    [Parameter(Mandatory=$true)]
+    [string]$WorkstationId
+)
+
+# Paths
+$tokensPath = Join-Path $PSScriptRoot "helper\tokens"
+
+# Verify paths exist
+if (-Not (Test-Path $tokensPath)) {
+    Write-Host "Tokens path does not exist: $tokensPath"
+    exit 1
+}
+
+# Read the access token created by onboarding.ps1
+$accessTokenPath = Join-Path $tokensPath "access_token.txt"
+if (-Not (Test-Path $accessTokenPath)) {
+    Write-Host "Access token file does not exist. Please run onboarding.ps1 first."
+    exit 1
+}
+
+$accessToken = Get-Content -Path $accessTokenPath -Raw
+
+# Common headers for all API calls
+$headers = @{
+    "Authorization" = "Bearer $accessToken"
+    "Content-Type" = "application/json; variant=Plain; charset=UTF-8"
+    "Accept" = "application/json; variant=Plain; charset=UTF-8"
+    "GK-Accept-Redirect" = "308"
+}
+
+try {
+    # First API call - Get Business Unit
+    $buUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$StoreId"
+    $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
+    Write-Host "Successfully retrieved business unit information"
+    
+    # Extract businessUnitGroupID from the key object in the response
+    $businessUnitGroupId = $buResponse.key.businessUnitGroupID
+    
+    if (-Not $businessUnitGroupId) {
+        Write-Host "Failed to get businessUnitGroupID from response"
+        Write-Host "Response content:"
+        Write-Host ($buResponse | ConvertTo-Json -Depth 10)
+        exit 1
+    }
+
+    Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
+
+    # Second API call - Get Workstation
+    $wsUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
+    Write-Host "Successfully retrieved workstation information"
+
+    # Save responses to files for reference
+    $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
+    $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
+    Write-Host "Saved response data to business-unit.json and workstation.json"
+}
+catch {
+    Write-Host "Error occurred: $_"
+    if ($_.Exception.Response) {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd()
+        Write-Host "Response body: $responseBody"
+    }
+    exit 1
+} 
