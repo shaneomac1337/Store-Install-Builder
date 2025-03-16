@@ -15,4 +15,4 @@ jre_package_version_local=@JRE_VERSION@
 jre_package_local=@JRE_PACKAGE@
 installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
-tomcat_package_local=@TOMCAT_PACKAGE@ 
+tomcat_package_local=@TOMCAT_PACKAGE@
