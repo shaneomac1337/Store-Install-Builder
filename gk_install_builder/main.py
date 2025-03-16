@@ -159,8 +159,8 @@ class LauncherSettingsEditor:
 
         # POS settings
         self.settings["POS"] = {
-            "applicationJmxPort": "",
-            "updaterJmxPort": "",
+            "applicationJmxPort": "3333",
+            "updaterJmxPort": "4333",
             "createShortcuts": "0",
             "keepFiles": "0"
         }
@@ -171,7 +171,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8443",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4333",
+            "updaterJmxPort": "4334",
             "keepFiles": "0"
         }
         
@@ -181,7 +181,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4333",
+            "updaterJmxPort": "4334",
             "keepFiles": "0"
         }
         
@@ -191,7 +191,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4333",
+            "updaterJmxPort": "4334",
             "keepFiles": "0"
         }
         
@@ -201,8 +201,8 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "applicationJmsPort": "7000",
-            "updaterJmxPort": "4333",
+            "applicationJmsPort": "7001",
+            "updaterJmxPort": "4334",
             "firebirdServerPath": firebird_path,
             "firebirdServerPort": "3050",
             "firebirdServerUser": "SYSDBA",
