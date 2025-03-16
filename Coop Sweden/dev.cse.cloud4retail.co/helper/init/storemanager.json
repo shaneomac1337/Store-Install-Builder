@@ -1,0 +1,72 @@
+{
+    "childNodeList":  [
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.POS-SERVER-STORE",
+                              "systemName":  "CSE-pos-server-STORE",
+                              "structureName":  "POS-Server-Store",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.POS-SERVICE-STORE",
+                              "systemName":  "CSE-POS-SERVICE-STORE",
+                              "structureName":  "POS-Service-Store",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.SDC_STORE",
+                              "systemName":  "CSE-sdc-store",
+                              "structureName":  "SDC Store",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.WALL_DEVICE_MANAGER",
+                              "systemName":  "CSE-wdm",
+                              "structureName":  "Wall Device Manager",
+                              "activeVersion":  "v1.1.0",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "workstationId":  "333",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.LABEL_PRINT_ADAPTER",
+                              "systemName":  "CSE-lps-lpa",
+                              "structureName":  "Label Print Adapter",
+                              "activeVersion":  "v1.1.0",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "workstationId":  "101",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.POS_CLIENT",
+                              "systemName":  "CSE-OPOS-CLOUD",
+                              "structureName":  "POS Client",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          },
+                          {
+                              "tenantId":  "001",
+                              "retailStoreId":  "9999",
+                              "workstationId":  "336",
+                              "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.STOREHUB",
+                              "systemName":  "CSE-sh-cloud",
+                              "structureName":  "StoreHub",
+                              "country":  "Sweden",
+                              "countryShort":  "SE"
+                          }
+                      ]
+}
