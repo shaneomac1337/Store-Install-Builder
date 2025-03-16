@@ -18,3 +18,30 @@ gk_install_builder/__pycache__/generator.cpython-313.pyc
 gk_install_builder/__pycache__/pleasant_password_client.cpython-313.pyc
 My Store Project/dev.cse.cloud4retail.co/offline_package_POS/Launcher.run
 My Store Project/dev.cse.cloud4retail.co/offline_package_POS/pos-full-launcher-cloud-1.1.0-b01-SNAPSHOT-installer.jar
+Coop Sweden/dev.cse.cloud4retail.co/business-unit.json
+Coop Sweden/dev.cse.cloud4retail.co/certificate.p12
+Coop Sweden/dev.cse.cloud4retail.co/GKInstall.ps1
+Coop Sweden/dev.cse.cloud4retail.co/installationtoken.base64
+Coop Sweden/dev.cse.cloud4retail.co/installationtoken.txt
+Coop Sweden/dev.cse.cloud4retail.co/Launcher.exe
+Coop Sweden/dev.cse.cloud4retail.co/launcher.properties
+Coop Sweden/dev.cse.cloud4retail.co/onboarding.ps1
+Coop Sweden/dev.cse.cloud4retail.co/onboarding.token
+Coop Sweden/dev.cse.cloud4retail.co/store-initialization.ps1
+Coop Sweden/dev.cse.cloud4retail.co/workstation.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/launchers/launcher.flow-service.template
+Coop Sweden/dev.cse.cloud4retail.co/helper/launchers/launcher.lpa-service.template
+Coop Sweden/dev.cse.cloud4retail.co/helper/launchers/launcher.pos.template
+Coop Sweden/dev.cse.cloud4retail.co/helper/launchers/launcher.storehub-service.template
+Coop Sweden/dev.cse.cloud4retail.co/helper/launchers/launcher.wdm.template
+Coop Sweden/dev.cse.cloud4retail.co/helper/onboarding/flow-service.onboarding.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/onboarding/lpa-service.onboarding.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/onboarding/pos.onboarding.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/onboarding/storehub-service.onboarding.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/onboarding/wdm.onboarding.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/tokens/access_token.txt
+Coop Sweden/dev.cse.cloud4retail.co/helper/tokens/basic_auth_password.txt
+Coop Sweden/dev.cse.cloud4retail.co/helper/tokens/form_password.txt
+gk_install_builder/__pycache__/config.cpython-311.pyc
+gk_install_builder/__pycache__/generator.cpython-311.pyc
+gk_install_builder/__pycache__/pleasant_password_client.cpython-311.pyc

@@ -4,6 +4,7 @@
 offline=false
 COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
+storeId=""  # Will be determined by hostname detection or user input
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -20,9 +21,13 @@ while [ $# -gt 0 ]; do
       base_url="$2"
       shift 2
       ;;
+    --storeId)
+      storeId="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>]"
       exit 1
       ;;
   esac
@@ -518,6 +523,32 @@ if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url"; t
 fi
 echo "$COMPONENT_TYPE onboarding completed successfully"
 
+# Execute store initialization right after successful onboarding
+echo "Starting store initialization..."
+store_init_script="$PWD/store-initialization.sh"
+if [ -f "$store_init_script" ]; then
+  # Update get_store.json with the store ID
+  get_store_json_path="$PWD/helper/init/get_store.json"
+  if [ -f "$get_store_json_path" ]; then
+    echo "Updating get_store.json with Store ID: $storeNumber"
+    # Use sed to replace the placeholder with the actual store number
+    sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$get_store_json_path"
+    echo "get_store.json updated successfully"
+  else
+    echo "Warning: get_store.json not found at: $get_store_json_path"
+  fi
+  
+  # Call the store initialization script
+  if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
+    echo "Error during store initialization"
+    exit 1
+  fi
+  echo "Store initialization completed successfully"
+else
+  echo "Error: Store initialization script not found at: $store_init_script"
+  exit 1
+fi
+
 # Read onboarding token
 onboardingTokenPath="onboarding.token"
 if [ ! -f "$onboardingTokenPath" ]; then
@@ -708,7 +739,7 @@ launcher_pid=$!
 # Check installation logs
 installer_log_path="$install_dir/installer/log/installer.log"
 max_wait_time=1800 # 30 minutes timeout
-max_log_wait_time=300 # 5 minutes timeout for log file creation
+max_log_wait_time=3600 # 1 hour timeout for log file creation
 elapsed=0
 log_wait_elapsed=0
 check_interval=2 # Check every 2 seconds

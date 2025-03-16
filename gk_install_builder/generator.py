@@ -127,6 +127,14 @@ class ProjectGenerator:
             "tokens": [
                 "basic_auth_password.txt",
                 "form_password.txt"
+            ],
+            "init": [
+                "get_store.json",
+                {
+                    "storehub": [
+                        "update_config.json"
+                    ]
+                }
             ]
         }
         self.webdav_browser = None
@@ -833,8 +841,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     # Create password files
                     self._create_password_files(helper_dst, config)
                     
-                    # Create JSON files
-                    self._create_default_json_files(helper_dst, config)
+                    # Create init JSON files
+                    self._create_init_json_files(helper_dst, config)
                     
                     # Create launchers directory
                     launchers_dir = os.path.join(helper_dst, 'launchers')
@@ -891,6 +899,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Create password files
             self._create_password_files(helper_dst, config)
             
+            # Create init JSON files
+            self._create_init_json_files(helper_dst, config)
+            
             # Modify JSON files with the correct URLs
             self._modify_json_files(helper_dst, config)
             
@@ -940,6 +951,111 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             with open(file_path, 'w') as f:
                 f.write(content)
             print(f"  Created JSON file: {file_path}")
+
+    def _create_init_json_files(self, helper_dir, config):
+        """Create init JSON files for store configuration"""
+        init_dir = os.path.join(helper_dir, "init")
+        os.makedirs(init_dir, exist_ok=True)
+        
+        # Get tenant_id from config
+        tenant_id = config.get("tenant_id", "001")
+        
+        # Create get_store.json template with placeholder for retailStoreId
+        store_json_content = '''{
+  "station": {
+    "systemName": "GKR-Store",
+    "tenantId": "''' + tenant_id + '''",
+    "retailStoreId": "@RETAIL_STORE_ID@"
+  }
+}'''
+        
+        # Write get_store.json file
+        file_path = os.path.join(init_dir, "get_store.json")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(store_json_content)
+        print(f"  Created init JSON file: {file_path}")
+        
+        # Create component-specific directories
+        storehub_dir = os.path.join(init_dir, "storehub")
+        os.makedirs(storehub_dir, exist_ok=True)
+        
+        # Get launcher settings for StoreHub
+        storehub_settings = {}
+        storehub_launcher_settings_key = "storehub_service_launcher_settings"
+        
+        if storehub_launcher_settings_key in config:
+            storehub_settings = config[storehub_launcher_settings_key]
+        
+        # Get default values or values from launcher settings
+        jms_port = storehub_settings.get("applicationJmsPort", "7001")
+        firebird_port = storehub_settings.get("firebirdServerPort", "3050")
+        firebird_user = storehub_settings.get("firebirdServerUser", "SYSDBA")
+        firebird_password = storehub_settings.get("firebirdServerPassword", "masterkey")
+        https_port = storehub_settings.get("applicationServerHttpsPort", "8543")
+        
+        # Get system name from config
+        system_name = config.get("storehub_service_system_type", "CSE-sh-cloud")
+        
+        # Get version from config
+        version = "v1.1.0"  # Default version
+        if config.get("use_version_override", False):
+            version = config.get("storehub_service_version", "v1.1.0")
+        else:
+            version = config.get("version", "v1.1.0")
+        
+        # Create update_config.json template with values from launcher settings
+        update_config_json_content = '''{
+  "levelDescriptor": {
+    "structureUniqueName": "@STRUCTURE_UNIQUE_NAME@"
+  },
+  "systemDescriptor": {
+    "systemName": "''' + system_name + '''",
+    "systemVersionList": [
+      {
+        "name": "''' + version + '''"
+      }
+    ]
+  },
+  "user": "1001",
+  "parameterValueChangeList": [
+    {
+      "name": "activemq.properties",
+      "url": "jms-engine.port",
+      "value": "''' + jms_port + '''"
+    },
+    {
+      "name": "ds-embedded.properties",
+      "url": "datasource.port",
+      "value": "''' + firebird_port + '''"
+    },
+    {
+      "name": "ds-embedded.properties",
+      "url": "datasource.username",
+      "value": "''' + firebird_user + '''"
+    },
+    {
+      "name": "secret.properties",
+      "url": "ds-embedded.datasource.password_encrypted",
+      "value": "''' + firebird_password + '''"
+    },
+    {
+      "name": "data-router-adapter.properties",
+      "url": "swee.common.data-router.adapter.message-adapter.host",
+      "value": "@HOSTNAME@"
+    },
+    {
+      "name": "data-router-adapter.properties",
+      "url": "swee.common.data-router.adapter.message-adapter.http.port",
+      "value": "''' + https_port + '''"
+    }
+  ]
+}'''
+        
+        # Write update_config.json file for StoreHub
+        file_path = os.path.join(storehub_dir, "update_config.json")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(update_config_json_content)
+        print(f"  Created StoreHub config file: {file_path}")
 
     def _create_password_files(self, helper_dir, config):
         """Create password files for onboarding"""
