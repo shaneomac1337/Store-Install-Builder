@@ -228,27 +228,25 @@ else
                   structure_unique_name="$structure_pattern.$STORE_ID.STOREHUB"
                   echo "Using constructed structure name: $structure_unique_name"
                 else
-                  echo "Could not extract structure pattern from: $first_structure"
-                  # No fallback, just use what we have
-                  structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
-                  echo "Using basic structure name: $structure_unique_name"
+                  echo "Error: Could not extract structure pattern from: $first_structure"
+                  echo "Cannot proceed without a valid structure pattern from the API response."
+                  exit 1
                 fi
               else
-                echo "No structures found in response to extract pattern from"
-                # No fallback, just use a basic structure
-                structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
-                echo "Using basic structure name: $structure_unique_name"
+                echo "Error: No structures found in response to extract pattern from"
+                echo "Cannot proceed without a valid structure pattern from the API response."
+                exit 1
               fi
             fi
           else
-            echo "jq not found, using basic structure name"
-            structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
-            echo "Using basic structure name: $structure_unique_name"
+            echo "Error: jq not found - required for parsing API response"
+            echo "Cannot proceed without jq to extract structure pattern from the API response."
+            exit 1
           fi
         else
-          # Construct a basic structure name
-          structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
-          echo "Using basic structure name: $structure_unique_name"
+          echo "Error: storemanager.json not found"
+          echo "Cannot proceed without a valid structure pattern from the API response."
+          exit 1
         fi
         
         # Create a temporary file with the replacements
