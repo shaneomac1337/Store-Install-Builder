@@ -35,6 +35,25 @@ $headers = @{
     "GK-Accept-Redirect" = "308"
 }
 
+# Map ComponentType to systemName for matching in the API response
+$systemNameMap = @{
+    'POS' = 'CSE-OPOS-CLOUD'
+    'WDM' = 'CSE-wdm'
+    'FLOW-SERVICE' = 'GKR-FLOWSERVICE-CLOUD'
+    'LPA-SERVICE' = 'CSE-lps-lpa'
+    'STOREHUB-SERVICE' = 'CSE-sh-cloud'
+}
+
+# Get the systemName for the current component
+$currentSystemName = $systemNameMap[$ComponentType]
+if (-Not $currentSystemName) {
+    Write-Host "Warning: No systemName mapping found for ComponentType: $ComponentType"
+    # Use a default if no mapping exists
+    $currentSystemName = "CSE-$($ComponentType.ToLower())"
+}
+
+Write-Host "Using systemName: $currentSystemName for component: $ComponentType"
+
 try {
     # First API call - Get Business Unit
     $buUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$StoreId"
@@ -137,6 +156,42 @@ try {
             $storeResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $storemanagerPath -NoNewline
             Write-Host "Store information saved to: $storemanagerPath"
             
+            # Extract structure unique name for the current component
+            $structureUniqueName = ""
+            if (Test-Path $storemanagerPath) {
+                try {
+                    $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
+                    
+                    # Look for the structure that matches our system name
+                    foreach ($item in $storeManagerData.childNodeList) {
+                        if ($item.systemName -eq $currentSystemName) {
+                            $structureUniqueName = $item.structureUniqueName
+                            Write-Host "Found matching structure for ${currentSystemName}: $structureUniqueName"
+                            break
+                        }
+                    }
+                    
+                    if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                        Write-Host "Error: No matching structure found for system name: ${currentSystemName}"
+                        Write-Host "Cannot proceed without a matching structure in the API response."
+                        exit 1
+                    }
+                } catch {
+                    Write-Host "Error parsing storemanager.json: $_"
+                    Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                    exit 1
+                }
+            } else {
+                Write-Host "Error: storemanager.json not found"
+                Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                exit 1
+            }
+            
+            # Save the structure unique name to a file for reference
+            $structureNamePath = Join-Path $initPath "structure_name.txt"
+            $structureUniqueName | Set-Content -Path $structureNamePath -NoNewline
+            Write-Host "Structure unique name saved to: $structureNamePath"
+            
             # Only proceed with configuration update for StoreHub components
             if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
                 # Now update the configuration using update_config.json from the storehub directory
@@ -149,9 +204,6 @@ try {
                     # Read the update_config.json template
                     $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
                     
-                    # Get system type for StoreHub
-                    $systemType = "CSE-sh-cloud"
-                    
                     # Get hostname
                     $hostname = $env:COMPUTERNAME
                     if ([string]::IsNullOrEmpty($hostname)) {
@@ -160,54 +212,6 @@ try {
                     
                     # Get version from config
                     $version = "v1.1.0"  # Default version
-                    
-                    # Get structure unique name from storemanager.json if available
-                    $structureUniqueName = ""
-                    if (Test-Path $storemanagerPath) {
-                        try {
-                            $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
-                            
-                            # Look for the structure that matches our system type
-                            foreach ($item in $storeManagerData.childNodeList) {
-                                if ($item.systemName -eq $systemType) {
-                                    $structureUniqueName = $item.structureUniqueName
-                                    Write-Host "Found matching structure: $structureUniqueName"
-                                    break
-                                }
-                            }
-                            
-                            if ([string]::IsNullOrEmpty($structureUniqueName)) {
-                                # Extract structure pattern from existing structures
-                                $structurePattern = ""
-                                if ($storeManagerData.childNodeList -and $storeManagerData.childNodeList.Count -gt 0) {
-                                    $firstStructure = $storeManagerData.childNodeList[0].structureUniqueName
-                                    # Extract everything up to the store ID
-                                    if ($firstStructure -match '(ENTERPRISE\.[^\.]+\.[^\.]+\.[^\.]+)\.[^\.]+\.') {
-                                        $structurePattern = $matches[1]
-                                        Write-Host "Extracted structure pattern: $structurePattern"
-                                        $structureUniqueName = "$structurePattern.$StoreId.STOREHUB"
-                                        Write-Host "Using constructed structure name: $structureUniqueName"
-                                    } else {
-                                        Write-Host "Error: Could not extract structure pattern from: $firstStructure"
-                                        Write-Host "Cannot proceed without a valid structure pattern from the API response."
-                                        exit 1
-                                    }
-                                } else {
-                                    Write-Host "Error: No structures found in response to extract pattern from"
-                                    Write-Host "Cannot proceed without a valid structure pattern from the API response."
-                                    exit 1
-                                }
-                            }
-                        } catch {
-                            Write-Host "Error parsing storemanager.json: $_"
-                            Write-Host "Cannot proceed without a valid structure pattern from the API response."
-                            exit 1
-                        }
-                    } else {
-                        Write-Host "Error: storemanager.json not found"
-                        Write-Host "Cannot proceed without a valid structure pattern from the API response."
-                        exit 1
-                    }
                     
                     # Replace placeholders in the template
                     $updateConfigJson = $updateConfigJson -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName

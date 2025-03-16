@@ -43,6 +43,24 @@ if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z 
   exit 1
 fi
 
+# Map ComponentType to systemName for matching in the API response
+declare -A system_name_map
+system_name_map["POS"]="CSE-OPOS-CLOUD"
+system_name_map["WDM"]="CSE-wdm"
+system_name_map["FLOW-SERVICE"]="GKR-FLOWSERVICE-CLOUD"
+system_name_map["LPA-SERVICE"]="CSE-lps-lpa"
+system_name_map["STOREHUB-SERVICE"]="CSE-sh-cloud"
+
+# Get the systemName for the current component
+current_system_name="${system_name_map[$COMPONENT_TYPE]}"
+if [ -z "$current_system_name" ]; then
+  echo "Warning: No systemName mapping found for ComponentType: $COMPONENT_TYPE"
+  # Use a default if no mapping exists
+  current_system_name="CSE-$(echo "$COMPONENT_TYPE" | tr '[:upper:]' '[:lower:]')"
+fi
+
+echo "Using systemName: $current_system_name for component: $COMPONENT_TYPE"
+
 # Paths
 tokens_path="$PWD/helper/tokens"
 
@@ -184,6 +202,36 @@ else
     echo "$store_response" > "$storemanager_path"
     echo "Store information saved to: $storemanager_path"
     
+    # Extract structure unique name for the current component
+    structure_unique_name=""
+    if [ -f "$storemanager_path" ]; then
+      # Use jq to extract the structure unique name that matches our system type
+      if command -v jq >/dev/null 2>&1; then
+        structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
+        
+        if [ -n "$structure_unique_name" ]; then
+          echo "Found matching structure for $current_system_name: $structure_unique_name"
+        else
+          echo "Error: No matching structure found for system name: $current_system_name"
+          echo "Cannot proceed without a matching structure in the API response."
+          exit 1
+        fi
+      else
+        echo "Error: jq not found - required for parsing API response"
+        echo "Cannot proceed without jq to extract structure pattern from the API response."
+        exit 1
+      fi
+    else
+      echo "Error: storemanager.json not found"
+      echo "Cannot proceed without a valid structure pattern from the API response."
+      exit 1
+    fi
+    
+    # Save the structure unique name to a file for reference
+    structure_name_path="$init_path/structure_name.txt"
+    echo "$structure_unique_name" > "$structure_name_path"
+    echo "Structure unique name saved to: $structure_name_path"
+    
     # Only proceed with configuration update for StoreHub components
     if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
       # Now update the configuration using update_config.json from the storehub directory
@@ -196,9 +244,6 @@ else
       if [ -f "$update_config_path" ]; then
         echo "Updating StoreHub configuration using update_config.json..."
         
-        # Get system type for StoreHub
-        system_type="CSE-sh-cloud"
-        
         # Get hostname
         hostname=$(hostname)
         if [ -z "$hostname" ]; then
@@ -207,47 +252,6 @@ else
         
         # Get version from config
         version="v1.1.0"  # Default version
-        
-        # Get structure unique name from storemanager.json if available
-        if [ -f "$storemanager_path" ]; then
-          # Use jq to extract the structure unique name that matches our system type
-          if command -v jq >/dev/null 2>&1; then
-            structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$system_type\") | .structureUniqueName" "$storemanager_path")
-            
-            if [ -n "$structure_unique_name" ]; then
-              echo "Found matching structure: $structure_unique_name"
-            else
-              # Extract structure pattern from existing structures
-              structure_pattern=""
-              if [ "$(jq '.childNodeList | length' "$storemanager_path")" -gt 0 ]; then
-                first_structure=$(jq -r '.childNodeList[0].structureUniqueName' "$storemanager_path")
-                # Extract everything up to the store ID using sed
-                structure_pattern=$(echo "$first_structure" | sed -E 's/^(ENTERPRISE\.[^\.]+\.[^\.]+\.[^\.]+)\.[^\.]+\..*/\1/')
-                if [ -n "$structure_pattern" ]; then
-                  echo "Extracted structure pattern: $structure_pattern"
-                  structure_unique_name="$structure_pattern.$STORE_ID.STOREHUB"
-                  echo "Using constructed structure name: $structure_unique_name"
-                else
-                  echo "Error: Could not extract structure pattern from: $first_structure"
-                  echo "Cannot proceed without a valid structure pattern from the API response."
-                  exit 1
-                fi
-              else
-                echo "Error: No structures found in response to extract pattern from"
-                echo "Cannot proceed without a valid structure pattern from the API response."
-                exit 1
-              fi
-            fi
-          else
-            echo "Error: jq not found - required for parsing API response"
-            echo "Cannot proceed without jq to extract structure pattern from the API response."
-            exit 1
-          fi
-        else
-          echo "Error: storemanager.json not found"
-          echo "Cannot proceed without a valid structure pattern from the API response."
-          exit 1
-        fi
         
         # Create a temporary file with the replacements
         temp_config_file=$(mktemp)
