@@ -1,0 +1,14 @@
+{
+    "restrictions": {
+        "clientType": "GKR-sh-cloud",
+        "tenantId": "001",
+        "lifespan": 86400,
+        "maxUsageCount": 10000
+    },
+    "afterOnboardingProperties": [
+        {
+            "key": "config-service-url",
+            "value": "https://test.cse.cloud4retail.co/config-service"
+        }
+    ]
+} 

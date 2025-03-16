@@ -67,13 +67,4 @@ Coop Sweden/dev.cse.cloud4retail.co/helper/init/storemanager.json
 Coop Sweden/dev.cse.cloud4retail.co/helper/init/storehub/config_response.json
 Coop Sweden/dev.cse.cloud4retail.co/helper/init/storehub/update_config.json
 Coop Sweden/dev.cse.cloud4retail.co/helper/storehub/update_config.json
-helper/init/get_store.json
-helper/onboarding/flow-service.onboarding.json
-helper/onboarding/lpa-service.onboarding.json
-helper/onboarding/pos.onboarding.json
-helper/onboarding/storehub-service.onboarding.json
-helper/onboarding/wdm.onboarding.json
-helper/storehub/update_config.json
-helper/tokens/access_token.txt
-helper/tokens/basic_auth_password.txt
-helper/tokens/form_password.txt
+
