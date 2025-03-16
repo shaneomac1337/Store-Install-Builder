@@ -217,19 +217,38 @@ else
             if [ -n "$structure_unique_name" ]; then
               echo "Found matching structure: $structure_unique_name"
             else
-              # Construct a default structure name
-              structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.STOREHUB"
-              echo "Using default structure name: $structure_unique_name"
+              # Extract structure pattern from existing structures
+              structure_pattern=""
+              if [ "$(jq '.childNodeList | length' "$storemanager_path")" -gt 0 ]; then
+                first_structure=$(jq -r '.childNodeList[0].structureUniqueName' "$storemanager_path")
+                # Extract everything up to the store ID using sed
+                structure_pattern=$(echo "$first_structure" | sed -E 's/^(ENTERPRISE\.[^\.]+\.[^\.]+\.[^\.]+)\.[^\.]+\..*/\1/')
+                if [ -n "$structure_pattern" ]; then
+                  echo "Extracted structure pattern: $structure_pattern"
+                  structure_unique_name="$structure_pattern.$STORE_ID.STOREHUB"
+                  echo "Using constructed structure name: $structure_unique_name"
+                else
+                  echo "Could not extract structure pattern from: $first_structure"
+                  # No fallback, just use what we have
+                  structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
+                  echo "Using basic structure name: $structure_unique_name"
+                fi
+              else
+                echo "No structures found in response to extract pattern from"
+                # No fallback, just use a basic structure
+                structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
+                echo "Using basic structure name: $structure_unique_name"
+              fi
             fi
           else
-            echo "jq not found, using default structure name"
-            structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.STOREHUB"
-            echo "Using default structure name: $structure_unique_name"
+            echo "jq not found, using basic structure name"
+            structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
+            echo "Using basic structure name: $structure_unique_name"
           fi
         else
-          # Construct a default structure name
-          structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.STOREHUB"
-          echo "Using default structure name: $structure_unique_name"
+          # Construct a basic structure name
+          structure_unique_name="ENTERPRISE.TENANT.$STORE_ID.STOREHUB"
+          echo "Using basic structure name: $structure_unique_name"
         fi
         
         # Create a temporary file with the replacements
@@ -267,90 +286,8 @@ else
       else
         echo "Warning: StoreHub update_config.json not found at: $update_config_path"
       fi
-    elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
-      # Now update the configuration using update_config.json from the flow-service directory
-      flow_service_dir="$init_path/flow-service"
-      update_config_path="$flow_service_dir/update_config.json"
-      
-      # Create flow-service directory if it doesn't exist
-      mkdir -p "$flow_service_dir"
-      
-      if [ -f "$update_config_path" ]; then
-        echo "Updating FLOW-SERVICE configuration using update_config.json..."
-        
-        # Get system type for FLOW-SERVICE
-        system_type="CSE-FLOWSERVICE-CLOUD"
-        
-        # Get hostname
-        hostname=$(hostname)
-        if [ -z "$hostname" ]; then
-          hostname="localhost"
-        fi
-        
-        # Get version from config
-        version="v1.1.0"  # Default version
-        
-        # Get structure unique name from storemanager.json if available
-        if [ -f "$storemanager_path" ]; then
-          # Use jq to extract the structure unique name that matches our system type
-          if command -v jq >/dev/null 2>&1; then
-            structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$system_type\") | .structureUniqueName" "$storemanager_path")
-            
-            if [ -n "$structure_unique_name" ]; then
-              echo "Found matching structure: $structure_unique_name"
-            else
-              # Construct a default structure name
-              structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.FLOW-SERVICE"
-              echo "Using default structure name: $structure_unique_name"
-            fi
-          else
-            echo "jq not found, using default structure name"
-            structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.FLOW-SERVICE"
-            echo "Using default structure name: $structure_unique_name"
-          fi
-        else
-          # Construct a default structure name
-          structure_unique_name="ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$STORE_ID.FLOW-SERVICE"
-          echo "Using default structure name: $structure_unique_name"
-        fi
-        
-        # Create a temporary file with the replacements
-        temp_config_file=$(mktemp)
-        
-        # Replace placeholders in the template
-        sed -e "s/@STRUCTURE_UNIQUE_NAME@/$structure_unique_name/g" \
-            -e "s/@HOSTNAME@/$hostname/g" \
-            "$update_config_path" > "$temp_config_file"
-        
-        # Write the updated content back to the original file
-        cat "$temp_config_file" > "$update_config_path"
-        echo "Updated update_config.json with structure unique name and hostname"
-        
-        # Make the API call to update the configuration
-        config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
-        
-        config_response=$(curl -s -f -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_config_file")
-        
-        if [ $? -eq 0 ]; then
-          echo "Successfully updated configuration"
-          
-          # Save the response to config_response.json
-          config_response_path="$flow_service_dir/config_response.json"
-          echo "$config_response" > "$config_response_path"
-          echo "Configuration response saved to: $config_response_path"
-        else
-          echo "Error updating configuration"
-          echo "Response: $config_response"
-          # Continue execution even if this call fails
-        fi
-        
-        # Remove the temporary file
-        rm -f "$temp_config_file"
-      else
-        echo "Warning: FLOW-SERVICE update_config.json not found at: $update_config_path"
-      fi
     else
-      echo "Skipping configuration update - not a StoreHub or FLOW-SERVICE component"
+      echo "Skipping configuration update - not a StoreHub component"
     fi
   else
     echo "Error retrieving store information"
