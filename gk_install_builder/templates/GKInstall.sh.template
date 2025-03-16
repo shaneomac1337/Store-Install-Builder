@@ -125,20 +125,23 @@ get_jre_version() {
   
   # Special case for Java_zulujre pattern
   if [[ "$filename" =~ Java_zulujre.*?[-_]([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-    echo "Detected Java version ${BASH_REMATCH[1]} from Zulu JRE filename"
+    # Log detection but only return the version
+    echo >&2 "Detected Java version ${BASH_REMATCH[1]} from Zulu JRE filename"
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
   
   # Special case for x64/x86 in filename to avoid extracting "64" as version
   if [[ "$filename" =~ x64-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-    echo "Detected Java version ${BASH_REMATCH[1]} from x64 pattern"
+    # Log detection but only return the version
+    echo >&2 "Detected Java version ${BASH_REMATCH[1]} from x64 pattern"
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
   
   if [[ "$filename" =~ x86-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
-    echo "Detected Java version ${BASH_REMATCH[1]} from x86 pattern"
+    # Log detection but only return the version
+    echo >&2 "Detected Java version ${BASH_REMATCH[1]} from x86 pattern"
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
@@ -152,7 +155,7 @@ get_jre_version() {
   # Validate version format - if it's just a number like "64", it's probably wrong
   if [[ "$version" =~ ^[0-9]+$ ]] && [[ "$filename" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
     # Extract version with format like 11.0.18
-    echo "Correcting invalid version '$version' to ${BASH_REMATCH[1]}"
+    echo >&2 "Correcting invalid version '$version' to ${BASH_REMATCH[1]}"
     echo "${BASH_REMATCH[1]}"
     return 0
   fi

@@ -7,7 +7,6 @@ import sys
 from tkinter import messagebox
 import sys
 import os
-import platform
 
 # Add parent directory to path to import PleasantPasswordClient
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -64,6 +63,7 @@ class LauncherSettingsEditor:
         self.window.title("Launcher Settings Editor")
         self.window.geometry("800x600")
         self.window.transient(self.parent)
+        self.window.grab_set()
         
         # Create main frame with scrollbar
         main_frame = ctk.CTkFrame(self.window)
@@ -149,20 +149,6 @@ class LauncherSettingsEditor:
         
         # Set default tab
         tab_view.set("WDM")
-        
-        # Make sure the window is fully realized before calling grab_set
-        self.window.update_idletasks()
-        
-        # Use a platform-specific approach for grab_set
-        if platform.system() == "Linux":
-            # On Linux, we need to make sure the window is visible before grab_set
-            self.window.deiconify()
-            self.window.wait_visibility()
-            # Add a small delay on Linux to ensure window is fully ready
-            self.window.after(100, lambda: self.window.grab_set())
-        else:
-            # On Windows and macOS, grab_set works fine immediately
-            self.window.grab_set()
     
     def load_default_settings(self):
         """Load default settings for each component type"""
