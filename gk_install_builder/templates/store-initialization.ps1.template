@@ -223,8 +223,94 @@ try {
                 } else {
                     Write-Host "Warning: StoreHub update_config.json not found at: $updateConfigPath"
                 }
+            } elseif ($ComponentType -eq 'FLOW-SERVICE') {
+                # Now update the configuration using update_config.json from the flow-service directory
+                $flowServiceDir = Join-Path $initPath "flow-service"
+                $updateConfigPath = Join-Path $flowServiceDir "update_config.json"
+                
+                if (Test-Path $updateConfigPath) {
+                    Write-Host "Updating FLOW-SERVICE configuration using update_config.json..."
+                    
+                    # Read the update_config.json template
+                    $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
+                    
+                    # Get system type for FLOW-SERVICE
+                    $systemType = "CSE-FLOWSERVICE-CLOUD"
+                    
+                    # Get hostname
+                    $hostname = $env:COMPUTERNAME
+                    if ([string]::IsNullOrEmpty($hostname)) {
+                        $hostname = "localhost"
+                    }
+                    
+                    # Get version from config
+                    $version = "v1.1.0"  # Default version
+                    
+                    # Get structure unique name from storemanager.json if available
+                    $structureUniqueName = ""
+                    if (Test-Path $storemanagerPath) {
+                        try {
+                            $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
+                            
+                            # Look for the structure that matches our system type
+                            foreach ($item in $storeManagerData.childNodeList) {
+                                if ($item.systemName -eq $systemType) {
+                                    $structureUniqueName = $item.structureUniqueName
+                                    Write-Host "Found matching structure: $structureUniqueName"
+                                    break
+                                }
+                            }
+                            
+                            if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                                # Construct a default structure name
+                                $structureUniqueName = "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$StoreId.FLOW-SERVICE"
+                                Write-Host "Using default structure name: $structureUniqueName"
+                            }
+                        } catch {
+                            Write-Host "Error parsing storemanager.json: $_"
+                            $structureUniqueName = "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$StoreId.FLOW-SERVICE"
+                            Write-Host "Using default structure name: $structureUniqueName"
+                        }
+                    } else {
+                        $structureUniqueName = "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.$StoreId.FLOW-SERVICE"
+                        Write-Host "Using default structure name: $structureUniqueName"
+                    }
+                    
+                    # Replace placeholders in the template
+                    $updateConfigJson = $updateConfigJson -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
+                    $updateConfigJson = $updateConfigJson -replace '@HOSTNAME@', $hostname
+                    
+                    # Write the updated content back to the file
+                    $updateConfigJson | Set-Content -Path $updateConfigPath -NoNewline
+                    Write-Host "Updated update_config.json with structure unique name and hostname"
+                    
+                    # Make the API call to update the configuration
+                    $configUrl = "https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+                    
+                    try {
+                        $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $updateConfigJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                        Write-Host "Successfully updated FLOW-SERVICE configuration"
+                        
+                        # Save the response to config_response.json
+                        $configResponsePath = Join-Path $flowServiceDir "config_response.json"
+                        $configResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $configResponsePath -NoNewline
+                        Write-Host "Configuration response saved to: $configResponsePath"
+                    } catch {
+                        Write-Host "Error updating FLOW-SERVICE configuration: $_"
+                        if ($_.Exception.Response) {
+                            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                            $reader.BaseStream.Position = 0
+                            $reader.DiscardBufferedData()
+                            $responseBody = $reader.ReadToEnd()
+                            Write-Host "Response body: $responseBody"
+                        }
+                        # Continue execution even if this call fails
+                    }
+                } else {
+                    Write-Host "Warning: FLOW-SERVICE update_config.json not found at: $updateConfigPath"
+                }
             } else {
-                Write-Host "Skipping configuration update - not a StoreHub component"
+                Write-Host "Skipping configuration update - not a StoreHub or FLOW-SERVICE component"
             }
         } catch {
             Write-Host "Error retrieving store information: $_"
