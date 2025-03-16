@@ -65,6 +65,7 @@
                               "structureUniqueName":  "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.9999.STOREHUB",
                               "systemName":  "CSE-sh-cloud",
                               "structureName":  "StoreHub",
+                              "activeVersion":  "v1.1.0",
                               "country":  "Sweden",
                               "countryShort":  "SE"
                           }
