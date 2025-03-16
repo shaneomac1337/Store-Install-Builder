@@ -45,3 +45,35 @@ Coop Sweden/dev.cse.cloud4retail.co/helper/tokens/form_password.txt
 gk_install_builder/__pycache__/config.cpython-311.pyc
 gk_install_builder/__pycache__/generator.cpython-311.pyc
 gk_install_builder/__pycache__/pleasant_password_client.cpython-311.pyc
+Ahold/dev.ahd.cloud4retail.co/certificate.p12
+Ahold/dev.ahd.cloud4retail.co/GKInstall.ps1
+Ahold/dev.ahd.cloud4retail.co/onboarding.ps1
+Ahold/dev.ahd.cloud4retail.co/store-initialization.ps1
+Ahold/dev.ahd.cloud4retail.co/helper/init/get_store.json
+Ahold/dev.ahd.cloud4retail.co/helper/init/storehub/update_config.json
+Ahold/dev.ahd.cloud4retail.co/helper/launchers/launcher.flow-service.template
+Ahold/dev.ahd.cloud4retail.co/helper/launchers/launcher.lpa-service.template
+Ahold/dev.ahd.cloud4retail.co/helper/launchers/launcher.pos.template
+Ahold/dev.ahd.cloud4retail.co/helper/launchers/launcher.storehub-service.template
+Ahold/dev.ahd.cloud4retail.co/helper/launchers/launcher.wdm.template
+Ahold/dev.ahd.cloud4retail.co/helper/tokens/basic_auth_password.txt
+Ahold/dev.ahd.cloud4retail.co/helper/tokens/form_password.txt
+Coop Sweden/dev.cse.cloud4retail.co/GKInstall.sh
+Coop Sweden/dev.cse.cloud4retail.co/Launcher.run
+Coop Sweden/dev.cse.cloud4retail.co/onboarding.sh
+Coop Sweden/dev.cse.cloud4retail.co/store-initialization.sh
+Coop Sweden/dev.cse.cloud4retail.co/helper/init/get_store.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/init/storemanager.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/init/storehub/config_response.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/init/storehub/update_config.json
+Coop Sweden/dev.cse.cloud4retail.co/helper/storehub/update_config.json
+helper/init/get_store.json
+helper/onboarding/flow-service.onboarding.json
+helper/onboarding/lpa-service.onboarding.json
+helper/onboarding/pos.onboarding.json
+helper/onboarding/storehub-service.onboarding.json
+helper/onboarding/wdm.onboarding.json
+helper/storehub/update_config.json
+helper/tokens/access_token.txt
+helper/tokens/basic_auth_password.txt
+helper/tokens/form_password.txt

@@ -188,26 +188,25 @@ try {
                                         $structureUniqueName = "$structurePattern.$StoreId.STOREHUB"
                                         Write-Host "Using constructed structure name: $structureUniqueName"
                                     } else {
-                                        Write-Host "Could not extract structure pattern from: $firstStructure"
-                                        # No fallback, just use what we have
-                                        $structureUniqueName = "ENTERPRISE.TENANT.$StoreId.STOREHUB"
-                                        Write-Host "Using basic structure name: $structureUniqueName"
+                                        Write-Host "Error: Could not extract structure pattern from: $firstStructure"
+                                        Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                                        exit 1
                                     }
                                 } else {
-                                    Write-Host "No structures found in response to extract pattern from"
-                                    # No fallback, just use a basic structure
-                                    $structureUniqueName = "ENTERPRISE.TENANT.$StoreId.STOREHUB"
-                                    Write-Host "Using basic structure name: $structureUniqueName"
+                                    Write-Host "Error: No structures found in response to extract pattern from"
+                                    Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                                    exit 1
                                 }
                             }
                         } catch {
                             Write-Host "Error parsing storemanager.json: $_"
-                            $structureUniqueName = "ENTERPRISE.TENANT.$StoreId.STOREHUB"
-                            Write-Host "Using basic structure name: $structureUniqueName"
+                            Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                            exit 1
                         }
                     } else {
-                        $structureUniqueName = "ENTERPRISE.TENANT.$StoreId.STOREHUB"
-                        Write-Host "Using basic structure name: $structureUniqueName"
+                        Write-Host "Error: storemanager.json not found"
+                        Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                        exit 1
                     }
                     
                     # Replace placeholders in the template
