@@ -4,6 +4,7 @@ import json
 import shutil
 import customtkinter as ctk
 import base64
+import platform
 from webdav3.client import Client
 from webdav3.exceptions import WebDavException
 from datetime import datetime
@@ -525,9 +526,37 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
             
             # Get Firebird server path from config for direct replacement
             firebird_server_path = config.get("firebird_server_path", "")
+            # Get the platform from config
+            platform_type = config.get("platform", "Windows")
+            
             if filename == "launcher.storehub-service.template":
                 # Only replace if we have a value, otherwise leave the placeholder
                 if firebird_server_path:
+                    # Ensure the path is properly formatted for Linux
+                    if platform_type.lower() == "linux" and firebird_server_path:
+                        # Start with a completely clean approach
+                        # First, extract just the path parts we need
+                        path_parts = []
+                        
+                        # Split by slashes and process each part
+                        for part in firebird_server_path.replace('\\', '/').split('/'):
+                            if part and part != "firebird":
+                                path_parts.append(part)
+                        
+                        # For Linux, we want a path like /opt/firebird
+                        # Ensure 'opt' is in the path
+                        if 'opt' not in path_parts:
+                            path_parts = ['opt'] + path_parts
+                        
+                        # Build the path with a leading slash and no trailing slash
+                        firebird_server_path = "/" + "/".join(path_parts)
+                        
+                        # Finally, ensure it ends with /firebird
+                        if not firebird_server_path.endswith('/firebird'):
+                            firebird_server_path = firebird_server_path.rstrip('/') + '/firebird'
+                        
+                        print(f"Normalized Firebird path for Linux: {firebird_server_path}")
+                    
                     print(f"Replacing @FIREBIRD_SERVER_PATH@ with {firebird_server_path} in {filename}")
                     modified_template = modified_template.replace("@FIREBIRD_SERVER_PATH@", firebird_server_path)
                 else:

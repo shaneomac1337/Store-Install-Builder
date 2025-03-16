@@ -248,6 +248,13 @@ if [[ "$firebird_server_path" == *@* ]]; then
   echo "Using default Firebird server path: $firebird_server_path"
 fi
 
+# For StoreHub, always use a fixed path on Linux to avoid any issues
+if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
+  # For Linux, we'll use a fixed path to avoid any issues
+  firebird_server_path="/opt/firebird"
+  echo "Using fixed Firebird server path: $firebird_server_path"
+fi
+
 # Check offline mode
 offline_mode=$offline
 
@@ -695,7 +702,20 @@ launcher_props="${launcher_props//@SSL_PATH@/$ssl_path}"
 launcher_props="${launcher_props//@SSL_PASSWORD@/$ssl_password}"
 
 # For StoreHub, set the Firebird server path
-launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
+# Ensure the path is clean before replacing
+if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
+  # For Linux, we'll use a fixed path to avoid any issues
+  firebird_server_path="/opt/firebird"
+  echo "Using fixed Firebird server path for launcher.properties: $firebird_server_path"
+  
+  # Instead of using string replacement, we'll directly modify the launcher.properties content
+  # by removing the existing line and adding a new one
+  launcher_props=$(echo "$launcher_props" | grep -v "firebirdServerPath=")
+  launcher_props="${launcher_props}"$'\n'"firebirdServerPath=$firebird_server_path"
+else
+  # For other components, use the standard replacement
+  launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
+fi
 
 # Add Tomcat replacements if Tomcat files were found
 if [ "${#tomcat_files[@]}" -gt 0 ]; then
