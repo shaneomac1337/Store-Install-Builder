@@ -3,6 +3,9 @@
 # Parse command line arguments
 COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
+tenant_id="001"
+username="launchpad"
+form_username="1001"
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -15,19 +18,20 @@ while [ $# -gt 0 ]; do
       base_url="$2"
       shift 2
       ;;
+    --tenant_id)
+      tenant_id="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>]"
+      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--tenant_id <tenant_id>]"
       exit 1
       ;;
   esac
 done
 
 # API endpoint
-url="https://$base_url/auth-service/tenants/001/oauth/token"
-
-# Basic Auth credentials
-username="launchpad"
+url="https://$base_url/auth-service/tenants/${tenant_id}/oauth/token"
 
 # Function to Base64 encode
 encode_base64() {
@@ -72,17 +76,22 @@ fi
 basic_auth_password=$(decode_base64 "$(cat "$basic_auth_path")")
 form_password=$(decode_base64 "$(cat "$form_password_path")")
 
-# Use decoded passwords
-base64_auth=$(encode_base64 "${username}:${basic_auth_password}")
+# Basic Auth credentials
+username="launchpad"
+# Use the decoded password from the file instead of hardcoding it
+password="$basic_auth_password"
+
+# Encode credentials
+auth_string=$(echo -n "$username:$password" | base64)
 
 # Form data with decrypted password
-username_encoded=$(printf %s "1001" | jq -sRr @uri)
+username_encoded=$(printf %s "$form_username" | jq -sRr @uri)
 password_encoded=$(printf %s "$form_password" | jq -sRr @uri)
 form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"
 
 # Make the API call
 response=$(curl -s -X POST "$url" \
-  -H "Authorization: Basic $base64_auth" \
+  -H "Authorization: Basic $auth_string" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "$form_data")
 

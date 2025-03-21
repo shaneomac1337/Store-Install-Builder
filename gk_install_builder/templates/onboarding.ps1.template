@@ -1,10 +1,11 @@
 param (
     [string]$ComponentType = "POS",
-    [string]$base_url = "test.cse.cloud4retail.co"  # Add this parameter
+    [string]$base_url = "test.cse.cloud4retail.co",  # Add this parameter
+    [string]$tenant_id = "001"  # Add this parameter
 )
 
 # API endpoint
-$url = "https://$base_url/auth-service/tenants/001/oauth/token"
+$url = "https://$base_url/auth-service/tenants/${tenant_id}/oauth/token"
 
 # Basic Auth credentials
 $username = "launchpad"
@@ -71,10 +72,7 @@ $formData = ($body.GetEnumerator() | ForEach-Object {
 
 # Make the API call
 try {
-    $response = Invoke-RestMethod -Uri $url -Method Post `
-        -Headers @{Authorization = "Basic $base64Auth"} `
-        -Body $formData `
-        -ContentType "application/x-www-form-urlencoded"
+    $response = Invoke-RestMethod -Uri $url -Method Post -Headers @{Authorization = "Basic $base64Auth"} -Body $formData -ContentType "application/x-www-form-urlencoded"
     
     # Save the access token without extra newline
     $accessToken = $response.access_token
@@ -112,9 +110,7 @@ try {
     }
 
     try {
-        $onboardingResponse = Invoke-RestMethod -Uri $onboardingUrl -Method Post `
-            -Headers $headers `
-            -Body $body
+        $onboardingResponse = Invoke-RestMethod -Uri $onboardingUrl -Method Post -Headers $headers -Body $body
         
         # Save the onboarding token without extra newline
         $onboardingToken = $onboardingResponse.token

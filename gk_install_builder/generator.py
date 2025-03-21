@@ -776,8 +776,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     f'username = "{form_username}"'
                 )
                 content = content.replace(
-                    'tenants/001/',
-                    f'tenants/{tenant_id}/'
+                    '[string]$tenant_id = "001"',
+                    f'[string]$tenant_id = "{tenant_id}"'
                 )
             else:  # Linux
                 # Linux-specific replacements
@@ -786,16 +786,16 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     f'base_url="{base_url}"'
                 )
                 content = content.replace(
+                    'tenant_id="001"',
+                    f'tenant_id="{tenant_id}"'
+                )
+                content = content.replace(
                     'username="launchpad"',
                     f'username="{username}"'
                 )
                 content = content.replace(
-                    '"1001"',
-                    f'"{form_username}"'
-                )
-                content = content.replace(
-                    'tenants/001/',
-                    f'tenants/{tenant_id}/'
+                    'form_username="1001"',
+                    f'form_username="{form_username}"'
                 )
             
             # Write the modified content
@@ -841,6 +841,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
             storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
             base_url = config.get("base_url", "test.cse.cloud4retail.co")
+            tenant_id = config.get("tenant_id", "001")
             
             # Copy the appropriate store initialization script based on platform
             if platform == "Windows":
@@ -862,6 +863,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 template_content = template_content.replace("${lpa_service_system_type}", lpa_service_system_type)
                 template_content = template_content.replace("${storehub_service_system_type}", storehub_service_system_type)
                 template_content = template_content.replace("${base_url}", base_url)
+                template_content = template_content.replace("${tenant_id}", tenant_id)
                 
                 # Write the processed content to the destination file
                 with open(dst_script, 'w') as f:

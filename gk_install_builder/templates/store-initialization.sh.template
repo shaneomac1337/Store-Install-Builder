@@ -88,7 +88,7 @@ headers=(
 )
 
 # First API call - Get Business Unit
-bu_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$STORE_ID"
+bu_url="https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units/$STORE_ID"
 bu_response=$(curl -s -f -X GET "$bu_url" "${headers[@]}")
 if [ $? -ne 0 ]; then
   echo "Error occurred during business unit API call"
@@ -115,7 +115,7 @@ fi
 echo "Found businessUnitGroupID: $business_unit_group_id"
 
 # Second API call - Try to Get Workstation first
-ws_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
+ws_url="https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
 ws_response=$(curl -s -f -X GET "$ws_url" "${headers[@]}" || echo "HTTP_ERROR")
 
 if [ "$ws_response" = "HTTP_ERROR" ]; then
@@ -151,7 +151,7 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
     current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
     ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
     
-    ws_create_url="https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
+    ws_create_url="https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations"
     ws_response=$(curl -s -f -X POST "$ws_create_url" "${headers[@]}" -d "$ws_payload")
     
     if [ $? -ne 0 ]; then
