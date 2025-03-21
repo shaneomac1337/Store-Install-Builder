@@ -56,7 +56,7 @@ Write-Host "Using systemName: $currentSystemName for component: $ComponentType"
 
 try {
     # First API call - Get Business Unit
-    $buUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$StoreId"
+    $buUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units/$StoreId"
     $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
     Write-Host "Successfully retrieved business unit information"
     
@@ -73,7 +73,7 @@ try {
     Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
 
     # Second API call - Try to Get Workstation first
-    $wsUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    $wsUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
     try {
         $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
         Write-Host "Successfully retrieved existing workstation information"
@@ -93,7 +93,7 @@ try {
             }
 
             # Create workstation payload
-            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
+            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations"
             $wsPayload = @{
                 workstation = @{
                     key = @{
