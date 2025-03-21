@@ -45,18 +45,18 @@ fi
 
 # Map ComponentType to systemName for matching in the API response
 declare -A system_name_map
-system_name_map["POS"]="CSE-OPOS-CLOUD"
-system_name_map["WDM"]="CSE-wdm"
-system_name_map["FLOW-SERVICE"]="GKR-FLOWSERVICE-CLOUD"
-system_name_map["LPA-SERVICE"]="CSE-lps-lpa"
-system_name_map["STOREHUB-SERVICE"]="CSE-sh-cloud"
+system_name_map["POS"]="${pos_system_type}"
+system_name_map["WDM"]="${wdm_system_type}"
+system_name_map["FLOW-SERVICE"]="${flow_service_system_type}"
+system_name_map["LPA-SERVICE"]="${lpa_service_system_type}"
+system_name_map["STOREHUB-SERVICE"]="${storehub_service_system_type}"
 
 # Get the systemName for the current component
 current_system_name="${system_name_map[$COMPONENT_TYPE]}"
 if [ -z "$current_system_name" ]; then
-  echo "Warning: No systemName mapping found for ComponentType: $COMPONENT_TYPE"
-  # Use a default if no mapping exists
-  current_system_name="CSE-$(echo "$COMPONENT_TYPE" | tr '[:upper:]' '[:lower:]')"
+  echo "Error: No systemName mapping found for ComponentType: $COMPONENT_TYPE"
+  echo "Cannot proceed without a valid system name mapping."
+  exit 1
 fi
 
 echo "Using systemName: $current_system_name for component: $COMPONENT_TYPE"
