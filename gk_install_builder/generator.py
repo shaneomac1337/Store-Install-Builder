@@ -276,6 +276,9 @@ class ProjectGenerator:
             # Get Firebird server path from config
             firebird_server_path = config.get("firebird_server_path", "")
             
+            # Get tenant ID from config
+            tenant_id = config.get("tenant_id", "001")
+            
             if platform == "Windows":
                 # Windows-specific replacements
                 replacements = [
@@ -292,7 +295,8 @@ class ProjectGenerator:
                     ("@FLOW_SERVICE_VERSION@", flow_service_version),
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
-                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path)
+                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
+                    ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 
                 # Add version function for component-specific versions
@@ -319,7 +323,8 @@ class ProjectGenerator:
                     ("@FLOW_SERVICE_VERSION@", flow_service_version),
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
-                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path)
+                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
+                    ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 
                 # Add version function for component-specific versions (bash version)
