@@ -1,7 +1,0 @@
-{
-  "station": {
-    "systemName": "GKR-Store",
-    "tenantId": "003",
-    "retailStoreId": "@RETAIL_STORE_ID@"
-  }
-}
