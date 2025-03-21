@@ -834,6 +834,14 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             templates_dir = os.path.join(script_dir, 'templates')
             platform = config.get("platform", "Windows")
             
+            # Get system types from config
+            pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
+            wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
+            flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
+            lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
+            storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
+            base_url = config.get("base_url", "test.cse.cloud4retail.co")
+            
             # Copy the appropriate store initialization script based on platform
             if platform == "Windows":
                 src_script = os.path.join(templates_dir, "store-initialization.ps1.template")
@@ -842,10 +850,24 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 src_script = os.path.join(templates_dir, "store-initialization.sh.template")
                 dst_script = os.path.join(output_dir, "store-initialization.sh")
             
-            # Copy the script if it exists
+            # Process the template with variables instead of just copying
             if os.path.exists(src_script):
-                shutil.copy2(src_script, dst_script)
-                print(f"  Copied store initialization script to: {dst_script}")
+                with open(src_script, 'r') as f:
+                    template_content = f.read()
+                
+                # Replace template variables
+                template_content = template_content.replace("${pos_system_type}", pos_system_type)
+                template_content = template_content.replace("${wdm_system_type}", wdm_system_type)
+                template_content = template_content.replace("${flow_service_system_type}", flow_service_system_type)
+                template_content = template_content.replace("${lpa_service_system_type}", lpa_service_system_type)
+                template_content = template_content.replace("${storehub_service_system_type}", storehub_service_system_type)
+                template_content = template_content.replace("${base_url}", base_url)
+                
+                # Write the processed content to the destination file
+                with open(dst_script, 'w') as f:
+                    f.write(template_content)
+                
+                print(f"  Generated store initialization script with dynamic system types at: {dst_script}")
                 
                 # For Linux scripts, make them executable
                 if platform == "Linux":

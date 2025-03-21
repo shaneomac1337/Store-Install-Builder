@@ -37,11 +37,11 @@ $headers = @{
 
 # Map ComponentType to systemName for matching in the API response
 $systemNameMap = @{
-    'POS' = '${pos_system_type}'
-    'WDM' = '${wdm_system_type}'
-    'FLOW-SERVICE' = '${flow_service_system_type}'
-    'LPA-SERVICE' = '${lpa_service_system_type}'
-    'STOREHUB-SERVICE' = '${storehub_service_system_type}'
+    'POS' = 'AHD-OPOS-CLOUD'
+    'WDM' = 'AHD-wdm'
+    'FLOW-SERVICE' = 'GKR-FLOWSERVICE-CLOUD'
+    'LPA-SERVICE' = 'AHD-lps-lpa'
+    'STOREHUB-SERVICE' = 'AHD-sh-cloud'
 }
 
 # Get the systemName for the current component
