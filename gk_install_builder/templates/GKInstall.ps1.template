@@ -179,8 +179,8 @@ if ($firebird_server_path -like "*@*") {
 $firebird_driver_path_local = "@FIREBIRD_DRIVER_PATH_LOCAL@"
 # If the placeholder wasn't replaced (still contains @), use a default value
 if ($firebird_driver_path_local -like "*@*") {
-    $firebird_driver_path_local = "C:\gkretail\Jaybird"
-    Write-Host "Using default Jaybird driver path: $firebird_driver_path_local"
+    $firebird_driver_path_local = ""
+    Write-Host "No default Jaybird driver path set - will detect during installation if available"
 }
 
 # Check offline mode
@@ -267,6 +267,96 @@ if ($offline.IsPresent) {
             $jre_file,
             $tomcat_file
         )
+        
+        # Add installer.jar to required files if it exists
+        if ($has_installer_jar) {
+            $required_files += $installer_jar
+        }
+    } elseif ($ComponentType -eq 'STOREHUB-SERVICE') {
+        # For StoreHub components - with Jaybird support
+        # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
+        $jre_files = @(Get-ChildItem -Path "Java\*.zip" -ErrorAction SilentlyContinue)
+        
+        # If no jre files found, try more generic patterns
+        if ($jre_files.Count -eq 0) {
+            $jre_files = @(Get-ChildItem -Path "Java\*jre*.zip" -ErrorAction SilentlyContinue)
+            if ($jre_files.Count -eq 0) {
+                $jre_files = @(Get-ChildItem -Path "Java\*java*.zip" -ErrorAction SilentlyContinue)
+            }
+        }
+        
+        $tomcat_files = @(Get-ChildItem -Path "Tomcat\*.zip" -ErrorAction SilentlyContinue)
+        
+        # If no tomcat files found, try a more generic pattern
+        if ($tomcat_files.Count -eq 0) {
+            $tomcat_files = @(Get-ChildItem -Path "Tomcat\*tomcat*.zip" -ErrorAction SilentlyContinue)
+        }
+        
+        # Look for Jaybird JAR files
+        $jaybird_files = @(Get-ChildItem -Path "Jaybird\*.jar" -ErrorAction SilentlyContinue)
+        $jaybird_file = $null
+        $has_jaybird = $false
+        
+        if ($jaybird_files.Count -gt 0) {
+            if ($jaybird_files.Count -gt 1) {
+                Write-Host "Warning: Multiple Jaybird JAR files found. Using the first one: $($jaybird_files[0].Name)"
+            }
+            $jaybird_file = $jaybird_files[0].FullName
+            $has_jaybird = $true
+            Write-Host "Found Jaybird driver: $($jaybird_files[0].Name)"
+            
+            # Update the firebird_driver_path_local to point to the actual JAR file, not just the directory
+            $firebird_driver_path_local = $jaybird_file
+            Write-Host "Updated Jaybird driver path to: $firebird_driver_path_local"
+        } else {
+            Write-Host "Warning: No Jaybird driver found in Jaybird directory"
+        }
+        
+        # Look for any JAR file to use as installer in the component directory
+        $jar_files = @(Get-ChildItem -Path (Join-Path $package_dir "*.jar") -ErrorAction SilentlyContinue)
+        $installer_jar = $null
+        $has_installer_jar = $false
+        
+        if ($jar_files.Count -gt 0) {
+            if ($jar_files.Count -gt 1) {
+                Write-Host "Warning: Multiple JAR files found in $package_dir. Using the first one: $($jar_files[0].Name)"
+            }
+            $installer_jar = $jar_files[0].FullName
+            $has_installer_jar = $true
+            Write-Host "Found installer JAR: $($jar_files[0].Name)"
+        }
+        
+        # Initialize required files with Launcher.exe
+        $required_files = @(
+            (Join-Path $package_dir "Launcher.exe")
+        )
+        
+        # Process JRE files if available
+        if ($jre_files.Count -gt 0) {
+            $jre_file = $jre_files[0].FullName
+            $jre_version = Get-JreVersion -JreZip $jre_files[0].Name
+            Write-Host "Found JRE/Java package: $($jre_files[0].Name), version: $jre_version"
+            $required_files += $jre_file
+        } else {
+            Write-Host "Error: No JRE/Java package found for $ComponentType"
+            exit 1
+        }
+        
+        # Process Tomcat files if available
+        if ($tomcat_files.Count -gt 0) {
+            $tomcat_file = $tomcat_files[0].FullName
+            $tomcat_version = Get-TomcatVersion -TomcatZip $tomcat_files[0].Name
+            Write-Host "Found Tomcat package: $($tomcat_files[0].Name), version: $tomcat_version"
+            $required_files += $tomcat_file
+        } else {
+            Write-Host "Error: No Tomcat package found for $ComponentType"
+            exit 1
+        }
+        
+        # Add Jaybird file to required files if it exists
+        if ($has_jaybird) {
+            $required_files += $jaybird_file
+        }
         
         # Add installer.jar to required files if it exists
         if ($has_installer_jar) {
@@ -619,6 +709,11 @@ $replacements = @{
 if ($tomcat_files.Count -gt 0) {
     $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
     $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { $tomcat_files[0].FullName } else { "" })
+}
+
+# Add Jaybird driver path if found
+if ($has_jaybird) {
+    $replacements['@FIREBIRD_DRIVER_PATH_LOCAL@'] = $firebird_driver_path_local
 }
 
 # Apply all replacements

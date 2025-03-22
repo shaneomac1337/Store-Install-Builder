@@ -255,8 +255,8 @@ fi
 firebird_driver_path_local="@FIREBIRD_DRIVER_PATH_LOCAL@"
 # If the placeholder wasn't replaced (still contains @), use a default value
 if [[ "$firebird_driver_path_local" == *@* ]]; then
-  firebird_driver_path_local="/usr/local/gkretail/Jaybird"
-  echo "Using default Jaybird driver path: $firebird_driver_path_local"
+  firebird_driver_path_local=""
+  echo "No default Jaybird driver path set - will detect during installation if available"
 fi
 
 # For StoreHub, always use a fixed path on Linux to avoid any issues
@@ -357,6 +357,104 @@ if [ "$offline_mode" = true ]; then
     else
       echo "Error: No Tomcat package found in Tomcat directory"
       exit 1
+    fi
+    
+    # Add installer.jar to required files if it exists
+    if [ "$has_installer_jar" = true ]; then
+      required_files+=("$installer_jar")
+    fi
+  elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+    # For StoreHub components - with Jaybird support
+    # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
+    jre_files=()
+    
+    # Try different JRE patterns in Java directory
+    for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
+      if compgen -G "$pattern" > /dev/null; then
+        mapfile -t new_files < <(ls $pattern 2>/dev/null)
+        jre_files+=("${new_files[@]}")
+      fi
+    done
+    
+    tomcat_files=()
+    # Try different Tomcat patterns in Tomcat directory
+    for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
+      if compgen -G "$pattern" > /dev/null; then
+        mapfile -t new_files < <(ls $pattern 2>/dev/null)
+        tomcat_files+=("${new_files[@]}")
+      fi
+    done
+    
+    # Look for Jaybird JAR files
+    jaybird_files=()
+    if compgen -G "Jaybird/*.jar" > /dev/null; then
+      mapfile -t jaybird_files < <(ls Jaybird/*.jar 2>/dev/null)
+    fi
+    
+    jaybird_file=""
+    has_jaybird=false
+    
+    if [ "${#jaybird_files[@]}" -gt 0 ]; then
+      if [ "${#jaybird_files[@]}" -gt 1 ]; then
+        echo "Warning: Multiple Jaybird JAR files found. Using the first one: $(basename ${jaybird_files[0]})"
+      fi
+      jaybird_file="${jaybird_files[0]}"
+      has_jaybird=true
+      echo "Found Jaybird driver: $(basename ${jaybird_files[0]})"
+      
+      # Update the firebird_driver_path_local to point to the actual JAR file, not just the directory
+      firebird_driver_path_local="$jaybird_file"
+      echo "Updated Jaybird driver path to: $firebird_driver_path_local"
+    else
+      echo "Warning: No Jaybird driver found in Jaybird directory"
+    fi
+    
+    # Look for any JAR file to use as installer in the component directory
+    jar_files=()
+    if compgen -G "$package_dir/*.jar" > /dev/null; then
+      mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
+    fi
+    
+    installer_jar=""
+    has_installer_jar=false
+    
+    if [ "${#jar_files[@]}" -gt 0 ]; then
+      if [ "${#jar_files[@]}" -gt 1 ]; then
+        echo "Warning: Multiple JAR files found in $package_dir. Using the first one: $(basename ${jar_files[0]})"
+      fi
+      installer_jar="${jar_files[0]}"
+      has_installer_jar=true
+      echo "Found installer JAR: $(basename ${jar_files[0]})"
+    fi
+    
+    # Initialize required files with Launcher binary
+    required_files=("$package_dir/Launcher.run")
+    
+    # Process JRE files if available
+    if [ "${#jre_files[@]}" -gt 0 ]; then
+      jre_file="${jre_files[0]}"
+      jre_version=$(get_jre_version "$(basename ${jre_files[0]})")
+      echo "Found JRE/Java package: $(basename ${jre_files[0]}), version: $jre_version"
+      required_files+=("$jre_file")
+    else
+      echo "Error: No JRE/Java package found for $COMPONENT_TYPE"
+      exit 1
+    fi
+    
+    # Process Tomcat files if available
+    if [ "${#tomcat_files[@]}" -gt 0 ]; then
+      tomcat_file="${tomcat_files[0]}"
+      tomcat_version=$(get_tomcat_version "$(basename ${tomcat_files[0]})")
+      echo "Found Tomcat package: $(basename ${tomcat_files[0]}), version: $tomcat_version"
+      required_files+=("$tomcat_file")
+    else
+      echo "Error: No Tomcat package found for $COMPONENT_TYPE"
+      exit 1
+    fi
+    
+    # Add Jaybird file to required files if it exists
+    if [ "$has_jaybird" = true ]; then
+      required_files+=("$jaybird_file")
     fi
     
     # Add installer.jar to required files if it exists
@@ -719,15 +817,17 @@ if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
   firebird_server_path="/opt/firebird"
   echo "Using fixed Firebird server path for launcher.properties: $firebird_server_path"
   
-  # Set fixed Jaybird driver path for Linux
-  firebird_driver_path_local="/usr/local/gkretail/Jaybird"
-  echo "Using fixed Jaybird driver path for launcher.properties: $firebird_driver_path_local"
-  
   # Instead of using string replacement, we'll directly modify the launcher.properties content
   # by removing the existing line and adding a new one
   launcher_props=$(echo "$launcher_props" | grep -v "firebirdServerPath=")
   launcher_props="${launcher_props}"$'\n'"firebirdServerPath=$firebird_server_path"
-  launcher_props="${launcher_props}"$'\n'"firebird_driver_path_local=$firebird_driver_path_local"
+  
+  # Add the Jaybird path only if it was detected
+  if [ "$has_jaybird" = true ]; then
+    launcher_props=$(echo "$launcher_props" | grep -v "firebird_driver_path_local=")
+    launcher_props="${launcher_props}"$'\n'"firebird_driver_path_local=$firebird_driver_path_local"
+    echo "Added detected Jaybird driver path to launcher.properties: $firebird_driver_path_local"
+  fi
 else
   # For other components, use the standard replacement
   launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
