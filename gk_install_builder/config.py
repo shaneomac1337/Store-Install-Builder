@@ -100,7 +100,7 @@ class ConfigManager:
         default_platform = "Windows"
         
         # Set platform-specific paths
-        default_firebird_path = "C:\\Program Files\\Firebird" if default_platform == "Windows" else "/opt/Firebird"
+        default_firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0" if default_platform == "Windows" else "/opt/firebird"
         
         return {
             # Project Configuration

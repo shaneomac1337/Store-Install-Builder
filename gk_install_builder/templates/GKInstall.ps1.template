@@ -171,7 +171,7 @@ $ssl_password = "changeit"
 $firebird_server_path = "@FIREBIRD_SERVER_PATH@"
 # If the placeholder wasn't replaced (still contains @), use a default value
 if ($firebird_server_path -like "*@*") {
-    $firebird_server_path = "C:\Program Files\Firebird"
+    $firebird_server_path = "C:\Program Files\Firebird\Firebird_3_0"
     Write-Host "Using default Firebird server path: $firebird_server_path"
 }
 
