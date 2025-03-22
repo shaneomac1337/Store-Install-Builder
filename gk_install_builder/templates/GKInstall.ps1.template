@@ -175,6 +175,14 @@ if ($firebird_server_path -like "*@*") {
     Write-Host "Using default Firebird server path: $firebird_server_path"
 }
 
+# For StoreHub, set the Jaybird driver path
+$firebird_driver_path_local = "@FIREBIRD_DRIVER_PATH_LOCAL@"
+# If the placeholder wasn't replaced (still contains @), use a default value
+if ($firebird_driver_path_local -like "*@*") {
+    $firebird_driver_path_local = "C:\gkretail\Jaybird"
+    Write-Host "Using default Jaybird driver path: $firebird_driver_path_local"
+}
+
 # Check offline mode
 $offline_mode = $offline.IsPresent
 
@@ -604,6 +612,7 @@ $replacements = @{
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
     '@FIREBIRD_SERVER_PATH@' = $firebird_server_path
+    '@FIREBIRD_DRIVER_PATH_LOCAL@' = $firebird_driver_path_local
 }
 
 # Add Tomcat replacements if Tomcat files were found

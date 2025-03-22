@@ -251,6 +251,14 @@ if [[ "$firebird_server_path" == *@* ]]; then
   echo "Using default Firebird server path: $firebird_server_path"
 fi
 
+# For StoreHub, set the Jaybird driver path
+firebird_driver_path_local="@FIREBIRD_DRIVER_PATH_LOCAL@"
+# If the placeholder wasn't replaced (still contains @), use a default value
+if [[ "$firebird_driver_path_local" == *@* ]]; then
+  firebird_driver_path_local="/usr/local/gkretail/Jaybird"
+  echo "Using default Jaybird driver path: $firebird_driver_path_local"
+fi
+
 # For StoreHub, always use a fixed path on Linux to avoid any issues
 if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
   # For Linux, we'll use a fixed path to avoid any issues
@@ -711,13 +719,19 @@ if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
   firebird_server_path="/opt/firebird"
   echo "Using fixed Firebird server path for launcher.properties: $firebird_server_path"
   
+  # Set fixed Jaybird driver path for Linux
+  firebird_driver_path_local="/usr/local/gkretail/Jaybird"
+  echo "Using fixed Jaybird driver path for launcher.properties: $firebird_driver_path_local"
+  
   # Instead of using string replacement, we'll directly modify the launcher.properties content
   # by removing the existing line and adding a new one
   launcher_props=$(echo "$launcher_props" | grep -v "firebirdServerPath=")
   launcher_props="${launcher_props}"$'\n'"firebirdServerPath=$firebird_server_path"
+  launcher_props="${launcher_props}"$'\n'"firebird_driver_path_local=$firebird_driver_path_local"
 else
   # For other components, use the standard replacement
   launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
+  launcher_props="${launcher_props//@FIREBIRD_DRIVER_PATH_LOCAL@/$firebird_driver_path_local}"
 fi
 
 # Add Tomcat replacements if Tomcat files were found
