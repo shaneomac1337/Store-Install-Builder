@@ -3075,35 +3075,69 @@ class OfflinePackageCreator:
         self.status_label.pack(pady=5, padx=10)
     
     def create_webdav_browser(self):
-        # Create WebDAV browser frame
+        # Create WebDAV browser frame with a subtle gradient background
         webdav_frame = ctk.CTkFrame(self.main_frame)
         webdav_frame.pack(fill="x", padx=10, pady=(0, 10))
         
-        # Header section
-        header_frame = ctk.CTkFrame(webdav_frame)
+        # Header section with modern design
+        header_frame = ctk.CTkFrame(webdav_frame, fg_color="#1E2433")
         header_frame.pack(fill="x", padx=5, pady=5)
+        
+        # Title with icon
+        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        title_frame.pack(side="left", padx=10, fill="y")
+        
+        # WebDAV icon label
+        icon_label = ctk.CTkLabel(
+            title_frame,
+            text="🌐",
+            font=("Helvetica", 18)
+        )
+        icon_label.pack(side="left", padx=(0, 5))
         
         # Title
         title_label = ctk.CTkLabel(
-            header_frame,
+            title_frame,
             text="WebDAV Browser",
-            font=("Helvetica", 16, "bold")
+            font=("Helvetica", 16, "bold"),
+            text_color="#4D90FE"  # Professional blue color
         )
-        title_label.pack(side="left", padx=10)
+        title_label.pack(side="left", padx=5)
         
-        # Current path
-        self.path_label = ctk.CTkLabel(header_frame, text="Current Path: /SoftwarePackage")
-        self.path_label.pack(side="right", padx=10)
+        # Current path with a modern look
+        path_frame = ctk.CTkFrame(header_frame, fg_color="#2A3343", corner_radius=6)
+        path_frame.pack(side="right", padx=10, pady=5, fill="y")
         
-        # Authentication section
+        folder_icon = ctk.CTkLabel(
+            path_frame,
+            text="📂",
+            font=("Helvetica", 14)
+        )
+        folder_icon.pack(side="left", padx=(5, 0))
+        
+        self.path_label = ctk.CTkLabel(
+            path_frame,
+            text="/SoftwarePackage",
+            font=("Helvetica", 12),
+            text_color="#E0E0E0"
+        )
+        self.path_label.pack(side="right", padx=(0, 10))
+        
+        # Authentication section with better styling
         auth_frame = ctk.CTkFrame(webdav_frame)
         auth_frame.pack(fill="x", padx=5, pady=5)
         
-        # Username
-        username_label = ctk.CTkLabel(auth_frame, text="Username:", width=80)
-        username_label.pack(side="left", padx=5)
+        # Username with icon
+        username_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
+        username_frame.pack(side="left", padx=5)
         
-        self.webdav_username = ctk.CTkEntry(auth_frame, width=120)
+        username_icon = ctk.CTkLabel(username_frame, text="👤", width=25)
+        username_icon.pack(side="left", padx=(0, 2))
+        
+        username_label = ctk.CTkLabel(username_frame, text="Username:", width=75)
+        username_label.pack(side="left", padx=2)
+        
+        self.webdav_username = ctk.CTkEntry(auth_frame, width=120, corner_radius=6)
         self.webdav_username.pack(side="left", padx=5)
         
         # Load saved username
@@ -3113,77 +3147,256 @@ class OfflinePackageCreator:
         # Register WebDAV username with config manager
         self.config_manager.register_entry("webdav_username", self.webdav_username)
         
-        # Password
-        password_label = ctk.CTkLabel(auth_frame, text="Password:", width=80)
-        password_label.pack(side="left", padx=5)
+        # Password with icon
+        password_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
+        password_frame.pack(side="left", padx=5)
         
-        self.webdav_password = ctk.CTkEntry(auth_frame, width=120, show="*")
+        password_icon = ctk.CTkLabel(password_frame, text="🔒", width=25)
+        password_icon.pack(side="left", padx=(0, 2))
+        
+        password_label = ctk.CTkLabel(password_frame, text="Password:", width=75)
+        password_label.pack(side="left", padx=2)
+        
+        self.webdav_password = ctk.CTkEntry(auth_frame, width=120, show="•", corner_radius=6)
         self.webdav_password.pack(side="left", padx=5)
         
         # Load saved password
         if self.config_manager.config.get("webdav_password"):
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
         
-        # KeePass button
-        ctk.CTkButton(
+        # KeePass button with improved styling
+        keepass_btn = ctk.CTkButton(
             auth_frame,
             text="🔑",
-            width=30,
+            width=35,
+            height=28,
+            corner_radius=6,
+            fg_color="#3D4D65",
+            hover_color="#4D5D75",
             command=lambda: self.get_basic_auth_password_from_keepass(
                 target_entry=self.webdav_password, 
                 password_type="webdav_admin"
             )
-        ).pack(side="left", padx=5)
+        )
+        keepass_btn.pack(side="left", padx=5)
         
         # Register WebDAV password with config manager
         self.config_manager.register_entry("webdav_password", self.webdav_password)
         
-        # Connect button
+        # Connect button with modern styling
         connect_btn = ctk.CTkButton(
             auth_frame,
             text="Connect",
-            width=80,
+            width=85,
+            height=28,
+            corner_radius=6,
+            fg_color="#2B5BA0",
+            hover_color="#3A6AB0",
             command=self.connect_webdav
         )
         connect_btn.pack(side="left", padx=10)
         
-        # Status
-        self.webdav_status = ctk.CTkLabel(
-            auth_frame,
-            text="Not Connected",
-            text_color="red"
-        )
-        self.webdav_status.pack(side="left", padx=10)
+        # Status with badge style
+        status_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
+        status_frame.pack(side="left", padx=10)
         
-        # Navigation section
+        status_label = ctk.CTkLabel(status_frame, text="Status:", width=50)
+        status_label.pack(side="left", padx=2)
+        
+        self.webdav_status = ctk.CTkLabel(
+            status_frame,
+            text="Not Connected",
+            text_color="#FF6B6B",
+            font=("Helvetica", 12, "bold")
+        )
+        self.webdav_status.pack(side="left", padx=5)
+        
+        # Navigation section with better styling
         nav_frame = ctk.CTkFrame(webdav_frame)
         nav_frame.pack(fill="x", padx=5, pady=5)
         
+        # Button group with consistent styling
+        button_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
+        button_frame.pack(side="left", padx=5)
+        
         # Up button
         up_btn = ctk.CTkButton(
-            nav_frame,
-            text="Up",
-            width=50,
+            button_frame,
+            text="⬆️ Up",
+            width=60,
+            height=28,
+            corner_radius=6,
+            fg_color="#3D4D65",
+            hover_color="#4D5D75",
             command=self.navigate_up
         )
-        up_btn.pack(side="left", padx=5)
+        up_btn.pack(side="left", padx=(0, 5))
         
         # Refresh button
         refresh_btn = ctk.CTkButton(
-            nav_frame,
-            text="Refresh",
-            width=70,
+            button_frame,
+            text="🔄 Refresh",
+            width=85,
+            height=28,
+            corner_radius=6,
+            fg_color="#3D4D65",
+            hover_color="#4D5D75",
             command=self.refresh_listing
         )
         refresh_btn.pack(side="left", padx=5)
         
-        # Directory listing frame - separate frame with fixed height
-        dir_frame = ctk.CTkFrame(webdav_frame)
-        dir_frame.pack(fill="x", padx=5, pady=5)
+        # Directory listing - enhanced with styled Listbox and custom Frame
+        dir_listing_frame = ctk.CTkFrame(webdav_frame, fg_color="#202837", corner_radius=8)
+        dir_listing_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Directory listing - use a scrollable frame with fixed height
-        self.dir_listbox = ctk.CTkScrollableFrame(dir_frame, height=200)
-        self.dir_listbox.pack(fill="both", expand=True, padx=5, pady=5)
+        # Add a header
+        list_header_frame = ctk.CTkFrame(dir_listing_frame, fg_color="#272E3F", corner_radius=0)
+        list_header_frame.pack(fill="x", padx=0, pady=0)
+        
+        ctk.CTkLabel(
+            list_header_frame,
+            text="Name",
+            font=("Helvetica", 12, "bold"),
+            text_color="#CCCCCC",
+        ).pack(side="left", padx=10, pady=8)
+        
+        # Use tkinter Listbox with enhanced styling
+        import tkinter as tk
+        from tkinter import ttk
+        
+        # Create style for the scrollbar
+        style = ttk.Style()
+        style.configure("Vertical.TScrollbar", 
+                        background="#3D4D65", 
+                        troughcolor="#202837", 
+                        arrowcolor="#FFFFFF")
+        
+        # Create a Frame for the Listbox and scrollbar
+        listbox_frame = ctk.CTkFrame(dir_listing_frame, fg_color="transparent")
+        listbox_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        
+        # Create a scrollbar with custom styling
+        scrollbar = ttk.Scrollbar(listbox_frame, style="Vertical.TScrollbar")
+        scrollbar.pack(side="right", fill="y")
+        
+        # Create the Listbox with enhanced styling
+        self.dir_list = tk.Listbox(
+            listbox_frame,
+            yscrollcommand=scrollbar.set,
+            bg="#1A2332",  # Darker blue background
+            fg="#E0E0E0",  # Light gray text
+            selectbackground="#3D5B94",  # Highlight blue
+            selectforeground="#FFFFFF",  # White text for selection
+            font=("Segoe UI", 11),  # Modern font
+            height=15,
+            borderwidth=0,
+            highlightthickness=0,
+            activestyle="none"  # Remove dotted line around selected item
+        )
+        self.dir_list.pack(side="left", fill="both", expand=True)
+        
+        # Configure the scrollbar
+        scrollbar.config(command=self.dir_list.yview)
+        
+        # Bind events for better interaction
+        self.dir_list.bind("<Double-1>", self.on_item_double_click)
+        self.dir_list.bind("<Return>", self.on_item_double_click)  # Also allow Enter key
+        
+    def refresh_listing(self):
+        """Refresh directory listing with enhanced styling"""
+        # Clear the listbox
+        self.dir_list.delete(0, "end")
+        
+        try:
+            # Get all items
+            items = self.webdav.list_directories(self.webdav.current_path)
+            
+            # Update path label
+            self.path_label.configure(text=self.webdav.current_path)
+            
+            # Sort items - directories first, then files
+            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
+            
+            # Store items for reference when clicking
+            self.current_items = items
+            
+            # Add items to listbox with different icons for different file types
+            for item in items:
+                # Choose appropriate icon based on type
+                if item['is_directory']:
+                    icon = "📁"
+                elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar')):
+                    icon = "📦"
+                elif item['name'].lower().endswith(('.exe', '.msi', '.bat', '.sh')):
+                    icon = "⚙️"
+                elif item['name'].lower().endswith(('.xml', '.json', '.yaml', '.yml')):
+                    icon = "📄"
+                elif item['name'].lower().endswith(('.jar', '.war')):
+                    icon = "☕"
+                else:
+                    icon = "📄"
+                
+                self.dir_list.insert("end", f"{icon}  {item['name']}")
+                
+            # Set different colors for directories and files
+            for i, item in enumerate(items):
+                if item['is_directory']:
+                    self.dir_list.itemconfig(i, {'fg': '#4D90FE'})  # Bright blue for directories
+                elif item['name'].lower().endswith(('.jar', '.war')):
+                    self.dir_list.itemconfig(i, {'fg': '#FF9E3D'})  # Orange for Java files
+                elif item['name'].lower().endswith(('.exe', '.msi', '.bat', '.sh')):
+                    self.dir_list.itemconfig(i, {'fg': '#53D86A'})  # Green for executables
+                
+            # If no items found, display a message
+            if not items:
+                self.dir_list.insert("end", "  (Empty directory)")
+                self.dir_list.itemconfig(0, {'fg': '#8C8C8C'})  # Gray for empty message
+                    
+        except Exception as e:
+            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="#FF6B6B")
+            self.dir_list.insert("end", "  Error: Could not retrieve directory listing")
+            self.dir_list.itemconfig(0, {'fg': '#FF6B6B'})  # Red for error message
+    
+    def connect_webdav(self):
+        """Handle WebDAV connection with improved feedback"""
+        base_url = self.config_manager.config["base_url"]
+        username = self.webdav_username.get()
+        password = self.webdav_password.get()
+        
+        if not all([base_url, username, password]):
+            self.webdav_status.configure(
+                text="Missing credentials",
+                text_color="#FF6B6B"
+            )
+            return
+        
+        # Show connecting status
+        self.webdav_status.configure(text="Connecting...", text_color="#FFD700")
+        self.window.update_idletasks()  # Update the UI to show the connecting message
+        
+        # Create WebDAV browser instance
+        self.webdav = self.project_generator.create_webdav_browser(
+            base_url,
+            username,
+            password
+        )
+        
+        # Connect to WebDAV server
+        success, message = self.webdav.connect()
+        
+        if success:
+            self.webdav_status.configure(text="Connected", text_color="#53D86A")  # Green for success
+            
+            # Save credentials to config
+            self.config_manager.config["webdav_username"] = username
+            self.config_manager.config["webdav_password"] = password
+            self.config_manager.save_config_silent()
+            
+            # Navigate to SoftwarePackage directory
+            self.webdav.current_path = "/SoftwarePackage"
+            self.refresh_listing()
+        else:
+            self.webdav_status.configure(text=f"Connection failed", text_color="#FF6B6B")  # Red for error
     
     def create_offline_package(self):
         """Create offline package with selected components"""
@@ -3302,86 +3515,20 @@ class OfflinePackageCreator:
             # Silently ignore errors when updating the label
             print(f"Warning: Could not update platform info label: {e}")
 
-    def refresh_listing(self):
-        """Refresh directory listing"""
-        # Clear existing items
-        for widget in self.dir_listbox.winfo_children():
-            widget.destroy()
-        
-        try:
-            # Get all items
-            items = self.webdav.list_directories(self.webdav.current_path)
-            
-            # Update path label
-            self.path_label.configure(text=f"Current Path: {self.webdav.current_path}")
-            
-            # Sort items - directories first, then files
-            items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
-            
-            # Add buttons for directories and files
-            for item in items:
-                icon = "📁" if item['is_directory'] else "📄"
-                
-                # Create a frame for each item to better control layout
-                item_frame = ctk.CTkFrame(self.dir_listbox)
-                item_frame.pack(fill="x", padx=2, pady=2)
-                
-                # Create button with icon and name
-                btn = ctk.CTkButton(
-                    item_frame,
-                    text=f"{icon} {item['name']}",
-                    anchor="w",
-                    height=30,  # Fixed height for better visibility
-                    fg_color="#2B2B2B" if item['is_directory'] else "#1F1F1F",  # Different colors for dirs/files
-                    command=lambda d=item['name'], is_dir=item['is_directory']: 
-                        self.handle_item_click(d, is_dir)
-                )
-                btn.pack(fill="x", padx=2, pady=2)
-        
-        except Exception as e:
-            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="red")
-
-    def connect_webdav(self):
-        """Handle WebDAV connection"""
-        base_url = self.config_manager.config["base_url"]
-        username = self.webdav_username.get()
-        password = self.webdav_password.get()
-        
-        if not all([base_url, username, password]):
-            self.webdav_status.configure(
-                text="Error: Base URL, username and password are required",
-                text_color="red"
-            )
+    def on_item_double_click(self, event):
+        """Handle double click on an item in the listbox"""
+        # Get the selected index
+        selection = self.dir_list.curselection()
+        if not selection:
             return
-        
-        # Create WebDAV browser instance
-        self.webdav = self.project_generator.create_webdav_browser(
-            base_url,
-            username,
-            password
-        )
-        
-        # Connect to WebDAV server
-        success, message = self.webdav.connect()
-        
-        if success:
-            self.webdav_status.configure(text="Connected", text_color="green")
             
-            # Save credentials to config
-            self.config_manager.config["webdav_username"] = username
-            self.config_manager.config["webdav_password"] = password
-            self.config_manager.save_config_silent()
-            
-            # Navigate to SoftwarePackage directory
-            self.webdav.current_path = "/SoftwarePackage"
-            self.refresh_listing()
-        else:
-            self.webdav_status.configure(text=f"Connection failed: {message}", text_color="red")
-    
-    def handle_item_click(self, name, is_directory):
-        """Handle clicking on an item in the directory listing"""
-        if is_directory:
-            self.enter_directory(name)
+        index = selection[0]
+        
+        # Get the corresponding item
+        if index < len(self.current_items):
+            item = self.current_items[index]
+            if item['is_directory']:
+                self.enter_directory(item['name'])
     
     def enter_directory(self, dirname):
         """Enter a directory"""
@@ -3394,6 +3541,11 @@ class OfflinePackageCreator:
         if self.webdav.current_path != "/":
             self.webdav.current_path = os.path.dirname(self.webdav.current_path.rstrip('/'))
             self.refresh_listing()
+    
+    def handle_item_click(self, name, is_directory):
+        """Handle clicking on an item in the directory listing"""
+        if is_directory:
+            self.enter_directory(name)
 
 def main():
     app = GKInstallBuilder()
