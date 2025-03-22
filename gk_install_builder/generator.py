@@ -1690,9 +1690,63 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 
                 # Create variables to track selections
                 selected_vars = {}
+                
+                # For Java files, identify the latest version for each platform
+                latest_windows_java = None
+                latest_linux_java = None
+                
+                if component_type and 'Java' in component_type:
+                    # Get platform from config
+                    platform = config.get("platform", "Windows")
+                    print(f"Current platform for Java selection: {platform}")
+                    
+                    # Find all Java files for each platform
+                    windows_java_files = []
+                    linux_java_files = []
+                    
+                    for file in other_files:
+                        file_name = file['name'].lower()
+                        if "java" in file_name:
+                            # Collect Windows Java files
+                            if "windows" in file_name:
+                                windows_java_files.append(file)
+                            # Collect Linux Java files
+                            elif "linux" in file_name:
+                                linux_java_files.append(file)
+                    
+                    # Sort Windows Java files by version/date
+                    if windows_java_files:
+                        # Sort by name as a simple approach (relies on naming convention)
+                        windows_java_files.sort(key=lambda x: x['name'])
+                        latest_windows_java = windows_java_files[-1]
+                        print(f"Latest Windows Java: {latest_windows_java['name']}")
+                    
+                    # Sort Linux Java files by version/date
+                    if linux_java_files:
+                        # Sort by name as a simple approach (relies on naming convention)
+                        linux_java_files.sort(key=lambda x: x['name'])
+                        latest_linux_java = linux_java_files[-1]
+                        print(f"Latest Linux Java: {latest_linux_java['name']}")
+                
                 for file in other_files:
-                    # Only select the latest file by default
-                    default_selected = (file == latest_file)
+                    # Default to not selected
+                    default_selected = False
+                    
+                    # For Java files, select based on platform
+                    if component_type and 'Java' in component_type:
+                        platform = config.get("platform", "Windows")
+                        # For Windows platform, only select the latest Windows Java
+                        if platform == "Windows" and file == latest_windows_java:
+                            print(f"Auto-selecting latest Windows Java: {file['name']}")
+                            default_selected = True
+                        # For Linux platform, only select the latest Linux Java
+                        elif platform == "Linux" and file == latest_linux_java:
+                            print(f"Auto-selecting latest Linux Java: {file['name']}")
+                            default_selected = True
+                    # For non-Java files or if no platform match, use the latest file logic
+                    elif file == latest_file:
+                        default_selected = True
+                    
                     var = ctk.BooleanVar(value=default_selected)
                     selected_vars[file['name']] = var
                     checkbox = ctk.CTkCheckBox(
