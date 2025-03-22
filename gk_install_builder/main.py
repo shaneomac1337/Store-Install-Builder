@@ -2983,12 +2983,42 @@ class OfflinePackageCreator:
         )
         app_section_header.pack(anchor="w", pady=(15, 5), padx=20)
         
+        # Helper function to update dependencies when components are toggled
+        def update_dependencies():
+            # Check if any other application component (besides POS) is selected
+            other_components_selected = (
+                self.include_wdm.get() or 
+                self.include_flow_service.get() or 
+                self.include_lpa_service.get() or 
+                self.include_storehub_service.get()
+            )
+            
+            # Handle POS separately - it only affects Java
+            if self.include_pos.get():
+                self.include_java.set(True)
+            elif not other_components_selected:
+                # Only uncheck Java if no other components need it
+                self.include_java.set(False)
+                
+            # Handle other components - they affect both Java and Tomcat
+            if other_components_selected:
+                self.include_java.set(True)
+                self.include_tomcat.set(True)
+            else:
+                # Only uncheck Tomcat if no other components need it
+                self.include_tomcat.set(False)
+        
         # POS component frame
         pos_component_frame = ctk.CTkFrame(self.components_frame)
         pos_component_frame.pack(fill="x", pady=5, padx=10)
         
         # POS checkbox
-        self.include_pos = ctk.BooleanVar(value=True)
+        self.include_pos = ctk.BooleanVar(value=False)
+        # Make sure initial dependency selection is set correctly
+        
+        # Add trace to POS variable
+        self.include_pos.trace_add("write", lambda *args: update_dependencies())
+        
         pos_checkbox = ctk.CTkCheckBox(
             pos_component_frame,
             text="POS",
@@ -3003,7 +3033,10 @@ class OfflinePackageCreator:
         wdm_component_frame.pack(fill="x", pady=5, padx=10)
         
         # WDM checkbox
-        self.include_wdm = ctk.BooleanVar(value=True)
+        self.include_wdm = ctk.BooleanVar(value=False)
+        # Add trace to WDM variable
+        self.include_wdm.trace_add("write", lambda *args: update_dependencies())
+        
         wdm_checkbox = ctk.CTkCheckBox(
             wdm_component_frame,
             text="WDM",
@@ -3019,6 +3052,9 @@ class OfflinePackageCreator:
         
         # Flow Service checkbox
         self.include_flow_service = ctk.BooleanVar(value=False)
+        # Add trace to Flow Service variable
+        self.include_flow_service.trace_add("write", lambda *args: update_dependencies())
+        
         flow_service_checkbox = ctk.CTkCheckBox(
             flow_service_component_frame,
             text="Flow Service",
@@ -3034,6 +3070,9 @@ class OfflinePackageCreator:
         
         # LPA Service checkbox
         self.include_lpa_service = ctk.BooleanVar(value=False)
+        # Add trace to LPA Service variable
+        self.include_lpa_service.trace_add("write", lambda *args: update_dependencies())
+        
         lpa_service_checkbox = ctk.CTkCheckBox(
             lpa_service_component_frame,
             text="LPA Service",
@@ -3049,6 +3088,9 @@ class OfflinePackageCreator:
         
         # StoreHub Service checkbox
         self.include_storehub_service = ctk.BooleanVar(value=False)
+        # Add trace to StoreHub Service variable
+        self.include_storehub_service.trace_add("write", lambda *args: update_dependencies())
+        
         storehub_service_checkbox = ctk.CTkCheckBox(
             storehub_service_component_frame,
             text="StoreHub Service",
@@ -3057,6 +3099,9 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         storehub_service_checkbox.pack(side="left", pady=5, padx=10)
+        
+        # Call update_dependencies to set initial state based on default selections
+        # Removed: update_dependencies()
         
         # Create button
         self.create_button = ctk.CTkButton(
@@ -3301,7 +3346,7 @@ class OfflinePackageCreator:
         # Bind events for better interaction
         self.dir_list.bind("<Double-1>", self.on_item_double_click)
         self.dir_list.bind("<Return>", self.on_item_double_click)  # Also allow Enter key
-        
+    
     def refresh_listing(self):
         """Refresh directory listing with enhanced styling"""
         # Clear the listbox
