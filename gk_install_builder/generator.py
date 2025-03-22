@@ -1965,6 +1965,58 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing Tomcat directory: {e}")
                     download_errors.append(f"Failed to access Tomcat directory for {component_type}: {str(e)}")
                 
+                # Process Jaybird if selected
+                if platform_dependencies.get("JAYBIRD", False):
+                    print(f"\nProcessing Jaybird platform dependency...")
+                    jaybird_dir = os.path.join(parent_dir, "Jaybird")
+                    os.makedirs(jaybird_dir, exist_ok=True)
+                    
+                    jaybird_path = "/SoftwarePackage/Drivers"
+                    print(f"Checking Jaybird directory: {jaybird_path}")
+                    
+                    try:
+                        # Check if Jaybird files already exist
+                        existing_jaybird_files = [f for f in os.listdir(jaybird_dir) if f.endswith('.jar')]
+                        download_jaybird = True
+                        
+                        if existing_jaybird_files:
+                            # Ask user if they want to download Jaybird again
+                            download_jaybird = self._ask_download_again("Jaybird", existing_jaybird_files, dialog_parent)
+                            if not download_jaybird:
+                                print(f"Skipping Jaybird download as files already exist")
+                        
+                        if download_jaybird:
+                            jaybird_files = self.webdav_browser.list_directories(jaybird_path)
+                            print(f"Found Jaybird files: {jaybird_files}")
+                            
+                            # Filter for .jar files only
+                            jaybird_files = [f for f in jaybird_files if f.get('name', '').endswith('.jar')]
+                            
+                            if jaybird_files:
+                                # Prompt user to select Jaybird version
+                                selected_jaybird_files = prompt_for_file_selection(
+                                    jaybird_files, 
+                                    "Jaybird", 
+                                    "Select Jaybird Version", 
+                                    "Please select which Jaybird driver to download:",
+                                    "jar",
+                                    config
+                                )
+                                
+                                # Add selected files to download list
+                                for file in selected_jaybird_files:
+                                    file_name = file['name']
+                                    remote_path = f"{jaybird_path}/{file_name}"
+                                    local_path = os.path.join(jaybird_dir, file_name)
+                                    dependency_files.append((remote_path, local_path, file_name, "Jaybird"))
+                            else:
+                                print("No Jaybird .jar files found in the Drivers directory")
+                                download_errors.append("No Jaybird .jar files found in the Drivers directory")
+                    
+                    except Exception as e:
+                        print(f"Error accessing Jaybird directory: {e}")
+                        download_errors.append(f"Failed to access Jaybird directory: {str(e)}")
+                        
                 return dependency_files
             
             # Collect all files to download first
@@ -2060,7 +2112,59 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     print(f"Error accessing Tomcat directory: {e}")
                     download_errors.append(f"Failed to access Tomcat directory: {str(e)}")
             
-            # Process POS component
+            # Process Jaybird if selected
+            if platform_dependencies.get("JAYBIRD", False):
+                print(f"\nProcessing Jaybird platform dependency...")
+                jaybird_dir = os.path.join(output_dir, "Jaybird")
+                os.makedirs(jaybird_dir, exist_ok=True)
+                
+                jaybird_path = "/SoftwarePackage/Drivers"
+                print(f"Checking Jaybird directory: {jaybird_path}")
+                
+                try:
+                    # Check if Jaybird files already exist
+                    existing_jaybird_files = [f for f in os.listdir(jaybird_dir) if f.endswith('.jar')]
+                    download_jaybird = True
+                    
+                    if existing_jaybird_files:
+                        # Ask user if they want to download Jaybird again
+                        download_jaybird = self._ask_download_again("Jaybird", existing_jaybird_files, dialog_parent)
+                        if not download_jaybird:
+                            print(f"Skipping Jaybird download as files already exist")
+                    
+                    if download_jaybird:
+                        jaybird_files = self.webdav_browser.list_directories(jaybird_path)
+                        print(f"Found Jaybird files: {jaybird_files}")
+                        
+                        # Filter for .jar files only
+                        jaybird_files = [f for f in jaybird_files if f.get('name', '').endswith('.jar')]
+                        
+                        if jaybird_files:
+                            # Prompt user to select Jaybird version
+                            selected_jaybird_files = prompt_for_file_selection(
+                                jaybird_files, 
+                                "Jaybird", 
+                                "Select Jaybird Version", 
+                                "Please select which Jaybird driver to download:",
+                                "jar",
+                                config
+                            )
+                            
+                            # Add selected files to download list
+                            for file in selected_jaybird_files:
+                                file_name = file['name']
+                                remote_path = f"{jaybird_path}/{file_name}"
+                                local_path = os.path.join(jaybird_dir, file_name)
+                                files_to_download.append((remote_path, local_path, file_name, "Jaybird"))
+                        else:
+                            print("No Jaybird .jar files found in the Drivers directory")
+                            download_errors.append("No Jaybird .jar files found in the Drivers directory")
+                
+                except Exception as e:
+                    print(f"Error accessing Jaybird directory: {e}")
+                    download_errors.append(f"Failed to access Jaybird directory: {str(e)}")
+                        
+            # Process all selected components
             if "POS" in selected_components:
                 pos_dir = os.path.join(output_dir, "offline_package_POS")
                 print(f"\nProcessing POS component...")
