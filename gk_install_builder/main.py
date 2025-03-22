@@ -2975,6 +2975,17 @@ class OfflinePackageCreator:
         )
         tomcat_checkbox.pack(side="left", pady=5, padx=20)
         
+        # Jaybird checkbox
+        self.include_jaybird = ctk.BooleanVar(value=False)
+        jaybird_checkbox = ctk.CTkCheckBox(
+            platform_components_frame,
+            text="Jaybird",
+            variable=self.include_jaybird,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        jaybird_checkbox.pack(side="left", pady=5, padx=20)
+        
         # Application components section header
         app_section_header = ctk.CTkLabel(
             self.components_frame,
@@ -3007,6 +3018,12 @@ class OfflinePackageCreator:
             else:
                 # Only uncheck Tomcat if no other components need it
                 self.include_tomcat.set(False)
+                
+            # Handle StoreHub separately - it's the only one that needs Jaybird
+            if self.include_storehub_service.get():
+                self.include_jaybird.set(True)
+            else:
+                self.include_jaybird.set(False)
         
         # POS component frame
         pos_component_frame = ctk.CTkFrame(self.components_frame)
@@ -3453,7 +3470,8 @@ class OfflinePackageCreator:
                    self.include_lpa_service.get() or 
                    self.include_storehub_service.get() or
                    self.include_java.get() or
-                   self.include_tomcat.get()):
+                   self.include_tomcat.get() or
+                   self.include_jaybird.get()):
                 self.show_error("Error", "Please select at least one component")
                 return
             
@@ -3461,7 +3479,8 @@ class OfflinePackageCreator:
             selected_components = []
             platform_dependencies = {
                 "JAVA": self.include_java.get(),
-                "TOMCAT": self.include_tomcat.get()
+                "TOMCAT": self.include_tomcat.get(),
+                "JAYBIRD": self.include_jaybird.get()
             }
             
             if self.include_pos.get():
