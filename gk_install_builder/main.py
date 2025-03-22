@@ -154,7 +154,7 @@ class LauncherSettingsEditor:
         """Load default settings for each component type"""
         # Get platform-specific defaults
         platform = self.config_manager.config.get("platform", "Windows")
-        default_firebird_path = "C:\\Program Files\\Firebird" if platform == "Windows" else "/opt/firebird"
+        default_firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0" if platform == "Windows" else "/opt/firebird"
         firebird_path = self.config_manager.config.get("firebird_server_path", default_firebird_path)
 
         # POS settings
@@ -2814,10 +2814,10 @@ class GKInstallBuilder:
         # Update the base install directory based on platform
         if platform == "Windows":
             default_dir = "C:\\gkretail"
-            firebird_path = "C:\\Program Files\\Firebird"
+            firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0"
         else:  # Linux
             default_dir = "/usr/local/gkretail"
-            firebird_path = "/opt/Firebird"
+            firebird_path = "/opt/firebird"
         
         # Update entry values if they exist
         self.config_manager.update_entry_value("base_install_dir", default_dir)
