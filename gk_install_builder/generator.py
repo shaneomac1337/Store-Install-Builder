@@ -1706,25 +1706,49 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     
                     for file in other_files:
                         file_name = file['name'].lower()
-                        if "java" in file_name:
-                            # Collect Windows Java files
-                            if "windows" in file_name:
+                        if "java" in component_type.lower():
+                            # Collect Windows Java files - check both zuludk and zulujre patterns
+                            if ("windows" in file_name and 
+                                ("zulujdk" in file_name or "zuludk" in file_name or "zulujre" in file_name)):
+                                print(f"Found Windows Java file: {file['name']}")
                                 windows_java_files.append(file)
-                            # Collect Linux Java files
-                            elif "linux" in file_name:
+                            # Collect Linux Java files - check both zuludk and zulujre patterns
+                            elif ("linux" in file_name and 
+                                  ("zulujdk" in file_name or "zuludk" in file_name or "zulujre" in file_name)):
+                                print(f"Found Linux Java file: {file['name']}")
                                 linux_java_files.append(file)
                     
-                    # Sort Windows Java files by version/date
+                    # Parse version numbers for better sorting
+                    import re
+                    
+                    def extract_version(filename):
+                        # Extract version like 11.0.18 or 1.8.0_362
+                        version_match = re.search(r'(\d+\.\d+\.\d+(?:_\d+)?)', filename)
+                        if version_match:
+                            version_str = version_match.group(1)
+                            # Convert to tuple for comparison
+                            if '_' in version_str:
+                                # Handle Java 8 style (1.8.0_362)
+                                main_version, update = version_str.split('_')
+                                parts = main_version.split('.')
+                                return (int(parts[0]), int(parts[1]), int(parts[2]), int(update))
+                            else:
+                                # Handle Java 11+ style (11.0.18)
+                                parts = version_str.split('.')
+                                return tuple(int(p) for p in parts)
+                        return (0, 0, 0)  # Default if no version found
+                    
+                    # Sort Windows Java files by version
                     if windows_java_files:
-                        # Sort by name as a simple approach (relies on naming convention)
-                        windows_java_files.sort(key=lambda x: x['name'])
+                        # Sort by parsed version numbers
+                        windows_java_files.sort(key=lambda x: extract_version(x['name']))
                         latest_windows_java = windows_java_files[-1]
                         print(f"Latest Windows Java: {latest_windows_java['name']}")
                     
-                    # Sort Linux Java files by version/date
+                    # Sort Linux Java files by version
                     if linux_java_files:
-                        # Sort by name as a simple approach (relies on naming convention)
-                        linux_java_files.sort(key=lambda x: x['name'])
+                        # Sort by parsed version numbers
+                        linux_java_files.sort(key=lambda x: extract_version(x['name']))
                         latest_linux_java = linux_java_files[-1]
                         print(f"Latest Linux Java: {latest_linux_java['name']}")
                 
@@ -1735,15 +1759,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     # For Java files, select based on platform
                     if component_type and 'Java' in component_type:
                         platform = config.get("platform", "Windows")
-                        # For Windows platform, only select the latest Windows Java
-                        if platform == "Windows" and file == latest_windows_java:
-                            print(f"Auto-selecting latest Windows Java: {file['name']}")
-                            default_selected = True
-                        # For Linux platform, only select the latest Linux Java
-                        elif platform == "Linux" and file == latest_linux_java:
-                            print(f"Auto-selecting latest Linux Java: {file['name']}")
-                            default_selected = True
-                    # For non-Java files or if no platform match, use the latest file logic
+                        file_name = file['name'].lower()
+                        
+                        # For Windows platform, select the latest Windows Java
+                        if platform == "Windows":
+                            if latest_windows_java and file['name'] == latest_windows_java['name']:
+                                print(f"Pre-selecting Windows Java: {file['name']}")
+                                default_selected = True
+                        # For Linux platform, select the latest Linux Java
+                        elif platform == "Linux":
+                            if latest_linux_java and file['name'] == latest_linux_java['name']:
+                                print(f"Pre-selecting Linux Java: {file['name']}")
+                                default_selected = True
+                    # For non-Java files, use the latest file logic
                     elif file == latest_file:
                         default_selected = True
                     
