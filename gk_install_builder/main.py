@@ -2815,14 +2815,17 @@ class GKInstallBuilder:
         if platform == "Windows":
             default_dir = "C:\\gkretail"
             firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0"
+            jaybird_driver_path = "C:\\gkretail\\Jaybird"
         else:  # Linux
             default_dir = "/usr/local/gkretail"
             firebird_path = "/opt/firebird"
+            jaybird_driver_path = "/usr/local/gkretail/Jaybird"
         
         # Update entry values if they exist
         self.config_manager.update_entry_value("base_install_dir", default_dir)
         self.config_manager.update_entry_value("firebird_server_path", firebird_path)
-        print(f"Platform changed to {platform}, updated base_install_dir to {default_dir} and firebird_server_path to {firebird_path}")
+        self.config_manager.update_entry_value("firebird_driver_path_local", jaybird_driver_path)
+        print(f"Platform changed to {platform}, updated base_install_dir to {default_dir}, firebird_server_path to {firebird_path}, and firebird_driver_path_local to {jaybird_driver_path}")
         
         # Update config
         self.config_manager.config["platform"] = platform

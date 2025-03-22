@@ -10,6 +10,7 @@ updaterJmxPort=4333
 ssl_path=@SSL_PATH@
 ssl_password=@SSL_PASSWORD@
 firebirdServerPath=@FIREBIRD_SERVER_PATH@
+firebird_driver_path_local=@FIREBIRD_DRIVER_PATH_LOCAL@
 firebirdServerPort=3050
 firebirdServerUser=SYSDBA
 firebirdServerPassword=masterkey

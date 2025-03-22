@@ -219,6 +219,20 @@ class ProjectGenerator:
                 print(f"Setting FIREBIRD_SERVER_PATH environment variable to: {firebird_server_path}")
             else:
                 print("Warning: firebird_server_path is not set in config")
+                
+            # Set environment variable for Jaybird driver path
+            firebird_driver_path_local = config.get("firebird_driver_path_local", "")
+            if firebird_driver_path_local:
+                os.environ["FIREBIRD_DRIVER_PATH_LOCAL"] = firebird_driver_path_local
+                print(f"Setting FIREBIRD_DRIVER_PATH_LOCAL environment variable to: {firebird_driver_path_local}")
+            else:
+                # Set default paths based on platform
+                if platform == "Windows":
+                    default_path = "C:\\gkretail\\Jaybird"
+                else:
+                    default_path = "/usr/local/gkretail/Jaybird"
+                os.environ["FIREBIRD_DRIVER_PATH_LOCAL"] = default_path
+                print(f"Setting default FIREBIRD_DRIVER_PATH_LOCAL to: {default_path}")
             
             # Determine template and output paths based on platform
             if platform == "Windows":
@@ -708,6 +722,7 @@ updaterJmxPort=4333
 ssl_path=@SSL_PATH@
 ssl_password=@SSL_PASSWORD@
 firebirdServerPath=@FIREBIRD_SERVER_PATH@
+firebird_driver_path_local=@FIREBIRD_DRIVER_PATH_LOCAL@
 firebirdServerPort=3050
 firebirdServerUser=SYSDBA
 firebirdServerPassword=masterkey

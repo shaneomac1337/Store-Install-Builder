@@ -101,6 +101,7 @@ class ConfigManager:
         
         # Set platform-specific paths
         default_firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0" if default_platform == "Windows" else "/opt/firebird"
+        default_jaybird_path = "C:\\gkretail\\Jaybird" if default_platform == "Windows" else "/usr/local/gkretail/Jaybird"
         
         return {
             # Project Configuration
@@ -128,6 +129,7 @@ class ConfigManager:
             "lpa_service_system_type": "",  # Will be dynamically set based on URL
             "storehub_service_system_type": "",  # Will be dynamically set based on URL
             "firebird_server_path": default_firebird_path,
+            "firebird_driver_path_local": default_jaybird_path,
             
             # Security Configuration
             "ssl_password": "changeit",
