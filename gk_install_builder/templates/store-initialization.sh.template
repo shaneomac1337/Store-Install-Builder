@@ -100,15 +100,31 @@ echo "Successfully retrieved business unit information"
 # Parse the business unit response for businessUnitGroupID from the key object
 if command -v jq >/dev/null 2>&1; then
   # Use jq if available
+  echo "JQ is available. Using JQ for JSON parsing."
   business_unit_group_id=$(echo "$bu_response" | jq -r '.key.businessUnitGroupID // empty')
 else
-  # Fallback to grep and cut if jq is not available - this is more complex for nested JSON
-  business_unit_group_id=$(echo "$bu_response" | grep -o '"key":{[^}]*"businessUnitGroupID":"[^"]*"' | grep -o '"businessUnitGroupID":"[^"]*"' | cut -d'"' -f4)
+  # Improved fallback that handles nested JSON more reliably
+  echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+  # First normalize the JSON by removing newlines and unnecessary spaces
+  normalized_json=$(echo "$bu_response" | tr -d '\n' | sed 's/  */ /g')
+  
+  # Extract the businessUnitGroupID
+  if echo "$normalized_json" | grep -q '"key".*"businessUnitGroupID"'; then
+    # Match the pattern inside the key section
+    business_unit_group_id=$(echo "$normalized_json" | grep -o '"businessUnitGroupID":"[^"]*"' | head -1 | sed 's/"businessUnitGroupID":"//g' | sed 's/"//g')
+  fi
+  
+  # If that fails, try a more general pattern
+  if [ -z "$business_unit_group_id" ]; then
+    business_unit_group_id=$(echo "$normalized_json" | grep -o '"businessUnitGroupID"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*"businessUnitGroupID"[[:space:]]*:[[:space:]]*"//g' | sed 's/".*//g')
+  fi
 fi
 
 if [ -z "$business_unit_group_id" ]; then
   echo "Failed to get businessUnitGroupID from response:"
-  echo "$bu_response"
+  echo "Response excerpt (first 200 characters):"
+  echo "$bu_response" | head -c 200
+  echo "..."
   exit 1
 fi
 
@@ -205,20 +221,58 @@ else
     # Extract structure unique name for the current component
     structure_unique_name=""
     if [ -f "$storemanager_path" ]; then
-      # Use jq to extract the structure unique name that matches our system type
+      # Use alternative methods if jq is not available
       if command -v jq >/dev/null 2>&1; then
+        echo "JQ is available. Using JQ for structure JSON parsing."
         structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
-        
-        if [ -n "$structure_unique_name" ]; then
-          echo "Found matching structure for $current_system_name: $structure_unique_name"
-        else
-          echo "Error: No matching structure found for system name: $current_system_name"
-          echo "Cannot proceed without a matching structure in the API response."
-          exit 1
-        fi
       else
-        echo "Error: jq not found - required for parsing API response"
-        echo "Cannot proceed without jq to extract structure pattern from the API response."
+        echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+        echo "Parsing JSON response without jq..."
+        
+        # First, convert the JSON to a safer format for processing
+        # Convert JSON to one-object-per-line format with tr and sed
+        cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
+        
+        # Now search for our system name in this flattened format
+        matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json || echo "")
+        
+        if [ -n "$matching_line" ]; then
+          # Extract the structureUniqueName from the matching line
+          structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+          echo "Found matching object with systemName: $current_system_name"
+        else
+          # Try another approach - extract all childNodeList content and search for systemName
+          echo "No direct match found. Trying another approach..."
+          # Extract content between childNodeList brackets
+          sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
+          
+          # Find the line number where our system name appears
+          system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
+          
+          if [ -n "$system_line" ]; then
+            # Extract 10 lines starting from system name line to find structureUniqueName
+            structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
+            if [ -n "$structureName_line" ]; then
+              structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+            fi
+          fi
+          
+          # Clean up temp files
+          rm -f /tmp/childnodes.txt
+        fi
+        
+        # Clean up temp files
+        rm -f /tmp/flattened.json
+      fi
+      
+      if [ -n "$structure_unique_name" ]; then
+        echo "Found matching structure for $current_system_name: $structure_unique_name"
+      else
+        echo "Error: No matching structure found for system name: $current_system_name in response"
+        # For debugging purposes, show the response
+        echo "Response excerpt (first 200 characters):"
+        head -c 200 "$storemanager_path"
+        echo "Cannot proceed without a matching structure in the API response."
         exit 1
       fi
     else
