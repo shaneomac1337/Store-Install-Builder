@@ -131,7 +131,7 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
         type_code="LPAS"
         ;;
       'STOREHUB-SERVICE')
-        type_code="SH"
+        type_code="SHS"
         ;;
       'FLOW-SERVICE')
         type_code="EDGE"
@@ -140,7 +140,7 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
         type_code="POS"
         ;;
       'WDM')
-        type_code="WDM"
+        type_code="EDGE"
         ;;
       *)
         type_code="POS"
