@@ -218,30 +218,30 @@ else
         
         # Set the appropriate template path based on component type
         if [ "$COMPONENT_TYPE" = "POS" ]; then
-          create_structure_template="$PWD/helper/pos/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
         elif [ "$COMPONENT_TYPE" = "WDM" ]; then
-          create_structure_template="$PWD/helper/wdm/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
         elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
-          create_structure_template="$PWD/helper/flow-service/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
         elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
-          create_structure_template="$PWD/helper/lpa-service/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
         elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-          create_structure_template="$PWD/helper/storehub/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
         fi
         
         if [ ! -f "$create_structure_template" ]; then
           echo "Warning: Create structure template not found at: $create_structure_template"
-          echo "Using default template from pos/create_structure.json"
-          create_structure_template="$PWD/helper/pos/create_structure.json"
+          echo "Using default template from structure/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
           
           # Create directories if they don't exist
           mkdir -p "$(dirname "$create_structure_template")"
           
           if [ ! -f "$create_structure_template" ]; then
             # Try in the current directory
-            echo "Checking for create_structure.json in pos subdirectory..."
-            if [ -f "pos/create_structure.json" ]; then
-              create_structure_template="pos/create_structure.json"
+            echo "Checking for create_structure.json in structure subdirectory..."
+            if [ -f "structure/create_structure.json" ]; then
+              create_structure_template="structure/create_structure.json"
               echo "Found template at: $create_structure_template"
             else
               echo "Error: Default template not found. Cannot create workstation."

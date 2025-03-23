@@ -153,17 +153,17 @@ try {
                     
                     # Set the appropriate template path based on component type
                     switch ($ComponentType) {
-                        'POS' { $createStructureTemplate = Join-Path $basePath "helper\pos\create_structure.json" }
-                        'WDM' { $createStructureTemplate = Join-Path $basePath "helper\wdm\create_structure.json" }
-                        'FLOW-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\flow-service\create_structure.json" }
-                        'LPA-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\lpa-service\create_structure.json" }
-                        'STOREHUB-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\storehub\create_structure.json" }
+                        'POS' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'WDM' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'FLOW-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'LPA-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'STOREHUB-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
                     }
                     
                     if (-Not (Test-Path $createStructureTemplate)) {
                         Write-Host "Warning: Create structure template not found at: $createStructureTemplate"
-                        Write-Host "Using default template from pos/create_structure.json"
-                        $createStructureTemplate = Join-Path $basePath "helper\pos\create_structure.json"
+                        Write-Host "Using default template from structure/create_structure.json"
+                        $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json"
                         
                         # Create directories if they don't exist
                         $createStructureDir = Split-Path -Parent $createStructureTemplate
@@ -174,8 +174,8 @@ try {
                         
                         if (-Not (Test-Path $createStructureTemplate)) {
                             # Try in the current directory
-                            Write-Host "Checking for create_structure.json in pos subdirectory..."
-                            $flatPathTemplate = Join-Path (Get-Location) "pos\create_structure.json"
+                            Write-Host "Checking for create_structure.json in structure subdirectory..."
+                            $flatPathTemplate = Join-Path (Get-Location) "structure\create_structure.json"
                             if (Test-Path $flatPathTemplate) {
                                 $createStructureTemplate = $flatPathTemplate
                                 Write-Host "Found template at: $createStructureTemplate"
