@@ -1943,7 +1943,7 @@ class GKInstallBuilder:
         
         components_label = ctk.CTkLabel(
             components_frame,
-            text="Supported Components:",
+            text="Supports:",
             font=("Helvetica", 12, "bold"),
             width=120,
             anchor="w"
@@ -1952,7 +1952,7 @@ class GKInstallBuilder:
         
         components_value = ctk.CTkLabel(
             components_frame,
-            text="POS, WDM, Flow Service,\nLPA Service, StoreHub",
+            text="POS, WDM, Flow Service,\nLPA, StoreHub",
             font=("Helvetica", 12),
             justify="left",
             anchor="w"
