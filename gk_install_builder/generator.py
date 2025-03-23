@@ -1008,12 +1008,12 @@ tomcat_package_local=@TOMCAT_PACKAGE@
 
     def _create_component_files(self, helper_dir):
         """Create component-specific directories and files"""
-        # Create POS directory and files
-        pos_dir = os.path.join(helper_dir, "pos")
-        os.makedirs(pos_dir, exist_ok=True)
-        print(f"  Created directory: {pos_dir}")
+        # Create structure directory and files
+        structure_dir = os.path.join(helper_dir, "structure")
+        os.makedirs(structure_dir, exist_ok=True)
+        print(f"  Created directory: {structure_dir}")
         
-        # Create create_structure.json template for POS
+        # Create create_structure.json template for all components
         create_structure_json = '''{
     "tenant": {
         "tenantId": "@TENANT_ID@"
@@ -1029,11 +1029,11 @@ tomcat_package_local=@TOMCAT_PACKAGE@
     "user": "@USER_ID@"
 }'''
         
-        # Write create_structure.json file for POS
-        file_path = os.path.join(pos_dir, "create_structure.json")
+        # Write create_structure.json file
+        file_path = os.path.join(structure_dir, "create_structure.json")
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(create_structure_json)
-        print(f"  Created POS structure template: {file_path}")
+        print(f"  Created structure template: {file_path}")
         
         # Create empty directories for other components
         for component_dir in ["wdm", "flow-service", "lpa-service", "storehub"]:
