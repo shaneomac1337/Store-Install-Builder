@@ -87,6 +87,303 @@ headers=(
   -H "GK-Accept-Redirect: 308"
 )
 
+# Create init directory if it doesn't exist
+init_path="$PWD/helper/init"
+mkdir -p "$init_path"
+
+# Get store information using get_store.json
+get_store_json_path="$init_path/get_store.json"
+
+if [ ! -f "$get_store_json_path" ]; then
+  echo "Warning: get_store.json not found at: $get_store_json_path"
+else
+  echo "Making API call to get store information..."
+  
+  # Make the API call to get store information
+  store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+  
+  # Add content-type header for this specific call
+  content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
+  
+  store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$get_store_json_path")
+  
+  if [ $? -eq 0 ]; then
+    echo "Successfully retrieved store information"
+    
+    # Save the response to storemanager.json
+    storemanager_path="$init_path/storemanager.json"
+    echo "$store_response" > "$storemanager_path"
+    echo "Store information saved to: $storemanager_path"
+    
+    # Extract structure unique name for the current component
+    structure_unique_name=""
+    if [ -f "$storemanager_path" ]; then
+      # Use alternative methods if jq is not available
+      if command -v jq >/dev/null 2>&1; then
+        echo "JQ is available. Using JQ for structure JSON parsing."
+        structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
+      else
+        echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+        echo "Parsing JSON response without jq..."
+        
+        # First, convert the JSON to a safer format for processing
+        # Convert JSON to one-object-per-line format with tr and sed
+        cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
+        
+        # Now search for our system name in this flattened format
+        matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json || echo "")
+        
+        if [ -n "$matching_line" ]; then
+          # Extract the structureUniqueName from the matching line
+          structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+          echo "Found matching object with systemName: $current_system_name"
+        else
+          # Try another approach - extract all childNodeList content and search for systemName
+          echo "No direct match found. Trying another approach..."
+          # Extract content between childNodeList brackets
+          sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
+          
+          # Find the line number where our system name appears
+          system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
+          
+          if [ -n "$system_line" ]; then
+            # Extract 10 lines starting from system name line to find structureUniqueName
+            structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
+            if [ -n "$structureName_line" ]; then
+              structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+            fi
+          fi
+          
+          # Clean up temp files
+          rm -f /tmp/childnodes.txt
+        fi
+        
+        # Clean up temp files
+        rm -f /tmp/flattened.json
+      fi
+      
+      if [ -n "$structure_unique_name" ]; then
+        echo "Found matching structure for $current_system_name: $structure_unique_name"
+      else
+        echo "Error: No matching structure found for system name: $current_system_name in response"
+        # For debugging purposes, show the response
+        echo "Response excerpt (first 200 characters):"
+        head -c 200 "$storemanager_path"
+        echo "Cannot proceed without a matching structure in the API response."
+        exit 1
+      fi
+    else
+      echo "Error: storemanager.json not found"
+      echo "Cannot proceed without a valid structure pattern from the API response."
+      exit 1
+    fi
+    
+    # Save the structure unique name to a file for reference
+    structure_name_path="$init_path/structure_name.txt"
+    echo "$structure_unique_name" > "$structure_name_path"
+    echo "Structure unique name saved to: $structure_name_path"
+    
+    # Check if the workstation exists for the current component
+    workstation_exists=false
+    
+    # Check if the current component has a workstation ID in the response
+    if command -v jq >/dev/null 2>&1; then
+      echo "Checking for existing workstation using JQ..."
+      matching_workstation=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
+      if [ -n "$matching_workstation" ]; then
+        workstation_exists=true
+      fi
+    else
+      # Fallback method if jq is not available
+      echo "Checking for existing workstation using bash methods..."
+      if grep -q "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path" || \
+         grep -q "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" "$storemanager_path"; then
+        workstation_exists=true
+      fi
+    fi
+    
+    if [ "$workstation_exists" = true ]; then
+      echo "Workstation $WORKSTATION_ID already exists for $current_system_name. No need to create it."
+    else
+      echo "Workstation $WORKSTATION_ID does not exist for $current_system_name."
+      
+      # Ask the user if they want to create the workstation
+      read -p "Do you want to create this workstation? (y/n): " create_choice
+      
+      if [[ $create_choice =~ ^[Yy]$ ]]; then
+        echo "Creating workstation structure..."
+        
+        # Path to the create structure template
+        create_structure_template=""
+        
+        # Set the appropriate template path based on component type
+        if [ "$COMPONENT_TYPE" = "POS" ]; then
+          create_structure_template="$PWD/helper/pos/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "WDM" ]; then
+          create_structure_template="$PWD/helper/wdm/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
+          create_structure_template="$PWD/helper/flow-service/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
+          create_structure_template="$PWD/helper/lpa-service/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+          create_structure_template="$PWD/helper/storehub/create_structure.json"
+        fi
+        
+        if [ ! -f "$create_structure_template" ]; then
+          echo "Warning: Create structure template not found at: $create_structure_template"
+          echo "Using default template from pos/create_structure.json"
+          create_structure_template="$PWD/helper/pos/create_structure.json"
+          
+          # Create directories if they don't exist
+          mkdir -p "$(dirname "$create_structure_template")"
+          
+          if [ ! -f "$create_structure_template" ]; then
+            # Try in the current directory
+            echo "Checking for create_structure.json in pos subdirectory..."
+            if [ -f "pos/create_structure.json" ]; then
+              create_structure_template="pos/create_structure.json"
+              echo "Found template at: $create_structure_template"
+            else
+              echo "Error: Default template not found. Cannot create workstation."
+              # Continue execution, don't exit
+            fi
+          fi
+        fi
+        
+        if [ -f "$create_structure_template" ]; then
+          # Create a temporary file with the replacements
+          temp_structure_file=$(mktemp)
+          
+          # Determine station name based on component type
+          station_name=""
+          if [ "$COMPONENT_TYPE" = "POS" ]; then
+            station_name="POS Client"
+          elif [ "$COMPONENT_TYPE" = "WDM" ]; then
+            station_name="Wall Device Manager"
+          elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
+            station_name="Flow Service"
+          elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
+            station_name="Label Print Adapter"
+          elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+            station_name="StoreHub"
+          fi
+          
+          # Get tenant ID from environment or use default
+          tenant_id="${tenant_id:-001}"
+          
+          # Get user ID from environment or use default
+          user_id="${user_id:-1001}"
+          
+          # Replace placeholders in the template
+          sed -e "s/@TENANT_ID@/$tenant_id/g" \
+              -e "s/@RETAIL_STORE_ID@/$STORE_ID/g" \
+              -e "s/@SYSTEM_TYPE@/$current_system_name/g" \
+              -e "s/@WORKSTATION_ID@/$WORKSTATION_ID/g" \
+              -e "s/@STATION_NAME@/$station_name/g" \
+              -e "s/@USER_ID@/$user_id/g" \
+              "$create_structure_template" > "$temp_structure_file"
+          
+          # Make the API call to create the structure
+          structure_create_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
+          
+          echo "Creating workstation using API: $structure_create_url"
+          echo "Request data: $(cat "$temp_structure_file")"
+          
+          # Save the processed template to a file for reference
+          processed_template_path="$init_path/processed_create_structure.json"
+          cp "$temp_structure_file" "$processed_template_path"
+          echo "Saved processed template to: $processed_template_path"
+          
+          structure_create_response=$(curl -s -f -X POST "$structure_create_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_structure_file")
+          
+          if [ $? -eq 0 ]; then
+            echo "Successfully created workstation structure"
+            echo "Response: $structure_create_response"
+            
+            # Save the response to structure_create_response.json
+            structure_create_response_path="$init_path/structure_create_response.json"
+            echo "$structure_create_response" > "$structure_create_response_path"
+            echo "Structure creation response saved to: $structure_create_response_path"
+          else
+            echo "Error creating workstation structure"
+            echo "Response: $structure_create_response"
+            # Continue execution even if this call fails
+          fi
+          
+          # Remove the temporary file
+          rm -f "$temp_structure_file"
+        fi
+      else
+        echo "Skipping workstation creation as per user choice."
+      fi
+    fi
+    
+    # Only proceed with configuration update for StoreHub components
+    if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
+      # Now update the configuration using update_config.json from the storehub directory
+      storehub_dir="$init_path/storehub"
+      update_config_path="$storehub_dir/update_config.json"
+      
+      # Create storehub directory if it doesn't exist
+      mkdir -p "$storehub_dir"
+      
+      if [ -f "$update_config_path" ]; then
+        echo "Updating StoreHub configuration using update_config.json..."
+        
+        # Get hostname
+        hostname=$(hostname)
+        if [ -z "$hostname" ]; then
+          hostname="localhost"
+        fi
+        
+        # Get version from config
+        version="v1.1.0"  # Default version
+        
+        # Create a temporary file with the replacements
+        temp_config_file=$(mktemp)
+        
+        # Replace placeholders in the template
+        sed -e "s/@STRUCTURE_UNIQUE_NAME@/$structure_unique_name/g" \
+            -e "s/@HOSTNAME@/$hostname/g" \
+            "$update_config_path" > "$temp_config_file"
+        
+        # Write the updated content back to the original file
+        cat "$temp_config_file" > "$update_config_path"
+        echo "Updated update_config.json with structure unique name and hostname"
+        
+        # Make the API call to update the configuration
+        config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+        
+        config_response=$(curl -s -f -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_config_file")
+        
+        if [ $? -eq 0 ]; then
+          echo "Successfully updated configuration"
+          
+          # Save the response to config_response.json
+          config_response_path="$storehub_dir/config_response.json"
+          echo "$config_response" > "$config_response_path"
+          echo "Configuration response saved to: $config_response_path"
+        else
+          echo "Error updating configuration"
+          echo "Response: $config_response"
+          # Continue execution even if this call fails
+        fi
+        
+        # Remove the temporary file
+        rm -f "$temp_config_file"
+      else
+        echo "Warning: StoreHub update_config.json not found at: $update_config_path"
+      fi
+    else
+      echo "Skipping configuration update - not a StoreHub component"
+    fi
+  else
+    echo "Error retrieving store information"
+    echo "Response: $store_response"
+    # Continue execution even if this call fails
+  fi
+fi
+
 # First API call - Get Business Unit
 bu_url="https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units/$STORE_ID"
 bu_response=$(curl -s -f -X GET "$bu_url" "${headers[@]}")
@@ -189,168 +486,6 @@ fi
 echo "$bu_response" > "business-unit.json"
 echo "$ws_response" > "workstation.json"
 echo "Saved response data to business-unit.json and workstation.json"
-
-# Get store information using get_store.json
-init_path="$PWD/helper/init"
-get_store_json_path="$init_path/get_store.json"
-
-# Create init directory if it doesn't exist
-mkdir -p "$init_path"
-
-if [ ! -f "$get_store_json_path" ]; then
-  echo "Warning: get_store.json not found at: $get_store_json_path"
-else
-  echo "Making API call to get store information..."
-  
-  # Make the API call to get store information
-  store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
-  
-  # Add content-type header for this specific call
-  content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
-  
-  store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$get_store_json_path")
-  
-  if [ $? -eq 0 ]; then
-    echo "Successfully retrieved store information"
-    
-    # Save the response to storemanager.json
-    storemanager_path="$init_path/storemanager.json"
-    echo "$store_response" > "$storemanager_path"
-    echo "Store information saved to: $storemanager_path"
-    
-    # Extract structure unique name for the current component
-    structure_unique_name=""
-    if [ -f "$storemanager_path" ]; then
-      # Use alternative methods if jq is not available
-      if command -v jq >/dev/null 2>&1; then
-        echo "JQ is available. Using JQ for structure JSON parsing."
-        structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
-      else
-        echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
-        echo "Parsing JSON response without jq..."
-        
-        # First, convert the JSON to a safer format for processing
-        # Convert JSON to one-object-per-line format with tr and sed
-        cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
-        
-        # Now search for our system name in this flattened format
-        matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json || echo "")
-        
-        if [ -n "$matching_line" ]; then
-          # Extract the structureUniqueName from the matching line
-          structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-          echo "Found matching object with systemName: $current_system_name"
-        else
-          # Try another approach - extract all childNodeList content and search for systemName
-          echo "No direct match found. Trying another approach..."
-          # Extract content between childNodeList brackets
-          sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
-          
-          # Find the line number where our system name appears
-          system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
-          
-          if [ -n "$system_line" ]; then
-            # Extract 10 lines starting from system name line to find structureUniqueName
-            structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
-            if [ -n "$structureName_line" ]; then
-              structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-            fi
-          fi
-          
-          # Clean up temp files
-          rm -f /tmp/childnodes.txt
-        fi
-        
-        # Clean up temp files
-        rm -f /tmp/flattened.json
-      fi
-      
-      if [ -n "$structure_unique_name" ]; then
-        echo "Found matching structure for $current_system_name: $structure_unique_name"
-      else
-        echo "Error: No matching structure found for system name: $current_system_name in response"
-        # For debugging purposes, show the response
-        echo "Response excerpt (first 200 characters):"
-        head -c 200 "$storemanager_path"
-        echo "Cannot proceed without a matching structure in the API response."
-        exit 1
-      fi
-    else
-      echo "Error: storemanager.json not found"
-      echo "Cannot proceed without a valid structure pattern from the API response."
-      exit 1
-    fi
-    
-    # Save the structure unique name to a file for reference
-    structure_name_path="$init_path/structure_name.txt"
-    echo "$structure_unique_name" > "$structure_name_path"
-    echo "Structure unique name saved to: $structure_name_path"
-    
-    # Only proceed with configuration update for StoreHub components
-    if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
-      # Now update the configuration using update_config.json from the storehub directory
-      storehub_dir="$init_path/storehub"
-      update_config_path="$storehub_dir/update_config.json"
-      
-      # Create storehub directory if it doesn't exist
-      mkdir -p "$storehub_dir"
-      
-      if [ -f "$update_config_path" ]; then
-        echo "Updating StoreHub configuration using update_config.json..."
-        
-        # Get hostname
-        hostname=$(hostname)
-        if [ -z "$hostname" ]; then
-          hostname="localhost"
-        fi
-        
-        # Get version from config
-        version="v1.1.0"  # Default version
-        
-        # Create a temporary file with the replacements
-        temp_config_file=$(mktemp)
-        
-        # Replace placeholders in the template
-        sed -e "s/@STRUCTURE_UNIQUE_NAME@/$structure_unique_name/g" \
-            -e "s/@HOSTNAME@/$hostname/g" \
-            "$update_config_path" > "$temp_config_file"
-        
-        # Write the updated content back to the original file
-        cat "$temp_config_file" > "$update_config_path"
-        echo "Updated update_config.json with structure unique name and hostname"
-        
-        # Make the API call to update the configuration
-        config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
-        
-        config_response=$(curl -s -f -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_config_file")
-        
-        if [ $? -eq 0 ]; then
-          echo "Successfully updated configuration"
-          
-          # Save the response to config_response.json
-          config_response_path="$storehub_dir/config_response.json"
-          echo "$config_response" > "$config_response_path"
-          echo "Configuration response saved to: $config_response_path"
-        else
-          echo "Error updating configuration"
-          echo "Response: $config_response"
-          # Continue execution even if this call fails
-        fi
-        
-        # Remove the temporary file
-        rm -f "$temp_config_file"
-      else
-        echo "Warning: StoreHub update_config.json not found at: $update_config_path"
-      fi
-    else
-      echo "Skipping configuration update - not a StoreHub component"
-    fi
-  else
-    echo "Error retrieving store information"
-    echo "Response: $store_response"
-    # Continue execution even if this call fails
-  fi
-fi
 
 # Exit successfully
 exit 0 

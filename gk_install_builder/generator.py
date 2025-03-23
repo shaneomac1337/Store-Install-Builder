@@ -917,6 +917,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     # Create init JSON files
                     self._create_init_json_files(helper_dst, config)
                     
+                    # Create component-specific files (like create_structure.json)
+                    self._create_component_files(helper_dst)
+                    
                     # Create launchers directory
                     launchers_dir = os.path.join(helper_dst, 'launchers')
                     os.makedirs(launchers_dir, exist_ok=True)
@@ -975,6 +978,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Create init JSON files
             self._create_init_json_files(helper_dst, config)
             
+            # Create component-specific files (like create_structure.json)
+            self._create_component_files(helper_dst)
+            
             # Modify JSON files with the correct URLs
             self._modify_json_files(helper_dst, config)
             
@@ -996,6 +1002,44 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             sub_dir = os.path.join(helper_dir, dir_name)
             os.makedirs(sub_dir, exist_ok=True)
             print(f"  Created directory: {sub_dir}")
+        
+        # Create component-specific directories and files
+        self._create_component_files(helper_dir)
+
+    def _create_component_files(self, helper_dir):
+        """Create component-specific directories and files"""
+        # Create POS directory and files
+        pos_dir = os.path.join(helper_dir, "pos")
+        os.makedirs(pos_dir, exist_ok=True)
+        print(f"  Created directory: {pos_dir}")
+        
+        # Create create_structure.json template for POS
+        create_structure_json = '''{
+    "tenant": {
+        "tenantId": "@TENANT_ID@"
+    },
+    "store": {
+        "retailStoreId": "@RETAIL_STORE_ID@"
+    },
+    "station": {
+        "systemName": "@SYSTEM_TYPE@",
+        "workstationId": "@WORKSTATION_ID@",
+        "name": "@STATION_NAME@"
+    },
+    "user": "@USER_ID@"
+}'''
+        
+        # Write create_structure.json file for POS
+        file_path = os.path.join(pos_dir, "create_structure.json")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(create_structure_json)
+        print(f"  Created POS structure template: {file_path}")
+        
+        # Create empty directories for other components
+        for component_dir in ["wdm", "flow-service", "lpa-service", "storehub"]:
+            component_path = os.path.join(helper_dir, component_dir)
+            os.makedirs(component_path, exist_ok=True)
+            print(f"  Created directory: {component_path}")
 
     def _create_default_json_files(self, helper_dir, config):
         """Create default JSON files for onboarding"""
