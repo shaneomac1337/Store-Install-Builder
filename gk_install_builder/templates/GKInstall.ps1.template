@@ -537,30 +537,25 @@ try {
     $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
     if (Test-Path $storeInitScript) {
         try {
-            # Skip store initialization for POS components
-            if ($ComponentType -eq "POS") {
-                Write-Host "Skipping store initialization for POS component"
+            # Update get_store.json with the store ID
+            $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
+            if (Test-Path $getStoreJsonPath) {
+                Write-Host "Updating get_store.json with Store ID: $storeNumber"
+                $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
+                $getStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
+                Set-Content -Path $getStoreJsonPath -Value $getStoreJson
+                Write-Host "get_store.json updated successfully"
             } else {
-                # Update get_store.json with the store ID
-                $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
-                if (Test-Path $getStoreJsonPath) {
-                    Write-Host "Updating get_store.json with Store ID: $storeNumber"
-                    $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
-                    $getStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
-                    Set-Content -Path $getStoreJsonPath -Value $getStoreJson
-                    Write-Host "get_store.json updated successfully"
-                } else {
-                    Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
-                }
-                
-                # Pass the values collected from hostname or user input
-                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "Store initialization completed successfully"
-                } else {
-                    Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
-                    exit 1
-                }
+                Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
+            }
+            
+            # Pass the values collected from hostname or user input
+            & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Store initialization completed successfully"
+            } else {
+                Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                exit 1
             }
         }
         catch {
