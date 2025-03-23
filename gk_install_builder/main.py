@@ -57,17 +57,27 @@ class LauncherSettingsEditor:
     def open_editor(self):
         if self.window is not None and self.window.winfo_exists():
             self.window.lift()
+            self.window.focus_force()  # Force focus on Linux
             return
             
         self.window = ctk.CTkToplevel(self.parent)
         self.window.title("Launcher Settings Editor")
         self.window.geometry("800x600")
+        
+        # Add these lines to fix Linux visibility issue
+        self.window.update_idletasks()
+        self.window.update()
+        
         self.window.transient(self.parent)
         self.window.grab_set()
         
         # Create main frame with scrollbar
         main_frame = ctk.CTkFrame(self.window)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Force another update to ensure contents are displayed
+        self.window.after(100, self.window.update_idletasks)
+        self.window.after(100, self.window.update)
         
         # Create tabs for each component type
         tab_view = ctk.CTkTabview(main_frame)
@@ -1760,24 +1770,225 @@ class GKInstallBuilder:
         # Create a new toplevel window
         author_window = ctk.CTkToplevel(self.root)
         author_window.title("About")
-        author_window.geometry("380x320")
+        # Make the window taller to fit all content including copyright
+        author_window.geometry("400x600")
+        
+        # Add these lines to fix Linux visibility issue
+        author_window.update_idletasks()
+        author_window.update()
+        
         author_window.transient(self.root)
-        author_window.grab_set()
+        
+        # Try-except block to handle potential grab_set issues on Linux
+        try:
+            author_window.grab_set()
+        except Exception as e:
+            print(f"Warning: Could not set grab on About window: {str(e)}")
+            
         author_window.resizable(False, False)
         
         # Ensure the window appears on top
         author_window.focus_force()
         
-        # Frame for content with subtle border
+        # Main content frame
         content_frame = ctk.CTkFrame(author_window)
-        content_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        content_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # App logo/icon space - uses CTkButton for better appearance
+        # Force another update to ensure contents are displayed
+        author_window.after(100, author_window.update_idletasks)
+        author_window.after(100, author_window.update)
+        
+        # Logo frame with more padding at the top
         logo_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
-        logo_frame.pack(pady=(20, 5))
+        logo_frame.pack(pady=(15, 5))  # Reduced top padding to make more room below
         
+        # Check if logo file exists and use it
+        logo_path = os.path.join(os.path.dirname(__file__), "assets", "gk_logo.png")
+        
+        if os.path.exists(logo_path):
+            try:
+                # Load the image using PIL/Pillow
+                from PIL import Image
+                original_image = Image.open(logo_path)
+                
+                # Get original dimensions to calculate proper aspect ratio
+                orig_width, orig_height = original_image.size
+                
+                # Set a fixed width and calculate height based on aspect ratio
+                display_width = 140
+                display_height = int((display_width / orig_width) * orig_height)
+                
+                # Create the image with proper aspect ratio
+                logo_image = ctk.CTkImage(
+                    light_image=original_image,
+                    dark_image=original_image,
+                    size=(display_width, display_height)  # Size that preserves aspect ratio
+                )
+                
+                logo_label = ctk.CTkLabel(
+                    logo_frame,
+                    image=logo_image,
+                    text=""
+                )
+                logo_label.pack()
+                
+            except Exception as e:
+                print(f"Error loading logo: {str(e)}")
+                self._create_fallback_logo(logo_frame)
+        else:
+            self._create_fallback_logo(logo_frame)
+        
+        # App title
+        title_label = ctk.CTkLabel(
+            content_frame,
+            text="Store Install Builder",
+            font=("Helvetica", 18, "bold")
+        )
+        title_label.pack(pady=(5, 0))
+        
+        # Version
+        version_label = ctk.CTkLabel(
+            content_frame,
+            text="Version 1.1.0",
+            font=("Helvetica", 12),
+            text_color=("gray50", "gray70")
+        )
+        version_label.pack(pady=(0, 5))
+        
+        # Copyright information - Moving these up in the layout, before technical info
+        copyright_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        copyright_frame.pack(fill="x", padx=5, pady=0)
+        
+        copyright_label = ctk.CTkLabel(
+            copyright_frame,
+            text="© 2025 Martin Pěnkava",
+            font=("Helvetica", 12),
+            text_color=("gray50", "gray70")
+        )
+        copyright_label.pack(pady=5)
+        
+        # Contact info - Moving up with copyright
+        contact_label = ctk.CTkLabel(
+            copyright_frame,
+            text="Contact: martin.penkava@gk-software.com",
+            font=("Helvetica", 12),
+            text_color=("#3a7ebf", "#2b5f8f"),  # Blue text
+            cursor="hand2"  # Hand cursor
+        )
+        contact_label.pack(pady=2)
+        
+        # Description
+        description_label = ctk.CTkLabel(
+            content_frame,
+            text="A professional tool for building store installation packages for retail systems.",
+            font=("Helvetica", 12),
+            wraplength=350,
+            justify="center"
+        )
+        description_label.pack(pady=(5, 15))
+        
+        # Divider
+        divider = ctk.CTkFrame(content_frame, height=1, fg_color=("gray70", "gray30"))
+        divider.pack(fill="x", padx=20, pady=5)
+        
+        # Technical info frame
+        info_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        info_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Technical info header
+        tech_title = ctk.CTkLabel(
+            info_frame,
+            text="Technical Information",
+            font=("Helvetica", 14, "bold"),
+            justify="left"
+        )
+        tech_title.pack(anchor="w", padx=10, pady=(5, 10))
+        
+        # Get system information
+        import platform as pf
+        import customtkinter as ctk_info
+        import sys
+        
+        # Simple function to add info rows
+        def add_info_row(label, value):
+            frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+            frame.pack(fill="x", padx=10, pady=5)
+            
+            label_widget = ctk.CTkLabel(
+                frame,
+                text=f"{label}:",
+                font=("Helvetica", 12, "bold"),
+                width=120,
+                anchor="w"
+            )
+            label_widget.pack(side="left")
+            
+            value_widget = ctk.CTkLabel(
+                frame,
+                text=value,
+                font=("Helvetica", 12),
+                anchor="w",
+                wraplength=220  # Fixed reasonable wraplength
+            )
+            value_widget.pack(side="left")
+        
+        # Add technical information with increased spacing
+        add_info_row("Platform", pf.system())
+        add_info_row("Python", sys.version.split()[0])
+        add_info_row("CustomTkinter", ctk_info.__version__)
+        
+        # Components with longer text needs more space
+        components_frame = ctk.CTkFrame(info_frame, fg_color="transparent")
+        components_frame.pack(fill="x", padx=10, pady=5)
+        
+        components_label = ctk.CTkLabel(
+            components_frame,
+            text="Supported Components:",
+            font=("Helvetica", 12, "bold"),
+            width=120,
+            anchor="w"
+        )
+        components_label.pack(side="left", anchor="n")
+        
+        components_value = ctk.CTkLabel(
+            components_frame,
+            text="POS, WDM, Flow Service,\nLPA Service, StoreHub",
+            font=("Helvetica", 12),
+            justify="left",
+            anchor="w"
+        )
+        components_value.pack(side="left", anchor="n")
+        
+        # Divider
+        divider2 = ctk.CTkFrame(info_frame, height=1, fg_color=("gray70", "gray30"))
+        divider2.pack(fill="x", padx=20, pady=10)
+        
+        # Extra space before copyright
+        spacer = ctk.CTkFrame(info_frame, fg_color="transparent", height=10)
+        spacer.pack()
+        
+        # Author information
+        author_label = ctk.CTkLabel(
+            info_frame,
+            text="Author: Martin Pěnkava",
+            font=("Helvetica", 12, "bold"),
+            justify="center"
+        )
+        author_label.pack(pady=(5, 5))
+        
+        # Close button
+        close_button = ctk.CTkButton(
+            content_frame,
+            text="Close",
+            command=author_window.destroy,
+            width=100
+        )
+        close_button.pack(pady=10)
+    
+    def _create_fallback_logo(self, parent_frame):
+        """Create a fallback text-based logo button"""
         logo_button = ctk.CTkButton(
-            logo_frame,
+            parent_frame,
             text="GK",  # Placeholder for logo
             font=("Helvetica", 28, "bold"),
             width=60,
@@ -1789,54 +2000,6 @@ class GKInstallBuilder:
             command=None  # No action
         )
         logo_button.pack()
-        
-        # Title with product name
-        title_label = ctk.CTkLabel(
-            content_frame,
-            text="Store Install Builder",
-            font=("Helvetica", 20, "bold")
-        )
-        title_label.pack(pady=(5, 0))
-        
-        # Version
-        version_label = ctk.CTkLabel(
-            content_frame,
-            text="Version 1.1.0",
-            font=("Helvetica", 14),
-            text_color=("gray50", "gray70")  # Adaptive color for light/dark mode
-        )
-        version_label.pack(pady=(0, 15))
-        
-        # Separator with adaptive color for light/dark mode
-        separator = ctk.CTkFrame(content_frame, height=1, fg_color=("gray85", "gray25"))
-        separator.pack(fill="x", padx=30, pady=10)
-        
-        # Author info
-        author_label = ctk.CTkLabel(
-            content_frame,
-            text="© 2025 Martin Pěnkava",
-            font=("Helvetica", 12)
-        )
-        author_label.pack(pady=5)
-        
-        # Description
-        description_label = ctk.CTkLabel(
-            content_frame,
-            text="A professional tool for building store installation packages for retail systems.",
-            font=("Helvetica", 12),
-            wraplength=320,
-            justify="center"
-        )
-        description_label.pack(pady=10)
-        
-        # Close button with customtkinter styling
-        close_button = ctk.CTkButton(
-            content_frame,
-            text="OK",
-            width=100,
-            command=author_window.destroy
-        )
-        close_button.pack(pady=15)
     
     def update_keepass_button(self):
         """Update the KeePass button state based on whether credentials are stored"""
