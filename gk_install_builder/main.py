@@ -3,7 +3,7 @@ from config import ConfigManager
 from generator import ProjectGenerator
 import os
 import tkinter.ttk as ttk
-import sys
+import tkinter as tk
 from tkinter import messagebox
 import sys
 import os
@@ -446,11 +446,42 @@ class GKInstallBuilder:
         
         # Set up window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
-        
+    
     def create_gui(self):
         # Create main container with scrollbar
         self.main_frame = ctk.CTkScrollableFrame(self.root, width=900, height=700)
         self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        # Add version/info label at the top right of the main frame
+        info_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        info_frame.pack(fill="x", pady=(0, 10))
+        
+        # Info button styled to match customtkinter aesthetics
+        info_button = ctk.CTkButton(
+            info_frame,
+            text="ⓘ",
+            width=30,
+            height=30,
+            corner_radius=15,
+            fg_color="transparent",
+            hover_color=("gray75", "gray30"),
+            text_color=("gray50", "gray70"),
+            font=("Helvetica", 16),
+            command=self.show_author_info
+        )
+        info_button.pack(side="right", padx=(0, 5))
+        
+        # Version label with customtkinter styling
+        version_label = ctk.CTkLabel(
+            info_frame,
+            text="v1.1.0",
+            font=("Helvetica", 12),
+            text_color=("gray50", "gray70")
+        )
+        version_label.pack(side="right", padx=5)
+        
+        # Add tooltip to the info button
+        self.create_tooltip(info_button, "About Store Install Builder")
         
         # Project Configuration - Create the main section frame
         section_frame = ctk.CTkFrame(self.main_frame)
@@ -1723,6 +1754,89 @@ class GKInstallBuilder:
         
         # Update KeePass button state
         self.update_keepass_button()
+    
+    def show_author_info(self):
+        """Display author information in a professional dialog"""
+        # Create a new toplevel window
+        author_window = ctk.CTkToplevel(self.root)
+        author_window.title("About")
+        author_window.geometry("380x320")
+        author_window.transient(self.root)
+        author_window.grab_set()
+        author_window.resizable(False, False)
+        
+        # Ensure the window appears on top
+        author_window.focus_force()
+        
+        # Frame for content with subtle border
+        content_frame = ctk.CTkFrame(author_window)
+        content_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        
+        # App logo/icon space - uses CTkButton for better appearance
+        logo_frame = ctk.CTkFrame(content_frame, fg_color="transparent")
+        logo_frame.pack(pady=(20, 5))
+        
+        logo_button = ctk.CTkButton(
+            logo_frame,
+            text="GK",  # Placeholder for logo
+            font=("Helvetica", 28, "bold"),
+            width=60,
+            height=60,
+            corner_radius=30,  # Circular button
+            fg_color=("#3a7ebf", "#2b5f8f"),  # Blue background with dark variant
+            hover_color=("#2b5f8f", "#1a4060"),  # Darker blue on hover
+            text_color="white",  # White text
+            command=None  # No action
+        )
+        logo_button.pack()
+        
+        # Title with product name
+        title_label = ctk.CTkLabel(
+            content_frame,
+            text="Store Install Builder",
+            font=("Helvetica", 20, "bold")
+        )
+        title_label.pack(pady=(5, 0))
+        
+        # Version
+        version_label = ctk.CTkLabel(
+            content_frame,
+            text="Version 1.1.0",
+            font=("Helvetica", 14),
+            text_color=("gray50", "gray70")  # Adaptive color for light/dark mode
+        )
+        version_label.pack(pady=(0, 15))
+        
+        # Separator with adaptive color for light/dark mode
+        separator = ctk.CTkFrame(content_frame, height=1, fg_color=("gray85", "gray25"))
+        separator.pack(fill="x", padx=30, pady=10)
+        
+        # Author info
+        author_label = ctk.CTkLabel(
+            content_frame,
+            text="© 2025 Martin Pěnkava",
+            font=("Helvetica", 12)
+        )
+        author_label.pack(pady=5)
+        
+        # Description
+        description_label = ctk.CTkLabel(
+            content_frame,
+            text="A professional tool for building store installation packages for retail systems.",
+            font=("Helvetica", 12),
+            wraplength=320,
+            justify="center"
+        )
+        description_label.pack(pady=10)
+        
+        # Close button with customtkinter styling
+        close_button = ctk.CTkButton(
+            content_frame,
+            text="OK",
+            width=100,
+            command=author_window.destroy
+        )
+        close_button.pack(pady=15)
     
     def update_keepass_button(self):
         """Update the KeePass button state based on whether credentials are stored"""
