@@ -88,7 +88,7 @@ try {
                 'STOREHUB-SERVICE' { 'SHS' }
                 'FLOW-SERVICE' { 'EDGE' }
                 'POS' { 'POS' }
-                'WDM' { 'WDM' }
+                'WDM' { 'EDGE' }
                 default { 'POS' }
             }
 
