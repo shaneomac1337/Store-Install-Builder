@@ -84,9 +84,27 @@ password="$basic_auth_password"
 # Encode credentials
 auth_string=$(echo -n "$username:$password" | base64)
 
-# Form data with decrypted password
-username_encoded=$(printf %s "$form_username" | jq -sRr @uri)
-password_encoded=$(printf %s "$form_password" | jq -sRr @uri)
+# URL encoding function that doesn't rely on jq
+urlencode() {
+  # URL encode a string
+  local string="$1"
+  local length="${#string}"
+  local encoded=""
+  local i char
+
+  for ((i=0; i<length; i++)); do
+    char="${string:i:1}"
+    case "$char" in
+      [a-zA-Z0-9.~_-]) encoded="$encoded$char" ;;
+      *) printf -v encoded '%s%%%02X' "$encoded" "'$char" ;;
+    esac
+  done
+  echo "$encoded"
+}
+
+# Form data with decrypted password using our native URL encoding
+username_encoded=$(urlencode "$form_username")
+password_encoded=$(urlencode "$form_password")
 form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"
 
 # Make the API call
@@ -103,10 +121,12 @@ fi
 # Parse the response for access_token
 if command -v jq >/dev/null 2>&1; then
   # Use jq if available
+  echo "JQ is available. Using JQ for access token extraction."
   access_token=$(echo "$response" | jq -r '.access_token // empty')
 else
-  # Fallback to grep and cut if jq is not available
-  access_token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+  # Improved fallback that handles JSON more reliably
+  echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+  access_token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"//g' | sed 's/"//g')
 fi
 
 if [ -z "$access_token" ]; then
@@ -164,10 +184,12 @@ fi
 # Parse the response for token
 if command -v jq >/dev/null 2>&1; then
   # Use jq if available
+  echo "JQ is available. Using JQ for onboarding token extraction."
   onboarding_token=$(echo "$onboarding_response" | jq -r '.token // empty')
 else
-  # Fallback to grep and cut if jq is not available
-  onboarding_token=$(echo "$onboarding_response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+  # Improved fallback that handles JSON more reliably
+  echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+  onboarding_token=$(echo "$onboarding_response" | grep -o '"token":"[^"]*"' | sed 's/"token":"//g' | sed 's/"//g')
 fi
 
 if [ -z "$onboarding_token" ]; then
