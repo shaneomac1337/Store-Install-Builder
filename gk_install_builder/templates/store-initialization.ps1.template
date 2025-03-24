@@ -201,7 +201,7 @@ try {
                         }
                         
                         # Get tenant ID from environment or use default
-                        $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "001" }
+                        $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "${tenant_id}" }
                         
                         # Get user ID from environment or use default
                         $userId = if ($env:user_id) { $env:user_id } else { "${user_id}" }
