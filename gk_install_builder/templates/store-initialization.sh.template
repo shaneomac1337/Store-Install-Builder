@@ -272,7 +272,7 @@ else
           tenant_id="${tenant_id:-001}"
           
           # Get user ID from environment or use default
-          user_id="${user_id:-1001}"
+          user_id="${user_id:-${user_id}}"
           
           # Replace placeholders in the template
           sed -e "s/@TENANT_ID@/$tenant_id/g" \

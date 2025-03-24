@@ -204,7 +204,7 @@ try {
                         $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "001" }
                         
                         # Get user ID from environment or use default
-                        $userId = if ($env:user_id) { $env:user_id } else { "1001" }
+                        $userId = if ($env:user_id) { $env:user_id } else { "${user_id}" }
                         
                         # Replace placeholders in the template
                         $createStructureJson = $createStructureJson -replace '@TENANT_ID@', $tenantId
