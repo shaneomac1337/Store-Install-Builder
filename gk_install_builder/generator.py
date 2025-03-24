@@ -885,6 +885,10 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 template_content = template_content.replace("${base_url}", base_url)
                 template_content = template_content.replace("${tenant_id}", tenant_id)
                 
+                # Add user_id replacement from configuration
+                user_id = config.get("eh_launchpad_username", "1001")
+                template_content = template_content.replace("${user_id}", user_id)
+                
                 # Write the processed content to the destination file
                 with open(dst_script, 'w') as f:
                     f.write(template_content)
@@ -1046,13 +1050,17 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         onboarding_dir = os.path.join(helper_dir, "onboarding")
         os.makedirs(onboarding_dir, exist_ok=True)
         
+        # Get user ID from config
+        user_id = config.get("eh_launchpad_username", "1001")
+        tenant_id = config.get("tenant_id", "001")
+        
         # Default JSON templates for different component types
         json_templates = {
-            "pos.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
-            "wdm.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
-            "flow-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
-            "lpa-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}''',
-            "storehub-service.onboarding.json": '''{"deviceId":"1001","tenant_id":"001","timestamp":"{{TIMESTAMP}}"}'''
+            "pos.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "wdm.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "flow-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "lpa-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "storehub-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}'''
         }
         
         # Write JSON files
@@ -1060,8 +1068,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Replace placeholders
             timestamp = int(time.time() * 1000)  # Current time in milliseconds
             content = content.replace("{{TIMESTAMP}}", str(timestamp))
-            content = content.replace("001", config.get("tenant_id", "001"))
-            content = content.replace("1001", config.get("eh_launchpad_username", "1001"))
+            content = content.replace("@TENANT_ID@", tenant_id)
+            content = content.replace("@USER_ID@", user_id)
             
             # Write file
             file_path = os.path.join(onboarding_dir, filename)
