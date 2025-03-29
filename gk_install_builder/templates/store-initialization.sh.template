@@ -103,13 +103,22 @@ else
   else
     echo "Making API call to get store information..."
     
+    # Create a processed copy of get_store.json
+    processed_get_store_path="$init_path/get_store_processed.json"
+    cp "$get_store_json_path" "$processed_get_store_path"
+    echo "Created processed copy of get_store.json at: $processed_get_store_path"
+    
+    # Replace @RETAIL_STORE_ID@ placeholder with the actual store ID
+    sed -i "s/@RETAIL_STORE_ID@/$STORE_ID/g" "$processed_get_store_path"
+    echo "Updated @RETAIL_STORE_ID@ placeholder with: $STORE_ID in processed file"
+    
     # Make the API call to get store information
     store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
     
     # Add content-type header for this specific call
     content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
     
-    store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$get_store_json_path")
+    store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
     
     if [ $? -eq 0 ]; then
       echo "Successfully retrieved store information"
@@ -281,50 +290,77 @@ else
           fi
           
           if [ -f "$create_structure_template" ]; then
-            # Create a temporary file with the replacements
-            temp_structure_file=$(mktemp)
+            echo "Creating workstation structure..."
+            
+            # Create a processed copy of create_structure.json
+            processed_create_structure_path="$init_path/create_structure_processed.json"
+            cp "$create_structure_template" "$processed_create_structure_path"
+            echo "Created processed copy of create_structure.json at: $processed_create_structure_path"
             
             # Determine station name based on component type
-            station_name=""
-            if [ "$COMPONENT_TYPE" = "POS" ]; then
-              station_name="POS Client"
-            elif [ "$COMPONENT_TYPE" = "WDM" ]; then
-              station_name="Wall Device Manager"
-            elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
-              station_name="Flow Service"
-            elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
-              station_name="Label Print Adapter"
-            elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-              station_name="StoreHub"
-            fi
+            case "$COMPONENT_TYPE" in
+              POS)
+                station_name="POS Client"
+                ;;
+              WDM)
+                station_name="Wall Device Manager"
+                ;;
+              FLOW-SERVICE)
+                station_name="Flow Service"
+                ;;
+              LPA-SERVICE)
+                station_name="Label Print Adapter"
+                ;;
+              STOREHUB-SERVICE)
+                station_name="StoreHub"
+                ;;
+              *)
+                station_name="POS Client"
+                ;;
+            esac
             
             # Get tenant ID from environment or use default
-            tenant_id="${tenant_id:-${tenant_id}}"
+            tenant_id=${tenant_id:-"${tenant_id}"}
             
             # Get user ID from environment or use default
-            user_id="${user_id:-1001}"
+            user_id=${user_id:-"${user_id}"}
             
-            # Replace placeholders in the template
-            sed -e "s/@TENANT_ID@/$tenant_id/g" \
-                -e "s/@RETAIL_STORE_ID@/$STORE_ID/g" \
-                -e "s/@SYSTEM_TYPE@/$current_system_name/g" \
-                -e "s/@WORKSTATION_ID@/$WORKSTATION_ID/g" \
-                -e "s/@STATION_NAME@/$station_name/g" \
-                -e "s/@USER_ID@/$user_id/g" \
-                "$create_structure_template" > "$temp_structure_file"
+            # Create a temporary file for processing
+            temp_structure_file=$(mktemp)
+            
+            # First copy the content to the temporary file
+            cp "$processed_create_structure_path" "$temp_structure_file"
+            
+            # Process replacements
+            for placeholder_value in \
+                "@TENANT_ID@:$tenant_id" \
+                "@RETAIL_STORE_ID@:$STORE_ID" \
+                "@SYSTEM_TYPE@:$current_system_name" \
+                "@WORKSTATION_ID@:$WORKSTATION_ID" \
+                "@STATION_NAME@:$station_name" \
+                "@USER_ID@:$user_id"
+            do
+                placeholder=$(echo "$placeholder_value" | cut -d ":" -f 1)
+                value=$(echo "$placeholder_value" | cut -d ":" -f 2-)
+                
+                # Using temporary files for each replacement to ensure portability
+                next_temp_file=$(mktemp)
+                sed "s|$placeholder|$value|g" "$temp_structure_file" > "$next_temp_file"
+                mv "$next_temp_file" "$temp_structure_file"
+            done
+            
+            # Save the processed file for reference
+            processed_template_path="$init_path/processed_create_structure.json"
+            cp "$temp_structure_file" "$processed_template_path"
+            echo "Saved processed template to: $processed_template_path"
             
             # Make the API call to create the structure
             structure_create_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
             
             echo "Creating workstation using API: $structure_create_url"
-            echo "Request data: $(cat "$temp_structure_file")"
+            echo "Request data: $(cat "$processed_template_path")"
             
-            # Save the processed template to a file for reference
-            processed_template_path="$init_path/processed_create_structure.json"
-            cp "$temp_structure_file" "$processed_template_path"
-            echo "Saved processed template to: $processed_template_path"
-            
-            structure_create_response=$(curl -s -f -X POST "$structure_create_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_structure_file")
+            structure_create_response=$(curl -s -f -X POST "$structure_create_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_template_path")
             
             if [ $? -eq 0 ]; then
               echo "Successfully created workstation structure"
@@ -346,7 +382,7 @@ else
               store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
               
               if [ -f "$get_store_json_path" ]; then
-                refreshed_store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$get_store_json_path")
+                refreshed_store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
                 
                 if [ $? -eq 0 ]; then
                   # Save the refreshed response to storemanager.json
@@ -411,9 +447,6 @@ else
               echo "Response: $structure_create_response"
               # Continue execution even if this call fails
             fi
-            
-            # Remove the temporary file
-            rm -f "$temp_structure_file"
           fi
         else
           echo "Skipping workstation creation as per user choice."
@@ -432,6 +465,11 @@ else
         if [ -f "$update_config_path" ]; then
           echo "Updating StoreHub configuration using update_config.json..."
           
+          # Create a processed copy of update_config.json
+          processed_update_config_path="$storehub_dir/update_config_processed.json"
+          cp "$update_config_path" "$processed_update_config_path"
+          echo "Created processed copy of update_config.json at: $processed_update_config_path"
+          
           # Get hostname
           hostname=$(hostname)
           if [ -z "$hostname" ]; then
@@ -445,7 +483,7 @@ else
           temp_file=$(mktemp)
           
           # Copy the content to the temporary file
-          cp "$update_config_path" "$temp_file"
+          cp "$processed_update_config_path" "$temp_file"
           
           # Get configuration values from environment or use defaults
           jms_port="${jms_port:-7001}"
@@ -475,44 +513,9 @@ else
               mv "$next_temp_file" "$temp_file"
           done
           
-          # Move the processed file back to the original
-          mv "$temp_file" "$update_config_path"
-          echo "Updated update_config.json with all required values"
-          
-          # Save the complete request to a debug file for inspection
-          debug_request_path="$storehub_dir/update_config_request_debug.json"
-          cp "$update_config_path" "$debug_request_path"
-          echo "Saved complete API request to: $debug_request_path"
-          
-          # Save detailed log of all replacements
-          replacements_log_path="$storehub_dir/update_config_replacements.log"
-          cat > "$replacements_log_path" << EOL
-=== Configuration Request Details ===
-Timestamp: $(date)
-API URL: https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain
-Content-Type: application/json; variant=Plain; charset=UTF-8
-
-=== Replacements Applied ===
-@STRUCTURE_UNIQUE_NAME@ = $structure_unique_name
-@HOSTNAME@ = $hostname
-@SYSTEM_NAME@ = $current_system_name
-@SYSTEM_VERSION@ = $version
-@JMS_PORT@ = $jms_port
-@FIREBIRD_PORT@ = $firebird_port
-@FIREBIRD_USER@ = $firebird_user
-@FIREBIRD_PASSWORD@ = $firebird_password
-@HTTPS_PORT@ = $https_port
-
-=== Request Headers ===
-Authorization: Bearer $access_token
-Content-Type: application/json; variant=Plain; charset=UTF-8
-Accept: application/json; variant=Plain; charset=UTF-8
-GK-Accept-Redirect: 308
-
-=== Full Request Body ===
-$(cat "$update_config_path")
-EOL
-          echo "Saved replacements log to: $replacements_log_path"
+          # Move the processed file back to the processed path
+          mv "$temp_file" "$processed_update_config_path"
+          echo "Updated processed file with all required values"
           
           # Now display the updated content for debugging
           echo -e "\n====== API CALL DETAILS ======"
@@ -520,90 +523,23 @@ EOL
           # Make the API call to update the configuration
           config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
           
-          # Capture full response with headers to a file for debugging
-          curl_debug_log="$storehub_dir/curl_debug.log"
-          curl_verbose_log="$storehub_dir/curl_verbose.log"
+          # Display API details
+          echo "URL: $config_url"
+          echo "JMS Port: $jms_port"
+          echo "Firebird Port: $firebird_port"
+          echo "Firebird User: $firebird_user"
+          echo "Firebird Password: [not shown]"
+          echo "HTTPS Port: $https_port"
+          echo "Structure Unique Name: $structure_unique_name"
+          echo "Hostname: $hostname"
+          echo "System Name: $current_system_name"
+          echo "System Version: $version"
           
-          # Save the exact curl command to a file for manual testing
-          curl_command_path="$storehub_dir/curl_command.sh"
-          cat > "$curl_command_path" << 'EOL'
-#!/bin/bash
-# Exact curl command for manual testing
-
-# The exact API endpoint
-CONFIG_URL="$config_url"
-
-# The access token 
-ACCESS_TOKEN="$access_token"
-
-# Save a copy of the JSON data
-# Using a heredoc for better handling of special characters
-cat > update_config_copy.json << 'JSON_DATA'
-EOL
-
-          # Append the actual JSON content to the file
-          cat "$update_config_path" >> "$curl_command_path" 
-
-          # Add the rest of the script
-          cat >> "$curl_command_path" << 'EOL'
-JSON_DATA
-
-echo "=== Running curl command with update_config_copy.json ==="
-echo "URL: $CONFIG_URL"
-echo "Auth token is available in \$ACCESS_TOKEN"
-echo "JSON content saved to update_config_copy.json"
-
-echo -e "\nRunning API call..."
-curl -v -X POST "$CONFIG_URL" \
-  -H "Authorization: Bearer $ACCESS_TOKEN" \
-  -H "Content-Type: application/json; variant=Plain; charset=UTF-8" \
-  -H "Accept: application/json; variant=Plain; charset=UTF-8" \
-  -H "GK-Accept-Redirect: 308" \
-  -d @update_config_copy.json
-
-# Exit status
-echo -e "\nCurl exit status: $?"
-EOL
-
-          # Fix variables in the script we just created by replacing placeholders
-          sed -i.bak "s|\\\$config_url|$config_url|g" "$curl_command_path"
-          sed -i.bak "s|\\\$access_token|$access_token|g" "$curl_command_path"
-          rm -f "${curl_command_path}.bak"
+          # Use the processed file for the API call
+          config_response=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
           
-          chmod +x "$curl_command_path"
-          echo "Saved executable curl command to: $curl_command_path for manual testing"
-          
-          # Save the complete request with all headers and actual data to a file for inspection
-          curl_full_request_path="$storehub_dir/curl_full_request.txt"
-          cat > "$curl_full_request_path" << EOL
-=== FULL CURL REQUEST DETAILS ===
-URL: $config_url
-METHOD: POST
-
-=== HEADERS ===
-Authorization: Bearer $access_token
-Content-Type: application/json; variant=Plain; charset=UTF-8
-Accept: application/json; variant=Plain; charset=UTF-8
-GK-Accept-Redirect: 308
-
-=== REQUEST BODY ===
-$(cat "$update_config_path")
-EOL
-          echo "Saved full request details to: $curl_full_request_path"
-          
-          # Make API call with verbose output to separate log
-          echo "Making API call with verbose output saved to $curl_verbose_log"
-          curl -v -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$update_config_path" > "$curl_debug_log" 2> "$curl_verbose_log"
-          
-          # Save exit code
-          curl_exit=$?
-          
-          # Make the actual API call
-          config_response=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$update_config_path")
-          
-          if [ $? -eq 0 ] && [ $curl_exit -eq 0 ]; then
+          if [ $? -eq 0 ]; then
             echo "Successfully updated configuration"
-            echo "Verbose curl logs saved to: $curl_verbose_log"
             
             # Save the response to config_response.json
             config_response_path="$storehub_dir/config_response.json"

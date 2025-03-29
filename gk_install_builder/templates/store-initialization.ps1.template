@@ -81,11 +81,22 @@ try {
             # Read the get_store.json file
             $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
             
+            # Create a copy of get_store.json for processing
+            $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
+            $getStoreJson | Set-Content -Path $processedGetStorePath -NoNewline
+            Write-Host "Created processed copy of get_store.json at: $processedGetStorePath"
+            
+            # Replace the placeholder with actual StoreId in the processed file
+            $processedContent = Get-Content -Path $processedGetStorePath -Raw
+            $processedContent = $processedContent -replace '@RETAIL_STORE_ID@', $StoreId
+            $processedContent | Set-Content -Path $processedGetStorePath -NoNewline
+            Write-Host "Updated @RETAIL_STORE_ID@ placeholder with: $StoreId in processed file"
+            
             # Make the API call to get store information
             $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
             
             try {
-                $storeResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body $getStoreJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                $storeResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body (Get-Content -Path $processedGetStorePath -Raw) -ContentType "application/json; variant=Plain; charset=UTF-8"
                 Write-Host "Successfully retrieved store information"
                 
                 # Save the response to storemanager.json
@@ -209,6 +220,11 @@ try {
                             # Read the create_structure.json template
                             $createStructureJson = Get-Content -Path $createStructureTemplate -Raw
                             
+                            # Create a processed copy for making replacements
+                            $processedCreateStructurePath = Join-Path $initPath "create_structure_processed.json"
+                            $createStructureJson | Set-Content -Path $processedCreateStructurePath -NoNewline
+                            Write-Host "Created processed copy of create_structure.json at: $processedCreateStructurePath"
+                            
                             # Determine station name based on component type
                             $stationName = switch ($ComponentType) {
                                 'POS' { "POS Client" }
@@ -225,13 +241,19 @@ try {
                             # Get user ID from environment or use default
                             $userId = if ($env:user_id) { $env:user_id } else { "${user_id}" }
                             
-                            # Replace placeholders in the template
-                            $createStructureJson = $createStructureJson -replace '@TENANT_ID@', $tenantId
-                            $createStructureJson = $createStructureJson -replace '@RETAIL_STORE_ID@', $StoreId
-                            $createStructureJson = $createStructureJson -replace '@SYSTEM_TYPE@', $currentSystemName
-                            $createStructureJson = $createStructureJson -replace '@WORKSTATION_ID@', $WorkstationId
-                            $createStructureJson = $createStructureJson -replace '@STATION_NAME@', $stationName
-                            $createStructureJson = $createStructureJson -replace '@USER_ID@', $userId
+                            # Read the content of the processed file
+                            $processedContent = Get-Content -Path $processedCreateStructurePath -Raw
+                            
+                            # Replace placeholders in the processed copy
+                            $processedContent = $processedContent -replace '@TENANT_ID@', $tenantId
+                            $processedContent = $processedContent -replace '@RETAIL_STORE_ID@', $StoreId
+                            $processedContent = $processedContent -replace '@SYSTEM_TYPE@', $currentSystemName
+                            $processedContent = $processedContent -replace '@WORKSTATION_ID@', $WorkstationId
+                            $processedContent = $processedContent -replace '@STATION_NAME@', $stationName
+                            $processedContent = $processedContent -replace '@USER_ID@', $userId
+                            
+                            # Write the updated content to the processed file
+                            $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
                             
                             # Make the API call to create the structure
                             $structureCreateUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
@@ -239,7 +261,7 @@ try {
                             Write-Host "Creating workstation using API: $structureCreateUrl"
                             
                             try {
-                                $structureCreateResponse = Invoke-RestMethod -Uri $structureCreateUrl -Method Post -Headers $headers -Body $createStructureJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                                $structureCreateResponse = Invoke-RestMethod -Uri $structureCreateUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
                                 Write-Host "Successfully created workstation structure"
                                 
                                 # Add a delay to ensure configuration propagates through the system
@@ -251,10 +273,10 @@ try {
                                 Write-Host "Refreshing structure data..."
                                 
                                 $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
-                                $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
                                 
                                 try {
-                                    $refreshedStoreResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body $getStoreJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                                    $processedGetStoreContent = Get-Content -Path $processedGetStorePath -Raw
+                                    $refreshedStoreResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body $processedGetStoreContent -ContentType "application/json; variant=Plain; charset=UTF-8"
                                     
                                     # Save the refreshed response to storemanager.json
                                     $refreshedStoreResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $storemanagerPath -NoNewline
@@ -335,13 +357,19 @@ try {
                         # Get version from config
                         $version = "v1.1.0"  # Default version
                         
-                        # Replace placeholders in the template
-                        $updateConfigJson = $updateConfigJson -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
-                        $updateConfigJson = $updateConfigJson -replace '@HOSTNAME@', $hostname
+                        # Create a processed copy for making replacements
+                        $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
+                        $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                        Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
+                        
+                        # Replace placeholders in the processed copy
+                        $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw
+                        $processedContent = $processedContent -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
+                        $processedContent = $processedContent -replace '@HOSTNAME@', $hostname
                         
                         # Additional replacements for other placeholders
-                        $updateConfigJson = $updateConfigJson -replace '@SYSTEM_NAME@', $currentSystemName
-                        $updateConfigJson = $updateConfigJson -replace '@SYSTEM_VERSION@', $version
+                        $processedContent = $processedContent -replace '@SYSTEM_NAME@', $currentSystemName
+                        $processedContent = $processedContent -replace '@SYSTEM_VERSION@', $version
                         
                         # Get configuration values from environment or use defaults
                         $jmsPort = if ($env:jms_port) { $env:jms_port } else { "7001" }
@@ -351,23 +379,20 @@ try {
                         $httpsPort = if ($env:https_port) { $env:https_port } else { "8543" }
                         
                         # Replace the remaining placeholders
-                        $updateConfigJson = $updateConfigJson -replace '@JMS_PORT@', $jmsPort
-                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_PORT@', $firebirdPort
-                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_USER@', $firebirdUser
-                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_PASSWORD@', $firebirdPassword
-                        $updateConfigJson = $updateConfigJson -replace '@HTTPS_PORT@', $httpsPort
+                        $processedContent = $processedContent -replace '@JMS_PORT@', $jmsPort
+                        $processedContent = $processedContent -replace '@FIREBIRD_PORT@', $firebirdPort
+                        $processedContent = $processedContent -replace '@FIREBIRD_USER@', $firebirdUser
+                        $processedContent = $processedContent -replace '@FIREBIRD_PASSWORD@', $firebirdPassword
+                        $processedContent = $processedContent -replace '@HTTPS_PORT@', $httpsPort
                         
-                        # Write the updated content back to the file
-                        $updateConfigJson | Set-Content -Path $updateConfigPath -NoNewline
-                        Write-Host "Updated update_config.json with all required values"
+                        # Write the updated content to the processed file
+                        $processedContent | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                        Write-Host "Updated processed file with all required values"
                         
                         # Make the API call to update the configuration
                         $configUrl = "https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
                         
                         try {
-                            # Read the modified content from the file to ensure we're using the updated content
-                            $modifiedUpdateConfigJson = Get-Content -Path $updateConfigPath -Raw
-                            
                             # Verbose debug output
                             Write-Host "`nAPI CALL DETAILS:" -ForegroundColor Cyan
                             Write-Host "URL: $configUrl" -ForegroundColor Cyan
@@ -383,12 +408,12 @@ try {
                             Write-Host "`nActual Request Content:" -ForegroundColor Green
                             
                             # Show the request content but mask the password
-                            $displayJson = $modifiedUpdateConfigJson -replace '"ds-embedded.datasource.password_encrypted",\s*"value":\s*"[^"]*"', '"ds-embedded.datasource.password_encrypted", "value": "[not shown]"'
+                            $displayJson = $processedContent -replace '"ds-embedded.datasource.password_encrypted",\s*"value":\s*"[^"]*"', '"ds-embedded.datasource.password_encrypted", "value": "[not shown]"'
                             Write-Host $displayJson -ForegroundColor Green
                             Write-Host "`n"
                             
                             # Make the API call with the JSON content directly
-                            $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $modifiedUpdateConfigJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                            $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
                             Write-Host "Successfully updated StoreHub configuration"
                             
                         } catch {
