@@ -6,6 +6,9 @@ param(
     [string]$storeId  # Will be determined by hostname detection or user input
 )
 
+# Set certificate validation to always return true (bypass SSL validation)
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+
 # Stop on first error
 $ErrorActionPreference = "Stop"
 
