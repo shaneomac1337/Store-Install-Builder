@@ -1312,217 +1312,93 @@ class GKInstallBuilder:
                 os.makedirs(output_dir)
                 print(f"Created directory: {output_dir}")
             
-            # Generate certificate using cryptography
+            # Generate certificate using OpenSSL directly
+            import subprocess
+            import tempfile
+            
+            # Create a temporary OpenSSL config file
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cnf') as temp:
+                temp.write(f"""
+                [req]
+                distinguished_name = req_distinguished_name
+                req_extensions = v3_req
+                prompt = no
+                
+                [req_distinguished_name]
+                C = DE
+                ST = Saxony
+                L = Dresden
+                O = GK Software SE
+                CN = {common_name}
+                
+                [v3_req]
+                keyUsage = keyEncipherment, dataEncipherment
+                extendedKeyUsage = serverAuth
+                subjectAltName = @alt_names
+                
+                [alt_names]
+                DNS.1 = {common_name}
+                """)
+                config_file = temp.name
+            
             try:
-                from cryptography import x509
-                from cryptography.x509.oid import NameOID
-                from cryptography.hazmat.primitives import hashes, serialization
-                from cryptography.hazmat.primitives.asymmetric import rsa
-                import datetime
+                # Create temporary files for the cert and key
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_cert:
+                    temp_cert_path = temp_cert.name
                 
-                # Generate private key
-                key = rsa.generate_private_key(
-                    public_exponent=65537,
-                    key_size=2048
+                with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
+                    temp_key_path = temp_key.name
+                
+                # Generate key
+                subprocess.run(
+                    f'openssl genrsa -out "{temp_key_path}" 2048',
+                    shell=True, check=True
                 )
                 
-                # Create certificate subject
-                subject = issuer = x509.Name([
-                    x509.NameAttribute(NameOID.COUNTRY_NAME, "DE"),
-                    x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Saxony"),
-                    x509.NameAttribute(NameOID.LOCALITY_NAME, "Dresden"),
-                    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "GK Software SE"),
-                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-                ])
-                
-                # Create certificate with SAN
-                cert = x509.CertificateBuilder().subject_name(
-                    subject
-                ).issuer_name(
-                    issuer
-                ).public_key(
-                    key.public_key()
-                ).serial_number(
-                    x509.random_serial_number()
-                ).not_valid_before(
-                    datetime.datetime.utcnow()
-                ).not_valid_after(
-                    # Valid for 10 years
-                    datetime.datetime.utcnow() + datetime.timedelta(days=3650)
-                ).add_extension(
-                    x509.SubjectAlternativeName([x509.DNSName(common_name)]),
-                    critical=False
-                ).sign(key, hashes.SHA256())
-                
-                # Store certificate and key in memory instead of writing to files
-                cert_pem = cert.public_bytes(serialization.Encoding.PEM)
-                key_pem = key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.NoEncryption()
+                # Generate certificate
+                subprocess.run(
+                    f'openssl req -new -x509 -key "{temp_key_path}" -out "{temp_cert_path}" -days 3650 -config "{config_file}"',
+                    shell=True, check=True
                 )
                 
-                # Try to convert to PKCS12 format
-                try:
-                    from cryptography.hazmat.primitives.serialization import pkcs12
-                    
-                    # Create PKCS12
-                    p12 = pkcs12.serialize_key_and_certificates(
-                        name=common_name.encode(),
-                        key=key,
-                        cert=cert,
-                        cas=None,
-                        encryption_algorithm=serialization.BestAvailableEncryption(password.encode())
-                    )
-                    
-                    # Write PKCS12 to file
-                    with open(cert_path, "wb") as f:
-                        f.write(p12)
-                    
-                    # Show success message
-                    self.cert_status_label.configure(text="Certificate generated", text_color="green")
-                    self.show_info("Certificate Generated", 
-                                  f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                  f"Common Name: {common_name}\n"
-                                  f"Subject Alternative Name (SAN): {common_name}\n"
-                                  f"Valid for: 10 years")
-                    
-                    # Update certificate status
-                    self.check_certificate_status()
-                    
-                    return True
-                    
-                except (ImportError, AttributeError, Exception) as e2:
-                    # If PKCS12 conversion fails, save the P12 using OpenSSL
-                    import subprocess
-                    import tempfile
-                    
-                    # Create temporary files for the cert and key
-                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_cert:
-                        temp_cert.write(cert_pem)
-                        temp_cert_path = temp_cert.name
-                    
-                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
-                        temp_key.write(key_pem)
-                        temp_key_path = temp_key.name
-                    
-                    try:
-                        # Convert to PKCS12 using OpenSSL
-                        subprocess.run(
-                            f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
-                            shell=True, check=True
-                        )
-                        
-                        # Show success message
-                        self.cert_status_label.configure(text="Certificate generated", text_color="green")
-                        self.show_info("Certificate Generated", 
-                                      f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                      f"Common Name: {common_name}\n"
-                                      f"Subject Alternative Name (SAN): {common_name}\n"
-                                      f"Valid for: 10 years")
-                    except Exception as e3:
-                        self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
-                        self.show_error("Certificate Generation Failed", f"Error: {str(e3)}")
-                    finally:
-                        # Clean up temporary files
-                        try:
-                            os.unlink(temp_cert_path)
-                            os.unlink(temp_key_path)
-                        except:
-                            pass
-                    
-                    # Update certificate status
-                    self.check_certificate_status()
-                    
-                    return True
-            except Exception as e1:
-                # If cryptography fails, try OpenSSL directly
-                import subprocess
-                import tempfile
+                # Convert to PKCS12
+                subprocess.run(
+                    f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
+                    shell=True, check=True
+                )
                 
-                # Create a temporary OpenSSL config file
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.cnf') as temp:
-                    temp.write(f"""
-                    [req]
-                    distinguished_name = req_distinguished_name
-                    req_extensions = v3_req
-                    prompt = no
-                    
-                    [req_distinguished_name]
-                    C = DE
-                    ST = Saxony
-                    L = Dresden
-                    O = GK Software SE
-                    CN = {common_name}
-                    
-                    [v3_req]
-                    keyUsage = keyEncipherment, dataEncipherment
-                    extendedKeyUsage = serverAuth
-                    subjectAltName = @alt_names
-                    
-                    [alt_names]
-                    DNS.1 = {common_name}
-                    """)
-                    config_file = temp.name
+                # Clean up the temporary files
+                os.unlink(config_file)
+                os.unlink(temp_cert_path)
+                os.unlink(temp_key_path)
                 
+                # Show success message
+                self.cert_status_label.configure(text="Certificate generated", text_color="green")
+                self.show_info("Certificate Generated", 
+                              f"Certificate generated successfully at:\n{cert_path}\n\n"
+                              f"Common Name: {common_name}\n"
+                              f"Subject Alternative Name (SAN): {common_name}\n"
+                              f"Valid for: 10 years")
+                
+                # Update certificate status
+                self.check_certificate_status()
+                
+                return True
+                
+            except Exception as e2:
+                # Clean up any temporary files
                 try:
-                    # Create temporary files for the cert and key
-                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_cert:
-                        temp_cert_path = temp_cert.name
-                    
-                    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
-                        temp_key_path = temp_key.name
-                    
-                    # Generate key
-                    subprocess.run(
-                        f'openssl genrsa -out "{temp_key_path}" 2048',
-                        shell=True, check=True
-                    )
-                    
-                    # Generate certificate
-                    subprocess.run(
-                        f'openssl req -new -x509 -key "{temp_key_path}" -out "{temp_cert_path}" -days 3650 -config "{config_file}"',
-                        shell=True, check=True
-                    )
-                    
-                    # Convert to PKCS12
-                    subprocess.run(
-                        f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
-                        shell=True, check=True
-                    )
-                    
-                    # Clean up the temporary files
                     os.unlink(config_file)
                     os.unlink(temp_cert_path)
                     os.unlink(temp_key_path)
-                    
-                    # Show success message
-                    self.cert_status_label.configure(text="Certificate generated", text_color="green")
-                    self.show_info("Certificate Generated", 
-                                  f"Certificate generated successfully at:\n{cert_path}\n\n"
-                                  f"Common Name: {common_name}\n"
-                                  f"Subject Alternative Name (SAN): {common_name}\n"
-                                  f"Valid for: 10 years")
-                    
-                    # Update certificate status
-                    self.check_certificate_status()
-                    
-                    return True
-                    
-                except Exception as e2:
-                    # Clean up any temporary files
-                    try:
-                        os.unlink(config_file)
-                        os.unlink(temp_cert_path)
-                        os.unlink(temp_key_path)
-                    except:
-                        pass
-                    
-                    # Show error message
-                    self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
-                    self.show_error("Certificate Generation Failed", f"Error: {str(e2)}")
-                    return False
-                    
+                except:
+                    pass
+                
+                # Show error message
+                self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
+                self.show_error("Certificate Generation Failed", f"Error: {str(e2)}")
+                return False
+                
         except Exception as e:
             self.cert_status_label.configure(text="Certificate generation failed", text_color="red")
             self.show_error("Certificate Generation Failed", f"Error: {str(e)}")
