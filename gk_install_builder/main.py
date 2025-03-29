@@ -2200,6 +2200,16 @@ class GKInstallBuilder:
                 filter_entry = ctk.CTkEntry(filter_frame, textvariable=filter_var)
                 filter_entry.pack(side="left", fill="x", expand=True)
                 
+                # Create a placeholder for the update_project_list function
+                def update_project_list(*args):
+                    pass
+                
+                # Add checkbox for AZR projects
+                azr_only_var = ctk.BooleanVar(value=True)
+                azr_checkbox = ctk.CTkCheckBox(filter_frame, text="Show only AZR projects", variable=azr_only_var, 
+                                              command=lambda: update_project_list())
+                azr_checkbox.pack(side="left", padx=5)
+                
                 # Create frame for the project buttons
                 projects_frame = ctk.CTkScrollableFrame(project_dialog, height=300)
                 projects_frame.pack(fill="both", expand=True, padx=20, pady=10)
@@ -2218,19 +2228,25 @@ class GKInstallBuilder:
                         # In this case, we'll need to find the ID later
                         dialog.all_projects.append({'name': p, 'id': None})
                 
-                # Function to update project list based on filter
-                def update_project_list():
+                # Redefine the function to update project list based on filter
+                def update_project_list(*args):
                     # Clear existing buttons
                     for widget in projects_frame.winfo_children():
                         widget.destroy()
                     
                     # Get filter text
                     filter_text = filter_var.get().lower()
+                    azr_only = azr_only_var.get()
                     
                     # Add filtered projects
                     for project in dialog.all_projects:
                         project_name = project['name']
-                        if filter_text in project_name.lower():
+                        
+                        # Check if project passes both filters
+                        text_match = filter_text in project_name.lower()
+                        azr_match = not azr_only or project_name.startswith("AZR-")
+                        
+                        if text_match and azr_match:
                             project_btn = ctk.CTkButton(
                                 projects_frame,
                                 text=project_name,
