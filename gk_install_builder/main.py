@@ -590,6 +590,33 @@ class GKInstallBuilder:
         # Register the platform variable with config manager
         self.config_manager.register_entry("platform", self.platform_var)
         
+        # Add Hostname Detection Toggle
+        hostname_detection_frame = ctk.CTkFrame(form_frame)
+        hostname_detection_frame.pack(fill="x", padx=10, pady=5)
+        
+        hostname_detection_label = ctk.CTkLabel(hostname_detection_frame, text="Hostname Detection:", width=150)
+        hostname_detection_label.pack(side="left", padx=10)
+        
+        # Create tooltip for hostname detection
+        self.create_tooltip(hostname_detection_label, "Enable or disable automatic hostname detection for store ID and workstation ID in installation scripts")
+        
+        # Create a BooleanVar for the hostname detection option
+        self.hostname_detection_var = ctk.BooleanVar(value=self.config_manager.config.get("use_hostname_detection", True))
+        
+        # Create checkbox for hostname detection
+        hostname_detection_checkbox = ctk.CTkCheckBox(
+            hostname_detection_frame, 
+            text="Enable hostname detection",
+            variable=self.hostname_detection_var,
+            onvalue=True,
+            offvalue=False,
+            command=self.on_hostname_detection_changed
+        )
+        hostname_detection_checkbox.pack(side="left", padx=10)
+        
+        # Register the hostname detection variable with config manager
+        self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
+        
         # Add validation and auto-fill for Base URL
         base_url_entry = self.config_manager.get_entry("base_url")
         if base_url_entry:
@@ -3110,6 +3137,11 @@ class GKInstallBuilder:
         
         # Update config
         self.config_manager.config["platform"] = platform
+        self.config_manager.save_config_silent()
+
+    def on_hostname_detection_changed(self):
+        """Handle hostname detection toggle change"""
+        self.config_manager.update_entry_value("use_hostname_detection", self.hostname_detection_var.get())
         self.config_manager.save_config_silent()
 
 # New class for the Offline Package Creator window

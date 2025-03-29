@@ -212,6 +212,9 @@ class ProjectGenerator:
             # Get platform from config (default to Windows if not specified)
             platform = config.get("platform", "Windows")
             
+            # Get hostname detection setting
+            use_hostname_detection = config.get("use_hostname_detection", True)
+            
             # Set environment variable for Firebird server path
             firebird_server_path = config.get("firebird_server_path", "")
             if firebird_server_path:
@@ -249,6 +252,7 @@ class ProjectGenerator:
             print(f"Generating {output_filename}:")
             print(f"  Template path: {template_path}")
             print(f"  Output path: {output_path}")
+            print(f"  Use hostname detection: {use_hostname_detection}")
             
             # Check if template exists
             if not os.path.exists(template_path):
@@ -463,6 +467,94 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
             
             # Generate launcher templates with custom settings
             self._generate_launcher_templates(launchers_dir, config)
+            
+            # Apply hostname detection setting
+            if not use_hostname_detection:
+                if platform == "Windows":
+                    # Locate the hostname detection section for PowerShell
+                    hostname_section_start = "# Get hostname"
+                    hostname_section_end = "if (-not $hostnameDetected) {"
+                    manual_input_end = "# Print final results"
+                    
+                    # Find positions in the template
+                    start_pos = template.find(hostname_section_start)
+                    conditional_pos = template.find(hostname_section_end, start_pos) if start_pos != -1 else -1
+                    end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
+                    
+                    if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
+                        # Replace the entire hostname detection section with direct manual input
+                        manual_input_code = """# Manual input only (hostname detection disabled)
+$storeNumber = ""
+$workstationId = ""
+
+# Prompt for Store Number
+Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
+Write-Host "  - 4 digits (e.g., 1234)"
+Write-Host "  - 1 letter + 3 digits (e.g., R005)"
+Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
+Write-Host "  - Custom format (e.g., STORE-105)"
+$storeNumber = Read-Host "Store Number"
+
+# Validate that something was entered
+if ([string]::IsNullOrWhiteSpace($storeNumber)) {
+    Write-Host "Store Number cannot be empty. Please try again."
+    $storeNumber = Read-Host "Store Number"
+}
+
+# Prompt for Workstation ID
+do {
+    $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
+} while ($workstationId -notmatch '^\d{3}$')
+
+"""
+                        # Replace the entire section
+                        template = template[:start_pos] + manual_input_code + template[end_marker_pos:]
+                        print("Replaced hostname detection code with manual input in PowerShell script")
+                
+                else:  # Linux
+                    # Locate the hostname detection section for Bash
+                    hostname_section_start = "# Get hostname"
+                    hostname_section_end = "if [ \"$hostnameDetected\" = false ]; then"
+                    manual_input_end = "# Print final results"
+                    
+                    # Find positions in the template
+                    start_pos = template.find(hostname_section_start)
+                    conditional_pos = template.find(hostname_section_end, start_pos) if start_pos != -1 else -1
+                    end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
+                    
+                    if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
+                        # Replace the entire hostname detection section with direct manual input
+                        manual_input_code = """# Manual input only (hostname detection disabled)
+storeNumber=""
+workstationId=""
+
+# Prompt for Store Number
+echo "Please enter the Store Number in one of these formats (or any custom format):"
+echo "  - 4 digits (e.g., 1234)"
+echo "  - 1 letter + 3 digits (e.g., R005)"
+echo "  - 2 letters + 2 digits (e.g., CA45)"
+echo "  - Custom format (e.g., STORE-105)"
+read -p "Store Number: " storeNumber
+
+# Validate that something was entered
+if [ -z "$storeNumber" ]; then
+    echo "Store Number cannot be empty. Please try again."
+    read -p "Store Number: " storeNumber
+fi
+
+# Prompt for Workstation ID
+while true; do
+    read -p "Please enter the Workstation ID (3 digits): " workstationId
+    if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
+        break
+    fi
+    echo "Invalid input. Please enter exactly 3 digits."
+done
+
+"""
+                        # Replace the entire section
+                        template = template[:start_pos] + manual_input_code + template[end_marker_pos:]
+                        print("Replaced hostname detection code with manual input in Bash script")
             
             # Write the modified template to the output file
             with open(output_path, 'w', newline='\n') as f:
