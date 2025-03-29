@@ -112,6 +112,9 @@ class ConfigManager:
             # Platform Selection
             "platform": default_platform,  # Default platform (Windows or Linux)
             
+            # Installation Options
+            "use_hostname_detection": True,  # Enable hostname detection by default
+            
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override
             "pos_version": "v1.0.0",
