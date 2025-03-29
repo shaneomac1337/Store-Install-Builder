@@ -543,11 +543,21 @@ try {
             # Update get_store.json with the store ID
             $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
             if (Test-Path $getStoreJsonPath) {
-                Write-Host "Updating get_store.json with Store ID: $storeNumber"
+                Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
+                # Create directory if it doesn't exist
+                $initPath = Join-Path $PSScriptRoot "helper\init"
+                if (-Not (Test-Path $initPath)) {
+                    New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+                }
+                # Create processed copy
+                $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
+                # Read the original file
                 $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
-                $getStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
-                Set-Content -Path $getStoreJsonPath -Value $getStoreJson
-                Write-Host "get_store.json updated successfully"
+                # Replace the placeholder in memory
+                $processedGetStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
+                # Save to the processed file
+                Set-Content -Path $processedGetStorePath -Value $processedGetStoreJson
+                Write-Host "get_store_processed.json created successfully"
             } else {
                 Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
             }

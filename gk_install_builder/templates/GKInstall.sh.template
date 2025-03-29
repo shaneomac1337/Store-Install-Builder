@@ -646,10 +646,16 @@ if [ -f "$store_init_script" ]; then
   # Update get_store.json with the store ID
   get_store_json_path="$PWD/helper/init/get_store.json"
   if [ -f "$get_store_json_path" ]; then
-    echo "Updating get_store.json with Store ID: $storeNumber"
-    # Use sed to replace the placeholder with the actual store number
-    sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$get_store_json_path"
-    echo "get_store.json updated successfully"
+    echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
+    # Create a processed directory if it doesn't exist
+    mkdir -p "$PWD/helper/init"
+    # Create a processed copy
+    processed_get_store_path="$PWD/helper/init/get_store_processed.json"
+    # Copy the original to processed file
+    cp "$get_store_json_path" "$processed_get_store_path"
+    # Use sed to replace the placeholder with the actual store number in the processed copy
+    sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
+    echo "get_store_processed.json created successfully"
   else
     echo "Warning: get_store.json not found at: $get_store_json_path"
   fi
