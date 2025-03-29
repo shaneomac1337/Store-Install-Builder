@@ -1647,7 +1647,7 @@ class GKInstallBuilder:
         author_window = ctk.CTkToplevel(self.root)
         author_window.title("About")
         # Make the window taller to fit all content including copyright
-        author_window.geometry("400x600")
+        author_window.geometry("400x750")
         
         # Add these lines to fix Linux visibility issue
         author_window.update_idletasks()
@@ -1746,7 +1746,7 @@ class GKInstallBuilder:
         # Contact info - Moving up with copyright
         contact_label = ctk.CTkLabel(
             copyright_frame,
-            text="Contact: martin.penkava@gk-software.com",
+            text="Contact: mpenkava@gk-software.com",
             font=("Helvetica", 12),
             text_color=("#3a7ebf", "#2b5f8f"),  # Blue text
             cursor="hand2"  # Hand cursor
