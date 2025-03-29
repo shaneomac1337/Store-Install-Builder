@@ -99,19 +99,34 @@ try {
                     try {
                         $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
                         
-                        # Look for the structure that matches our system name
+                        # Look for the structure that matches our system name AND workstation ID
                         foreach ($item in $storeManagerData.childNodeList) {
-                            if ($item.systemName -eq $currentSystemName) {
+                            if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
                                 $structureUniqueName = $item.structureUniqueName
-                                Write-Host "Found matching structure for ${currentSystemName}: $structureUniqueName"
+                                Write-Host "Found matching structure for ${currentSystemName} with workstation ID ${WorkstationId}: $structureUniqueName"
                                 break
                             }
                         }
                         
+                        # If no matching workstation is found, check if we have a store-level match (for initial setup)
                         if ([string]::IsNullOrEmpty($structureUniqueName)) {
-                            Write-Host "Error: No matching structure found for system name: ${currentSystemName}"
-                            Write-Host "Cannot proceed without a matching structure in the API response."
-                            exit 1
+                            foreach ($item in $storeManagerData.childNodeList) {
+                                if ($item.systemName -eq $currentSystemName -and (-not $item.PSObject.Properties.Name.Contains("workstationId") -or [string]::IsNullOrEmpty($item.workstationId))) {
+                                    $structureUniqueName = $item.structureUniqueName
+                                    Write-Host "Found store-level match for ${currentSystemName} (no workstation ID): $structureUniqueName"
+                                    # Don't break here, continue searching for better matches
+                                }
+                            }
+                        }
+                        
+                        if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                            Write-Host "No matching structure found for system name: $currentSystemName with workstation ID: $WorkstationId"
+                            Write-Host "Creating workstation through the standard flow and then refreshing structure data..."
+                            
+                            # Don't exit - allow the script to continue to the normal workstation creation section
+                            # After the workstation is created through the normal flow, we'll refresh the structure data
+                            # This will be handled automatically by the existing code
+                            # Just ensure we don't fail here
                         }
                     } catch {
                         Write-Host "Error parsing storemanager.json: $_"
@@ -222,21 +237,66 @@ try {
                             $structureCreateUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
                             
                             Write-Host "Creating workstation using API: $structureCreateUrl"
-                            Write-Host "Request data: $createStructureJson"
-                            
-                            # Save the processed template to a file for reference
-                            $processedTemplatePath = Join-Path $initPath "processed_create_structure.json"
-                            $createStructureJson | Set-Content -Path $processedTemplatePath -NoNewline
-                            Write-Host "Saved processed template to: $processedTemplatePath"
                             
                             try {
                                 $structureCreateResponse = Invoke-RestMethod -Uri $structureCreateUrl -Method Post -Headers $headers -Body $createStructureJson -ContentType "application/json; variant=Plain; charset=UTF-8"
                                 Write-Host "Successfully created workstation structure"
                                 
-                                # Save the response to structure_create_response.json
-                                $structureCreateResponsePath = Join-Path $initPath "structure_create_response.json"
-                                $structureCreateResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $structureCreateResponsePath -NoNewline
-                                Write-Host "Structure creation response saved to: $structureCreateResponsePath"
+                                # Add a delay to ensure configuration propagates through the system
+                                Write-Host "Waiting 30 seconds for configuration to propagate..." -ForegroundColor Yellow
+                                Start-Sleep -Seconds 30
+                                Write-Host "Continuing after delay..." -ForegroundColor Yellow
+                                
+                                # Refresh the structure data after creating the workstation
+                                Write-Host "Refreshing structure data..."
+                                
+                                $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+                                $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
+                                
+                                try {
+                                    $refreshedStoreResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body $getStoreJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                                    
+                                    # Save the refreshed response to storemanager.json
+                                    $refreshedStoreResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $storemanagerPath -NoNewline
+                                    Write-Host "Refreshed store information saved to: $storemanagerPath"
+                                    
+                                    # Look for our structure again with updated data
+                                    $refreshedStoreManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
+                                    
+                                    # Try to find the structure by system name AND workstation ID
+                                    foreach ($item in $refreshedStoreManagerData.childNodeList) {
+                                        if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
+                                            $structureUniqueName = $item.structureUniqueName
+                                            Write-Host "Found matching structure in refreshed data for ${currentSystemName} with workstation ID ${WorkstationId}: $structureUniqueName"
+                                            break
+                                        }
+                                    }
+                                    
+                                    # If still not found, add fallback checks
+                                    if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                                        Write-Host "Structure not found in refreshed data. Looking for fallbacks..."
+                                        
+                                        # Try store-level match as last resort
+                                        foreach ($item in $refreshedStoreManagerData.childNodeList) {
+                                            if ($item.systemName -eq $currentSystemName -and (-not $item.PSObject.Properties.Name.Contains("workstationId") -or [string]::IsNullOrEmpty($item.workstationId))) {
+                                                $structureUniqueName = $item.structureUniqueName
+                                                Write-Host "Found store-level match in refreshed data for ${currentSystemName}: $structureUniqueName"
+                                                break
+                                            }
+                                        }
+                                    }
+                                    
+                                    # Save the structure unique name if found
+                                    if (-not [string]::IsNullOrEmpty($structureUniqueName)) {
+                                        $structureNamePath = Join-Path $initPath "structure_name.txt"
+                                        $structureUniqueName | Set-Content -Path $structureNamePath -NoNewline
+                                        Write-Host "Updated structure unique name saved to: $structureNamePath"
+                                    }
+                                }
+                                catch {
+                                    Write-Host "Warning: Error refreshing structure data: $_"
+                                    # Continue anyway, as this is just a refresh attempt
+                                }
                             } catch {
                                 Write-Host "Error creating workstation structure: $_"
                                 if ($_.Exception.Response) {
@@ -279,29 +339,66 @@ try {
                         $updateConfigJson = $updateConfigJson -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
                         $updateConfigJson = $updateConfigJson -replace '@HOSTNAME@', $hostname
                         
+                        # Additional replacements for other placeholders
+                        $updateConfigJson = $updateConfigJson -replace '@SYSTEM_NAME@', $currentSystemName
+                        $updateConfigJson = $updateConfigJson -replace '@SYSTEM_VERSION@', $version
+                        
+                        # Get configuration values from environment or use defaults
+                        $jmsPort = if ($env:jms_port) { $env:jms_port } else { "7001" }
+                        $firebirdPort = if ($env:firebird_port) { $env:firebird_port } else { "3050" }
+                        $firebirdUser = if ($env:firebird_user) { $env:firebird_user } else { "SYSDBA" }
+                        $firebirdPassword = if ($env:firebird_password) { $env:firebird_password } else { "masterkey" }
+                        $httpsPort = if ($env:https_port) { $env:https_port } else { "8543" }
+                        
+                        # Replace the remaining placeholders
+                        $updateConfigJson = $updateConfigJson -replace '@JMS_PORT@', $jmsPort
+                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_PORT@', $firebirdPort
+                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_USER@', $firebirdUser
+                        $updateConfigJson = $updateConfigJson -replace '@FIREBIRD_PASSWORD@', $firebirdPassword
+                        $updateConfigJson = $updateConfigJson -replace '@HTTPS_PORT@', $httpsPort
+                        
                         # Write the updated content back to the file
                         $updateConfigJson | Set-Content -Path $updateConfigPath -NoNewline
-                        Write-Host "Updated update_config.json with structure unique name and hostname"
+                        Write-Host "Updated update_config.json with all required values"
                         
                         # Make the API call to update the configuration
                         $configUrl = "https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
                         
                         try {
-                            $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $updateConfigJson -ContentType "application/json; variant=Plain; charset=UTF-8"
+                            # Read the modified content from the file to ensure we're using the updated content
+                            $modifiedUpdateConfigJson = Get-Content -Path $updateConfigPath -Raw
+                            
+                            # Verbose debug output
+                            Write-Host "`nAPI CALL DETAILS:" -ForegroundColor Cyan
+                            Write-Host "URL: $configUrl" -ForegroundColor Cyan
+                            Write-Host "JMS Port: $jmsPort" -ForegroundColor Cyan
+                            Write-Host "Firebird Port: $firebirdPort" -ForegroundColor Cyan
+                            Write-Host "Firebird User: $firebirdUser" -ForegroundColor Cyan
+                            Write-Host "Firebird Password: [not shown]" -ForegroundColor Cyan
+                            Write-Host "HTTPS Port: $httpsPort" -ForegroundColor Cyan
+                            Write-Host "Structure Unique Name: $structureUniqueName" -ForegroundColor Cyan
+                            Write-Host "Hostname: $hostname" -ForegroundColor Cyan
+                            Write-Host "System Name: $currentSystemName" -ForegroundColor Cyan
+                            Write-Host "System Version: $version" -ForegroundColor Cyan
+                            Write-Host "`nActual Request Content:" -ForegroundColor Green
+                            
+                            # Show the request content but mask the password
+                            $displayJson = $modifiedUpdateConfigJson -replace '"ds-embedded.datasource.password_encrypted",\s*"value":\s*"[^"]*"', '"ds-embedded.datasource.password_encrypted", "value": "[not shown]"'
+                            Write-Host $displayJson -ForegroundColor Green
+                            Write-Host "`n"
+                            
+                            # Make the API call with the JSON content directly
+                            $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $modifiedUpdateConfigJson -ContentType "application/json; variant=Plain; charset=UTF-8"
                             Write-Host "Successfully updated StoreHub configuration"
                             
-                            # Save the response to config_response.json
-                            $configResponsePath = Join-Path $storehubDir "config_response.json"
-                            $configResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $configResponsePath -NoNewline
-                            Write-Host "Configuration response saved to: $configResponsePath"
                         } catch {
-                            Write-Host "Error updating StoreHub configuration: $_"
+                            Write-Host "Error updating StoreHub configuration: $_" -ForegroundColor Red
                             if ($_.Exception.Response) {
                                 $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
                                 $reader.BaseStream.Position = 0
                                 $reader.DiscardBufferedData()
                                 $responseBody = $reader.ReadToEnd()
-                                Write-Host "Response body: $responseBody"
+                                Write-Host "Response body: $responseBody" -ForegroundColor Red
                             }
                             # Continue execution even if this call fails
                         }
@@ -377,6 +474,11 @@ try {
 
             $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
             Write-Host "Successfully created new workstation"
+            
+            # Add a delay to ensure configuration propagates through the system
+            Write-Host "Waiting 30 seconds for workstation configuration to propagate..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 30
+            Write-Host "Continuing after delay..." -ForegroundColor Yellow
         }
         else {
             Write-Host "Error accessing workstation:"
@@ -401,13 +503,13 @@ try {
     exit 0
 }
 catch {
-    Write-Host "Error occurred: $_"
+    Write-Host "Error occurred: $_" -ForegroundColor Red
     if ($_.Exception.Response) {
         $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
         $reader.BaseStream.Position = 0
         $reader.DiscardBufferedData()
         $responseBody = $reader.ReadToEnd()
-        Write-Host "Response body: $responseBody"
+        Write-Host "Response body: $responseBody" -ForegroundColor Red
     }
     exit 1
 } 

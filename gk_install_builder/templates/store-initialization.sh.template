@@ -125,7 +125,19 @@ else
         # Use alternative methods if jq is not available
         if command -v jq >/dev/null 2>&1; then
           echo "JQ is available. Using JQ for structure JSON parsing."
-          structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
+          
+          # First try to match on both system name AND workstation ID
+          structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+          
+          # If no match found, try to find a store-level match (no workstationId)
+          if [ -z "$structure_unique_name" ]; then
+            structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and (has(\"workstationId\") | not or .workstationId == \"\")) | .structureUniqueName" "$storemanager_path")
+            if [ -n "$structure_unique_name" ]; then
+              echo "Found store-level match for $current_system_name (no workstation ID): $structure_unique_name"
+            fi
+          else
+            echo "Found matching structure for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+          fi
         else
           echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
           echo "Parsing JSON response without jq..."
@@ -134,32 +146,45 @@ else
           # Convert JSON to one-object-per-line format with tr and sed
           cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
           
-          # Now search for our system name in this flattened format
-          matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json || echo "")
+          # First try to match on both system name AND workstation ID
+          matching_line=$(grep "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" /tmp/flattened.json || 
+                         grep "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" /tmp/flattened.json || 
+                         echo "")
           
           if [ -n "$matching_line" ]; then
             # Extract the structureUniqueName from the matching line
             structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-            echo "Found matching object with systemName: $current_system_name"
+            echo "Found matching object with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
           else
-            # Try another approach - extract all childNodeList content and search for systemName
-            echo "No direct match found. Trying another approach..."
-            # Extract content between childNodeList brackets
-            sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
+            # If no match found, try to find a store-level match (missing workstationId)
+            matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json | grep -v "\"workstationId\":" || echo "")
             
-            # Find the line number where our system name appears
-            system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
-            
-            if [ -n "$system_line" ]; then
-              # Extract 10 lines starting from system name line to find structureUniqueName
-              structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
-              if [ -n "$structureName_line" ]; then
-                structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+            if [ -n "$matching_line" ]; then
+              structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+              echo "Found store-level match for $current_system_name (no workstation ID): $structure_unique_name"
+            else
+              # Try another approach - extract all childNodeList content and search for systemName
+              echo "No direct match found. Trying another approach..."
+              # Extract content between childNodeList brackets
+              sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
+              
+              # Find the line number where our system name appears
+              system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
+              
+              if [ -n "$system_line" ]; then
+                # Extract 10 lines starting from system name line to find structureUniqueName
+                structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
+                if [ -n "$structureName_line" ]; then
+                  structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+                fi
               fi
+              
+              # Clean up temp files
+              rm -f /tmp/childnodes.txt
             fi
             
             # Clean up temp files
-            rm -f /tmp/childnodes.txt
+            rm -f /tmp/flattened.json
           fi
           
           # Clean up temp files
@@ -169,12 +194,13 @@ else
         if [ -n "$structure_unique_name" ]; then
           echo "Found matching structure for $current_system_name: $structure_unique_name"
         else
-          echo "Error: No matching structure found for system name: $current_system_name in response"
-          # For debugging purposes, show the response
-          echo "Response excerpt (first 200 characters):"
-          head -c 200 "$storemanager_path"
-          echo "Cannot proceed without a matching structure in the API response."
-          exit 1
+          echo "No matching structure found for system name: $current_system_name in response"
+          echo "Creating workstation through the standard flow and then refreshing structure data..."
+          
+          # Don't exit - allow the script to continue to the normal workstation creation section
+          # After the workstation is created through the normal flow, we'll refresh the structure data
+          # This will be handled automatically by the existing code
+          # Just ensure we don't fail here
         fi
       else
         echo "Error: storemanager.json not found"
@@ -308,6 +334,78 @@ else
               structure_create_response_path="$init_path/structure_create_response.json"
               echo "$structure_create_response" > "$structure_create_response_path"
               echo "Structure creation response saved to: $structure_create_response_path"
+              
+              # Add a delay to ensure configuration propagates through the system
+              echo -e "\033[33mWaiting 30 seconds for workstation configuration to propagate...\033[0m"
+              sleep 30
+              echo -e "\033[33mContinuing after delay...\033[0m"
+              
+              # Refresh the structure data after creating the workstation
+              echo "Refreshing structure data..."
+              
+              store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+              
+              if [ -f "$get_store_json_path" ]; then
+                refreshed_store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$get_store_json_path")
+                
+                if [ $? -eq 0 ]; then
+                  # Save the refreshed response to storemanager.json
+                  echo "$refreshed_store_response" > "$storemanager_path"
+                  echo "Refreshed store information saved to: $storemanager_path"
+                  
+                  # Look for our structure again with updated data
+                  if command -v jq >/dev/null 2>&1; then
+                    # Try to find the structure by system name AND workstation ID
+                    structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+                    
+                    if [ -n "$structure_unique_name" ]; then
+                      echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                    else
+                      # Try store-level match as last resort
+                      structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and (has(\"workstationId\") | not or .workstationId == \"\")) | .structureUniqueName" "$storemanager_path")
+                      
+                      if [ -n "$structure_unique_name" ]; then
+                        echo "Found store-level match in refreshed data for $current_system_name: $structure_unique_name"
+                      fi
+                    fi
+                  else
+                    # Fallback for no jq - search for workstation ID
+                    cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
+                    
+                    # Search for our specific workstation in updated data
+                    matching_line=$(grep "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" /tmp/refreshed_flattened.json || 
+                                   grep "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" /tmp/refreshed_flattened.json || 
+                                   echo "")
+                    
+                    if [ -n "$matching_line" ]; then
+                      structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+                      echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                    else
+                      # Try store-level match as last resort
+                      matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/refreshed_flattened.json | grep -v "\"workstationId\":" || echo "")
+                      
+                      if [ -n "$matching_line" ]; then
+                        structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+                        echo "Found store-level match in refreshed data for $current_system_name: $structure_unique_name"
+                      fi
+                    fi
+                    
+                    # Clean up temp file
+                    rm -f /tmp/refreshed_flattened.json
+                  fi
+                  
+                  # Save the structure unique name if found
+                  if [ -n "$structure_unique_name" ]; then
+                    structure_name_path="$init_path/structure_name.txt"
+                    echo "$structure_unique_name" > "$structure_name_path"
+                    echo "Updated structure unique name saved to: $structure_name_path"
+                  fi
+                else
+                  echo "Warning: Error refreshing structure data, continuing with existing structure data"
+                fi
+              else
+                echo "Warning: get_store.json not found, cannot refresh structure data"
+              fi
             else
               echo "Error creating workstation structure"
               echo "Response: $structure_create_response"
@@ -343,38 +441,184 @@ else
           # Get version from config
           version="v1.1.0"  # Default version
           
-          # Create a temporary file with the replacements
-          temp_config_file=$(mktemp)
+          # Create a temporary file for processing
+          temp_file=$(mktemp)
           
-          # Replace placeholders in the template
-          sed -e "s/@STRUCTURE_UNIQUE_NAME@/$structure_unique_name/g" \
-              -e "s/@HOSTNAME@/$hostname/g" \
-              "$update_config_path" > "$temp_config_file"
+          # Copy the content to the temporary file
+          cp "$update_config_path" "$temp_file"
           
-          # Write the updated content back to the original file
-          cat "$temp_config_file" > "$update_config_path"
-          echo "Updated update_config.json with structure unique name and hostname"
+          # Get configuration values from environment or use defaults
+          jms_port="${jms_port:-7001}"
+          firebird_port="${firebird_port:-3050}"
+          firebird_user="${firebird_user:-SYSDBA}"
+          firebird_password="${firebird_password:-masterkey}"
+          https_port="${https_port:-8543}"
+          
+          # Process replacements
+          for placeholder_value in \
+              "@STRUCTURE_UNIQUE_NAME@:$structure_unique_name" \
+              "@HOSTNAME@:$hostname" \
+              "@SYSTEM_NAME@:$current_system_name" \
+              "@SYSTEM_VERSION@:$version" \
+              "@JMS_PORT@:$jms_port" \
+              "@FIREBIRD_PORT@:$firebird_port" \
+              "@FIREBIRD_USER@:$firebird_user" \
+              "@FIREBIRD_PASSWORD@:$firebird_password" \
+              "@HTTPS_PORT@:$https_port"
+          do
+              placeholder=$(echo "$placeholder_value" | cut -d ":" -f 1)
+              value=$(echo "$placeholder_value" | cut -d ":" -f 2-)
+              
+              # Using temporary files for each replacement to ensure portability
+              next_temp_file=$(mktemp)
+              sed "s|$placeholder|$value|g" "$temp_file" > "$next_temp_file"
+              mv "$next_temp_file" "$temp_file"
+          done
+          
+          # Move the processed file back to the original
+          mv "$temp_file" "$update_config_path"
+          echo "Updated update_config.json with all required values"
+          
+          # Save the complete request to a debug file for inspection
+          debug_request_path="$storehub_dir/update_config_request_debug.json"
+          cp "$update_config_path" "$debug_request_path"
+          echo "Saved complete API request to: $debug_request_path"
+          
+          # Save detailed log of all replacements
+          replacements_log_path="$storehub_dir/update_config_replacements.log"
+          cat > "$replacements_log_path" << EOL
+=== Configuration Request Details ===
+Timestamp: $(date)
+API URL: https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain
+Content-Type: application/json; variant=Plain; charset=UTF-8
+
+=== Replacements Applied ===
+@STRUCTURE_UNIQUE_NAME@ = $structure_unique_name
+@HOSTNAME@ = $hostname
+@SYSTEM_NAME@ = $current_system_name
+@SYSTEM_VERSION@ = $version
+@JMS_PORT@ = $jms_port
+@FIREBIRD_PORT@ = $firebird_port
+@FIREBIRD_USER@ = $firebird_user
+@FIREBIRD_PASSWORD@ = $firebird_password
+@HTTPS_PORT@ = $https_port
+
+=== Request Headers ===
+Authorization: Bearer $access_token
+Content-Type: application/json; variant=Plain; charset=UTF-8
+Accept: application/json; variant=Plain; charset=UTF-8
+GK-Accept-Redirect: 308
+
+=== Full Request Body ===
+$(cat "$update_config_path")
+EOL
+          echo "Saved replacements log to: $replacements_log_path"
+          
+          # Now display the updated content for debugging
+          echo -e "\n====== API CALL DETAILS ======"
           
           # Make the API call to update the configuration
           config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
           
-          config_response=$(curl -s -f -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$temp_config_file")
+          # Capture full response with headers to a file for debugging
+          curl_debug_log="$storehub_dir/curl_debug.log"
+          curl_verbose_log="$storehub_dir/curl_verbose.log"
           
-          if [ $? -eq 0 ]; then
+          # Save the exact curl command to a file for manual testing
+          curl_command_path="$storehub_dir/curl_command.sh"
+          cat > "$curl_command_path" << 'EOL'
+#!/bin/bash
+# Exact curl command for manual testing
+
+# The exact API endpoint
+CONFIG_URL="$config_url"
+
+# The access token 
+ACCESS_TOKEN="$access_token"
+
+# Save a copy of the JSON data
+# Using a heredoc for better handling of special characters
+cat > update_config_copy.json << 'JSON_DATA'
+EOL
+
+          # Append the actual JSON content to the file
+          cat "$update_config_path" >> "$curl_command_path" 
+
+          # Add the rest of the script
+          cat >> "$curl_command_path" << 'EOL'
+JSON_DATA
+
+echo "=== Running curl command with update_config_copy.json ==="
+echo "URL: $CONFIG_URL"
+echo "Auth token is available in \$ACCESS_TOKEN"
+echo "JSON content saved to update_config_copy.json"
+
+echo -e "\nRunning API call..."
+curl -v -X POST "$CONFIG_URL" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json; variant=Plain; charset=UTF-8" \
+  -H "Accept: application/json; variant=Plain; charset=UTF-8" \
+  -H "GK-Accept-Redirect: 308" \
+  -d @update_config_copy.json
+
+# Exit status
+echo -e "\nCurl exit status: $?"
+EOL
+
+          # Fix variables in the script we just created by replacing placeholders
+          sed -i.bak "s|\\\$config_url|$config_url|g" "$curl_command_path"
+          sed -i.bak "s|\\\$access_token|$access_token|g" "$curl_command_path"
+          rm -f "${curl_command_path}.bak"
+          
+          chmod +x "$curl_command_path"
+          echo "Saved executable curl command to: $curl_command_path for manual testing"
+          
+          # Save the complete request with all headers and actual data to a file for inspection
+          curl_full_request_path="$storehub_dir/curl_full_request.txt"
+          cat > "$curl_full_request_path" << EOL
+=== FULL CURL REQUEST DETAILS ===
+URL: $config_url
+METHOD: POST
+
+=== HEADERS ===
+Authorization: Bearer $access_token
+Content-Type: application/json; variant=Plain; charset=UTF-8
+Accept: application/json; variant=Plain; charset=UTF-8
+GK-Accept-Redirect: 308
+
+=== REQUEST BODY ===
+$(cat "$update_config_path")
+EOL
+          echo "Saved full request details to: $curl_full_request_path"
+          
+          # Make API call with verbose output to separate log
+          echo "Making API call with verbose output saved to $curl_verbose_log"
+          curl -v -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$update_config_path" > "$curl_debug_log" 2> "$curl_verbose_log"
+          
+          # Save exit code
+          curl_exit=$?
+          
+          # Make the actual API call
+          config_response=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$update_config_path")
+          
+          if [ $? -eq 0 ] && [ $curl_exit -eq 0 ]; then
             echo "Successfully updated configuration"
+            echo "Verbose curl logs saved to: $curl_verbose_log"
             
             # Save the response to config_response.json
             config_response_path="$storehub_dir/config_response.json"
             echo "$config_response" > "$config_response_path"
             echo "Configuration response saved to: $config_response_path"
+            
+            # Save a raw response for debugging
+            raw_response_path="$storehub_dir/config_response_raw.txt"
+            echo "$config_response" > "$raw_response_path"
+            echo "Raw API response saved to: $raw_response_path"
           else
             echo "Error updating configuration"
             echo "Response: $config_response"
             # Continue execution even if this call fails
           fi
-          
-          # Remove the temporary file
-          rm -f "$temp_config_file"
         else
           echo "Warning: StoreHub update_config.json not found at: $update_config_path"
         fi
@@ -478,6 +722,11 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
       exit 1
     fi
     echo "Successfully created new workstation"
+    
+    # Add a delay to ensure configuration propagates through the system
+    echo -e "\033[33mWaiting 30 seconds for workstation configuration to propagate...\033[0m"
+    sleep 30
+    echo -e "\033[33mContinuing after delay...\033[0m"
   else
     echo "Error accessing workstation. Status code: $status_code"
     echo "Response: $ws_response"
