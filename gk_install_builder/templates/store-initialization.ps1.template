@@ -243,8 +243,8 @@ try {
                                 Write-Host "Successfully created workstation structure"
                                 
                                 # Add a delay to ensure configuration propagates through the system
-                                Write-Host "Waiting 30 seconds for configuration to propagate..." -ForegroundColor Yellow
-                                Start-Sleep -Seconds 30
+                                Write-Host "Waiting 5 seconds for configuration to propagate..." -ForegroundColor Yellow
+                                Start-Sleep -Seconds 5
                                 Write-Host "Continuing after delay..." -ForegroundColor Yellow
                                 
                                 # Refresh the structure data after creating the workstation
@@ -474,11 +474,6 @@ try {
 
             $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
             Write-Host "Successfully created new workstation"
-            
-            # Add a delay to ensure configuration propagates through the system
-            Write-Host "Waiting 30 seconds for workstation configuration to propagate..." -ForegroundColor Yellow
-            Start-Sleep -Seconds 30
-            Write-Host "Continuing after delay..." -ForegroundColor Yellow
         }
         else {
             Write-Host "Error accessing workstation:"

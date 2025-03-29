@@ -336,8 +336,8 @@ else
               echo "Structure creation response saved to: $structure_create_response_path"
               
               # Add a delay to ensure configuration propagates through the system
-              echo -e "\033[33mWaiting 30 seconds for workstation configuration to propagate...\033[0m"
-              sleep 30
+              echo -e "\033[33mWaiting 5 seconds for workstation configuration to propagate...\033[0m"
+              sleep 5
               echo -e "\033[33mContinuing after delay...\033[0m"
               
               # Refresh the structure data after creating the workstation
@@ -722,11 +722,6 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
       exit 1
     fi
     echo "Successfully created new workstation"
-    
-    # Add a delay to ensure configuration propagates through the system
-    echo -e "\033[33mWaiting 30 seconds for workstation configuration to propagate...\033[0m"
-    sleep 30
-    echo -e "\033[33mContinuing after delay...\033[0m"
   else
     echo "Error accessing workstation. Status code: $status_code"
     echo "Response: $ws_response"
