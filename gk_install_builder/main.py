@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import messagebox
 import sys
 import os
+import requests
+import json
 
 # Add parent directory to path to import PleasantPasswordClient
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -2103,14 +2105,30 @@ class GKInstallBuilder:
         # Function to connect to KeePass
         def connect_to_keepass():
             try:
-                status_var.set("Connecting to KeePass...")
+                status_var.set("Connecting to KeePass server...")
+                dialog.update_idletasks()  # Force UI update
+                
+                # Validate inputs
+                if not username_var.get().strip():
+                    status_var.set("Error: Username cannot be empty")
+                    return
+                
+                if not password_var.get().strip():
+                    status_var.set("Error: Password cannot be empty")
+                    return
                 
                 # Create a new client
+                status_var.set("Authenticating with KeePass server...")
+                dialog.update_idletasks()  # Force UI update
+                
                 client = PleasantPasswordClient(
                     base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
                     username=username_var.get(),
                     password=password_var.get()
                 )
+                
+                status_var.set("Authentication successful! Saving settings...")
+                dialog.update_idletasks()  # Force UI update
                 
                 # If remember checkbox is checked, save the credentials
                 if remember_var.get():
@@ -2124,23 +2142,61 @@ class GKInstallBuilder:
                 # Store client for later use
                 dialog.client = client
                 
-                # Update status
+                # Update status and auto-detect environment
                 status_var.set("Connected to KeePass! Auto-detecting environment...")
+                dialog.update_idletasks()  # Force UI update
                 
                 # Run auto-detection immediately
                 connect()
                 
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 400:
+                    # Check for 2FA requirement
+                    if 'X-Pleasant-OTP' in e.response.headers and e.response.headers['X-Pleasant-OTP'] == 'required':
+                        otp_provider = e.response.headers.get('X-Pleasant-OTP-Provider', 'unknown')
+                        status_var.set(f"Error: Two-factor authentication required ({otp_provider})")
+                    else:
+                        # Most likely invalid credentials
+                        status_var.set("Error: Invalid username or password")
+                elif e.response.status_code == 401:
+                    status_var.set("Error: Unauthorized. Please check your credentials")
+                elif e.response.status_code == 403:
+                    status_var.set("Error: Access forbidden. You don't have permission to access this resource")
+                elif e.response.status_code == 404:
+                    status_var.set("Error: KeePass server endpoint not found")
+                elif e.response.status_code >= 500:
+                    status_var.set(f"Error: KeePass server error (HTTP {e.response.status_code})")
+                else:
+                    status_var.set(f"Error: HTTP error {e.response.status_code}")
+            except requests.exceptions.ConnectionError:
+                status_var.set("Error: Cannot connect to KeePass server. Check your network connection")
+            except requests.exceptions.Timeout:
+                status_var.set("Error: Connection to KeePass server timed out")
+            except requests.exceptions.RequestException as e:
+                status_var.set(f"Error: Request to KeePass server failed: {str(e)}")
+            except json.JSONDecodeError:
+                status_var.set("Error: Invalid response from KeePass server")
             except Exception as e:
-                status_var.set(f"Connection error: {str(e)}")
-                
+                error_type = type(e).__name__
+                status_var.set(f"Error: {error_type} - {str(e)}")
+                print(f"Detailed error: {e}")
+                import traceback
+                traceback.print_exc()
+        
         # Function to detect available projects
         def detect_projects():
             try:
                 client = dialog.client
                 
+                status_var.set("Retrieving project list from KeePass... Please wait")
+                dialog.update_idletasks()  # Force UI update
+                
                 # Get project folder
                 projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
                 folder_structure = client.get_folder(projects_folder_id)
+                
+                status_var.set("Processing project folders...")
+                dialog.update_idletasks()  # Force UI update
                 
                 # Get all project folders
                 projects = self.get_subfolders(folder_structure)
@@ -2148,6 +2204,9 @@ class GKInstallBuilder:
                 if not projects:
                     status_var.set("No projects found!")
                     return
+                    
+                status_var.set(f"Found {len(projects)} projects. Preparing project list...")
+                dialog.update_idletasks()  # Force UI update
                 
                 # Create a project selection dialog
                 project_dialog = ctk.CTkToplevel(dialog)
@@ -2256,9 +2315,21 @@ class GKInstallBuilder:
                 
                 # Function to select a project
                 def select_project(project):
+                    # Default detected environment
+                    detected_env = "TEST"
+                    
+                    # Try to auto-detect environment from base URL
+                    base_url = self.config_manager.config.get("base_url", "")
+                    if base_url and "." in base_url:
+                        parts = base_url.split(".")
+                        if parts[0]:
+                            detected_env = parts[0].upper()
+                    
                     # Get the project ID if it's not already set
                     project_id = project['id']
                     if project_id is None:
+                        status_var.set(f"Looking up ID for project {project['name']}...")
+                        dialog.update_idletasks()  # Force UI update
                         # Find the ID from folder structure
                         project_id = self.find_folder_id_by_name(folder_structure, project['name'])
                         if not project_id:
@@ -2267,15 +2338,35 @@ class GKInstallBuilder:
                         project['id'] = project_id
                     
                     # Now get environments for this project
+                    status_var.set(f"Retrieving environments for {project['name']}...")
+                    dialog.update_idletasks()  # Force UI update
                     folder_id = project_id
                     folder_contents = client.get_folder(folder_id)
                     subfolders = self.get_subfolders(folder_contents)
                     
                     # Update environment dropdown with actual values from the project
                     env_values = [folder['name'] for folder in subfolders] if isinstance(subfolders[0], dict) else subfolders
-                    env_combo.configure(values=env_values)
-                    if env_values:
-                        env_var.set(env_values[0])  # Set first environment as default
+                    
+                    # Filter out environments that start with "INFRA-"
+                    filtered_env_values = [env for env in env_values if not env.startswith("INFRA-")]
+                    
+                    env_combo.configure(values=filtered_env_values)
+                    
+                    # Check if our detected environment exists in the available environments
+                    detected_env_exists = False
+                    for env in filtered_env_values:
+                        if env == detected_env:  # Exact match only
+                            detected_env_exists = True
+                            break
+                    
+                    # Set the environment value
+                    if filtered_env_values:
+                        if detected_env_exists:
+                            env_var.set(detected_env)  # Set our detected environment if it exists
+                            print(f"Setting detected environment: {detected_env}")
+                        else:
+                            env_var.set(filtered_env_values[0])  # Otherwise use the first available environment
+                            print(f"Detected environment '{detected_env}' not found, using: {filtered_env_values[0]}")
                     
                     # Store folder contents for later use
                     dialog.folder_contents = folder_contents
@@ -2290,7 +2381,7 @@ class GKInstallBuilder:
                     get_password_btn.configure(state="normal")
                     
                     # Update status
-                    status_var.set(f"Selected project: {project['name']}")
+                    status_var.set(f"Selected project: {project['name']} with {len(filtered_env_values)} environments")
                 
                 # Add trace after defining the function
                 filter_var.trace_add("write", lambda *args: update_project_list())
@@ -2313,6 +2404,9 @@ class GKInstallBuilder:
                 
                 client = dialog.client
                 
+                status_var.set("Loading...")
+                dialog.update()  # Force complete UI update
+                
                 # Get project folder
                 projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
                 folder_structure = client.get_folder(projects_folder_id)
@@ -2320,6 +2414,9 @@ class GKInstallBuilder:
                 # Try to determine project name AND environment from the base URL automatically
                 project_name = "AZR-CSE"  # Default project
                 detected_env = "TEST"  # Default environment
+                
+                status_var.set("Scanning...")
+                dialog.update()  # Force complete UI update
                 
                 base_url = self.config_manager.config.get("base_url", "")
                 
@@ -2339,6 +2436,9 @@ class GKInstallBuilder:
                         project_name = f"AZR-{detected_project}"
                         print(f"Auto-detected project name from URL: {project_name}")
                 
+                status_var.set("Searching...")
+                dialog.update()  # Force complete UI update
+                
                 folder_id = self.find_folder_id_by_name(folder_structure, project_name)
                 
                 if not folder_id:
@@ -2347,28 +2447,35 @@ class GKInstallBuilder:
                     return
                 
                 # Get environments for this project
+                status_var.set("Processing...")
+                dialog.update()  # Force complete UI update
+                
                 folder_contents = client.get_folder(folder_id)
                 subfolders = self.get_subfolders(folder_contents)
                 
                 # Update environment dropdown with actual values from the project
                 env_values = [folder['name'] for folder in subfolders] if isinstance(subfolders[0], dict) else subfolders
-                env_combo.configure(values=env_values)
+                
+                # Filter out environments that start with "INFRA-"
+                filtered_env_values = [env for env in env_values if not env.startswith("INFRA-")]
+                
+                env_combo.configure(values=filtered_env_values)
                 
                 # Check if our detected environment exists in the available environments
                 detected_env_exists = False
-                for env in env_values:
+                for env in filtered_env_values:
                     if env == detected_env:  # Exact match only
                         detected_env_exists = True
                         break
                 
                 # Set the environment value
-                if env_values:
+                if filtered_env_values:
                     if detected_env_exists:
                         env_var.set(detected_env)  # Set our detected environment if it exists
                         print(f"Setting detected environment: {detected_env}")
                     else:
-                        env_var.set(env_values[0])  # Otherwise use the first available environment
-                        print(f"Detected environment '{detected_env}' not found, using: {env_values[0]}")
+                        env_var.set(filtered_env_values[0])  # Otherwise use the first available environment
+                        print(f"Detected environment '{detected_env}' not found, using: {filtered_env_values[0]}")
                 
                 # Store folder contents for later use
                 dialog.folder_contents = folder_contents
@@ -2380,7 +2487,7 @@ class GKInstallBuilder:
                 dialog.folder_structure = folder_structure
                 
                 # Update status with Environment Autodetect message
-                status_var.set(f"Environment Autodetect - {project_name}")
+                status_var.set(f"Environment Autodetected - {project_name} - {env_var.get()}")
                 
                 # Enable environment selection ComboBox
                 env_combo.configure(state="normal")
@@ -2402,6 +2509,8 @@ class GKInstallBuilder:
                 # Determine which project is selected
                 if not hasattr(dialog, 'selected_project'):
                     # Try to auto-determine project from URL
+                    status_var.set("No project selected. Attempting to auto-detect project...")
+                    dialog.update_idletasks()  # Force UI update
                     connect()
                     if not hasattr(dialog, 'selected_project'):
                         status_var.set("No project selected! Click 'Detect Projects' to select a project.")
@@ -2409,6 +2518,9 @@ class GKInstallBuilder:
                 
                 project_name = dialog.selected_project
                 environment = env_var.get()
+                
+                status_var.set("Retrieving...")
+                dialog.update()  # Force complete UI update
                 
                 # Clear any existing password
                 target_entry.delete(0, 'end')
