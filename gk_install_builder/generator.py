@@ -1039,11 +1039,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             f.write(create_structure_json)
         print(f"  Created structure template: {file_path}")
         
-        # Create empty directories for other components
-        for component_dir in ["wdm", "flow-service", "lpa-service", "storehub"]:
-            component_path = os.path.join(helper_dir, component_dir)
-            os.makedirs(component_path, exist_ok=True)
-            print(f"  Created directory: {component_path}")
+        # Removed creation of empty component directories, as they are now handled by the structure approach
 
     def _create_default_json_files(self, helper_dir, config):
         """Create default JSON files for onboarding"""
