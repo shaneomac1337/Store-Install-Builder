@@ -181,7 +181,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8443",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4334",
+            "updaterJmxPort": "4333",
             "keepFiles": "0"
         }
         
@@ -191,7 +191,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4334",
+            "updaterJmxPort": "4333",
             "keepFiles": "0"
         }
         
@@ -201,7 +201,7 @@ class LauncherSettingsEditor:
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
-            "updaterJmxPort": "4334",
+            "updaterJmxPort": "4333",
             "keepFiles": "0"
         }
         
@@ -212,7 +212,7 @@ class LauncherSettingsEditor:
             "applicationServerShutdownPort": "8005",
             "applicationServerJmxPort": "52222",
             "applicationJmsPort": "7001",
-            "updaterJmxPort": "4334",
+            "updaterJmxPort": "4333",
             "firebirdServerPath": firebird_path,
             "firebirdServerPort": "3050",
             "firebirdServerUser": "SYSDBA",
