@@ -1216,6 +1216,10 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         else:
             version = config.get("version", "v1.1.0")
         
+        # Get the username from config - with debug print
+        username = config.get("eh_launchpad_username")
+        print(f"Using eh_launchpad_username for StoreHub config: {username}")
+        
         # Create update_config.json template with values from launcher settings
         update_config_json_content = '''{
   "levelDescriptor": {
@@ -1229,7 +1233,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
       }
     ]
   },
-  "user": "1001",
+  "user": "''' + username + '''",
   "parameterValueChangeList": [
     {
       "name": "activemq.properties",

@@ -10,7 +10,7 @@
       }
     ]
   },
-  "user": "1001",
+  "user": "@EH_LAUNCHPAD_USERNAME@",
   "parameterValueChangeList": [
     {
       "name": "activemq.properties",
