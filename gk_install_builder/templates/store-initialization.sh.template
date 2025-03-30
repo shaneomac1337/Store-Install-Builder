@@ -371,12 +371,7 @@ else
               echo "$structure_create_response" > "$structure_create_response_path"
               echo "Structure creation response saved to: $structure_create_response_path"
               
-              # Add a delay to ensure configuration propagates through the system
-              echo -e "\033[33mWaiting 5 seconds for workstation configuration to propagate...\033[0m"
-              sleep 5
-              echo -e "\033[33mContinuing after delay...\033[0m"
-              
-              # Refresh the structure data after creating the workstation
+              # Remove waiting time - no sleep
               echo "Refreshing structure data..."
               
               store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
@@ -550,6 +545,25 @@ else
             raw_response_path="$storehub_dir/config_response_raw.txt"
             echo "$config_response" > "$raw_response_path"
             echo "Raw API response saved to: $raw_response_path"
+            
+            # Run the StoreHub configuration update a second time to work around a known bug
+            echo -e "\033[33m\nRunning StoreHub configuration update a second time to ensure proper initialization...\033[0m"
+            
+            echo "Making second API call to update StoreHub configuration..."
+            config_response2=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
+            
+            if [ $? -eq 0 ]; then
+              echo -e "\033[32mSuccessfully updated StoreHub configuration (second attempt)\033[0m"
+              
+              # Save the second response to config_response2.json
+              config_response2_path="$storehub_dir/config_response2.json"
+              echo "$config_response2" > "$config_response2_path"
+              echo "Second configuration response saved to: $config_response2_path"
+            else
+              echo "Error in second StoreHub configuration update"
+              echo "Response: $config_response2"
+              # Continue execution even if the second call fails
+            fi
           else
             echo "Error updating configuration"
             echo "Response: $config_response"
@@ -671,6 +685,25 @@ fi
 echo "$bu_response" > "business-unit.json"
 echo "$ws_response" > "workstation.json"
 echo "Saved response data to business-unit.json and workstation.json"
+
+# For StoreHub components, run the entire process a second time (unless this is already the second run)
+if { [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; } && [ -z "$STOREHUB_SECOND_RUN" ]; then
+  echo -e "\n\033[33m=======================================================\033[0m"
+  echo -e "\033[33mRUNNING STOREHUB INITIALIZATION A SECOND TIME\033[0m"
+  echo -e "\033[33mThis is needed to work around initialization issues\033[0m"
+  echo -e "\033[33m=======================================================\033[0m"
+  
+  # Set environment variable to prevent infinite recursion
+  export STOREHUB_SECOND_RUN="true"
+  
+  # Remove waiting time - no sleep
+  
+  # Run the script again with the same parameters
+  $0 --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$STORE_ID" --WorkstationId "$WORKSTATION_ID"
+  
+  # Clear the environment variable
+  unset STOREHUB_SECOND_RUN
+fi
 
 # Exit successfully
 exit 0 
