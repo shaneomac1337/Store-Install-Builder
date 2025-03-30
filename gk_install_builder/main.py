@@ -407,7 +407,7 @@ class GKInstallBuilder:
         # Create the main window
         self.root = ctk.CTk()
         self.root.title("GK Install Builder")
-        self.root.geometry("1000x800")
+        self.root.geometry("1280x1076")
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
         # Initialize config manager
@@ -3149,7 +3149,7 @@ class OfflinePackageCreator:
     def __init__(self, parent, config_manager, project_generator, parent_app=None):
         self.window = ctk.CTkToplevel(parent)
         self.window.title("Offline Package Creator")
-        self.window.geometry("1200x900")  # Increased from 1000x800
+        self.window.geometry("1280x1176")  # Increased from 1000x800
         self.window.transient(parent)  # Set to be on top of the parent window
         
         # Add window close protocol handler

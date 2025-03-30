@@ -2830,7 +2830,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             
             dialog = ctk.CTkToplevel(parent)
             dialog.title(f"Existing {component_type} Files Found")
-            dialog.geometry("500x350")
+            dialog.geometry("600x450")
             dialog.transient(parent)
             dialog.grab_set()
             dialog.attributes("-topmost", True)
@@ -2851,7 +2851,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             ).pack(pady=(0, 10), padx=20)
             
             # Create a scrollable frame for the files list
-            files_frame = ctk.CTkScrollableFrame(dialog, width=450, height=150)
+            files_frame = ctk.CTkScrollableFrame(dialog, width=550, height=200)
             files_frame.pack(fill="both", expand=True, padx=20, pady=10)
             
             # Add files to the scrollable frame
@@ -2886,7 +2886,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 button_frame,
                 text="No, Skip Download",
                 command=on_no,
-                width=150,
+                width=180,
                 fg_color="#555555",
                 hover_color="#333333"
             ).pack(side="left", padx=10)
@@ -2895,7 +2895,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 button_frame,
                 text="Yes, Download Again",
                 command=on_yes,
-                width=150
+                width=180
             ).pack(side="right", padx=10)
             
             # Wait for the dialog to close
