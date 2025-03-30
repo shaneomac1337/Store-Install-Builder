@@ -136,16 +136,13 @@ else
           echo "JQ is available. Using JQ for structure JSON parsing."
           
           # First try to match on both system name AND workstation ID
+          echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
           structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
           
-          # If no match found, try to find a store-level match (no workstationId)
-          if [ -z "$structure_unique_name" ]; then
-            structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and (has(\"workstationId\") | not or .workstationId == \"\")) | .structureUniqueName" "$storemanager_path")
-            if [ -n "$structure_unique_name" ]; then
-              echo "Found store-level match for $current_system_name (no workstation ID): $structure_unique_name"
-            fi
-          else
+          if [ -n "$structure_unique_name" ]; then
             echo "Found matching structure for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+          else
+            echo "No matching structure found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
           fi
         else
           echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
@@ -156,44 +153,20 @@ else
           cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
           
           # First try to match on both system name AND workstation ID
-          matching_line=$(grep "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" /tmp/flattened.json || 
-                         grep "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" /tmp/flattened.json || 
+          echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
+          
+          # Use a more robust pattern that handles minified JSON
+          matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/flattened.json || 
+                         grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json || 
                          echo "")
           
           if [ -n "$matching_line" ]; then
-            # Extract the structureUniqueName from the matching line
+            # Extract the structureUniqueName from the matching line using a more precise pattern
             structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
             echo "Found matching object with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
           else
-            # If no match found, try to find a store-level match (missing workstationId)
-            matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/flattened.json | grep -v "\"workstationId\":" || echo "")
-            
-            if [ -n "$matching_line" ]; then
-              structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-              echo "Found store-level match for $current_system_name (no workstation ID): $structure_unique_name"
-            else
-              # Try another approach - extract all childNodeList content and search for systemName
-              echo "No direct match found. Trying another approach..."
-              # Extract content between childNodeList brackets
-              sed -n '/childNodeList/,/]/p' "$storemanager_path" > /tmp/childnodes.txt
-              
-              # Find the line number where our system name appears
-              system_line=$(grep -n "\"systemName\":\"$current_system_name\"" /tmp/childnodes.txt | cut -d: -f1)
-              
-              if [ -n "$system_line" ]; then
-                # Extract 10 lines starting from system name line to find structureUniqueName
-                structureName_line=$(tail -n +$system_line /tmp/childnodes.txt | head -10 | grep -o '"structureUniqueName":"[^"]*"' | head -1)
-                if [ -n "$structureName_line" ]; then
-                  structure_unique_name=$(echo "$structureName_line" | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-                fi
-              fi
-              
-              # Clean up temp files
-              rm -f /tmp/childnodes.txt
-            fi
-            
-            # Clean up temp files
-            rm -f /tmp/flattened.json
+            # If no match found, do not try any alternative approaches
+            echo "No direct match found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
           fi
           
           # Clean up temp files
@@ -387,38 +360,32 @@ else
                   # Look for our structure again with updated data
                   if command -v jq >/dev/null 2>&1; then
                     # Try to find the structure by system name AND workstation ID
+                    echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
                     structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
                     
                     if [ -n "$structure_unique_name" ]; then
                       echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
                     else
-                      # Try store-level match as last resort
-                      structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and (has(\"workstationId\") | not or .workstationId == \"\")) | .structureUniqueName" "$storemanager_path")
-                      
-                      if [ -n "$structure_unique_name" ]; then
-                        echo "Found store-level match in refreshed data for $current_system_name: $structure_unique_name"
-                      fi
+                      echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
                     fi
                   else
                     # Fallback for no jq - search for workstation ID
                     cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
                     
                     # Search for our specific workstation in updated data
-                    matching_line=$(grep "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" /tmp/refreshed_flattened.json || 
-                                   grep "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" /tmp/refreshed_flattened.json || 
+                    echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
+                    
+                    # Use a more robust pattern that handles minified JSON
+                    matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/refreshed_flattened.json || 
+                                   grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json || 
                                    echo "")
                     
                     if [ -n "$matching_line" ]; then
                       structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
                       echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
                     else
-                      # Try store-level match as last resort
-                      matching_line=$(grep "\"systemName\":\"$current_system_name\"" /tmp/refreshed_flattened.json | grep -v "\"workstationId\":" || echo "")
-                      
-                      if [ -n "$matching_line" ]; then
-                        structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-                        echo "Found store-level match in refreshed data for $current_system_name: $structure_unique_name"
-                      fi
+                      # No fallback, just report no match found
+                      echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
                     fi
                     
                     # Clean up temp file
@@ -672,6 +639,12 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
       exit 1
     fi
     echo "Successfully created new workstation"
+    
+    # Add a sleep for StoreHub components to allow time for backend processing
+    if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
+      echo -e "\033[33mWaiting 2 minutes for backend to complete StoreHub workstation processing...\033[0m"
+      sleep 120
+    fi
   else
     echo "Error accessing workstation. Status code: $status_code"
     echo "Response: $ws_response"
@@ -685,25 +658,6 @@ fi
 echo "$bu_response" > "business-unit.json"
 echo "$ws_response" > "workstation.json"
 echo "Saved response data to business-unit.json and workstation.json"
-
-# For StoreHub components, run the entire process a second time (unless this is already the second run)
-if { [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; } && [ -z "$STOREHUB_SECOND_RUN" ]; then
-  echo -e "\n\033[33m=======================================================\033[0m"
-  echo -e "\033[33mRUNNING STOREHUB INITIALIZATION A SECOND TIME\033[0m"
-  echo -e "\033[33mThis is needed to work around initialization issues\033[0m"
-  echo -e "\033[33m=======================================================\033[0m"
-  
-  # Set environment variable to prevent infinite recursion
-  export STOREHUB_SECOND_RUN="true"
-  
-  # Remove waiting time - no sleep
-  
-  # Run the script again with the same parameters
-  $0 --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$STORE_ID" --WorkstationId "$WORKSTATION_ID"
-  
-  # Clear the environment variable
-  unset STOREHUB_SECOND_RUN
-fi
 
 # Exit successfully
 exit 0 

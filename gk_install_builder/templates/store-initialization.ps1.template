@@ -111,6 +111,7 @@ try {
                         $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
                         
                         # Look for the structure that matches our system name AND workstation ID
+                        Write-Host "Looking for system name: $currentSystemName with workstation ID: $WorkstationId"
                         foreach ($item in $storeManagerData.childNodeList) {
                             if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
                                 $structureUniqueName = $item.structureUniqueName
@@ -119,25 +120,9 @@ try {
                             }
                         }
                         
-                        # If no matching workstation is found, check if we have a store-level match (for initial setup)
-                        if ([string]::IsNullOrEmpty($structureUniqueName)) {
-                            foreach ($item in $storeManagerData.childNodeList) {
-                                if ($item.systemName -eq $currentSystemName -and (-not $item.PSObject.Properties.Name.Contains("workstationId") -or [string]::IsNullOrEmpty($item.workstationId))) {
-                                    $structureUniqueName = $item.structureUniqueName
-                                    Write-Host "Found store-level match for ${currentSystemName} (no workstation ID): $structureUniqueName"
-                                    # Don't break here, continue searching for better matches
-                                }
-                            }
-                        }
-                        
                         if ([string]::IsNullOrEmpty($structureUniqueName)) {
                             Write-Host "No matching structure found for system name: $currentSystemName with workstation ID: $WorkstationId"
                             Write-Host "Creating workstation through the standard flow and then refreshing structure data..."
-                            
-                            # Don't exit - allow the script to continue to the normal workstation creation section
-                            # After the workstation is created through the normal flow, we'll refresh the structure data
-                            # This will be handled automatically by the existing code
-                            # Just ensure we don't fail here
                         }
                     } catch {
                         Write-Host "Error parsing storemanager.json: $_"
@@ -281,6 +266,7 @@ try {
                                     $refreshedStoreManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
                                     
                                     # Try to find the structure by system name AND workstation ID
+                                    Write-Host "Looking for system name: $currentSystemName with workstation ID: $WorkstationId in refreshed data"
                                     foreach ($item in $refreshedStoreManagerData.childNodeList) {
                                         if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
                                             $structureUniqueName = $item.structureUniqueName
@@ -289,22 +275,11 @@ try {
                                         }
                                     }
                                     
-                                    # If still not found, add fallback checks
                                     if ([string]::IsNullOrEmpty($structureUniqueName)) {
-                                        Write-Host "Structure not found in refreshed data. Looking for fallbacks..."
-                                        
-                                        # Try store-level match as last resort
-                                        foreach ($item in $refreshedStoreManagerData.childNodeList) {
-                                            if ($item.systemName -eq $currentSystemName -and (-not $item.PSObject.Properties.Name.Contains("workstationId") -or [string]::IsNullOrEmpty($item.workstationId))) {
-                                                $structureUniqueName = $item.structureUniqueName
-                                                Write-Host "Found store-level match in refreshed data for ${currentSystemName}: $structureUniqueName"
-                                                break
-                                            }
-                                        }
+                                        Write-Host "No matching structure found in refreshed data with systemName: $currentSystemName and workstationId: $WorkstationId"
                                     }
-                                    
-                                    # Save the structure unique name if found
-                                    if (-not [string]::IsNullOrEmpty($structureUniqueName)) {
+                                    else {
+                                        # Save the structure unique name if found
                                         $structureNamePath = Join-Path $initPath "structure_name.txt"
                                         $structureUniqueName | Set-Content -Path $structureNamePath -NoNewline
                                         Write-Host "Updated structure unique name saved to: $structureNamePath"
@@ -512,6 +487,12 @@ try {
 
             $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
             Write-Host "Successfully created new workstation"
+            
+            # Add a sleep for StoreHub components to allow time for backend processing
+            if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+                Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+                Start-Sleep -Seconds 120
+            }
         }
         else {
             Write-Host "Error accessing workstation:"
@@ -532,24 +513,7 @@ try {
     $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
     Write-Host "Saved response data to business-unit.json and workstation.json"
 
-    # For StoreHub components, run the entire process a second time (unless this is already the second run)
-    if (($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') -and -not $env:STOREHUB_SECOND_RUN) {
-        Write-Host "`n=======================================================" -ForegroundColor Yellow
-        Write-Host "RUNNING STOREHUB INITIALIZATION A SECOND TIME" -ForegroundColor Yellow
-        Write-Host "This is needed to work around initialization issues" -ForegroundColor Yellow
-        Write-Host "=======================================================" -ForegroundColor Yellow
-        
-        # Set environment variable to prevent infinite recursion
-        $env:STOREHUB_SECOND_RUN = "true"
-        
-        # Run the script again with the same parameters (no waiting)
-        & $MyInvocation.MyCommand.Path -ComponentType $ComponentType -base_url $base_url -StoreId $StoreId -WorkstationId $WorkstationId
-        
-        # Clear the environment variable
-        $env:STOREHUB_SECOND_RUN = $null
-    }
-
-    # Explicitly return success
+    # Exit successfully
     exit 0
 }
 catch {

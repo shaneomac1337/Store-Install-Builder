@@ -1,6 +1,6 @@
 {
   "levelDescriptor": {
-    "structureUniqueName": "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.STOREHUB.711"
+    "structureUniqueName": "ENTERPRISE.TENANT.SWEDEN.INSTALLATION_TEST_STORE.STOREHUB.100"
   },
   "systemDescriptor": {
     "systemName": "CSE-sh-cloud",
@@ -35,7 +35,7 @@
     {
       "name": "data-router-adapter.properties",
       "url": "swee.common.data-router.adapter.message-adapter.host",
-      "value": "MARTIN-PC"
+      "value": "Emulation-ArchLinux"
     },
     {
       "name": "data-router-adapter.properties",
