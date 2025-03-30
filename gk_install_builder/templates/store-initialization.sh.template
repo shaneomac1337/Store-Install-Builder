@@ -94,459 +94,454 @@ mkdir -p "$init_path"
 # Get store information using get_store.json
 get_store_json_path="$init_path/get_store.json"
 
-# Skip store initialization for WDM components
-if [ "$COMPONENT_TYPE" = "WDM" ]; then
-  echo "Skipping store initialization for WDM component"
+if [ ! -f "$get_store_json_path" ]; then
+  echo "Warning: get_store.json not found at: $get_store_json_path"
 else
-  if [ ! -f "$get_store_json_path" ]; then
-    echo "Warning: get_store.json not found at: $get_store_json_path"
-  else
-    echo "Making API call to get store information..."
+  echo "Making API call to get store information..."
+  
+  # Create a processed copy of get_store.json
+  processed_get_store_path="$init_path/get_store_processed.json"
+  cp "$get_store_json_path" "$processed_get_store_path"
+  echo "Created processed copy of get_store.json at: $processed_get_store_path"
+  
+  # Replace @RETAIL_STORE_ID@ placeholder with the actual store ID
+  sed -i "s/@RETAIL_STORE_ID@/$STORE_ID/g" "$processed_get_store_path"
+  echo "Updated @RETAIL_STORE_ID@ placeholder with: $STORE_ID in processed file"
+  
+  # Make the API call to get store information
+  store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+  
+  # Add content-type header for this specific call
+  content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
+  
+  store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
+  
+  if [ $? -eq 0 ]; then
+    echo "Successfully retrieved store information"
     
-    # Create a processed copy of get_store.json
-    processed_get_store_path="$init_path/get_store_processed.json"
-    cp "$get_store_json_path" "$processed_get_store_path"
-    echo "Created processed copy of get_store.json at: $processed_get_store_path"
+    # Save the response to storemanager.json
+    storemanager_path="$init_path/storemanager.json"
+    echo "$store_response" > "$storemanager_path"
+    echo "Store information saved to: $storemanager_path"
     
-    # Replace @RETAIL_STORE_ID@ placeholder with the actual store ID
-    sed -i "s/@RETAIL_STORE_ID@/$STORE_ID/g" "$processed_get_store_path"
-    echo "Updated @RETAIL_STORE_ID@ placeholder with: $STORE_ID in processed file"
-    
-    # Make the API call to get store information
-    store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
-    
-    # Add content-type header for this specific call
-    content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
-    
-    store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
-    
-    if [ $? -eq 0 ]; then
-      echo "Successfully retrieved store information"
-      
-      # Save the response to storemanager.json
-      storemanager_path="$init_path/storemanager.json"
-      echo "$store_response" > "$storemanager_path"
-      echo "Store information saved to: $storemanager_path"
-      
-      # Extract structure unique name for the current component
-      structure_unique_name=""
-      if [ -f "$storemanager_path" ]; then
-        # Use alternative methods if jq is not available
-        if command -v jq >/dev/null 2>&1; then
-          echo "JQ is available. Using JQ for structure JSON parsing."
-          
-          # First try to match on both system name AND workstation ID
-          echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
-          structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-          
-          if [ -n "$structure_unique_name" ]; then
-            echo "Found matching structure for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
-          else
-            echo "No matching structure found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
-          fi
-        else
-          echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
-          echo "Parsing JSON response without jq..."
-          
-          # First, convert the JSON to a safer format for processing
-          # Convert JSON to one-object-per-line format with tr and sed
-          cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
-          
-          # First try to match on both system name AND workstation ID
-          echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
-          
-          # Use a more robust pattern that handles minified JSON
-          matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/flattened.json || 
-                         grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json || 
-                         echo "")
-          
-          if [ -n "$matching_line" ]; then
-            # Extract the structureUniqueName from the matching line using a more precise pattern
-            structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-            echo "Found matching object with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
-          else
-            # If no match found, do not try any alternative approaches
-            echo "No direct match found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
-          fi
-          
-          # Clean up temp files
-          rm -f /tmp/flattened.json
-        fi
+    # Extract structure unique name for the current component
+    structure_unique_name=""
+    if [ -f "$storemanager_path" ]; then
+      # Use alternative methods if jq is not available
+      if command -v jq >/dev/null 2>&1; then
+        echo "JQ is available. Using JQ for structure JSON parsing."
+        
+        # First try to match on both system name AND workstation ID
+        echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
+        structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
         
         if [ -n "$structure_unique_name" ]; then
-          echo "Found matching structure for $current_system_name: $structure_unique_name"
+          echo "Found matching structure for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
         else
-          echo "No matching structure found for system name: $current_system_name in response"
-          echo "Creating workstation through the standard flow and then refreshing structure data..."
-          
-          # Don't exit - allow the script to continue to the normal workstation creation section
-          # After the workstation is created through the normal flow, we'll refresh the structure data
-          # This will be handled automatically by the existing code
-          # Just ensure we don't fail here
+          echo "No matching structure found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
         fi
       else
-        echo "Error: storemanager.json not found"
-        echo "Cannot proceed without a valid structure pattern from the API response."
-        exit 1
+        echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
+        echo "Parsing JSON response without jq..."
+        
+        # First, convert the JSON to a safer format for processing
+        # Convert JSON to one-object-per-line format with tr and sed
+        cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
+        
+        # First try to match on both system name AND workstation ID
+        echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
+        
+        # Use a more robust pattern that handles minified JSON
+        matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/flattened.json || 
+                       grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json || 
+                       echo "")
+        
+        if [ -n "$matching_line" ]; then
+          # Extract the structureUniqueName from the matching line using a more precise pattern
+          structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+          echo "Found matching object with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+        else
+          # If no match found, do not try any alternative approaches
+          echo "No direct match found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+        fi
+        
+        # Clean up temp files
+        rm -f /tmp/flattened.json
       fi
       
-      # Save the structure unique name to a file for reference
-      structure_name_path="$init_path/structure_name.txt"
-      echo "$structure_unique_name" > "$structure_name_path"
-      echo "Structure unique name saved to: $structure_name_path"
-      
-      # Check if the workstation exists for the current component
-      workstation_exists=false
-      
-      # Check if the current component has a workstation ID in the response
-      if command -v jq >/dev/null 2>&1; then
-        echo "Checking for existing workstation using JQ..."
-        matching_workstation=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
-        if [ -n "$matching_workstation" ]; then
-          workstation_exists=true
-        fi
+      if [ -n "$structure_unique_name" ]; then
+        echo "Found matching structure for $current_system_name: $structure_unique_name"
       else
-        # Fallback method if jq is not available
-        echo "Checking for existing workstation using bash methods..."
-        if grep -q "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path" || \
-           grep -q "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" "$storemanager_path"; then
-          workstation_exists=true
-        fi
+        echo "No matching structure found for system name: $current_system_name in response"
+        echo "Creating workstation through the standard flow and then refreshing structure data..."
+        
+        # Don't exit - allow the script to continue to the normal workstation creation section
+        # After the workstation is created through the normal flow, we'll refresh the structure data
+        # This will be handled automatically by the existing code
+        # Just ensure we don't fail here
       fi
+    else
+      echo "Error: storemanager.json not found"
+      echo "Cannot proceed without a valid structure pattern from the API response."
+      exit 1
+    fi
+    
+    # Save the structure unique name to a file for reference
+    structure_name_path="$init_path/structure_name.txt"
+    echo "$structure_unique_name" > "$structure_name_path"
+    echo "Structure unique name saved to: $structure_name_path"
+    
+    # Check if the workstation exists for the current component
+    workstation_exists=false
+    
+    # Check if the current component has a workstation ID in the response
+    if command -v jq >/dev/null 2>&1; then
+      echo "Checking for existing workstation using JQ..."
+      matching_workstation=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
+      if [ -n "$matching_workstation" ]; then
+        workstation_exists=true
+      fi
+    else
+      # Fallback method if jq is not available
+      echo "Checking for existing workstation using bash methods..."
+      if grep -q "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path" || \
+         grep -q "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" "$storemanager_path"; then
+        workstation_exists=true
+      fi
+    fi
+    
+    if [ "$workstation_exists" = true ]; then
+      echo "Workstation $WORKSTATION_ID already exists for $current_system_name. No need to create it."
+    else
+      echo "Workstation $WORKSTATION_ID does not exist for $current_system_name."
       
-      if [ "$workstation_exists" = true ]; then
-        echo "Workstation $WORKSTATION_ID already exists for $current_system_name. No need to create it."
-      else
-        echo "Workstation $WORKSTATION_ID does not exist for $current_system_name."
+      # Ask the user if they want to create the workstation
+      read -p "Do you want to create this workstation? (y/n): " create_choice
+      
+      if [[ $create_choice =~ ^[Yy]$ ]]; then
+        echo "Creating workstation structure..."
         
-        # Ask the user if they want to create the workstation
-        read -p "Do you want to create this workstation? (y/n): " create_choice
+        # Path to the create structure template
+        create_structure_template=""
         
-        if [[ $create_choice =~ ^[Yy]$ ]]; then
-          echo "Creating workstation structure..."
+        # Set the appropriate template path based on component type
+        if [ "$COMPONENT_TYPE" = "POS" ]; then
+          create_structure_template="$PWD/helper/structure/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "WDM" ]; then
+          create_structure_template="$PWD/helper/structure/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
+          create_structure_template="$PWD/helper/structure/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
+          create_structure_template="$PWD/helper/structure/create_structure.json"
+        elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+          create_structure_template="$PWD/helper/structure/create_structure.json"
+        fi
+        
+        if [ ! -f "$create_structure_template" ]; then
+          echo "Warning: Create structure template not found at: $create_structure_template"
+          echo "Using default template from structure/create_structure.json"
+          create_structure_template="$PWD/helper/structure/create_structure.json"
           
-          # Path to the create structure template
-          create_structure_template=""
-          
-          # Set the appropriate template path based on component type
-          if [ "$COMPONENT_TYPE" = "POS" ]; then
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-          elif [ "$COMPONENT_TYPE" = "WDM" ]; then
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-          elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-          elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-          elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-          fi
+          # Create directories if they don't exist
+          mkdir -p "$(dirname "$create_structure_template")"
           
           if [ ! -f "$create_structure_template" ]; then
-            echo "Warning: Create structure template not found at: $create_structure_template"
-            echo "Using default template from structure/create_structure.json"
-            create_structure_template="$PWD/helper/structure/create_structure.json"
-            
-            # Create directories if they don't exist
-            mkdir -p "$(dirname "$create_structure_template")"
-            
-            if [ ! -f "$create_structure_template" ]; then
-              # Try in the current directory
-              echo "Checking for create_structure.json in structure subdirectory..."
-              if [ -f "structure/create_structure.json" ]; then
-                create_structure_template="structure/create_structure.json"
-                echo "Found template at: $create_structure_template"
-              else
-                echo "Error: Default template not found. Cannot create workstation."
-                # Continue execution, don't exit
-              fi
-            fi
-          fi
-          
-          if [ -f "$create_structure_template" ]; then
-            echo "Creating workstation structure..."
-            
-            # Create a processed copy of create_structure.json
-            processed_create_structure_path="$init_path/create_structure_processed.json"
-            cp "$create_structure_template" "$processed_create_structure_path"
-            echo "Created processed copy of create_structure.json at: $processed_create_structure_path"
-            
-            # Determine station name based on component type
-            case "$COMPONENT_TYPE" in
-              POS)
-                station_name="POS Client"
-                ;;
-              WDM)
-                station_name="Wall Device Manager"
-                ;;
-              FLOW-SERVICE)
-                station_name="Flow Service"
-                ;;
-              LPA-SERVICE)
-                station_name="Label Print Adapter"
-                ;;
-              STOREHUB-SERVICE)
-                station_name="StoreHub"
-                ;;
-              *)
-                station_name="POS Client"
-                ;;
-            esac
-            
-            # Get tenant ID from environment or use default
-            tenant_id=${tenant_id:-"${tenant_id}"}
-            
-            # Get user ID from environment or use default
-            user_id=${user_id:-"${user_id}"}
-            
-            # Create a temporary file for processing
-            temp_structure_file=$(mktemp)
-            
-            # First copy the content to the temporary file
-            cp "$processed_create_structure_path" "$temp_structure_file"
-            
-            # Process replacements
-            for placeholder_value in \
-                "@TENANT_ID@:$tenant_id" \
-                "@RETAIL_STORE_ID@:$STORE_ID" \
-                "@SYSTEM_TYPE@:$current_system_name" \
-                "@WORKSTATION_ID@:$WORKSTATION_ID" \
-                "@STATION_NAME@:$station_name" \
-                "@USER_ID@:$user_id"
-            do
-                placeholder=$(echo "$placeholder_value" | cut -d ":" -f 1)
-                value=$(echo "$placeholder_value" | cut -d ":" -f 2-)
-                
-                # Using temporary files for each replacement to ensure portability
-                next_temp_file=$(mktemp)
-                sed "s|$placeholder|$value|g" "$temp_structure_file" > "$next_temp_file"
-                mv "$next_temp_file" "$temp_structure_file"
-            done
-            
-            # Save the processed file for reference
-            processed_template_path="$init_path/processed_create_structure.json"
-            cp "$temp_structure_file" "$processed_template_path"
-            echo "Saved processed template to: $processed_template_path"
-            
-            # Make the API call to create the structure
-            structure_create_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
-            
-            echo "Creating workstation using API: $structure_create_url"
-            echo "Request data: $(cat "$processed_template_path")"
-            
-            structure_create_response=$(curl -s -f -X POST "$structure_create_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_template_path")
-            
-            if [ $? -eq 0 ]; then
-              echo "Successfully created workstation structure"
-              echo "Response: $structure_create_response"
-              
-              # Save the response to structure_create_response.json
-              structure_create_response_path="$init_path/structure_create_response.json"
-              echo "$structure_create_response" > "$structure_create_response_path"
-              echo "Structure creation response saved to: $structure_create_response_path"
-              
-              # Remove waiting time - no sleep
-              echo "Refreshing structure data..."
-              
-              store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
-              
-              if [ -f "$get_store_json_path" ]; then
-                refreshed_store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
-                
-                if [ $? -eq 0 ]; then
-                  # Save the refreshed response to storemanager.json
-                  echo "$refreshed_store_response" > "$storemanager_path"
-                  echo "Refreshed store information saved to: $storemanager_path"
-                  
-                  # Look for our structure again with updated data
-                  if command -v jq >/dev/null 2>&1; then
-                    # Try to find the structure by system name AND workstation ID
-                    echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
-                    structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-                    
-                    if [ -n "$structure_unique_name" ]; then
-                      echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
-                    else
-                      echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
-                    fi
-                  else
-                    # Fallback for no jq - search for workstation ID
-                    cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
-                    
-                    # Search for our specific workstation in updated data
-                    echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
-                    
-                    # Use a more robust pattern that handles minified JSON
-                    matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/refreshed_flattened.json || 
-                                   grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json || 
-                                   echo "")
-                    
-                    if [ -n "$matching_line" ]; then
-                      structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-                      echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
-                    else
-                      # No fallback, just report no match found
-                      echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
-                    fi
-                    
-                    # Clean up temp file
-                    rm -f /tmp/refreshed_flattened.json
-                  fi
-                  
-                  # Save the structure unique name if found
-                  if [ -n "$structure_unique_name" ]; then
-                    structure_name_path="$init_path/structure_name.txt"
-                    echo "$structure_unique_name" > "$structure_name_path"
-                    echo "Updated structure unique name saved to: $structure_name_path"
-                  fi
-                else
-                  echo "Warning: Error refreshing structure data, continuing with existing structure data"
-                fi
-              else
-                echo "Warning: get_store.json not found, cannot refresh structure data"
-              fi
+            # Try in the current directory
+            echo "Checking for create_structure.json in structure subdirectory..."
+            if [ -f "structure/create_structure.json" ]; then
+              create_structure_template="structure/create_structure.json"
+              echo "Found template at: $create_structure_template"
             else
-              echo "Error creating workstation structure"
-              echo "Response: $structure_create_response"
-              # Continue execution even if this call fails
+              echo "Error: Default template not found. Cannot create workstation."
+              # Continue execution, don't exit
             fi
           fi
-        else
-          echo "Skipping workstation creation as per user choice."
         fi
-      fi
-      
-      # Only proceed with configuration update for StoreHub components
-      if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
-        # Now update the configuration using update_config.json from the storehub directory
-        storehub_dir="$init_path/storehub"
-        update_config_path="$storehub_dir/update_config.json"
         
-        # Create storehub directory if it doesn't exist
-        mkdir -p "$storehub_dir"
-        
-        if [ -f "$update_config_path" ]; then
-          echo "Updating StoreHub configuration using update_config.json..."
+        if [ -f "$create_structure_template" ]; then
+          echo "Creating workstation structure..."
           
-          # Create a processed copy of update_config.json
-          processed_update_config_path="$storehub_dir/update_config_processed.json"
-          cp "$update_config_path" "$processed_update_config_path"
-          echo "Created processed copy of update_config.json at: $processed_update_config_path"
+          # Create a processed copy of create_structure.json
+          processed_create_structure_path="$init_path/create_structure_processed.json"
+          cp "$create_structure_template" "$processed_create_structure_path"
+          echo "Created processed copy of create_structure.json at: $processed_create_structure_path"
           
-          # Get hostname
-          hostname=$(hostname)
-          if [ -z "$hostname" ]; then
-            hostname="localhost"
-          fi
+          # Determine station name based on component type
+          case "$COMPONENT_TYPE" in
+            POS)
+              station_name="POS Client"
+              ;;
+            WDM)
+              station_name="Wall Device Manager"
+              ;;
+            FLOW-SERVICE)
+              station_name="Flow Service"
+              ;;
+            LPA-SERVICE)
+              station_name="Label Print Adapter"
+              ;;
+            STOREHUB-SERVICE)
+              station_name="StoreHub"
+              ;;
+            *)
+              station_name="POS Client"
+              ;;
+          esac
           
-          # Get version from config
-          version="v1.1.0"  # Default version
+          # Get tenant ID from environment or use default
+          tenant_id=${tenant_id:-"${tenant_id}"}
+          
+          # Get user ID from environment or use default
+          user_id=${user_id:-"${user_id}"}
           
           # Create a temporary file for processing
-          temp_file=$(mktemp)
+          temp_structure_file=$(mktemp)
           
-          # Copy the content to the temporary file
-          cp "$processed_update_config_path" "$temp_file"
-          
-          # Get configuration values from environment or use defaults
-          jms_port="${jms_port:-7001}"
-          firebird_port="${firebird_port:-3050}"
-          firebird_user="${firebird_user:-SYSDBA}"
-          firebird_password="${firebird_password:-masterkey}"
-          https_port="${https_port:-8543}"
+          # First copy the content to the temporary file
+          cp "$processed_create_structure_path" "$temp_structure_file"
           
           # Process replacements
           for placeholder_value in \
-              "@STRUCTURE_UNIQUE_NAME@:$structure_unique_name" \
-              "@HOSTNAME@:$hostname" \
-              "@SYSTEM_NAME@:$current_system_name" \
-              "@SYSTEM_VERSION@:$version" \
-              "@JMS_PORT@:$jms_port" \
-              "@FIREBIRD_PORT@:$firebird_port" \
-              "@FIREBIRD_USER@:$firebird_user" \
-              "@FIREBIRD_PASSWORD@:$firebird_password" \
-              "@HTTPS_PORT@:$https_port"
+              "@TENANT_ID@:$tenant_id" \
+              "@RETAIL_STORE_ID@:$STORE_ID" \
+              "@SYSTEM_TYPE@:$current_system_name" \
+              "@WORKSTATION_ID@:$WORKSTATION_ID" \
+              "@STATION_NAME@:$station_name" \
+              "@USER_ID@:$user_id"
           do
               placeholder=$(echo "$placeholder_value" | cut -d ":" -f 1)
               value=$(echo "$placeholder_value" | cut -d ":" -f 2-)
               
               # Using temporary files for each replacement to ensure portability
               next_temp_file=$(mktemp)
-              sed "s|$placeholder|$value|g" "$temp_file" > "$next_temp_file"
-              mv "$next_temp_file" "$temp_file"
+              sed "s|$placeholder|$value|g" "$temp_structure_file" > "$next_temp_file"
+              mv "$next_temp_file" "$temp_structure_file"
           done
           
-          # Move the processed file back to the processed path
-          mv "$temp_file" "$processed_update_config_path"
-          echo "Updated processed file with all required values"
+          # Save the processed file for reference
+          processed_template_path="$init_path/processed_create_structure.json"
+          cp "$temp_structure_file" "$processed_template_path"
+          echo "Saved processed template to: $processed_template_path"
           
-          # Now display the updated content for debugging
-          echo -e "\n====== API CALL DETAILS ======"
+          # Make the API call to create the structure
+          structure_create_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
           
-          # Make the API call to update the configuration
-          config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+          echo "Creating workstation using API: $structure_create_url"
+          echo "Request data: $(cat "$processed_template_path")"
           
-          # Display API details
-          echo "URL: $config_url"
-          echo "JMS Port: $jms_port"
-          echo "Firebird Port: $firebird_port"
-          echo "Firebird User: $firebird_user"
-          echo "Firebird Password: [not shown]"
-          echo "HTTPS Port: $https_port"
-          echo "Structure Unique Name: $structure_unique_name"
-          echo "Hostname: $hostname"
-          echo "System Name: $current_system_name"
-          echo "System Version: $version"
-          
-          # Use the processed file for the API call
-          config_response=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
+          structure_create_response=$(curl -s -f -X POST "$structure_create_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_template_path")
           
           if [ $? -eq 0 ]; then
-            echo "Successfully updated configuration"
+            echo "Successfully created workstation structure"
+            echo "Response: $structure_create_response"
             
-            # Save the response to config_response.json
-            config_response_path="$storehub_dir/config_response.json"
-            echo "$config_response" > "$config_response_path"
-            echo "Configuration response saved to: $config_response_path"
+            # Save the response to structure_create_response.json
+            structure_create_response_path="$init_path/structure_create_response.json"
+            echo "$structure_create_response" > "$structure_create_response_path"
+            echo "Structure creation response saved to: $structure_create_response_path"
             
-            # Save a raw response for debugging
-            raw_response_path="$storehub_dir/config_response_raw.txt"
-            echo "$config_response" > "$raw_response_path"
-            echo "Raw API response saved to: $raw_response_path"
+            # Remove waiting time - no sleep
+            echo "Refreshing structure data..."
             
-            # Run the StoreHub configuration update a second time to work around a known bug
-            echo -e "\033[33m\nRunning StoreHub configuration update a second time to ensure proper initialization...\033[0m"
+            store_url="https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
             
-            echo "Making second API call to update StoreHub configuration..."
-            config_response2=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
-            
-            if [ $? -eq 0 ]; then
-              echo -e "\033[32mSuccessfully updated StoreHub configuration (second attempt)\033[0m"
+            if [ -f "$get_store_json_path" ]; then
+              refreshed_store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
               
-              # Save the second response to config_response2.json
-              config_response2_path="$storehub_dir/config_response2.json"
-              echo "$config_response2" > "$config_response2_path"
-              echo "Second configuration response saved to: $config_response2_path"
+              if [ $? -eq 0 ]; then
+                # Save the refreshed response to storemanager.json
+                echo "$refreshed_store_response" > "$storemanager_path"
+                echo "Refreshed store information saved to: $storemanager_path"
+                
+                # Look for our structure again with updated data
+                if command -v jq >/dev/null 2>&1; then
+                  # Try to find the structure by system name AND workstation ID
+                  echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
+                  structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+                  
+                  if [ -n "$structure_unique_name" ]; then
+                    echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                  else
+                    echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+                  fi
+                else
+                  # Fallback for no jq - search for workstation ID
+                  cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
+                  
+                  # Search for our specific workstation in updated data
+                  echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
+                  
+                  # Use a more robust pattern that handles minified JSON
+                  matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/refreshed_flattened.json || 
+                                 grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json || 
+                                 echo "")
+                  
+                  if [ -n "$matching_line" ]; then
+                    structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
+                    echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                  else
+                    # No fallback, just report no match found
+                    echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+                  fi
+                  
+                  # Clean up temp file
+                  rm -f /tmp/refreshed_flattened.json
+                fi
+                
+                # Save the structure unique name if found
+                if [ -n "$structure_unique_name" ]; then
+                  structure_name_path="$init_path/structure_name.txt"
+                  echo "$structure_unique_name" > "$structure_name_path"
+                  echo "Updated structure unique name saved to: $structure_name_path"
+                fi
+              else
+                echo "Warning: Error refreshing structure data, continuing with existing structure data"
+              fi
             else
-              echo "Error in second StoreHub configuration update"
-              echo "Response: $config_response2"
-              # Continue execution even if the second call fails
+              echo "Warning: get_store.json not found, cannot refresh structure data"
             fi
           else
-            echo "Error updating configuration"
-            echo "Response: $config_response"
+            echo "Error creating workstation structure"
+            echo "Response: $structure_create_response"
             # Continue execution even if this call fails
           fi
-        else
-          echo "Warning: StoreHub update_config.json not found at: $update_config_path"
         fi
       else
-        echo "Skipping configuration update - not a StoreHub component"
+        echo "Skipping workstation creation as per user choice."
+      fi
+    fi
+    
+    # Only proceed with configuration update for StoreHub components
+    if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
+      # Now update the configuration using update_config.json from the storehub directory
+      storehub_dir="$init_path/storehub"
+      update_config_path="$storehub_dir/update_config.json"
+      
+      # Create storehub directory if it doesn't exist
+      mkdir -p "$storehub_dir"
+      
+      if [ -f "$update_config_path" ]; then
+        echo "Updating StoreHub configuration using update_config.json..."
+        
+        # Create a processed copy of update_config.json
+        processed_update_config_path="$storehub_dir/update_config_processed.json"
+        cp "$update_config_path" "$processed_update_config_path"
+        echo "Created processed copy of update_config.json at: $processed_update_config_path"
+        
+        # Get hostname
+        hostname=$(hostname)
+        if [ -z "$hostname" ]; then
+          hostname="localhost"
+        fi
+        
+        # Get version from config
+        version="v1.1.0"  # Default version
+        
+        # Create a temporary file for processing
+        temp_file=$(mktemp)
+        
+        # Copy the content to the temporary file
+        cp "$processed_update_config_path" "$temp_file"
+        
+        # Get configuration values from environment or use defaults
+        jms_port="${jms_port:-7001}"
+        firebird_port="${firebird_port:-3050}"
+        firebird_user="${firebird_user:-SYSDBA}"
+        firebird_password="${firebird_password:-masterkey}"
+        https_port="${https_port:-8543}"
+        
+        # Process replacements
+        for placeholder_value in \
+            "@STRUCTURE_UNIQUE_NAME@:$structure_unique_name" \
+            "@HOSTNAME@:$hostname" \
+            "@SYSTEM_NAME@:$current_system_name" \
+            "@SYSTEM_VERSION@:$version" \
+            "@JMS_PORT@:$jms_port" \
+            "@FIREBIRD_PORT@:$firebird_port" \
+            "@FIREBIRD_USER@:$firebird_user" \
+            "@FIREBIRD_PASSWORD@:$firebird_password" \
+            "@HTTPS_PORT@:$https_port"
+        do
+            placeholder=$(echo "$placeholder_value" | cut -d ":" -f 1)
+            value=$(echo "$placeholder_value" | cut -d ":" -f 2-)
+            
+            # Using temporary files for each replacement to ensure portability
+            next_temp_file=$(mktemp)
+            sed "s|$placeholder|$value|g" "$temp_file" > "$next_temp_file"
+            mv "$next_temp_file" "$temp_file"
+        done
+        
+        # Move the processed file back to the processed path
+        mv "$temp_file" "$processed_update_config_path"
+        echo "Updated processed file with all required values"
+        
+        # Now display the updated content for debugging
+        echo -e "\n====== API CALL DETAILS ======"
+        
+        # Make the API call to update the configuration
+        config_url="https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+        
+        # Display API details
+        echo "URL: $config_url"
+        echo "JMS Port: $jms_port"
+        echo "Firebird Port: $firebird_port"
+        echo "Firebird User: $firebird_user"
+        echo "Firebird Password: [not shown]"
+        echo "HTTPS Port: $https_port"
+        echo "Structure Unique Name: $structure_unique_name"
+        echo "Hostname: $hostname"
+        echo "System Name: $current_system_name"
+        echo "System Version: $version"
+        
+        # Use the processed file for the API call
+        config_response=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
+        
+        if [ $? -eq 0 ]; then
+          echo "Successfully updated configuration"
+          
+          # Save the response to config_response.json
+          config_response_path="$storehub_dir/config_response.json"
+          echo "$config_response" > "$config_response_path"
+          echo "Configuration response saved to: $config_response_path"
+          
+          # Save a raw response for debugging
+          raw_response_path="$storehub_dir/config_response_raw.txt"
+          echo "$config_response" > "$raw_response_path"
+          echo "Raw API response saved to: $raw_response_path"
+          
+          # Run the StoreHub configuration update a second time to work around a known bug
+          echo -e "\033[33m\nRunning StoreHub configuration update a second time to ensure proper initialization...\033[0m"
+          
+          echo "Making second API call to update StoreHub configuration..."
+          config_response2=$(curl -s -X POST "$config_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_update_config_path")
+          
+          if [ $? -eq 0 ]; then
+            echo -e "\033[32mSuccessfully updated StoreHub configuration (second attempt)\033[0m"
+            
+            # Save the second response to config_response2.json
+            config_response2_path="$storehub_dir/config_response2.json"
+            echo "$config_response2" > "$config_response2_path"
+            echo "Second configuration response saved to: $config_response2_path"
+          else
+            echo "Error in second StoreHub configuration update"
+            echo "Response: $config_response2"
+            # Continue execution even if the second call fails
+          fi
+        else
+          echo "Error updating configuration"
+          echo "Response: $config_response"
+          # Continue execution even if this call fails
+        fi
+      else
+        echo "Warning: StoreHub update_config.json not found at: $update_config_path"
       fi
     else
-      echo "Error retrieving store information"
-      echo "Response: $store_response"
-      # Continue execution even if this call fails
+      echo "Skipping configuration update - not a StoreHub component"
     fi
+  else
+    echo "Error retrieving store information"
+    echo "Response: $store_response"
+    # Continue execution even if this call fails
   fi
 fi
 
