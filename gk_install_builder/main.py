@@ -432,9 +432,16 @@ class GKInstallBuilder:
         self.is_first_run = not os.path.exists(self.config_manager.config_file)
         
         # Ensure default values are set for critical fields
-        # ALWAYS set base_install_dir regardless of whether it's first run or not
-        self.config_manager.config["base_install_dir"] = "C:\\gkretail"
-        print("Setting default base install directory to C:\\gkretail in __init__")
+        # Set platform-specific paths based on selected platform
+        platform = self.config_manager.config.get("platform", "Windows")
+        if platform == "Windows":
+            self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+            self.config_manager.config["firebird_server_path"] = "C:\\Program Files\\Firebird\\Firebird_3_0"
+            self.config_manager.config["firebird_driver_path_local"] = "C:\\gkretail\\Jaybird"
+        else:  # Linux
+            self.config_manager.config["base_install_dir"] = "/usr/local/gkretail"
+            self.config_manager.config["firebird_server_path"] = "/opt/firebird"
+            self.config_manager.config["firebird_driver_path_local"] = "/usr/local/gkretail/Jaybird"
         
         # Store section frames for progressive disclosure
         self.section_frames = {}
@@ -685,7 +692,7 @@ class GKInstallBuilder:
                 "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
                 "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
                 "WDM System Type": "Type of Wall Device Manager (e.g., 'CSE-wdm')",
-                "Firebird Server Path": "Path to the Firebird server (e.g., 'localhost')",
+                "Firebird Server Path": "Path to the Firebird server (e.g., '/opt/firebird')",
             }
             
             # Create fields
@@ -724,14 +731,34 @@ class GKInstallBuilder:
             
             # Ensure base install directory is set
             base_dir_entry = self.config_manager.get_entry("base_install_dir")
-            if base_dir_entry:
-                current_value = base_dir_entry.get()
-                if not current_value:
-                    platform = self.platform_var.get()
-                    default_dir = "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail"
-                    base_dir_entry.delete(0, 'end')
-                    base_dir_entry.insert(0, default_dir)
-                    print(f"Set base install directory to {default_dir} in create_remaining_sections")
+            firebird_path_entry = self.config_manager.get_entry("firebird_server_path")
+            
+            if base_dir_entry or firebird_path_entry:
+                platform = self.platform_var.get()
+                
+                # Set platform-specific directories
+                if platform == "Linux":
+                    default_dir = "/usr/local/gkretail"
+                    default_firebird = "/opt/firebird"
+                else:  # Windows
+                    default_dir = "C:\\gkretail"
+                    default_firebird = "C:\\Program Files\\Firebird\\Firebird_3_0"
+                
+                # Update base directory if needed
+                if base_dir_entry:
+                    current_value = base_dir_entry.get()
+                    if not current_value or (platform == "Linux" and "\\" in current_value) or (platform == "Windows" and "/" in current_value):
+                        base_dir_entry.delete(0, 'end')
+                        base_dir_entry.insert(0, default_dir)
+                        print(f"Set base install directory to {default_dir} in create_remaining_sections")
+                
+                # Update Firebird path if needed
+                if firebird_path_entry:
+                    current_firebird = firebird_path_entry.get()
+                    if not current_firebird or (platform == "Linux" and "\\" in current_firebird) or (platform == "Windows" and "/" in current_firebird):
+                        firebird_path_entry.delete(0, 'end')
+                        firebird_path_entry.insert(0, default_firebird)
+                        print(f"Set Firebird server path to {default_firebird} in create_remaining_sections")
         
         # Security Configuration
         if "Security Configuration" not in self.section_frames:
@@ -3129,10 +3156,32 @@ class GKInstallBuilder:
             firebird_path = "/opt/firebird"
             jaybird_driver_path = "/usr/local/gkretail/Jaybird"
         
-        # Update entry values if they exist
+        # Update config values first
+        self.config_manager.config["base_install_dir"] = default_dir
+        self.config_manager.config["firebird_server_path"] = firebird_path
+        self.config_manager.config["firebird_driver_path_local"] = jaybird_driver_path
+        
+        # Now update the entry fields if they exist - this directly updates the UI
+        base_dir_entry = self.config_manager.get_entry("base_install_dir")
+        if base_dir_entry:
+            base_dir_entry.delete(0, 'end')
+            base_dir_entry.insert(0, default_dir)
+        
+        firebird_path_entry = self.config_manager.get_entry("firebird_server_path")
+        if firebird_path_entry:
+            firebird_path_entry.delete(0, 'end')
+            firebird_path_entry.insert(0, firebird_path)
+            
+        jaybird_path_entry = self.config_manager.get_entry("firebird_driver_path_local")
+        if jaybird_path_entry:
+            jaybird_path_entry.delete(0, 'end')
+            jaybird_path_entry.insert(0, jaybird_driver_path)
+            
+        # Update entries using the config manager method (may be redundant but ensures consistency)
         self.config_manager.update_entry_value("base_install_dir", default_dir)
         self.config_manager.update_entry_value("firebird_server_path", firebird_path)
         self.config_manager.update_entry_value("firebird_driver_path_local", jaybird_driver_path)
+        
         print(f"Platform changed to {platform}, updated base_install_dir to {default_dir}, firebird_server_path to {firebird_path}, and firebird_driver_path_local to {jaybird_driver_path}")
         
         # Update config
