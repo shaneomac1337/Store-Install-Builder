@@ -264,12 +264,7 @@ try {
                                 $structureCreateResponse = Invoke-RestMethod -Uri $structureCreateUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
                                 Write-Host "Successfully created workstation structure"
                                 
-                                # Add a delay to ensure configuration propagates through the system
-                                Write-Host "Waiting 5 seconds for configuration to propagate..." -ForegroundColor Yellow
-                                Start-Sleep -Seconds 5
-                                Write-Host "Continuing after delay..." -ForegroundColor Yellow
-                                
-                                # Refresh the structure data after creating the workstation
+                                # Remove waiting time
                                 Write-Host "Refreshing structure data..."
                                 
                                 $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
@@ -416,6 +411,24 @@ try {
                             $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
                             Write-Host "Successfully updated StoreHub configuration"
                             
+                            # Run the StoreHub configuration update a second time
+                            Write-Host "`nRunning StoreHub configuration update a second time to ensure proper initialization..." -ForegroundColor Yellow
+                            try {
+                                Write-Host "Making second API call to update StoreHub configuration..."
+                                $configResponse2 = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                                Write-Host "Successfully updated StoreHub configuration (second attempt)" -ForegroundColor Green
+                            } catch {
+                                Write-Host "Error in second StoreHub configuration update: $_" -ForegroundColor Red
+                                if ($_.Exception.Response) {
+                                    $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                                    $reader.BaseStream.Position = 0
+                                    $reader.DiscardBufferedData()
+                                    $responseBody = $reader.ReadToEnd()
+                                    Write-Host "Response body (second attempt): $responseBody" -ForegroundColor Red
+                                }
+                                # Continue execution even if the second call fails
+                            }
+                            
                         } catch {
                             Write-Host "Error updating StoreHub configuration: $_" -ForegroundColor Red
                             if ($_.Exception.Response) {
@@ -518,6 +531,23 @@ try {
     $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
     $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
     Write-Host "Saved response data to business-unit.json and workstation.json"
+
+    # For StoreHub components, run the entire process a second time (unless this is already the second run)
+    if (($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') -and -not $env:STOREHUB_SECOND_RUN) {
+        Write-Host "`n=======================================================" -ForegroundColor Yellow
+        Write-Host "RUNNING STOREHUB INITIALIZATION A SECOND TIME" -ForegroundColor Yellow
+        Write-Host "This is needed to work around initialization issues" -ForegroundColor Yellow
+        Write-Host "=======================================================" -ForegroundColor Yellow
+        
+        # Set environment variable to prevent infinite recursion
+        $env:STOREHUB_SECOND_RUN = "true"
+        
+        # Run the script again with the same parameters (no waiting)
+        & $MyInvocation.MyCommand.Path -ComponentType $ComponentType -base_url $base_url -StoreId $StoreId -WorkstationId $WorkstationId
+        
+        # Clear the environment variable
+        $env:STOREHUB_SECOND_RUN = $null
+    }
 
     # Explicitly return success
     exit 0
