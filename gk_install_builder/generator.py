@@ -588,24 +588,17 @@ done
                         # If hostname detection is disabled, we need to insert after the manual input code
                         insert_marker = "# Print final results"
                     else:
-                        # Otherwise, insert after the hostname detection check
-                        insert_marker = "if (-not $hostnameDetected) {"
+                        # In the updated template, we look for the placeholder for file detection code
+                        insert_marker = "# File detection code will be inserted here by the generator"
                     
                     # Find the position to insert the code
                     insert_pos = template.find(insert_marker)
                     if insert_pos != -1:
-                        # If hostname detection is enabled, we need to find the right place to insert
-                        if use_hostname_detection:
-                            # Find the end of the first block inside the if statement
-                            manual_input_end = template.find("# Prompt for Store Number", insert_pos)
-                            if manual_input_end != -1:
-                                # Insert right before the manual input prompt
-                                template = template[:manual_input_end] + station_detection_code + template[manual_input_end:]
-                                print(f"Added station detection code for {component_type} to PowerShell script")
-                        else:
-                            # If hostname detection is disabled, insert before the print results section
-                            template = template[:insert_pos] + station_detection_code + "\n" + template[insert_pos:]
-                            print(f"Added station detection code for {component_type} to PowerShell script")
+                        # Insert the detection code at the appropriate position
+                        template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
+                        print(f"Added station detection code for {component_type} to PowerShell script")
+                    else:
+                        print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
                 
                 else:  # Linux
                     component_type = "POS"  # Default
@@ -630,24 +623,17 @@ done
                         # If hostname detection is disabled, we need to insert after the manual input code
                         insert_marker = "# Print final results"
                     else:
-                        # Otherwise, insert after the hostname detection check
-                        insert_marker = "if [ \"$hostnameDetected\" = false ]; then"
+                        # In the updated template, we look for the placeholder for file detection code
+                        insert_marker = "# File detection code will be inserted here by the generator"
                     
                     # Find the position to insert the code
                     insert_pos = template.find(insert_marker)
                     if insert_pos != -1:
-                        # If hostname detection is enabled, we need to find the right place to insert
-                        if use_hostname_detection:
-                            # Find the manual input prompt inside the if statement
-                            manual_input_start = template.find("# Prompt for Store Number", insert_pos)
-                            if manual_input_start != -1:
-                                # Insert right before the manual input prompt
-                                template = template[:manual_input_start] + station_detection_code + template[manual_input_start:]
-                                print(f"Added station detection code for {component_type} to Bash script")
-                        else:
-                            # If hostname detection is disabled, insert before the print results section
-                            template = template[:insert_pos] + station_detection_code + "\n" + template[insert_pos:]
-                            print(f"Added station detection code for {component_type} to Bash script")
+                        # Insert the detection code at the appropriate position
+                        template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
+                        print(f"Added station detection code for {component_type} to Bash script")
+                    else:
+                        print(f"Warning: Could not find insertion point for station detection code in Bash script")
 
             # Write the modified template to the output file
             with open(output_path, 'w', newline='\n') as f:

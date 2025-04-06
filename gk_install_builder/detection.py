@@ -153,9 +153,8 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             }}
             
             # Validate extracted values
-            $fileDetected = $false
             if ($storeNumber -and $workstationId -match '^\d{{3}}$') {{
-                $fileDetected = $true
+                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
                 Write-Host "Successfully detected values from file:"
                 Write-Host "Store Number: $storeNumber"
                 Write-Host "Workstation ID: $workstationId"
@@ -179,8 +178,6 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
     echo "Trying file detection using $stationFilePath"
     
     if [ -f "$stationFilePath" ]; then
-        fileDetected=false
-        
         while IFS= read -r line || [ -n "$line" ]; do
             if [[ "$line" =~ StoreID=(.+) ]]; then
                 storeNumber="${{BASH_REMATCH[1]}}"
@@ -195,7 +192,8 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
         
         # Validate extracted values
         if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]{{3}}$ ]]; then
-            fileDetected=true
+            # Export the variable to ensure it's available in the parent scope
+            export hostnameDetected=true
             echo "Successfully detected values from file:"
             echo "Store Number: $storeNumber"
             echo "Workstation ID: $workstationId"

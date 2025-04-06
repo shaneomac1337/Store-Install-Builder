@@ -592,12 +592,19 @@ if [ -n "$hs" ]; then
   fi
 fi
 
-# If hostname detection failed, prompt for manual input
+# If hostname detection failed, try file detection
 if [ "$hostnameDetected" = false ]; then
   if [ -n "$hs" ]; then
     echo "Could not extract valid Store Number and Workstation ID from hostname."
-    echo "Falling back to manual input."
+    echo "Trying file detection..."
   fi
+  
+  # File detection code will be inserted here by the generator
+fi
+
+# If both hostname and file detection failed, prompt for manual input
+if [ "$hostnameDetected" = false ]; then
+  echo "Falling back to manual input."
   
   # Prompt for Store Number
   echo "Please enter the Store Number in one of these formats (or any custom format):"
