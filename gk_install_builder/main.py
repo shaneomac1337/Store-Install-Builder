@@ -3219,22 +3219,50 @@ class GKInstallBuilder:
         self.config_manager.save_config_silent()
 
     def on_hostname_detection_changed(self):
-        """Handle hostname detection toggle change"""
-        # Update the config with the new value
+        """Handler for when hostname detection checkbox is changed"""
+        # Get the current value
         is_hostname_enabled = self.hostname_detection_var.get()
         self.config_manager.update_entry_value("use_hostname_detection", is_hostname_enabled)
         
-        # If hostname detection is enabled, also enable station detection
+        # If hostname detection is enabled, ensure detection configuration has defaults
         if is_hostname_enabled:
-            # Enable station detection in the detection manager
-            self.detection_manager.enable_detection(True)
-            
-            # Update the config
-            detection_config = self.detection_manager.get_config()
-            self.config_manager.config["detection_config"] = detection_config
-            
+            # Check if detection_config exists in the config
+            if "detection_config" not in self.config_manager.config:
+                # Create default detection config
+                platform_type = self.config_manager.config.get("platform", "Windows")
+                default_base_dir = "C:\\gkretail\\stations" if platform_type == "Windows" else "/usr/local/gkretail/stations"
+                
+                # Create default detection configuration
+                default_config = {
+                    "file_detection_enabled": True,
+                    "use_base_directory": True,
+                    "base_directory": default_base_dir,
+                    "custom_filenames": {
+                        "POS": "POS.station",
+                        "WDM": "WDM.station",
+                        "FLOW-SERVICE": "FLOW-SERVICE.station",
+                        "LPA-SERVICE": "LPA.station",
+                        "STOREHUB-SERVICE": "SH.station"
+                    },
+                    "detection_files": {
+                        "POS": "",
+                        "WDM": "",
+                        "FLOW-SERVICE": "",
+                        "LPA-SERVICE": "",
+                        "STOREHUB-SERVICE": ""
+                    }
+                }
+                
+                # Set the default config in the config_manager
+                self.config_manager.config["detection_config"] = default_config
+                
+                # Update detection manager with the new config
+                self.detection_manager.set_config(default_config)
+                
+                print(f"Initialized detection settings with default base directory: {default_base_dir}")
+        
         # Save the config
-        self.config_manager.save_config_silent()
+        self.config_manager.save_config()
 
     def open_detection_settings(self):
         """Open the detection settings window"""

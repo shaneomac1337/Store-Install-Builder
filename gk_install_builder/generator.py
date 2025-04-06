@@ -142,6 +142,9 @@ class ProjectGenerator:
         self.webdav_browser = None
         self.parent_window = parent_window  # Rename to parent_window for consistency
         self.detection_manager = DetectionManager()
+        
+        # Enable file detection by default
+        self.detection_manager.enable_file_detection(True)
 
     def create_webdav_browser(self, base_url, username=None, password=None):
         """Create a new WebDAV browser instance"""
@@ -220,6 +223,23 @@ class ProjectGenerator:
             # Load detection configuration if available
             if "detection_config" in config:
                 self.detection_manager.set_config(config["detection_config"])
+            else:
+                # If no detection_config is available but detection is enabled,
+                # initialize with default settings based on platform and component type
+                if self.detection_manager.is_detection_enabled():
+                    # Create a default detection configuration
+                    default_config = {
+                        "file_detection_enabled": True,
+                        "use_base_directory": True,
+                        "base_directory": "C:\\gkretail\\stations" if platform == "Windows" else "/usr/local/gkretail/stations"
+                    }
+                    self.detection_manager.set_config(default_config)
+                    
+                    # Add this config back to main config to save for future use
+                    config["detection_config"] = default_config
+                    
+                    print("Initializing detection with default settings:")
+                    print(f"Base directory: {default_config['base_directory']}")
             
             # Set environment variable for Firebird server path
             firebird_server_path = config.get("firebird_server_path", "")
