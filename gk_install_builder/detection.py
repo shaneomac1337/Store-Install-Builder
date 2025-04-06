@@ -6,7 +6,7 @@ class DetectionManager:
     
     def __init__(self):
         self.detection_config = {
-            "file_detection_enabled": False,
+            "file_detection_enabled": True,
             "use_base_directory": True,
             "base_directory": "",
             "custom_filenames": {
@@ -35,9 +35,27 @@ class DetectionManager:
     def get_file_path(self, component_type):
         """Get the detection file path for a specific component"""
         # If using base directory, combine it with the custom filename
-        if self.detection_config["use_base_directory"] and self.detection_config["base_directory"]:
+        if self.detection_config["use_base_directory"]:
+            base_dir = self.detection_config["base_directory"]
+            
+            # If base_directory is empty, use a default based on platform
+            if not base_dir:
+                # Check for platform
+                import platform
+                is_windows = platform.system() == "Windows"
+                
+                # Set default base directory based on platform
+                if is_windows:
+                    base_dir = "C:\\gkretail\\stations"
+                else:
+                    base_dir = "/usr/local/gkretail/stations"
+                
+                # Update the config with this default
+                self.detection_config["base_directory"] = base_dir
+                print(f"Using default station files directory: {base_dir}")
+            
             filename = self.detection_config["custom_filenames"].get(component_type, f"{component_type}.station")
-            return os.path.join(self.detection_config["base_directory"], filename)
+            return os.path.join(base_dir, filename)
         
         # Otherwise return the custom path if set
         return self.detection_config["detection_files"].get(component_type, "")
