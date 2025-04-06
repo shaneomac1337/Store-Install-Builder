@@ -9,7 +9,7 @@ import sys
 import os
 import requests
 import json
-
+from detection import DetectionManager
 # Add parent directory to path to import PleasantPasswordClient
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pleasant_password_client import PleasantPasswordClient
@@ -396,18 +396,23 @@ class LauncherSettingsEditor:
 class GKInstallBuilder:
     # Class variables to store KeePass client and credentials
     keepass_client = None
+    keepass_credentials = {}
     keepass_username = None
     keepass_password = None
     
-    def __init__(self):
+    def __init__(self, root=None):
         # Set up customtkinter
         ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
         ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
         
-        # Create the main window
-        self.root = ctk.CTk()
-        self.root.title("GK Install Builder")
-        self.root.geometry("1280x1076")
+        # Create the main window if not provided
+        if root is None:
+            self.root = ctk.CTk()
+            self.root.title("GK Install Builder")
+            self.root.geometry("1280x1076")
+        else:
+            self.root = root
+        
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
         
         # Initialize config manager
@@ -419,8 +424,21 @@ class GKInstallBuilder:
         # Initialize project generator
         self.project_generator = ProjectGenerator(self.root)
         
+        # Initialize the detection manager for file detection
+        self.detection_manager = DetectionManager()
+        
+        # Load detection config if it exists in the main config
+        if "detection_config" in self.config_manager.config:
+            self.detection_manager.set_config(self.config_manager.config["detection_config"])
+        
+        # Initialize file detection window to None
+        self.detection_window = None
+        
         # Initialize parent_app to None (for window close handler)
         self.parent_app = None
+        
+        # Initialize offline creator to None
+        self.offline_creator = None
         
         # Initialize password visibility tracking dictionary
         self.password_visible = {}
@@ -601,7 +619,7 @@ class GKInstallBuilder:
         hostname_detection_frame = ctk.CTkFrame(form_frame)
         hostname_detection_frame.pack(fill="x", padx=10, pady=5)
         
-        hostname_detection_label = ctk.CTkLabel(hostname_detection_frame, text="Hostname Detection:", width=150)
+        hostname_detection_label = ctk.CTkLabel(hostname_detection_frame, text="Station Detection:", width=150)
         hostname_detection_label.pack(side="left", padx=10)
         
         # Create tooltip for hostname detection
@@ -613,13 +631,25 @@ class GKInstallBuilder:
         # Create checkbox for hostname detection
         hostname_detection_checkbox = ctk.CTkCheckBox(
             hostname_detection_frame, 
-            text="Enable hostname detection",
+            text="Enable automatic station detection",
             variable=self.hostname_detection_var,
             onvalue=True,
             offvalue=False,
             command=self.on_hostname_detection_changed
         )
         hostname_detection_checkbox.pack(side="left", padx=10)
+        
+        # Add Detection Settings button
+        detection_settings_btn = ctk.CTkButton(
+            hostname_detection_frame,
+            text="Detection Settings",
+            width=150,
+            command=self.open_detection_settings
+        )
+        detection_settings_btn.pack(side="left", padx=20)
+        
+        # Create tooltip for detection settings button
+        self.create_tooltip(detection_settings_btn, "Configure automatic station detection settings")
         
         # Register the hostname detection variable with config manager
         self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
@@ -3190,8 +3220,381 @@ class GKInstallBuilder:
 
     def on_hostname_detection_changed(self):
         """Handle hostname detection toggle change"""
-        self.config_manager.update_entry_value("use_hostname_detection", self.hostname_detection_var.get())
+        # Update the config with the new value
+        is_hostname_enabled = self.hostname_detection_var.get()
+        self.config_manager.update_entry_value("use_hostname_detection", is_hostname_enabled)
+        
+        # If hostname detection is enabled, also enable station detection
+        if is_hostname_enabled:
+            # Enable station detection in the detection manager
+            self.detection_manager.enable_detection(True)
+            
+            # Update the config
+            detection_config = self.detection_manager.get_config()
+            self.config_manager.config["detection_config"] = detection_config
+            
+        # Save the config
         self.config_manager.save_config_silent()
+
+    def open_detection_settings(self):
+        """Open the detection settings window"""
+        if self.detection_window is not None and self.detection_window.winfo_exists():
+            self.detection_window.lift()
+            self.detection_window.focus_force()
+            return
+            
+        # Create a new window for detection settings
+        self.detection_window = ctk.CTkToplevel(self.root)
+        self.detection_window.title("Detection Settings")
+        self.detection_window.geometry("746x816")
+        self.detection_window.transient(self.root)
+        
+        # Force window update and wait for it to be visible before grabbing
+        self.detection_window.update()
+        
+        # Add a short delay to ensure the window is fully mapped on Linux
+        self.detection_window.after(100, lambda: self._safe_grab_set(self.detection_window))
+        
+        # Main frame with scrollbar
+        main_frame = ctk.CTkScrollableFrame(self.detection_window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Title and description
+        ctk.CTkLabel(
+            main_frame, 
+            text="Detection Settings",
+            font=("Helvetica", 16, "bold")
+        ).pack(anchor="w", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            main_frame, 
+            text="Configure paths to station files for store and workstation ID detection.",
+            wraplength=650
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # Enable/disable detection checkbox
+        enable_frame = ctk.CTkFrame(main_frame)
+        enable_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Create a BooleanVar for the detection option
+        self.detection_var = ctk.BooleanVar(value=self.detection_manager.is_detection_enabled())
+        
+        # If hostname detection is enabled, also force station detection on
+        hostname_detection_enabled = self.hostname_detection_var.get()
+        if hostname_detection_enabled:
+            self.detection_var.set(True)
+        
+        # Create checkbox for detection
+        self.detection_checkbox = ctk.CTkCheckBox(
+            enable_frame, 
+            text="Enable detection (fallback when hostname detection fails)",
+            variable=self.detection_var,
+            onvalue=True,
+            offvalue=False
+        )
+        self.detection_checkbox.pack(anchor="w", padx=10, pady=10)
+        
+        # If hostname detection is enabled, disable the checkbox
+        if hostname_detection_enabled:
+            self.detection_checkbox.configure(state="disabled")
+            
+            # Add an explanatory label
+            explanation_label = ctk.CTkLabel(
+                enable_frame,
+                text="Note: Station detection is trying to detect hostname with priority, if it fails, it will use the detection settings below",
+                text_color="gray70",
+                font=("Helvetica", 10)
+            )
+            explanation_label.pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # File format description
+        format_frame = ctk.CTkFrame(main_frame)
+        format_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            format_frame, 
+            text="File Format Example:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        example_text = """StoreID=1234
+WorkstationID=101"""
+        
+        example_textbox = ctk.CTkTextbox(format_frame, height=50, width=650)
+        example_textbox.pack(fill="x", padx=10, pady=5)
+        example_textbox.insert("1.0", example_text)
+        example_textbox.configure(state="disabled")
+        
+        # --- Path configuration ---
+        # Create a frame for path configuration options
+        path_config_frame = ctk.CTkFrame(main_frame)
+        path_config_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            path_config_frame, 
+            text="Path Configuration",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        # Create a RadioButton frame for path configuration approach
+        approach_frame = ctk.CTkFrame(path_config_frame)
+        approach_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Create a variable for the approach selection
+        self.path_approach_var = ctk.StringVar(
+            value="base_dir" if self.detection_manager.is_using_base_directory() else "custom_paths"
+        )
+        
+        # Create RadioButtons for the approach
+        base_dir_radio = ctk.CTkRadioButton(
+            approach_frame,
+            text="Use base directory with standard file names",
+            variable=self.path_approach_var,
+            value="base_dir",
+            command=self.update_detection_ui
+        )
+        base_dir_radio.pack(anchor="w", padx=10, pady=5)
+        
+        custom_paths_radio = ctk.CTkRadioButton(
+            approach_frame,
+            text="Use custom file paths for each component",
+            variable=self.path_approach_var,
+            value="custom_paths",
+            command=self.update_detection_ui
+        )
+        custom_paths_radio.pack(anchor="w", padx=10, pady=5)
+        
+        # --- Base Directory Configuration ---
+        self.base_dir_frame = ctk.CTkFrame(main_frame)
+        self.base_dir_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            self.base_dir_frame, 
+            text="Base Directory Configuration",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        # Directory selection
+        base_dir_select_frame = ctk.CTkFrame(self.base_dir_frame)
+        base_dir_select_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            base_dir_select_frame,
+            text="Base Directory:",
+            width=120
+        ).pack(side="left", padx=10)
+        
+        self.base_dir_entry = ctk.CTkEntry(base_dir_select_frame, width=400)
+        self.base_dir_entry.pack(side="left", padx=10, fill="x", expand=True)
+        
+        # Set current value if any
+        current_base_dir = self.detection_manager.get_base_directory()
+        if current_base_dir:
+            self.base_dir_entry.insert(0, current_base_dir)
+        else:
+            # Set default based on platform
+            platform = self.config_manager.config.get("platform", "Windows")
+            if platform == "Windows":
+                self.base_dir_entry.insert(0, "C:\\gkretail\\stations")
+            else:  # Linux
+                self.base_dir_entry.insert(0, "/usr/local/gkretail/stations")
+        
+        # Add browse button
+        browse_dir_btn = ctk.CTkButton(
+            base_dir_select_frame,
+            text="Browse",
+            width=70,
+            command=self.browse_base_directory
+        )
+        browse_dir_btn.pack(side="left", padx=10)
+        
+        # Station files naming section - table for customizing filenames
+        filenames_frame = ctk.CTkFrame(self.base_dir_frame)
+        filenames_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            filenames_frame,
+            text="Customize Station File Names (optional):",
+            font=("Helvetica", 11)
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        # Create a simple table for component -> filename mapping
+        self.filename_entries = {}
+        components = ["POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        
+        for component in components:
+            frame = ctk.CTkFrame(filenames_frame)
+            frame.pack(fill="x", padx=10, pady=2)
+            
+            ctk.CTkLabel(
+                frame, 
+                text=f"{component}:",
+                width=120
+            ).pack(side="left", padx=10)
+            
+            entry = ctk.CTkEntry(frame, width=200)
+            entry.pack(side="left", padx=10)
+            
+            # Set current value
+            entry.insert(0, self.detection_manager.get_custom_filename(component))
+            
+            # Store entry reference
+            self.filename_entries[component] = entry
+        
+        # Custom Paths Configuration
+        self.custom_paths_frame = ctk.CTkFrame(main_frame)
+        self.custom_paths_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            self.custom_paths_frame, 
+            text="Custom Paths Configuration",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        # Station file path entries for each component
+        self.file_path_entries = {}
+        
+        for component in components:
+            frame = ctk.CTkFrame(self.custom_paths_frame)
+            frame.pack(fill="x", padx=10, pady=5)
+            
+            ctk.CTkLabel(
+                frame, 
+                text=f"{component}:",
+                width=120
+            ).pack(side="left", padx=10)
+            
+            entry = ctk.CTkEntry(frame, width=400)
+            entry.pack(side="left", padx=10, fill="x", expand=True)
+            
+            # Set current value if any - get raw path without base directory combination
+            current_path = self.detection_manager.detection_config["detection_files"].get(component, "")
+            if current_path:
+                entry.insert(0, current_path)
+            
+            # Store entry reference
+            self.file_path_entries[component] = entry
+            
+            # Add browse button
+            browse_btn = ctk.CTkButton(
+                frame,
+                text="Browse",
+                width=70,
+                command=lambda c=component: self.browse_station_file(c)
+            )
+            browse_btn.pack(side="left", padx=10)
+        
+        # Initially update UI based on selected approach
+        self.update_detection_ui()
+        
+        # Buttons frame
+        buttons_frame = ctk.CTkFrame(main_frame)
+        buttons_frame.pack(fill="x", padx=10, pady=10)
+        
+        save_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Save Settings",
+            command=self.save_detection_settings
+        )
+        save_btn.pack(side="right", padx=10)
+        
+        cancel_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Cancel",
+            command=self.detection_window.destroy
+        )
+        cancel_btn.pack(side="right", padx=10)
+    
+    def update_detection_ui(self):
+        """Update the detection UI based on the selected approach"""
+        is_base_dir = self.path_approach_var.get() == "base_dir"
+        
+        if is_base_dir:
+            # Show base directory frame, hide custom paths frame
+            self.base_dir_frame.pack(fill="x", padx=10, pady=10)
+            self.custom_paths_frame.pack_forget()
+        else:
+            # Show custom paths frame, hide base directory frame
+            self.base_dir_frame.pack_forget()
+            self.custom_paths_frame.pack(fill="x", padx=10, pady=10)
+    
+    def browse_base_directory(self):
+        """Browse for a base directory"""
+        from tkinter import filedialog
+        
+        directory = filedialog.askdirectory(
+            title="Select Base Directory for Station Files"
+        )
+        
+        if directory:
+            # Update entry
+            self.base_dir_entry.delete(0, 'end')
+            self.base_dir_entry.insert(0, directory)
+    
+    def browse_station_file(self, component):
+        """Browse for a station file for the specified component"""
+        from tkinter import filedialog
+        
+        file_path = filedialog.askopenfilename(
+            title=f"Select {component} station file",
+            filetypes=[("Station Files", "*.station"), ("All Files", "*.*")]
+        )
+        
+        if file_path:
+            # Update entry
+            self.file_path_entries[component].delete(0, 'end')
+            self.file_path_entries[component].insert(0, file_path)
+    
+    def save_detection_settings(self):
+        """Save detection settings"""
+        # If hostname detection is enabled, force station detection to be enabled
+        if self.hostname_detection_var.get():
+            self.detection_var.set(True)
+            
+        # Update detection manager with new values
+        self.detection_manager.enable_file_detection(self.detection_var.get())
+        
+        # Set base directory or custom paths based on selected approach
+        is_base_dir = self.path_approach_var.get() == "base_dir"
+        self.detection_manager.use_base_directory(is_base_dir)
+        
+        if is_base_dir:
+            # Save base directory
+            self.detection_manager.set_base_directory(self.base_dir_entry.get())
+            
+            # Save custom filenames
+            for component, entry in self.filename_entries.items():
+                self.detection_manager.set_custom_filename(component, entry.get())
+        else:
+            # Save custom file paths
+            for component, entry in self.file_path_entries.items():
+                self.detection_manager.set_file_path(component, entry.get())
+        
+        # Save to config
+        self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        self.config_manager.save_config()
+        
+        # Close window
+        if self.detection_window:
+            self.detection_window.destroy()
+            
+        messagebox.showinfo("Success", "Detection settings saved successfully.")
+
+    def _safe_grab_set(self, window):
+        """Safely set grab on a window, handling potential Linux visibility issues"""
+        try:
+            # Make sure window is visible and updated
+            window.update_idletasks()
+            window.update()
+            window.deiconify()
+            window.focus_force()
+            
+            # Attempt to set grab
+            window.grab_set()
+        except Exception as e:
+            print(f"Warning: Could not set grab on window: {e}")
+            # Try again after a short delay
+            window.after(200, lambda: self._safe_grab_set(window))
 
 # New class for the Offline Package Creator window
 class OfflinePackageCreator:

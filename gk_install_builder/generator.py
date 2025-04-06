@@ -17,6 +17,7 @@ import urllib3
 import time
 import threading
 import queue
+from detection import DetectionManager
 
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -140,6 +141,7 @@ class ProjectGenerator:
         }
         self.webdav_browser = None
         self.parent_window = parent_window  # Rename to parent_window for consistency
+        self.detection_manager = DetectionManager()
 
     def create_webdav_browser(self, base_url, username=None, password=None):
         """Create a new WebDAV browser instance"""
@@ -214,6 +216,10 @@ class ProjectGenerator:
             
             # Get hostname detection setting
             use_hostname_detection = config.get("use_hostname_detection", True)
+            
+            # Load detection configuration if available
+            if "detection_config" in config:
+                self.detection_manager.set_config(config["detection_config"])
             
             # Set environment variable for Firebird server path
             firebird_server_path = config.get("firebird_server_path", "")
@@ -556,6 +562,93 @@ done
                         template = template[:start_pos] + manual_input_code + template[end_marker_pos:]
                         print("Replaced hostname detection code with manual input in Bash script")
             
+            # Apply file detection settings if enabled
+            if self.detection_manager.is_detection_enabled():
+                # Get the component type from the filename or config
+                if platform == "Windows":
+                    component_type = "POS"  # Default
+                    # Try to determine component type from output filename
+                    output_filename_lower = output_filename.lower()
+                    if "pos" in output_filename_lower:
+                        component_type = "POS"
+                    elif "wdm" in output_filename_lower:
+                        component_type = "WDM"
+                    elif "flow" in output_filename_lower:
+                        component_type = "FLOW-SERVICE"
+                    elif "lpa" in output_filename_lower:
+                        component_type = "LPA-SERVICE"
+                    elif "storehub" in output_filename_lower:
+                        component_type = "STOREHUB-SERVICE"
+                    
+                    # Generate file detection code for this component
+                    station_detection_code = self.detection_manager.generate_detection_code(component_type, "powershell")
+                    
+                    # Find where to insert the file detection code
+                    if not use_hostname_detection:
+                        # If hostname detection is disabled, we need to insert after the manual input code
+                        insert_marker = "# Print final results"
+                    else:
+                        # Otherwise, insert after the hostname detection check
+                        insert_marker = "if (-not $hostnameDetected) {"
+                    
+                    # Find the position to insert the code
+                    insert_pos = template.find(insert_marker)
+                    if insert_pos != -1:
+                        # If hostname detection is enabled, we need to find the right place to insert
+                        if use_hostname_detection:
+                            # Find the end of the first block inside the if statement
+                            manual_input_end = template.find("# Prompt for Store Number", insert_pos)
+                            if manual_input_end != -1:
+                                # Insert right before the manual input prompt
+                                template = template[:manual_input_end] + station_detection_code + template[manual_input_end:]
+                                print(f"Added station detection code for {component_type} to PowerShell script")
+                        else:
+                            # If hostname detection is disabled, insert before the print results section
+                            template = template[:insert_pos] + station_detection_code + "\n" + template[insert_pos:]
+                            print(f"Added station detection code for {component_type} to PowerShell script")
+                
+                else:  # Linux
+                    component_type = "POS"  # Default
+                    # Try to determine component type from output filename
+                    output_filename_lower = output_filename.lower()
+                    if "pos" in output_filename_lower:
+                        component_type = "POS"
+                    elif "wdm" in output_filename_lower:
+                        component_type = "WDM"
+                    elif "flow" in output_filename_lower:
+                        component_type = "FLOW-SERVICE"
+                    elif "lpa" in output_filename_lower:
+                        component_type = "LPA-SERVICE"
+                    elif "storehub" in output_filename_lower:
+                        component_type = "STOREHUB-SERVICE"
+                    
+                    # Generate file detection code for this component
+                    station_detection_code = self.detection_manager.generate_detection_code(component_type, "bash")
+                    
+                    # Find where to insert the file detection code
+                    if not use_hostname_detection:
+                        # If hostname detection is disabled, we need to insert after the manual input code
+                        insert_marker = "# Print final results"
+                    else:
+                        # Otherwise, insert after the hostname detection check
+                        insert_marker = "if [ \"$hostnameDetected\" = false ]; then"
+                    
+                    # Find the position to insert the code
+                    insert_pos = template.find(insert_marker)
+                    if insert_pos != -1:
+                        # If hostname detection is enabled, we need to find the right place to insert
+                        if use_hostname_detection:
+                            # Find the manual input prompt inside the if statement
+                            manual_input_start = template.find("# Prompt for Store Number", insert_pos)
+                            if manual_input_start != -1:
+                                # Insert right before the manual input prompt
+                                template = template[:manual_input_start] + station_detection_code + template[manual_input_start:]
+                                print(f"Added station detection code for {component_type} to Bash script")
+                        else:
+                            # If hostname detection is disabled, insert before the print results section
+                            template = template[:insert_pos] + station_detection_code + "\n" + template[insert_pos:]
+                            print(f"Added station detection code for {component_type} to Bash script")
+
             # Write the modified template to the output file
             with open(output_path, 'w', newline='\n') as f:
                 f.write(template)
