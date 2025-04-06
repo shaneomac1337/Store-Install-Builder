@@ -494,12 +494,19 @@ if (-not [string]::IsNullOrEmpty($hs)) {
     }
 }
 
-# If hostname detection failed, prompt for manual input
+# If hostname detection failed, try file detection
 if (-not $hostnameDetected) {
     if (-not [string]::IsNullOrEmpty($hs)) {
         Write-Host "Could not extract valid Store Number and Workstation ID from hostname."
-        Write-Host "Falling back to manual input."
+        Write-Host "Trying file detection..."
     }
+    
+    # File detection code will be inserted here by the generator
+}
+
+# If both hostname and file detection failed, prompt for manual input
+if (-not $hostnameDetected) {
+    Write-Host "Falling back to manual input."
     
     # Prompt for Store Number
     Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
