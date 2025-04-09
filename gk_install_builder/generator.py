@@ -584,24 +584,72 @@ done
             
             # Apply file detection settings if enabled
             if self.detection_manager.is_detection_enabled():
-                # Get the component type from the filename or config
                 if platform == "Windows":
-                    component_type = "POS"  # Default
-                    # Try to determine component type from output filename
-                    output_filename_lower = output_filename.lower()
-                    if "pos" in output_filename_lower:
-                        component_type = "POS"
-                    elif "wdm" in output_filename_lower:
-                        component_type = "WDM"
-                    elif "flow" in output_filename_lower:
-                        component_type = "FLOW-SERVICE"
-                    elif "lpa" in output_filename_lower:
-                        component_type = "LPA-SERVICE"
-                    elif "storehub" in output_filename_lower:
-                        component_type = "STOREHUB-SERVICE"
-                    
-                    # Generate file detection code for this component
-                    station_detection_code = self.detection_manager.generate_detection_code(component_type, "powershell")
+                    # Instead of trying to determine component type from filename,
+                    # use a placeholder that will be replaced with the actual ComponentType parameter
+                    station_detection_code = '''
+# File detection for the current component ($ComponentType)
+$fileDetectionEnabled = $true
+$componentType = $ComponentType
+$basePath = "{base_dir}"
+$customFilenames = @{{
+    "POS" = "{pos_filename}";
+    "WDM" = "{wdm_filename}";
+    "FLOW-SERVICE" = "{flow_filename}";
+    "LPA-SERVICE" = "{lpa_filename}";
+    "STOREHUB-SERVICE" = "{sh_filename}"
+}}
+
+# Get the appropriate station file for the current component
+$stationFileName = $customFilenames[$componentType]
+if (-not $stationFileName) {{
+    $stationFileName = "$componentType.station"
+}}
+
+$stationFilePath = Join-Path $basePath $stationFileName
+
+# Check if hostname detection failed and file detection is enabled
+if (-not $hostnameDetected -and $fileDetectionEnabled) {{
+    Write-Host "Trying file detection for $componentType using $stationFilePath"
+    
+    if (Test-Path $stationFilePath) {{
+        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
+        
+        if ($fileContent) {{
+            $lines = $fileContent -split "`r?`n"
+            
+            foreach ($line in $lines) {{
+                if ($line -match "StoreID=(.+)") {{
+                    $storeNumber = $matches[1].Trim()
+                    Write-Host "Found Store ID in file: $storeNumber"
+                }}
+                
+                if ($line -match "WorkstationID=(.+)") {{
+                    $workstationId = $matches[1].Trim()
+                    Write-Host "Found Workstation ID in file: $workstationId"
+                }}
+            }}
+            
+            # Validate extracted values
+            if ($storeNumber -and $workstationId -match '^\d{{3}}$') {{
+                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
+                Write-Host "Successfully detected values from file:"
+                Write-Host "Store Number: $storeNumber"
+                Write-Host "Workstation ID: $workstationId"
+            }}
+        }}
+    }} else {{
+        Write-Host "Station file not found at: $stationFilePath"
+    }}
+}}
+'''.format(
+    base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
+    pos_filename=self.detection_manager.get_custom_filename("POS"),
+    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
+    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
+    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE")
+)
                     
                     # Find where to insert the file detection code
                     if not use_hostname_detection:
@@ -616,27 +664,69 @@ done
                     if insert_pos != -1:
                         # Insert the detection code at the appropriate position
                         template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                        print(f"Added station detection code for {component_type} to PowerShell script")
+                        print(f"Added dynamic station detection code to PowerShell script")
                     else:
                         print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
                 
                 else:  # Linux
-                    component_type = "POS"  # Default
-                    # Try to determine component type from output filename
-                    output_filename_lower = output_filename.lower()
-                    if "pos" in output_filename_lower:
-                        component_type = "POS"
-                    elif "wdm" in output_filename_lower:
-                        component_type = "WDM"
-                    elif "flow" in output_filename_lower:
-                        component_type = "FLOW-SERVICE"
-                    elif "lpa" in output_filename_lower:
-                        component_type = "LPA-SERVICE"
-                    elif "storehub" in output_filename_lower:
-                        component_type = "STOREHUB-SERVICE"
-                    
-                    # Generate file detection code for this component
-                    station_detection_code = self.detection_manager.generate_detection_code(component_type, "bash")
+                    # Similar approach for Linux/Bash script
+                    station_detection_code = '''
+# File detection for the current component ($COMPONENT_TYPE)
+fileDetectionEnabled=true
+componentType="$COMPONENT_TYPE"
+basePath="{base_dir}"
+declare -A customFilenames
+customFilenames["POS"]="{pos_filename}"
+customFilenames["WDM"]="{wdm_filename}"
+customFilenames["FLOW-SERVICE"]="{flow_filename}"
+customFilenames["LPA-SERVICE"]="{lpa_filename}"
+customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
+
+# Get the appropriate station file for the current component
+stationFileName="${{customFilenames[$componentType]}}"
+if [ -z "$stationFileName" ]; then
+    stationFileName="$componentType.station"
+fi
+
+stationFilePath="$basePath/$stationFileName"
+
+# Check if hostname detection failed and file detection is enabled
+if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
+    echo "Trying file detection for $componentType using $stationFilePath"
+    
+    if [ -f "$stationFilePath" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [[ "$line" =~ StoreID=(.+) ]]; then
+                storeNumber="${{BASH_REMATCH[1]}}"
+                echo "Found Store ID in file: $storeNumber"
+            fi
+            
+            if [[ "$line" =~ WorkstationID=(.+) ]]; then
+                workstationId="${{BASH_REMATCH[1]}}"
+                echo "Found Workstation ID in file: $workstationId"
+            fi
+        done < "$stationFilePath"
+        
+        # Validate extracted values
+        if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]{{3}}$ ]]; then
+            # Export the variable to ensure it's available in the parent scope
+            export hostnameDetected=true
+            echo "Successfully detected values from file:"
+            echo "Store Number: $storeNumber"
+            echo "Workstation ID: $workstationId"
+        fi
+    else
+        echo "Station file not found at: $stationFilePath"
+    fi
+fi
+'''.format(
+    base_dir=self.detection_manager.get_base_directory(),
+    pos_filename=self.detection_manager.get_custom_filename("POS"),
+    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
+    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
+    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE")
+)
                     
                     # Find where to insert the file detection code
                     if not use_hostname_detection:
@@ -651,7 +741,7 @@ done
                     if insert_pos != -1:
                         # Insert the detection code at the appropriate position
                         template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                        print(f"Added station detection code for {component_type} to Bash script")
+                        print(f"Added dynamic station detection code to Bash script")
                     else:
                         print(f"Warning: Could not find insertion point for station detection code in Bash script")
 
