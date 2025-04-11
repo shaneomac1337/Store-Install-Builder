@@ -791,132 +791,15 @@ fi
             "launcher.storehub-service.template": storehub_service_settings
         }
         
-        # Check if we have template files in the source directory
-        source_launchers_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "helper", "launchers")
-        
-        # Make sure the source directory exists
-        if not os.path.exists(source_launchers_dir):
-            print(f"Source launchers directory not found: {source_launchers_dir}")
-            # Create the source directory
-            os.makedirs(source_launchers_dir, exist_ok=True)
-            
-            # Create default templates in the source directory
-            self._create_default_templates(source_launchers_dir)
-        
-        # Process each template file
+        # We'll use templates directly from code instead of trying to find them on disk
+        # This avoids path resolution issues when packaged as executable
         for filename, settings in template_files.items():
-            # Check if the template exists in the source directory
-            source_path = os.path.join(source_launchers_dir, filename)
-            if not os.path.exists(source_path):
-                print(f"Template file not found in source directory: {source_path}")
-                # Create default template in the source directory
-                self._create_default_template(source_launchers_dir, filename)
+            # Create template content directly
+            template_path = os.path.join(launchers_dir, filename)
             
-            # Read the template from the source directory
-            try:
-                with open(source_path, 'r') as f:
-                    template_content = f.read()
-                print(f"Loaded template from source: {filename}")
-            except Exception as e:
-                print(f"Error loading template from source {filename}: {str(e)}")
-                continue
-            
-            # Create a copy of the template content to modify if needed
-            modified_template = template_content
-            
-            # Get Firebird server path from config for direct replacement
-            firebird_server_path = config.get("firebird_server_path", "")
-            # Get the platform from config
-            platform_type = config.get("platform", "Windows")
-            
-            if filename == "launcher.storehub-service.template":
-                # Only replace if we have a value, otherwise leave the placeholder
-                if firebird_server_path:
-                    # Ensure the path is properly formatted for Linux
-                    if platform_type.lower() == "linux" and firebird_server_path:
-                        # Start with a completely clean approach
-                        # First, extract just the path parts we need
-                        path_parts = []
-                        
-                        # Split by slashes and process each part
-                        for part in firebird_server_path.replace('\\', '/').split('/'):
-                            if part and part != "firebird":
-                                path_parts.append(part)
-                        
-                        # For Linux, we want a path like /opt/firebird
-                        # Ensure 'opt' is in the path
-                        if 'opt' not in path_parts:
-                            path_parts = ['opt'] + path_parts
-                        
-                        # Build the path with a leading slash and no trailing slash
-                        firebird_server_path = "/" + "/".join(path_parts)
-                        
-                        # Finally, ensure it ends with /firebird
-                        if not firebird_server_path.endswith('/firebird'):
-                            firebird_server_path = firebird_server_path.rstrip('/') + '/firebird'
-                        
-                        print(f"Normalized Firebird path for Linux: {firebird_server_path}")
-                    
-                    print(f"Replacing @FIREBIRD_SERVER_PATH@ with {firebird_server_path} in {filename}")
-                    modified_template = modified_template.replace("@FIREBIRD_SERVER_PATH@", firebird_server_path)
-                else:
-                    print(f"Warning: firebird_server_path is empty, leaving placeholder in {filename}")
-            
-            # Only apply settings if there are any
-            if settings:
-                # Update the template with the settings
-                lines = modified_template.strip().split('\n')
-                new_lines = []
-                
-                for line in lines:
-                    if line.startswith('#') or not line.strip():
-                        new_lines.append(line)
-                        continue
-                    
-                    if '=' in line:
-                        key, value = line.split('=', 1)
-                        key = key.strip()
-                        
-                        # If this key has a setting
-                        if key in settings:
-                            # Update the value
-                            new_value = settings[key]
-                            print(f"Setting {key} to {new_value} in {filename}")
-                            new_lines.append(f"{key}={new_value}")
-                        else:
-                            # Keep the line as is
-                            new_lines.append(line)
-                    else:
-                        # Keep the line as is
-                        new_lines.append(line)
-                
-                modified_template = '\n'.join(new_lines)
-            else:
-                print(f"No settings to apply for {filename}, using default template")
-            
-            # Write the template to the output file
-            output_path = os.path.join(launchers_dir, filename)
-            try:
-                with open(output_path, 'w') as f:
-                    f.write(modified_template)
-                print(f"Generated launcher template: {filename}")
-            except Exception as e:
-                print(f"Error generating launcher template {filename}: {str(e)}")
-    
-    def _create_default_templates(self, launchers_dir):
-        """Create default templates in the source directory"""
-        self._create_default_template(launchers_dir, "launcher.pos.template")
-        self._create_default_template(launchers_dir, "launcher.wdm.template")
-        self._create_default_template(launchers_dir, "launcher.flow-service.template")
-        self._create_default_template(launchers_dir, "launcher.lpa-service.template")
-        self._create_default_template(launchers_dir, "launcher.storehub-service.template")
-
-    def _create_default_template(self, launchers_dir, filename):
-        """Create a default template in the source directory"""
-        template_content = ""
-        
-        if filename == "launcher.pos.template":
-            template_content = """# Launcher defaults for POS
+            # Start with the default template content
+            if filename == "launcher.pos.template":
+                template_content = """# Launcher defaults for POS
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationJmxPort=
@@ -930,8 +813,8 @@ jre_package_local=@JRE_PACKAGE@
 installer_package_local=@INSTALLER_PACKAGE@
 hardware_package_local=
 """
-        elif filename == "launcher.wdm.template":
-            template_content = """# Launcher defaults for WDM
+            elif filename == "launcher.wdm.template":
+                template_content = """# Launcher defaults for WDM
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationServerHttpPort=8080
@@ -950,8 +833,8 @@ installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
-        elif filename == "launcher.flow-service.template":
-            template_content = """# Launcher defaults for Flow Service
+            elif filename == "launcher.flow-service.template":
+                template_content = """# Launcher defaults for Flow Service
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationServerHttpPort=8180
@@ -970,8 +853,8 @@ installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
-        elif filename == "launcher.lpa-service.template":
-            template_content = """# Launcher defaults for LPA Service
+            elif filename == "launcher.lpa-service.template":
+                template_content = """# Launcher defaults for LPA Service
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationServerHttpPort=8180
@@ -990,8 +873,8 @@ installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
-        elif filename == "launcher.storehub-service.template":
-            template_content = """# Launcher defaults for StoreHub Service
+            elif filename == "launcher.storehub-service.template":
+                template_content = """# Launcher defaults for StoreHub Service
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationServerHttpPort=8180
@@ -1016,15 +899,82 @@ installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
-        
-        # Write the template to the file
-        file_path = os.path.join(launchers_dir, filename)
-        try:
-            with open(file_path, 'w') as f:
-                f.write(template_content)
-            print(f"Created default template: {filename}")
-        except Exception as e:
-            print(f"Error creating default template {filename}: {str(e)}")
+            
+            # Now apply settings and save the file
+            # Get Firebird server path from config for direct replacement
+            firebird_server_path = config.get("firebird_server_path", "")
+            # Get the platform from config
+            platform_type = config.get("platform", "Windows")
+            
+            # Process specific replacements for StoreHub Service
+            if filename == "launcher.storehub-service.template" and firebird_server_path:
+                # Ensure the path is properly formatted for Linux
+                if platform_type.lower() == "linux":
+                    # Start with a completely clean approach
+                    # First, extract just the path parts we need
+                    path_parts = []
+                    
+                    # Split by slashes and process each part
+                    for part in firebird_server_path.replace('\\', '/').split('/'):
+                        if part and part != "firebird":
+                            path_parts.append(part)
+                    
+                    # For Linux, we want a path like /opt/firebird
+                    # Ensure 'opt' is in the path
+                    if 'opt' not in path_parts:
+                        path_parts = ['opt'] + path_parts
+                    
+                    # Build the path with a leading slash and no trailing slash
+                    firebird_server_path = "/" + "/".join(path_parts)
+                    
+                    # Finally, ensure it ends with /firebird
+                    if not firebird_server_path.endswith('/firebird'):
+                        firebird_server_path = firebird_server_path.rstrip('/') + '/firebird'
+                    
+                    print(f"Normalized Firebird path for Linux: {firebird_server_path}")
+                
+                print(f"Replacing @FIREBIRD_SERVER_PATH@ with {firebird_server_path} in {filename}")
+                template_content = template_content.replace("@FIREBIRD_SERVER_PATH@", firebird_server_path)
+            
+            # Only apply settings if there are any
+            if settings:
+                # Update the template with the settings
+                lines = template_content.strip().split('\n')
+                new_lines = []
+                
+                for line in lines:
+                    if line.startswith('#') or not line.strip():
+                        new_lines.append(line)
+                        continue
+                    
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        key = key.strip()
+                        
+                        # If this key has a setting
+                        if key in settings:
+                            # Update the value
+                            new_value = settings[key]
+                            print(f"Setting {key} to {new_value} in {filename}")
+                            new_lines.append(f"{key}={new_value}")
+                        else:
+                            # Keep the line as is
+                            new_lines.append(line)
+                    else:
+                        # Keep the line as is
+                        new_lines.append(line)
+                
+                template_content = '\n'.join(new_lines)
+            else:
+                print(f"No settings to apply for {filename}, using default template")
+            
+            # Write the template to the output file
+            try:
+                with open(template_path, 'w') as f:
+                    f.write(template_content)
+                print(f"Generated launcher template: {filename}")
+            except Exception as e:
+                print(f"Error generating launcher template {filename}: {str(e)}")
 
     def _generate_onboarding(self, output_dir, config):
         """Generate onboarding script with replaced values based on platform"""
@@ -3113,3 +3063,126 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             messagebox.showinfo(title, message)
         else:
             print(f"\n{title}: {message}")
+
+    def _create_default_templates(self, launchers_dir):
+        """Create default templates in the source directory"""
+        self._create_default_template(launchers_dir, "launcher.pos.template")
+        self._create_default_template(launchers_dir, "launcher.wdm.template")
+        self._create_default_template(launchers_dir, "launcher.flow-service.template")
+        self._create_default_template(launchers_dir, "launcher.lpa-service.template")
+        self._create_default_template(launchers_dir, "launcher.storehub-service.template")
+
+    def _create_default_template(self, launchers_dir, filename):
+        """Create a default template in the source directory"""
+        template_content = ""
+        
+        if filename == "launcher.pos.template":
+            template_content = """# Launcher defaults for POS
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationJmxPort=
+updaterJmxPort=
+createShortcuts=0
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+hardware_package_local=
+"""
+        elif filename == "launcher.wdm.template":
+            template_content = """# Launcher defaults for WDM
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8080
+applicationServerHttpsPort=8443
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.flow-service.template":
+            template_content = """# Launcher defaults for Flow Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.lpa-service.template":
+            template_content = """# Launcher defaults for LPA Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        elif filename == "launcher.storehub-service.template":
+            template_content = """# Launcher defaults for StoreHub Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+applicationJmsPort=7001
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+firebirdServerPath=@FIREBIRD_SERVER_PATH@
+firebird_driver_path_local=@FIREBIRD_DRIVER_PATH_LOCAL@
+firebirdServerPort=3050
+firebirdServerUser=SYSDBA
+firebirdServerPassword=masterkey
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+        
+        # Write the template to the file
+        file_path = os.path.join(launchers_dir, filename)
+        try:
+            with open(file_path, 'w') as f:
+                f.write(template_content)
+            print(f"Created default template: {filename}")
+        except Exception as e:
+            print(f"Error creating default template {filename}: {str(e)}")
