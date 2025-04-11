@@ -105,7 +105,7 @@ class ConfigManager:
         
         return {
             # Project Configuration
-            "project_name": "My Store Project",
+            "project_name": "My GK Project",
             "base_url": "example.cloud4retail.co",
             "version": "v1.0.0",
             
