@@ -1700,14 +1700,6 @@ class GKInstallBuilder:
         )
         edit_launchers_button.pack(side="left", padx=10)
         
-        # Create KeePass button
-        self.keepass_button = ctk.CTkButton(
-            button_frame,
-            text="Connect to KeePass",
-            command=self.get_basic_auth_password_from_keepass
-        )
-        self.keepass_button.pack(side="left", padx=10)
-        
         # Create button to open offline package creator
         offline_button = ctk.CTkButton(
             button_frame,
@@ -1723,9 +1715,6 @@ class GKInstallBuilder:
             command=self.generate_installation_files
         )
         generate_button.pack(side="right", padx=10)
-        
-        # Update KeePass button state
-        self.update_keepass_button()
     
     def show_author_info(self):
         """Display author information in a professional dialog"""
