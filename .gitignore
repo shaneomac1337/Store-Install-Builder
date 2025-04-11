@@ -128,3 +128,24 @@ My Store Project/dev.cse.cloud4retail.co/helper/init/storehub/update_config_proc
 My Store Project/dev.cse.cloud4retail.co/helper/init/storehub/update_config_processed.json
 My Store Project/dev.cse.cloud4retail.co/offline_package_WDM/Launcher.exe
 My Store Project/dev.cse.cloud4retail.co/offline_package_WDM/wdm-installer-cloud-1.1.0-b01.jar
+gk_install_builder/__pycache__/detection.cpython-313.pyc
+My Store Project/test.cse.cloud4retail.co/GKInstall.ps1
+My Store Project/test.cse.cloud4retail.co/onboarding.ps1
+My Store Project/test.cse.cloud4retail.co/store-initialization.ps1
+My Store Project/test.cse.cloud4retail.co/helper/init/get_store.json
+My Store Project/test.cse.cloud4retail.co/helper/init/storehub/update_config.json
+My Store Project/test.cse.cloud4retail.co/helper/launchers/launcher.flow-service.template
+My Store Project/test.cse.cloud4retail.co/helper/launchers/launcher.lpa-service.template
+My Store Project/test.cse.cloud4retail.co/helper/launchers/launcher.pos.template
+My Store Project/test.cse.cloud4retail.co/helper/launchers/launcher.storehub-service.template
+My Store Project/test.cse.cloud4retail.co/helper/launchers/launcher.wdm.template
+My Store Project/test.cse.cloud4retail.co/helper/onboarding/flow-service.onboarding.json
+My Store Project/test.cse.cloud4retail.co/helper/onboarding/lpa-service.onboarding.json
+My Store Project/test.cse.cloud4retail.co/helper/onboarding/pos.onboarding.json
+My Store Project/test.cse.cloud4retail.co/helper/onboarding/storehub-service.onboarding.json
+My Store Project/test.cse.cloud4retail.co/helper/onboarding/wdm.onboarding.json
+My Store Project/test.cse.cloud4retail.co/helper/storehub/update_config.json
+My Store Project/test.cse.cloud4retail.co/helper/structure/create_structure.json
+My Store Project/test.cse.cloud4retail.co/helper/tokens/access_token.txt
+My Store Project/test.cse.cloud4retail.co/helper/tokens/basic_auth_password.txt
+My Store Project/test.cse.cloud4retail.co/helper/tokens/form_password.txt
