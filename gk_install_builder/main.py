@@ -511,7 +511,7 @@ class GKInstallBuilder:
         # Version label with customtkinter styling
         version_label = ctk.CTkLabel(
             info_frame,
-            text="v1.1.0",
+            text="v5.25",
             font=("Helvetica", 12),
             text_color=("gray50", "gray70")
         )
@@ -1727,7 +1727,7 @@ class GKInstallBuilder:
         generate_button.pack(side="right", padx=10)
     
     def show_author_info(self):
-        """Display author information in a professional dialog"""
+        """Display author information in a dialog"""
         # Create a new toplevel window
         author_window = ctk.CTkToplevel(self.root)
         author_window.title("About")
@@ -1810,7 +1810,7 @@ class GKInstallBuilder:
         # Version
         version_label = ctk.CTkLabel(
             content_frame,
-            text="Version 1.1.0",
+            text="Version 5.25",
             font=("Helvetica", 12),
             text_color=("gray50", "gray70")
         )
@@ -1822,7 +1822,7 @@ class GKInstallBuilder:
         
         copyright_label = ctk.CTkLabel(
             copyright_frame,
-            text="© 2025 Martin Pěnkava",
+            text="© Created in 2025 by Martin Pěnkava",
             font=("Helvetica", 12),
             text_color=("gray50", "gray70")
         )
@@ -1841,7 +1841,7 @@ class GKInstallBuilder:
         # Description
         description_label = ctk.CTkLabel(
             content_frame,
-            text="A professional tool for building store installation packages for retail systems.",
+            text="GK Automation tool for creating installation packages for retail systems.",
             font=("Helvetica", 12),
             wraplength=350,
             justify="center"
@@ -3994,7 +3994,7 @@ class OfflinePackageCreator:
         # Title
         title_label = ctk.CTkLabel(
             title_frame,
-            text="WebDAV Browser",
+            text="DSG WebDAV Browser",
             font=("Helvetica", 16, "bold"),
             text_color="#4D90FE"  # Professional blue color
         )
@@ -4053,12 +4053,29 @@ class OfflinePackageCreator:
         password_label = ctk.CTkLabel(password_frame, text="Password:", width=75)
         password_label.pack(side="left", padx=2)
         
+        # Create a flag to track password visibility state
+        self.password_visible = False
+        
+        # Password entry
         self.webdav_password = ctk.CTkEntry(auth_frame, width=120, show="•", corner_radius=6)
         self.webdav_password.pack(side="left", padx=5)
         
         # Load saved password
         if self.config_manager.config.get("webdav_password"):
             self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
+        
+        # Add show/hide password button
+        self.password_toggle_btn = ctk.CTkButton(
+            auth_frame,
+            text="👁️",
+            width=35,
+            height=28,
+            corner_radius=6,
+            fg_color="#3D4D65",
+            hover_color="#4D5D75",
+            command=self.toggle_password_visibility
+        )
+        self.password_toggle_btn.pack(side="left", padx=(0, 5))
         
         # KeePass button with improved styling
         keepass_btn = ctk.CTkButton(
@@ -4444,6 +4461,19 @@ class OfflinePackageCreator:
         """Handle clicking on an item in the directory listing"""
         if is_directory:
             self.enter_directory(name)
+
+    def toggle_password_visibility(self):
+        """Toggle password visibility between shown and hidden"""
+        if self.password_visible:
+            # Hide the password
+            self.webdav_password.configure(show="•")
+            self.password_toggle_btn.configure(text="👁️")
+            self.password_visible = False
+        else:
+            # Show the password
+            self.webdav_password.configure(show="")
+            self.password_toggle_btn.configure(text="🔒")
+            self.password_visible = True
 
 def main():
     app = GKInstallBuilder()
