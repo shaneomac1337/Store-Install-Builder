@@ -1,0 +1,10 @@
+# Store Install Builder Requirements
+requests
+customtkinter
+webdavclient3
+urllib3
+# Additional dependencies
+setuptools
+wheel
+pyinstaller
+pillow  # Likely needed for customtkinter 
