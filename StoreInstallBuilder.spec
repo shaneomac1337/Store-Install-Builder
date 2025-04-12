@@ -11,7 +11,17 @@ a = Analysis(
         ('helper', 'helper'),
         ('gk_install_builder/assets', 'assets')
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        'PIL._tkinter_finder',
+        'PIL._imagingtk',
+        'PIL._tkinter_finder',
+        'customtkinter',
+        'webdavclient3',
+        'tkinter',
+        'tkinter.filedialog',
+        'tkinter.messagebox',
+        'tkinter.ttk'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
