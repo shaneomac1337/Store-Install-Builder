@@ -3170,10 +3170,12 @@ class GKInstallBuilder:
             default_dir = "C:\\gkretail"
             firebird_path = "C:\\Program Files\\Firebird\\Firebird_3_0"
             jaybird_driver_path = "C:\\gkretail\\Jaybird"
+            default_detection_dir = "C:\\gkretail\\stations"  # Add default detection directory
         else:  # Linux
             default_dir = "/usr/local/gkretail"
             firebird_path = "/opt/firebird"
             jaybird_driver_path = "/usr/local/gkretail/Jaybird"
+            default_detection_dir = "/usr/local/gkretail/stations"  # Add default detection directory
         
         # Update config values first
         self.config_manager.config["base_install_dir"] = default_dir
@@ -3202,6 +3204,26 @@ class GKInstallBuilder:
         self.config_manager.update_entry_value("firebird_driver_path_local", jaybird_driver_path)
         
         print(f"Platform changed to {platform}, updated base_install_dir to {default_dir}, firebird_server_path to {firebird_path}, and firebird_driver_path_local to {jaybird_driver_path}")
+        
+        # UPDATE DETECTION SETTINGS: If detection config exists, update the base directory
+        if "detection_config" in self.config_manager.config:
+            # Get the current detection config
+            detection_config = self.config_manager.config["detection_config"]
+            
+            # Update the base directory in detection_config
+            if detection_config.get("use_base_directory", True):
+                detection_config["base_directory"] = default_detection_dir
+                print(f"Updated detection base directory to: {default_detection_dir}")
+                
+                # Update detection manager with the new config
+                self.detection_manager.set_config(detection_config)
+                
+                # If detection settings window is open, update its UI
+                if hasattr(self, 'detection_window') and self.detection_window is not None and self.detection_window.winfo_exists():
+                    # Update base directory entry if it exists
+                    if hasattr(self, 'base_dir_entry') and self.base_dir_entry.winfo_exists():
+                        self.base_dir_entry.delete(0, 'end')
+                        self.base_dir_entry.insert(0, default_detection_dir)
         
         # Update config
         self.config_manager.config["platform"] = platform

@@ -543,48 +543,53 @@ try {
     Write-Host "$ComponentType onboarding completed successfully"
 
     # Execute store initialization right after successful onboarding
-    Write-Host "Starting store initialization..."
-    $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
-    if (Test-Path $storeInitScript) {
-        try {
-            # Update get_store.json with the store ID
-            $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
-            if (Test-Path $getStoreJsonPath) {
-                Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
-                # Create directory if it doesn't exist
-                $initPath = Join-Path $PSScriptRoot "helper\init"
-                if (-Not (Test-Path $initPath)) {
-                    New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+    # Skip store initialization for WDM
+    if ($ComponentType -ne 'WDM') {
+        Write-Host "Starting store initialization..."
+        $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
+        if (Test-Path $storeInitScript) {
+            try {
+                # Update get_store.json with the store ID
+                $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
+                if (Test-Path $getStoreJsonPath) {
+                    Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
+                    # Create directory if it doesn't exist
+                    $initPath = Join-Path $PSScriptRoot "helper\init"
+                    if (-Not (Test-Path $initPath)) {
+                        New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+                    }
+                    # Create processed copy
+                    $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
+                    # Read the original file
+                    $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
+                    # Replace the placeholder in memory
+                    $processedGetStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
+                    # Save to the processed file
+                    Set-Content -Path $processedGetStorePath -Value $processedGetStoreJson
+                    Write-Host "get_store_processed.json created successfully"
+                } else {
+                    Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
                 }
-                # Create processed copy
-                $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
-                # Read the original file
-                $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
-                # Replace the placeholder in memory
-                $processedGetStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
-                # Save to the processed file
-                Set-Content -Path $processedGetStorePath -Value $processedGetStoreJson
-                Write-Host "get_store_processed.json created successfully"
-            } else {
-                Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
+                
+                # Pass the values collected from hostname or user input
+                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "Store initialization completed successfully"
+                } else {
+                    Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                    exit 1
+                }
             }
-            
-            # Pass the values collected from hostname or user input
-            & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
-            if ($LASTEXITCODE -eq 0) {
-                Write-Host "Store initialization completed successfully"
-            } else {
-                Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+            catch {
+                Write-Host "Error during store initialization: $_"
                 exit 1
             }
-        }
-        catch {
-            Write-Host "Error during store initialization: $_"
+        } else {
+            Write-Host "Error: Store initialization script not found at: $storeInitScript"
             exit 1
         }
     } else {
-        Write-Host "Error: Store initialization script not found at: $storeInitScript"
-        exit 1
+        Write-Host "Skipping store initialization for WDM component"
     }
 }
 catch {

@@ -647,35 +647,40 @@ fi
 echo "$COMPONENT_TYPE onboarding completed successfully"
 
 # Execute store initialization right after successful onboarding
-echo "Starting store initialization..."
-store_init_script="$PWD/store-initialization.sh"
-if [ -f "$store_init_script" ]; then
-  # Update get_store.json with the store ID
-  get_store_json_path="$PWD/helper/init/get_store.json"
-  if [ -f "$get_store_json_path" ]; then
-    echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
-    # Create a processed directory if it doesn't exist
-    mkdir -p "$PWD/helper/init"
-    # Create a processed copy
-    processed_get_store_path="$PWD/helper/init/get_store_processed.json"
-    # Copy the original to processed file
-    cp "$get_store_json_path" "$processed_get_store_path"
-    # Use sed to replace the placeholder with the actual store number in the processed copy
-    sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
-    echo "get_store_processed.json created successfully"
+# Skip store initialization for WDM
+if [ "$COMPONENT_TYPE" != "WDM" ]; then
+  echo "Starting store initialization..."
+  store_init_script="$PWD/store-initialization.sh"
+  if [ -f "$store_init_script" ]; then
+    # Update get_store.json with the store ID
+    get_store_json_path="$PWD/helper/init/get_store.json"
+    if [ -f "$get_store_json_path" ]; then
+      echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
+      # Create a processed directory if it doesn't exist
+      mkdir -p "$PWD/helper/init"
+      # Create a processed copy
+      processed_get_store_path="$PWD/helper/init/get_store_processed.json"
+      # Copy the original to processed file
+      cp "$get_store_json_path" "$processed_get_store_path"
+      # Use sed to replace the placeholder with the actual store number in the processed copy
+      sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
+      echo "get_store_processed.json created successfully"
+    else
+      echo "Warning: get_store.json not found at: $get_store_json_path"
+    fi
+    
+    # Call the store initialization script
+    if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
+      echo "Error during store initialization"
+      exit 1
+    fi
+    echo "Store initialization completed successfully"
   else
-    echo "Warning: get_store.json not found at: $get_store_json_path"
-  fi
-  
-  # Call the store initialization script
-  if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
-    echo "Error during store initialization"
+    echo "Error: Store initialization script not found at: $store_init_script"
     exit 1
   fi
-  echo "Store initialization completed successfully"
 else
-  echo "Error: Store initialization script not found at: $store_init_script"
-  exit 1
+  echo "Skipping store initialization for WDM component"
 fi
 
 # Read onboarding token
