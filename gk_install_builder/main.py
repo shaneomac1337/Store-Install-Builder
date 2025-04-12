@@ -14,6 +14,119 @@ from detection import DetectionManager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pleasant_password_client import PleasantPasswordClient
 
+def bind_mousewheel_to_frame(frame):
+    """
+    Bind mousewheel events to a frame to enable scrolling in Linux.
+    
+    Args:
+        frame: The frame to add scrolling to (must be a CTkScrollableFrame)
+    """
+    # Skip if not a CTkScrollableFrame
+    if not hasattr(frame, '_parent_canvas'):
+        return
+    
+    # For Linux, we need special handling for Button-4 and Button-5 events
+    if sys.platform.startswith('linux'):
+        # Find the root window that contains this frame
+        root = frame.winfo_toplevel()
+        
+        # Create a unique tag for this frame to avoid conflicts between windows
+        frame_id = str(id(frame))
+        scroll_tag = f"scroll_{frame_id}"
+        
+        # Function for scrolling up
+        def _on_mousewheel_up(event):
+            # Get the window under the cursor
+            widget_under_cursor = event.widget.winfo_containing(event.x_root, event.y_root)
+            
+            # Check if the widget is in the same window hierarchy as our frame
+            current_widget = widget_under_cursor
+            while current_widget:
+                if current_widget == frame or current_widget == frame._parent_canvas:
+                    frame._parent_canvas.yview_scroll(-1, "units")
+                    return "break"
+                current_widget = current_widget.master
+            
+            # If we're not in the right window, don't handle the event
+            return
+        
+        # Function for scrolling down
+        def _on_mousewheel_down(event):
+            # Get the window under the cursor
+            widget_under_cursor = event.widget.winfo_containing(event.x_root, event.y_root)
+            
+            # Check if the widget is in the same window hierarchy as our frame
+            current_widget = widget_under_cursor
+            while current_widget:
+                if current_widget == frame or current_widget == frame._parent_canvas:
+                    frame._parent_canvas.yview_scroll(1, "units")
+                    return "break"
+                current_widget = current_widget.master
+            
+            # If we're not in the right window, don't handle the event
+            return
+        
+        # Store event handlers
+        if not hasattr(frame, '_scroll_handlers'):
+            frame._scroll_handlers = {}
+        frame._scroll_handlers[scroll_tag] = (_on_mousewheel_up, _on_mousewheel_down)
+        
+        # Bind to the toplevel window containing this frame, but not globally
+        root.bind("<Button-4>", _on_mousewheel_up, add="+")
+        root.bind("<Button-5>", _on_mousewheel_down, add="+")
+        
+        # Create cleanup function to remove bindings when window is destroyed
+        def _cleanup_bindings():
+            if hasattr(root, "bind"):  # Check if root still exists
+                try:
+                    root.unbind("<Button-4>", _on_mousewheel_up)
+                    root.unbind("<Button-5>", _on_mousewheel_down)
+                except:
+                    pass
+                
+        # Bind cleanup to window destruction
+        root.bind("<Destroy>", lambda e: _cleanup_bindings(), add="+")
+    else:
+        # Windows and macOS use MouseWheel event
+        def _on_mousewheel(event):
+            # Get the window under the cursor
+            widget_under_cursor = event.widget.winfo_containing(event.x_root, event.y_root)
+            
+            # Check if the widget is in the same window hierarchy as our frame
+            current_widget = widget_under_cursor
+            while current_widget:
+                if current_widget == frame or current_widget == frame._parent_canvas:
+                    frame._parent_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                    return "break"
+                current_widget = current_widget.master
+            
+            # If we're not in the right window, don't handle the event
+            return
+        
+        # Store event handler
+        frame_id = str(id(frame))
+        scroll_tag = f"scroll_{frame_id}"
+        if not hasattr(frame, '_scroll_handlers'):
+            frame._scroll_handlers = {}
+        frame._scroll_handlers[scroll_tag] = _on_mousewheel
+        
+        # Find the root window that contains this frame
+        root = frame.winfo_toplevel()
+        
+        # Bind to the toplevel window
+        root.bind("<MouseWheel>", _on_mousewheel, add="+")
+        
+        # Create cleanup function
+        def _cleanup_bindings():
+            if hasattr(root, "bind"):  # Check if root still exists
+                try:
+                    root.unbind("<MouseWheel>", _on_mousewheel)
+                except:
+                    pass
+                
+        # Bind cleanup to window destruction
+        root.bind("<Destroy>", lambda e: _cleanup_bindings(), add="+")
+
 class LauncherSettingsEditor:
     def __init__(self, parent, config_manager, project_generator):
         self.parent = parent
@@ -114,6 +227,9 @@ class LauncherSettingsEditor:
             # Create a scrollable frame for settings using CTkScrollableFrame
             scrollable_settings = ctk.CTkScrollableFrame(settings_frame)
             scrollable_settings.pack(fill="both", expand=True, padx=5, pady=5)
+            
+            # Apply mousewheel binding for Linux scrolling
+            bind_mousewheel_to_frame(scrollable_settings)
             
             # Create entries for each setting
             row = 0
@@ -488,6 +604,9 @@ class GKInstallBuilder:
         # Create main container with scrollbar
         self.main_frame = ctk.CTkScrollableFrame(self.root, width=900, height=700)
         self.main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(self.main_frame)
         
         # Add version/info label at the top right of the main frame
         info_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
@@ -1752,8 +1871,11 @@ class GKInstallBuilder:
         author_window.focus_force()
         
         # Main content frame
-        content_frame = ctk.CTkFrame(author_window)
+        content_frame = ctk.CTkScrollableFrame(author_window)
         content_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(content_frame)
         
         # Force another update to ensure contents are displayed
         author_window.after(100, author_window.update_idletasks)
@@ -3325,6 +3447,9 @@ class GKInstallBuilder:
         main_frame = ctk.CTkScrollableFrame(self.detection_window)
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(main_frame)
+        
         # Title and description
         ctk.CTkLabel(
             main_frame, 
@@ -3685,6 +3810,9 @@ class OfflinePackageCreator:
         # Create main frame with scrollbar
         self.main_frame = ctk.CTkScrollableFrame(self.window)
         self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(self.main_frame)
         
         # Create WebDAV browser
         self.create_webdav_browser()
