@@ -543,8 +543,8 @@ class GKInstallBuilder:
         
         # Field tooltips
         tooltips = {
-            "Project Name": "Name of your store project (e.g., 'Coop Sweden')",
-            "Base URL": "Base URL for the cloud retail environment (e.g., 'test.cse.cloud4retail.co')",
+            "Project Name": "Name of your project (e.g., 'Coop Sweden')",
+            "Base URL": "Base URL for the cloud4retail environment (e.g., 'test.cse.cloud4retail.co')",
             "Version": "Version number of the installation (e.g., 'v1.2.0')",
         }
         
@@ -721,6 +721,9 @@ class GKInstallBuilder:
                 "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail' for Windows or '/usr/local/gkretail' for Linux)",
                 "Tenant ID": "Tenant identifier for multi-tenant environments (e.g., '001')",
                 "POS System Type": "Type of Point of Sale system (e.g., 'CSE-OPOS-CLOUD')",
+                "Flow Service System Type": "Type of Flow Service (e.g., 'CSE-FlowService')",
+                "LPA Service System Type": "Type of LPA Service (e.g., 'CSE-LPA-Service')",
+                "StoreHub Service System Type": "Type of StoreHub Service (e.g., 'CSE-StoreHub-Service')",
                 "WDM System Type": "Type of Wall Device Manager (e.g., 'CSE-wdm')",
                 "Firebird Server Path": "Path to the Firebird server (e.g., '/opt/firebird')",
             }
@@ -1073,7 +1076,7 @@ class GKInstallBuilder:
             ctk.CTkLabel(
                 field_frame,
                 text=field + ":",
-                width=200
+                width=150
             ).pack(side="left")
             
             # Convert field name to config key
@@ -1085,7 +1088,7 @@ class GKInstallBuilder:
                 entry, _ = self.create_password_field(field_frame, field, config_key)
             elif field == "Auth Service BA User":
                 # Create a read-only entry with fixed value "launchpad"
-                entry = ctk.CTkEntry(field_frame, width=400)
+                entry = ctk.CTkEntry(field_frame, width=300)  # Changed width from 200 to 300
                 entry.pack(side="left", padx=5)
                 entry.insert(0, "launchpad")
                 entry.configure(state="readonly")  # Make it read-only
@@ -1099,8 +1102,8 @@ class GKInstallBuilder:
                 # Add tooltip to explain that this field is read-only
                 self.create_tooltip(entry, "This field is read-only. 'launchpad' is the only supported value.")
             else:
-                # Create regular entry
-                entry = ctk.CTkEntry(field_frame, width=400)
+                # Create regular entry with consistent width
+                entry = ctk.CTkEntry(field_frame, width=300)  # Changed width from 200 to 300
                 entry.pack(side="left", padx=5)
                 
                 # Load saved value if exists
@@ -1211,9 +1214,13 @@ class GKInstallBuilder:
     
     def create_password_field(self, parent_frame, field, config_key):
         """Create a password field with integrated show/hide toggle"""
-        # Create the password entry with show=* for masking
-        entry = ctk.CTkEntry(parent_frame, width=400, show="*")
-        entry.pack(side="left", padx=10)
+        # Create a container frame to hold both entry and button
+        container_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
+        container_frame.pack(side="left", padx=10, fill="x", expand=False)
+        
+        # Create the password entry with show=* for masking (reduced width)
+        entry = ctk.CTkEntry(container_frame, width=300, show="*")  # Changed width from 200 to 300
+        entry.pack(side="left", fill="x", expand=False)
         
         # Load saved value if exists
         if config_key in self.config_manager.config:
@@ -1222,20 +1229,23 @@ class GKInstallBuilder:
         # Initialize visibility state for this field
         self.password_visible[field] = False
         
-        # Create toggle button that appears inside the entry field
+        # Button container to ensure consistent spacing and alignment
+        button_container = ctk.CTkFrame(container_frame, fg_color="transparent")
+        button_container.pack(side="left", padx=(2, 0))
+        
+        # Create toggle button with better appearance
         toggle_btn = ctk.CTkButton(
-            parent_frame,
-            text="👁️",  # Eye icon
-            width=25,
-            height=25,
-            corner_radius=0,
-            fg_color="transparent",
-            hover_color="#CCCCCC",
+            button_container,
+            text="👁",  # Use smaller eye icon
+            width=28,
+            height=28,
+            corner_radius=5,
+            fg_color="#2B2B2B",  # Dark background matching theme
+            hover_color="#3E3E3E",  # Slightly lighter on hover
+            border_width=0,
             command=lambda e=entry, f=field: self.toggle_password_visibility(e, f)
         )
-        
-        # Position the button at the right side of the entry field
-        toggle_btn.place(in_=entry, relx=0.95, rely=0.5, anchor="e")
+        toggle_btn.pack(side="left", padx=2)
         
         # Define a focus event handler to clear placeholder text
         def clear_placeholder(event):
@@ -1293,7 +1303,7 @@ class GKInstallBuilder:
             width=150
         ).pack(side="left", padx=10)
         
-        self.cert_path_entry = ctk.CTkEntry(cert_path_frame, width=300)
+        self.cert_path_entry = ctk.CTkEntry(cert_path_frame, width=300)  # Changed from 200 to 300
         self.cert_path_entry.pack(side="left", padx=10)
         
         # Load saved value if exists
@@ -1320,7 +1330,7 @@ class GKInstallBuilder:
             width=150
         ).pack(side="left", padx=10)
         
-        self.cert_common_name_entry = ctk.CTkEntry(cert_common_name_frame, width=300)
+        self.cert_common_name_entry = ctk.CTkEntry(cert_common_name_frame, width=300)  # Changed from 200 to 300
         self.cert_common_name_entry.pack(side="left", padx=10)
         
         # Load saved value if exists
@@ -1628,8 +1638,8 @@ class GKInstallBuilder:
         self.create_tooltip(label, "Directory where generated installation files will be saved (automatically set based on Project Name and Base URL)")
         
         # Allow the output directory to be edited
-        self.output_dir_entry = ctk.CTkEntry(frame, width=400)
-        self.output_dir_entry.pack(side="left", padx=10)
+        self.output_dir_entry = ctk.CTkEntry(frame, width=300)  # Changed from 200 to 300
+        self.output_dir_entry.pack(side="left", padx=10, expand=False)
         
         # Get the initial value from config or set a default
         initial_output_dir = self.config_manager.config.get("output_dir", "")
@@ -1954,6 +1964,10 @@ class GKInstallBuilder:
     
     def update_keepass_button(self):
         """Update the KeePass button state based on whether credentials are stored"""
+        # Skip if the keepass_button doesn't exist
+        if not hasattr(self, 'keepass_button') or not self.keepass_button:
+            return
+            
         if self.keepass_client and self.keepass_username and self.keepass_password:
             # We have credentials, show the disconnect button
             self.keepass_button.configure(
@@ -3100,8 +3114,9 @@ class GKInstallBuilder:
         GKInstallBuilder.keepass_username = None
         GKInstallBuilder.keepass_password = None
         
-        # Update the button state
-        self.update_keepass_button()
+        # Update the button state if button exists
+        if hasattr(self, 'keepass_button') and self.keepass_button:
+            self.update_keepass_button()
         
         messagebox.showinfo("KeePass Credentials", "KeePass credentials have been cleared.")
 
