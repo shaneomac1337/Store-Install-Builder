@@ -2824,6 +2824,18 @@ class GKInstallBuilder:
                         'path': current_path,
                         'reason': f'Contains BA-PASSWORD: {cred_name}'
                     })
+                    
+            # Fifth priority: entries with rare format LAUNCHPAD_OAUTH
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if cred_name == 'LAUNCHPAD_OAUTH':
+                    print(f"FOUND MATCH: Rare format LAUNCHPAD_OAUTH in {current_path}")
+                    found_entries.append({
+                        'priority': 4,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Rare format: LAUNCHPAD_OAUTH'
+                    })
             
             # Check children folders
             children = structure.get('Children', [])
