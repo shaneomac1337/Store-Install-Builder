@@ -96,7 +96,13 @@ def bind_mousewheel_to_frame(frame):
             current_widget = widget_under_cursor
             while current_widget:
                 if current_widget == frame or current_widget == frame._parent_canvas:
-                    frame._parent_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+                    # Increase scrolling speed on Windows by using a larger multiplier
+                    if sys.platform == 'win32':
+                        # Changed from 20 to 5 for much faster scrolling on Windows
+                        frame._parent_canvas.yview_scroll(int(-1*(event.delta/5)), "units")
+                    else:
+                        # Keep original behavior for other platforms
+                        frame._parent_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
                     return "break"
                 current_widget = current_widget.master
             
