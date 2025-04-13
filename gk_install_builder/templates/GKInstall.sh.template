@@ -1,12 +1,5 @@
 #!/bin/bash
 
-# Capture all console output to a log file
-timestamp=$(date +"%Y%m%d_%H%M%S")
-log_file="GKInstall_${COMPONENT_TYPE:-POS}_$timestamp.log"
-exec > >(tee -a "$log_file") 2>&1
-
-echo "Console output is being saved to $log_file"
-
 # Parse command line arguments
 offline=false
 COMPONENT_TYPE="POS"
@@ -61,6 +54,13 @@ if [ "$COMPONENT_TYPE" = "LPA" ]; then
 elif [ "$COMPONENT_TYPE" = "SH" ]; then
   COMPONENT_TYPE="STOREHUB-SERVICE"
 fi
+
+# Now that COMPONENT_TYPE is correctly set, capture all console output to a log file
+timestamp=$(date +"%Y%m%d_%H%M%S")
+log_file="GKInstall_${COMPONENT_TYPE}_$timestamp.log"
+exec > >(tee -a "$log_file") 2>&1
+
+echo "Console output is being saved to $log_file"
 
 # Stop on first error
 set -e
@@ -892,16 +892,31 @@ fi
 
 # Start the installation
 echo "Starting installation..."
+
+# Check if installer log already exists and delete it
+installer_log_path="$install_dir/installer/log/installer.log"
+if [ -f "$installer_log_path" ]; then
+  echo "Found existing installer log file. Deleting to ensure clean installation..."
+  rm -f "$installer_log_path" 2>/dev/null
+  if [ $? -eq 0 ]; then
+    echo "Existing installer log file deleted successfully."
+  else
+    echo "Warning: Failed to delete existing installer log file."
+    echo "This might lead to confusing log output during installation."
+  fi
+fi
+
 echo "Running Launcher.run with arguments: --defaultsFile launcher.properties --mode unattended"
+
+# If we found JRE, add it to PATH temporarily to ensure Java can be found
 
 # Start Launcher without waiting
 ./Launcher.run --defaultsFile launcher.properties --mode unattended &
 launcher_pid=$!
 
 # Check installation logs
-installer_log_path="$install_dir/installer/log/installer.log"
-max_wait_time=1800 # 30 minutes timeout
-max_log_wait_time=3600 # 1 hour timeout for log file creation
+max_wait_time=7200 # 2 hours timeout
+max_log_wait_time=3600 # 1 hour timeout for files download from DSG
 elapsed=0
 log_wait_elapsed=0
 check_interval=2 # Check every 2 seconds
@@ -916,9 +931,9 @@ while [ $elapsed -lt $max_wait_time ]; do
   if ! kill -0 $launcher_pid 2>/dev/null; then
     launcher_exit_code=$?
     echo "Launcher process has exited with code: $launcher_exit_code"
-    echo "Continuing to monitor logs for 30 seconds..."
+    echo "Continuing to monitor logs for 5 seconds..."
     
-    post_exit_time=30
+    post_exit_time=5
     while [ $post_exit_time -gt 0 ]; do
       if [ -f "$installer_log_path" ]; then
         # Read new lines from the log
@@ -1121,6 +1136,81 @@ while [ $elapsed -lt $max_wait_time ]; do
     else
       echo "Launcher failed with exit code: $launcher_exit_code"
       echo "Please check the logs at: $installer_log_path"
+      
+      # Cleanup for failed installation
+      errors_dir="errors_$COMPONENT_TYPE"
+      echo "Performing cleanup for failed installation - Moving files to $errors_dir directory..."
+      
+      # Create the errors directory if it doesn't exist
+      mkdir -p "$errors_dir"
+      
+      # List of files to move
+      files_to_move=(
+        "installationtoken.txt"
+        "installationtoken.base64"
+        "launcher.properties"
+        "onboarding.token"
+        "Launcher.run"
+      )
+      
+      # Add log files
+      log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
+      # Only add log files if they actually exist
+      if [ -n "$log_files" ]; then
+        for log_file in $log_files; do
+          if [ -f "$log_file" ]; then
+            files_to_move+=("$log_file")
+          fi
+        done
+      fi
+      
+      # Find all JSON files in the current directory only
+      json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
+      if [ -n "$json_files" ]; then
+        echo "Found JSON files to move"
+        for json_file in $json_files; do
+          files_to_move+=("$json_file")
+        done
+      else
+        echo "No JSON files need to be cleaned up"
+      fi
+      
+      # Move each file to the errors directory
+      for file in "${files_to_move[@]}"; do
+        if [ -f "$file" ]; then
+          # Skip files in helper directory
+          if [[ "$file" == *"/helper/"* ]]; then
+            continue
+          fi
+          
+          # Process only files in current directory
+          filename=$(basename "$file")
+          dest_file="$errors_dir/$filename"
+          
+          # Copy file to errors directory then remove original
+          cp "$file" "$dest_file" 2>/dev/null
+          if [ $? -eq 0 ]; then
+            echo "Moved: $file to $dest_file"
+            rm "$file"
+          else
+            echo "Warning: Could not move $file to errors directory"
+          fi
+        fi
+      done
+      
+      # Make sure the log file is moved to errors directory at the end
+      if [ -f "$log_file" ]; then
+          dest_log_file="$errors_dir/$log_file"
+          cp "$log_file" "$dest_log_file" 2>/dev/null
+          if [ $? -eq 0 ]; then
+              echo "Console output log saved to: $dest_log_file"
+              rm "$log_file"
+          else
+              echo "Warning: Could not move log file to errors directory"
+          fi
+      fi
+      
+      echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
       exit 1
     fi
   fi
@@ -1248,6 +1338,80 @@ while [ $elapsed -lt $max_wait_time ]; do
         kill $launcher_pid
       fi
       
+      # Cleanup for failed installation
+      errors_dir="errors_$COMPONENT_TYPE"
+      echo "Performing cleanup for failed installation - Moving files to $errors_dir directory..."
+      
+      # Create the errors directory if it doesn't exist
+      mkdir -p "$errors_dir"
+      
+      # List of files to move
+      files_to_move=(
+        "installationtoken.txt"
+        "installationtoken.base64"
+        "launcher.properties"
+        "onboarding.token"
+        "Launcher.run"
+      )
+      
+      # Add log files
+      log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
+      # Only add log files if they actually exist
+      if [ -n "$log_files" ]; then
+        for log_file in $log_files; do
+          if [ -f "$log_file" ]; then
+            files_to_move+=("$log_file")
+          fi
+        done
+      fi
+      
+      # Find all JSON files in the current directory only
+      json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
+      if [ -n "$json_files" ]; then
+        echo "Found JSON files to move"
+        for json_file in $json_files; do
+          files_to_move+=("$json_file")
+        done
+      else
+        echo "No JSON files need to be cleaned up"
+      fi
+      
+      # Move each file to the errors directory
+      for file in "${files_to_move[@]}"; do
+        if [ -f "$file" ]; then
+          # Skip files in helper directory
+          if [[ "$file" == *"/helper/"* ]]; then
+            continue
+          fi
+          
+          # Process only files in current directory
+          filename=$(basename "$file")
+          dest_file="$errors_dir/$filename"
+          
+          # Copy file to errors directory then remove original
+          cp "$file" "$dest_file" 2>/dev/null
+          if [ $? -eq 0 ]; then
+            echo "Moved: $file to $dest_file"
+            rm "$file"
+          else
+            echo "Warning: Could not move $file to errors directory"
+          fi
+        fi
+      done
+      
+      # Make sure the log file is moved to errors directory at the end
+      if [ -f "$log_file" ]; then
+          dest_log_file="$errors_dir/$log_file"
+          cp "$log_file" "$dest_log_file" 2>/dev/null
+          if [ $? -eq 0 ]; then
+              echo "Console output log saved to: $dest_log_file"
+              rm "$log_file"
+          else
+              echo "Warning: Could not move log file to errors directory"
+          fi
+      fi
+      
+      echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
       exit 1
     fi
   else
@@ -1284,5 +1448,81 @@ if kill -0 $launcher_pid 2>/dev/null; then
   kill $launcher_pid
 fi
 
-echo "Warning: Installation timeout reached after 30 minutes. Please check the installation logs at: $installer_log_path"
-echo "Installation directory: $install_dir" 
+echo "Warning: Installation timeout reached after 2 hours. Please check the installation logs at: $installer_log_path"
+echo "Installation directory: $install_dir"
+
+# Cleanup for timeout failure
+errors_dir="errors_$COMPONENT_TYPE"
+echo "Performing cleanup for timed out installation - Moving files to $errors_dir directory..."
+
+# Create the errors directory if it doesn't exist
+mkdir -p "$errors_dir"
+
+# List of files to move
+files_to_move=(
+  "installationtoken.txt"
+  "installationtoken.base64"
+  "launcher.properties"
+  "onboarding.token"
+  "Launcher.run"
+)
+
+# Add log files
+log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
+# Only add log files if they actually exist
+if [ -n "$log_files" ]; then
+  for log_file in $log_files; do
+    if [ -f "$log_file" ]; then
+      files_to_move+=("$log_file")
+    fi
+  done
+fi
+
+# Find all JSON files in the current directory only
+json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
+if [ -n "$json_files" ]; then
+  echo "Found JSON files to move"
+  for json_file in $json_files; do
+    files_to_move+=("$json_file")
+  done
+else
+  echo "No JSON files need to be cleaned up"
+fi
+
+# Move each file to the errors directory
+for file in "${files_to_move[@]}"; do
+  if [ -f "$file" ]; then
+    # Skip files in helper directory
+    if [[ "$file" == *"/helper/"* ]]; then
+      continue
+    fi
+    
+    # Process only files in current directory
+    filename=$(basename "$file")
+    dest_file="$errors_dir/$filename"
+    
+    # Copy file to errors directory then remove original
+    cp "$file" "$dest_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+      echo "Moved: $file to $dest_file"
+      rm "$file"
+    else
+      echo "Warning: Could not move $file to errors directory"
+    fi
+  fi
+done
+
+# Make sure the log file is moved to errors directory at the end
+if [ -f "$log_file" ]; then
+    dest_log_file="$errors_dir/$log_file"
+    cp "$log_file" "$dest_log_file" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "Console output log saved to: $dest_log_file"
+        rm "$log_file"
+    else
+        echo "Warning: Could not move log file to errors directory"
+    fi
+fi
+
+echo "Cleanup completed. Timed out installation files have been moved to $errors_dir directory."
+exit 1 
