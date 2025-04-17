@@ -552,6 +552,63 @@ fi
 # Create installation directory if it doesn't exist
 mkdir -p "$install_dir"
 
+# Check if this is an update of an existing installation
+isUpdate=false
+if [ -d "$install_dir" ]; then
+    # Check for log folders
+    logPath="$install_dir/log"
+    logsPath="$install_dir/logs"
+    
+    # Determine which log folder exists
+    logFolderPath=""
+    if [ -d "$logPath" ]; then
+        logFolderPath="$logPath"
+    elif [ -d "$logsPath" ]; then
+        logFolderPath="$logsPath"
+    fi
+    
+    # If a log folder exists, check for recent activity (last 7 days)
+    if [ -n "$logFolderPath" ]; then
+        echo "Found existing installation at $install_dir with log folder at $logFolderPath"
+        
+        # Get files modified in the last 7 days
+        recentFiles=$(find "$logFolderPath" -type f -mtime -7 2>/dev/null)
+        recentFileCount=$(echo "$recentFiles" | grep -v '^$' | wc -l)
+        
+        if [ $recentFileCount -gt 0 ]; then
+            echo "Found $recentFileCount recently modified log files (within 7 days)"
+            echo "This appears to be an active installation. Performing update instead of full installation."
+            isUpdate=true
+        else
+            echo "No recent activity found in logs. Performing full installation."
+        fi
+    else
+        echo "No log folder found. Performing full installation."
+    fi
+else
+    echo "Installation directory does not exist. Performing full installation."
+fi
+
+# If this is an update in offline mode and we have an installer jar, copy it to the temp directory
+if [ "$isUpdate" = true ] && [ "$offline_mode" = true ] && [ "$has_installer_jar" = true ]; then
+    installerTempDir="$install_dir/installer/temp"
+    
+    # Create the temp directory if it doesn't exist
+    if [ ! -d "$installerTempDir" ]; then
+        echo "Creating installer temp directory: $installerTempDir"
+        mkdir -p "$installerTempDir"
+    fi
+    
+    # Copy the installer jar to the temp directory
+    installerJarDest="$installerTempDir/installer.jar"
+    echo "Copying installer JAR for offline update: $installer_jar -> $installerJarDest"
+    if cp "$installer_jar" "$installerJarDest"; then
+        echo "Successfully copied installer JAR for offline update"
+    else
+        echo "Warning: Failed to copy installer JAR for offline update"
+    fi
+fi
+
 # Get hostname
 hs=$(hostname)
 if [ -z "$hs" ]; then
@@ -646,57 +703,68 @@ echo "-------------------"
 # After the basic configuration section, update the onboarding call
 echo "Starting onboarding process for $COMPONENT_TYPE"
 
-# Call the onboarding script with the appropriate component type
-if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url"; then
-  echo "Error during $COMPONENT_TYPE onboarding"
-  exit 1
-fi
-echo "$COMPONENT_TYPE onboarding completed successfully"
-
-# Execute store initialization right after successful onboarding
-# Skip store initialization for WDM
-if [ "$COMPONENT_TYPE" != "WDM" ]; then
-  echo "Starting store initialization..."
-  store_init_script="$PWD/store-initialization.sh"
-  if [ -f "$store_init_script" ]; then
-    # Update get_store.json with the store ID
-    get_store_json_path="$PWD/helper/init/get_store.json"
-    if [ -f "$get_store_json_path" ]; then
-      echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
-      # Create a processed directory if it doesn't exist
-      mkdir -p "$PWD/helper/init"
-      # Create a processed copy
-      processed_get_store_path="$PWD/helper/init/get_store_processed.json"
-      # Copy the original to processed file
-      cp "$get_store_json_path" "$processed_get_store_path"
-      # Use sed to replace the placeholder with the actual store number in the processed copy
-      sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
-      echo "get_store_processed.json created successfully"
-    else
-      echo "Warning: get_store.json not found at: $get_store_json_path"
-    fi
-    
-    # Call the store initialization script
-    if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
-      echo "Error during store initialization"
+# Skip onboarding and store initialization if this is an update
+if [ "$isUpdate" = false ]; then
+    # Call the onboarding script with the appropriate component type
+    if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url"; then
+      echo "Error during $COMPONENT_TYPE onboarding"
       exit 1
     fi
-    echo "Store initialization completed successfully"
-  else
-    echo "Error: Store initialization script not found at: $store_init_script"
-    exit 1
-  fi
+    echo "$COMPONENT_TYPE onboarding completed successfully"
+
+    # Execute store initialization right after successful onboarding
+    # Skip store initialization for WDM
+    if [ "$COMPONENT_TYPE" != "WDM" ]; then
+      echo "Starting store initialization..."
+      store_init_script="$PWD/store-initialization.sh"
+      if [ -f "$store_init_script" ]; then
+        # Update get_store.json with the store ID
+        get_store_json_path="$PWD/helper/init/get_store.json"
+        if [ -f "$get_store_json_path" ]; then
+          echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
+          # Create a processed directory if it doesn't exist
+          mkdir -p "$PWD/helper/init"
+          # Create a processed copy
+          processed_get_store_path="$PWD/helper/init/get_store_processed.json"
+          # Copy the original to processed file
+          cp "$get_store_json_path" "$processed_get_store_path"
+          # Use sed to replace the placeholder with the actual store number in the processed copy
+          sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
+          echo "get_store_processed.json created successfully"
+        else
+          echo "Warning: get_store.json not found at: $get_store_json_path"
+        fi
+        
+        # Call the store initialization script
+        if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
+          echo "Error during store initialization"
+          exit 1
+        fi
+        echo "Store initialization completed successfully"
+      else
+        echo "Error: Store initialization script not found at: $store_init_script"
+        exit 1
+      fi
+    else
+      echo "Skipping store initialization for WDM component"
+    fi
 else
-  echo "Skipping store initialization for WDM component"
+    echo "Skipping onboarding and store initialization for update"
 fi
 
 # Read onboarding token
-onboardingTokenPath="onboarding.token"
-if [ ! -f "$onboardingTokenPath" ]; then
-  echo "Error: Onboarding token file not found at: $onboardingTokenPath"
-  exit 1
+onboardingToken=""
+if [ "$isUpdate" = false ]; then
+    onboardingTokenPath="onboarding.token"
+    if [ ! -f "$onboardingTokenPath" ]; then
+        echo "Error: Onboarding token file not found at: $onboardingTokenPath"
+        exit 1
+    fi
+    onboardingToken=$(cat "$onboardingTokenPath" | tr -d '\n')
+else
+    echo "Skipping onboarding token check for update mode"
+    onboardingToken="not-required-for-update"
 fi
-onboardingToken=$(cat "$onboardingTokenPath" | tr -d '\n')
 
 # Create configuration files
 cat > "installationtoken.txt" << EOF
@@ -761,7 +829,7 @@ else
     done
   else
     # No certificate found
-    echo "Warning: No certificate found for WDM. The installation may fail if a certificate is required."
+    echo "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
   fi
 fi
 
@@ -873,11 +941,58 @@ echo "Launcher properties file created successfully. Launcher will use this for 
 if [ "$offline_mode" = false ]; then
   download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
   echo "Attempting to download Launcher.run from: $download_url"
-  if ! curl -o "Launcher.run" "$download_url"; then
-    echo "Error downloading Launcher.run"
+  
+  # Try using curl with progress bar first
+  if command -v curl >/dev/null 2>&1; then
+    echo "Using curl for download with progress bar..."
+    if curl -L --progress-bar -o "Launcher.run" "$download_url"; then
+      if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
+        echo "Successfully downloaded Launcher.run using curl"
+      else
+        echo "Curl download produced empty file. Trying wget..."
+        if command -v wget >/dev/null 2>&1; then
+          echo "Using wget as fallback..."
+          if wget --show-progress -O "Launcher.run" "$download_url"; then
+            echo "Successfully downloaded Launcher.run using wget"
+          else
+            echo "Error downloading Launcher.run"
+            exit 1
+          fi
+        else
+          echo "Error downloading: Empty file and wget not available"
+          exit 1
+        fi
+      fi
+    else
+      # Try wget as a fallback
+      echo "Curl failed. Trying wget..."
+      if command -v wget >/dev/null 2>&1; then
+        echo "Using wget as fallback..."
+        if wget --show-progress -O "Launcher.run" "$download_url"; then
+          echo "Successfully downloaded Launcher.run using wget"
+        else
+          echo "Error downloading Launcher.run"
+          exit 1
+        fi
+      else
+        echo "Error downloading: Curl failed and wget not available"
+        exit 1
+      fi
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    # No curl, use wget directly
+    echo "Using wget for download with progress bar..."
+    if wget --show-progress -O "Launcher.run" "$download_url"; then
+      echo "Successfully downloaded Launcher.run using wget"
+    else
+      echo "Error downloading Launcher.run"
+      exit 1
+    fi
+  else
+    echo "Error: Neither curl nor wget is available for downloading"
     exit 1
   fi
-  echo "Successfully downloaded Launcher.run"
+  
   chmod +x "./Launcher.run"
 else
   # In offline mode, copy the Launcher from the package directory to the current directory
@@ -910,9 +1025,17 @@ echo "Running Launcher.run with arguments: --defaultsFile launcher.properties --
 
 # If we found JRE, add it to PATH temporarily to ensure Java can be found
 
-# Start Launcher without waiting
-./Launcher.run --defaultsFile launcher.properties --mode unattended &
-launcher_pid=$!
+# Start Launcher based on whether this is an update or new installation
+if [ "$isUpdate" = true ]; then
+    echo "Running in update mode"
+    echo "Running Launcher with update arguments: --mode unattended --forceDownload false --station.applicationVersion $component_version --station.propertiesPath $install_dir"
+    ./Launcher.run --mode unattended --forceDownload false --station.applicationVersion "$component_version" --station.propertiesPath "$install_dir" &
+    launcher_pid=$!
+else
+    echo "Running in full installation mode"
+    ./Launcher.run --defaultsFile launcher.properties --mode unattended &
+    launcher_pid=$!
+fi
 
 # Check installation logs
 max_wait_time=7200 # 2 hours timeout
