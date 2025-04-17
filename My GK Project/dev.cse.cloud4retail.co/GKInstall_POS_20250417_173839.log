@@ -1,0 +1,17 @@
+Console output is being saved to GKInstall_POS_20250417_173839.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : 9999-950
+===================
+Successfully detected values from hostname:
+Store Number: 9999
+Workstation ID: 950
+-------------------
+StoreNr   : 9999
+WorkstationId: 950
+-------------------
+Starting onboarding process for POS
+JQ was not detected. Falling back to bash-native JSON parsing methods.
+Access token successfully saved
+JQ was not detected. Falling back to bash-native JSON parsing methods.

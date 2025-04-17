@@ -599,22 +599,46 @@ done
 # File detection for the current component ($ComponentType)
 $fileDetectionEnabled = $true
 $componentType = $ComponentType
-$basePath = "{base_dir}"
-$customFilenames = @{{
-    "POS" = "{pos_filename}";
-    "WDM" = "{wdm_filename}";
-    "FLOW-SERVICE" = "{flow_filename}";
-    "LPA-SERVICE" = "{lpa_filename}";
-    "STOREHUB-SERVICE" = "{sh_filename}"
-}}
 
-# Get the appropriate station file for the current component
-$stationFileName = $customFilenames[$componentType]
-if (-not $stationFileName) {{
-    $stationFileName = "$componentType.station"
-}}
+# Check if we're using base directory or custom paths
+$useBaseDirectory = $"{is_using_base_dir}".ToLower()
 
-$stationFilePath = Join-Path $basePath $stationFileName
+if ($useBaseDirectory -eq "true") {{
+    # Use base directory approach
+    $basePath = "{base_dir}"
+    $customFilenames = @{{
+        "POS" = "{pos_filename}";
+        "WDM" = "{wdm_filename}";
+        "FLOW-SERVICE" = "{flow_filename}";
+        "LPA-SERVICE" = "{lpa_filename}";
+        "STOREHUB-SERVICE" = "{sh_filename}"
+    }}
+
+    # Get the appropriate station file for the current component
+    $stationFileName = $customFilenames[$componentType]
+    if (-not $stationFileName) {{
+        $stationFileName = "$componentType.station"
+    }}
+
+    $stationFilePath = Join-Path $basePath $stationFileName
+}} else {{
+    # Use custom paths approach
+    $customPaths = @{{
+        "POS" = "{pos_path}";
+        "WDM" = "{wdm_path}";
+        "FLOW-SERVICE" = "{flow_path}";
+        "LPA-SERVICE" = "{lpa_path}";
+        "STOREHUB-SERVICE" = "{sh_path}"
+    }}
+    
+    # Get the appropriate station file path for the current component
+    $stationFilePath = $customPaths[$componentType]
+    if (-not $stationFilePath) {{
+        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
+        # Fallback to a default path
+        $stationFilePath = "C:\gkretail\stations\$componentType.station"
+    }}
+}}
 
 # Check if hostname detection failed and file detection is enabled
 if (-not $hostnameDetected -and $fileDetectionEnabled) {{
@@ -651,12 +675,18 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
     }}
 }}
 '''.format(
+    is_using_base_dir=str(self.detection_manager.is_using_base_directory()).lower(),
     base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
     pos_filename=self.detection_manager.get_custom_filename("POS"),
     wdm_filename=self.detection_manager.get_custom_filename("WDM"),
     flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
     lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE")
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
+    pos_path=self.detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\'),
+    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\'),
+    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\'),
+    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\'),
+    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\')
 )
                     
                     # Find where to insert the file detection code
@@ -682,21 +712,44 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
 # File detection for the current component ($COMPONENT_TYPE)
 fileDetectionEnabled=true
 componentType="$COMPONENT_TYPE"
-basePath="{base_dir}"
-declare -A customFilenames
-customFilenames["POS"]="{pos_filename}"
-customFilenames["WDM"]="{wdm_filename}"
-customFilenames["FLOW-SERVICE"]="{flow_filename}"
-customFilenames["LPA-SERVICE"]="{lpa_filename}"
-customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
 
-# Get the appropriate station file for the current component
-stationFileName="${{customFilenames[$componentType]}}"
-if [ -z "$stationFileName" ]; then
-    stationFileName="$componentType.station"
+# Check if we're using base directory or custom paths
+useBaseDirectory="{is_using_base_dir}"
+
+if [ "$useBaseDirectory" = "True" ]; then
+    # Use base directory approach
+    basePath="{base_dir}"
+    declare -A customFilenames
+    customFilenames["POS"]="{pos_filename}"
+    customFilenames["WDM"]="{wdm_filename}"
+    customFilenames["FLOW-SERVICE"]="{flow_filename}"
+    customFilenames["LPA-SERVICE"]="{lpa_filename}"
+    customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
+
+    # Get the appropriate station file for the current component
+    stationFileName="${{customFilenames[$componentType]}}"
+    if [ -z "$stationFileName" ]; then
+        stationFileName="$componentType.station"
+    fi
+
+    stationFilePath="$basePath/$stationFileName"
+else
+    # Use custom paths approach
+    declare -A customPaths
+    customPaths["POS"]="{pos_path}"
+    customPaths["WDM"]="{wdm_path}"
+    customPaths["FLOW-SERVICE"]="{flow_path}"
+    customPaths["LPA-SERVICE"]="{lpa_path}"
+    customPaths["STOREHUB-SERVICE"]="{sh_path}"
+    
+    # Get the appropriate station file path for the current component
+    stationFilePath="${{customPaths[$componentType]}}"
+    if [ -z "$stationFilePath" ]; then
+        echo "Warning: No custom path defined for $componentType"
+        # Fallback to a default path
+        stationFilePath="/usr/local/gkretail/stations/$componentType.station"
+    fi
 fi
-
-stationFilePath="$basePath/$stationFileName"
 
 # Check if hostname detection failed and file detection is enabled
 if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
@@ -728,12 +781,18 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
     fi
 fi
 '''.format(
+    is_using_base_dir=str(self.detection_manager.is_using_base_directory()),
     base_dir=self.detection_manager.get_base_directory(),
     pos_filename=self.detection_manager.get_custom_filename("POS"),
     wdm_filename=self.detection_manager.get_custom_filename("WDM"),
     flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
     lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE")
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
+    pos_path=self.detection_manager.detection_config["detection_files"]["POS"],
+    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"],
+    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"],
+    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"],
+    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"]
 )
                     
                     # Find where to insert the file detection code
