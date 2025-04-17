@@ -1027,12 +1027,16 @@ echo "Running Launcher.run with arguments: --defaultsFile launcher.properties --
 
 # Start Launcher based on whether this is an update or new installation
 if [ "$isUpdate" = true ]; then
-    echo "Running in update mode"
+    echo -e "\033[1;36m=================================================================\033[0m"
+    echo -e "\033[1;36m                     RUNNING IN UPDATE MODE                      \033[0m"
+    echo -e "\033[1;36m=================================================================\033[0m"
     echo "Running Launcher with update arguments: --mode unattended --forceDownload false --station.applicationVersion $component_version --station.propertiesPath $install_dir"
     ./Launcher.run --mode unattended --forceDownload false --station.applicationVersion "$component_version" --station.propertiesPath "$install_dir" &
     launcher_pid=$!
 else
-    echo "Running in full installation mode"
+    echo -e "\033[1;32m=================================================================\033[0m"
+    echo -e "\033[1;32m                 RUNNING IN FULL INSTALLATION MODE               \033[0m"
+    echo -e "\033[1;32m=================================================================\033[0m"
     ./Launcher.run --defaultsFile launcher.properties --mode unattended &
     launcher_pid=$!
 fi

@@ -485,8 +485,11 @@ try {
             
             # Add a sleep for StoreHub components to allow time for backend processing
             if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+                Write-Host "==========================================================" -ForegroundColor Yellow
                 Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+                Write-Host "==========================================================" -ForegroundColor Yellow
                 Start-Sleep -Seconds 120
+                Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
             }
         }
         else {
@@ -507,6 +510,21 @@ try {
     $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
     $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
     Write-Host "Saved response data to business-unit.json and workstation.json"
+    
+    # Always ensure we wait for StoreHub even if the workstation existed already
+    if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+        # Check if we haven't already waited
+        if (-not $script:storeHubWaitComplete) {
+            Write-Host "==========================================================" -ForegroundColor Yellow
+            Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+            Write-Host "==========================================================" -ForegroundColor Yellow
+            Start-Sleep -Seconds 120
+            Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
+            $script:storeHubWaitComplete = $true
+        } else {
+            Write-Host "StoreHub wait already completed. Skipping additional wait."
+        }
+    }
 
     # Exit successfully
     exit 0
