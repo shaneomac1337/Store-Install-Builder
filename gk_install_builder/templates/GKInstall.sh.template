@@ -626,72 +626,112 @@ workstationId=""
 # Try to extract Store Number and Workstation ID from hostname
 hostnameDetected=false
 
-if [ -n "$hs" ]; then
-  # Try different patterns:
-  # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
-  # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
+# For update mode, we must extract values from the existing installation
+if [ "$isUpdate" = true ]; then
+  echo "Running in update mode - attempting to extract store and workstation IDs from existing installation"
   
-  # Extract the last part (workstation ID) if it's 3 digits
-  if [[ "$hs" =~ ([^-]+)-([0-9]{3})$ ]]; then
-    storeId="${BASH_REMATCH[1]}"
-    workstationId="${BASH_REMATCH[2]}"
+  # Look for station.properties in the installation directory
+  station_properties_path="$install_dir/station.properties"
+  if [ -f "$station_properties_path" ]; then
+    echo "Found existing station.properties at: $station_properties_path"
     
-    # If storeId contains a dash, it might be SOMENAME-1674-101 format
-    if [[ "$storeId" =~ .*-([0-9]{4})$ ]]; then
-      storeNumber="${BASH_REMATCH[1]}"
-    else
-      # Direct format like R005-101
-      storeNumber="$storeId"
+    # Extract the store ID
+    store_id_line=$(grep "station.storeId=" "$station_properties_path")
+    if [ -n "$store_id_line" ]; then
+      storeNumber=$(echo "$store_id_line" | cut -d'=' -f2)
+      echo "Found Store ID in station.properties: $storeNumber"
     fi
     
-    # Validate extracted parts
-    if [[ "$storeNumber" =~ ^[0-9]{4}$ || "$storeNumber" =~ ^[A-Za-z][0-9]{3}$ || "$storeNumber" =~ ^[A-Za-z]{2}[0-9]{2}$ ]]; then
-      if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
-        hostnameDetected=true
-        echo "Successfully detected values from hostname:"
-        echo "Store Number: $storeNumber"
-        echo "Workstation ID: $workstationId"
+    # Extract the workstation ID
+    workstation_id_line=$(grep "station.workstationId=" "$station_properties_path")
+    if [ -n "$workstation_id_line" ]; then
+      workstationId=$(echo "$workstation_id_line" | cut -d'=' -f2)
+      echo "Found Workstation ID in station.properties: $workstationId"
+    fi
+    
+    # If both values were found, skip hostname detection
+    if [ -n "$storeNumber" ] && [ -n "$workstationId" ]; then
+      hostnameDetected=true
+      echo "Using Store ID and Workstation ID from existing installation"
+    else
+      echo -e "\033[1;31mError: Could not extract complete information from station.properties\033[0m"
+      echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
+      exit 1
+    fi
+  else
+    echo -e "\033[1;31mError: No station.properties found at: $station_properties_path\033[0m"
+    echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
+    exit 1
+  fi
+else
+  # For new installations, detect from hostname or prompt user
+  if [ -n "$hs" ]; then
+    # Try different patterns:
+    # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
+    # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
+    
+    # Extract the last part (workstation ID) if it's 3 digits
+    if [[ "$hs" =~ ([^-]+)-([0-9]{3})$ ]]; then
+      storeId="${BASH_REMATCH[1]}"
+      workstationId="${BASH_REMATCH[2]}"
+      
+      # If storeId contains a dash, it might be SOMENAME-1674-101 format
+      if [[ "$storeId" =~ .*-([0-9]{4})$ ]]; then
+        storeNumber="${BASH_REMATCH[1]}"
+      else
+        # Direct format like R005-101
+        storeNumber="$storeId"
+      fi
+      
+      # Validate extracted parts
+      if [[ "$storeNumber" =~ ^[0-9]{4}$ || "$storeNumber" =~ ^[A-Za-z][0-9]{3}$ || "$storeNumber" =~ ^[A-Za-z]{2}[0-9]{2}$ ]]; then
+        if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
+          hostnameDetected=true
+          echo "Successfully detected values from hostname:"
+          echo "Store Number: $storeNumber"
+          echo "Workstation ID: $workstationId"
+        fi
       fi
     fi
   fi
-fi
 
-# If hostname detection failed, try file detection
-if [ "$hostnameDetected" = false ]; then
-  if [ -n "$hs" ]; then
-    echo "Could not extract valid Store Number and Workstation ID from hostname."
-    echo "Trying file detection..."
-  fi
-  
-  # File detection code will be inserted here by the generator
-fi
-
-# If both hostname and file detection failed, prompt for manual input
-if [ "$hostnameDetected" = false ]; then
-  echo "Falling back to manual input."
-  
-  # Prompt for Store Number
-  echo "Please enter the Store Number in one of these formats (or any custom format):"
-  echo "  - 4 digits (e.g., 1234)"
-  echo "  - 1 letter + 3 digits (e.g., R005)"
-  echo "  - 2 letters + 2 digits (e.g., CA45)"
-  echo "  - Custom format (e.g., STORE-105)"
-  read -p "Store Number: " storeNumber
-
-  # Validate that something was entered
-  if [ -z "$storeNumber" ]; then
-    echo "Store Number cannot be empty. Please try again."
-    read -p "Store Number: " storeNumber
-  fi
-  
-  # Prompt for Workstation ID
-  while true; do
-    read -p "Please enter the Workstation ID (3 digits): " workstationId
-    if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
-      break
+  # If hostname detection failed, try file detection
+  if [ "$hostnameDetected" = false ]; then
+    if [ -n "$hs" ]; then
+      echo "Could not extract valid Store Number and Workstation ID from hostname."
+      echo "Trying file detection..."
     fi
-    echo "Invalid input. Please enter exactly 3 digits."
-  done
+    
+    # File detection code will be inserted here by the generator
+  fi
+
+  # If both hostname and file detection failed, prompt for manual input
+  if [ "$hostnameDetected" = false ]; then
+    echo "Falling back to manual input."
+    
+    # Prompt for Store Number
+    echo "Please enter the Store Number in one of these formats (or any custom format):"
+    echo "  - 4 digits (e.g., 1234)"
+    echo "  - 1 letter + 3 digits (e.g., R005)"
+    echo "  - 2 letters + 2 digits (e.g., CA45)"
+    echo "  - Custom format (e.g., STORE-105)"
+    read -p "Store Number: " storeNumber
+
+    # Validate that something was entered
+    if [ -z "$storeNumber" ]; then
+      echo "Store Number cannot be empty. Please try again."
+      read -p "Store Number: " storeNumber
+    fi
+    
+    # Prompt for Workstation ID
+    while true; do
+      read -p "Please enter the Workstation ID (3 digits): " workstationId
+      if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
+        break
+      fi
+      echo "Invalid input. Please enter exactly 3 digits."
+    done
+  fi
 fi
 
 # Print final results

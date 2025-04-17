@@ -549,68 +549,107 @@ $workstationId = ""
 # Try to extract Store Number and Workstation ID from hostname
 $hostnameDetected = $false
 
-if (-not [string]::IsNullOrEmpty($hs)) {
-    # Try different patterns:
-    # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
-    # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
+# For update mode, we must extract values from the existing installation
+if ($isUpdate) {
+    Write-Host "Running in update mode - attempting to extract store and workstation IDs from existing installation"
     
-    if ($hs -match '(\w+)-(\d{3})$') {
-        # Pattern like R005-101 or SOMENAME-1674-101 where last part is 3 digits
-        $storeId = $matches[1]
-        $workstationId = $matches[2]
+    # Look for station.properties in the installation directory
+    $stationPropertiesPath = Join-Path $install_dir "station.properties"
+    if (Test-Path $stationPropertiesPath) {
+        Write-Host "Found existing station.properties at: $stationPropertiesPath"
+        $stationPropertiesContent = Get-Content -Path $stationPropertiesPath -Raw
         
-        # If storeId contains a dash, it might be SOMENAME-1674-101 format
-        if ($storeId -match '.*-(\d{4})$') {
+        # Extract the store ID
+        if ($stationPropertiesContent -match 'station\.storeId=([^\r\n]+)') {
             $storeNumber = $matches[1]
-        } else {
-            # Direct format like R005-101
-            $storeNumber = $storeId
+            Write-Host "Found Store ID in station.properties: $storeNumber"
         }
         
-        # Validate extracted parts
-        if ($storeNumber -match '^\d{4}$' -or $storeNumber -match '^[A-Za-z]\d{3}$' -or $storeNumber -match '^[A-Za-z]{2}\d{2}$') {
-            if ($workstationId -match '^\d{3}$') {
-                $hostnameDetected = $true
-                Write-Host "Successfully detected values from hostname:"
-                Write-Host "Store Number: $storeNumber"
-                Write-Host "Workstation ID: $workstationId"
+        # Extract the workstation ID
+        if ($stationPropertiesContent -match 'station\.workstationId=([^\r\n]+)') {
+            $workstationId = $matches[1]
+            Write-Host "Found Workstation ID in station.properties: $workstationId"
+        }
+        
+        # If both values were found, skip hostname detection
+        if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workstationId)) {
+            $hostnameDetected = $true
+            Write-Host "Using Store ID and Workstation ID from existing installation"
+        } else {
+            Write-Host "Error: Could not extract complete information from station.properties" -ForegroundColor Red
+            Write-Host "Update not possible. Exiting." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Error: No station.properties found at: $stationPropertiesPath" -ForegroundColor Red
+        Write-Host "Update not possible. Exiting." -ForegroundColor Red
+        exit 1
+    }
+} else {
+    # For new installations, detect from hostname or prompt user
+    if (-not [string]::IsNullOrEmpty($hs)) {
+        # Try different patterns:
+        # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
+        # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
+        
+        if ($hs -match '(\w+)-(\d{3})$') {
+            # Pattern like R005-101 or SOMENAME-1674-101 where last part is 3 digits
+            $storeId = $matches[1]
+            $workstationId = $matches[2]
+            
+            # If storeId contains a dash, it might be SOMENAME-1674-101 format
+            if ($storeId -match '.*-(\d{4})$') {
+                $storeNumber = $matches[1]
+            } else {
+                # Direct format like R005-101
+                $storeNumber = $storeId
+            }
+            
+            # Validate extracted parts
+            if ($storeNumber -match '^\d{4}$' -or $storeNumber -match '^[A-Za-z]\d{3}$' -or $storeNumber -match '^[A-Za-z]{2}\d{2}$') {
+                if ($workstationId -match '^\d{3}$') {
+                    $hostnameDetected = $true
+                    Write-Host "Successfully detected values from hostname:"
+                    Write-Host "Store Number: $storeNumber"
+                    Write-Host "Workstation ID: $workstationId"
+                }
             }
         }
     }
-}
 
-# If hostname detection failed, try file detection
-if (-not $hostnameDetected) {
-    if (-not [string]::IsNullOrEmpty($hs)) {
-        Write-Host "Could not extract valid Store Number and Workstation ID from hostname."
-        Write-Host "Trying file detection..."
+    # If hostname detection failed, try file detection
+    if (-not $hostnameDetected) {
+        if (-not [string]::IsNullOrEmpty($hs)) {
+            Write-Host "Could not extract valid Store Number and Workstation ID from hostname."
+            Write-Host "Trying file detection..."
+        }
+        
+        # File detection code will be inserted here by the generator
     }
-    
-    # File detection code will be inserted here by the generator
-}
 
-# If both hostname and file detection failed, prompt for manual input
-if (-not $hostnameDetected) {
-    Write-Host "Falling back to manual input."
-    
-    # Prompt for Store Number
-    Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-    Write-Host "  - 4 digits (e.g., 1234)"
-    Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-    Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-    Write-Host "  - Custom format (e.g., STORE-105)"
-    $storeNumber = Read-Host "Store Number"
-
-    # Validate that something was entered
-    if ([string]::IsNullOrWhiteSpace($storeNumber)) {
-        Write-Host "Store Number cannot be empty. Please try again."
+    # If both hostname and file detection failed, prompt for manual input
+    if (-not $hostnameDetected) {
+        Write-Host "Falling back to manual input."
+        
+        # Prompt for Store Number
+        Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
+        Write-Host "  - 4 digits (e.g., 1234)"
+        Write-Host "  - 1 letter + 3 digits (e.g., R005)"
+        Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
+        Write-Host "  - Custom format (e.g., STORE-105)"
         $storeNumber = Read-Host "Store Number"
+
+        # Validate that something was entered
+        if ([string]::IsNullOrWhiteSpace($storeNumber)) {
+            Write-Host "Store Number cannot be empty. Please try again."
+            $storeNumber = Read-Host "Store Number"
+        }
+        
+        # Prompt for Workstation ID
+        do {
+            $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
+        } while ($workstationId -notmatch '^\d{3}$')
     }
-    
-    # Prompt for Workstation ID
-    do {
-        $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
-    } while ($workstationId -notmatch '^\d{3}$')
 }
 
 # Print final results
