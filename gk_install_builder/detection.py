@@ -22,6 +22,11 @@ class DetectionManager:
                 "FLOW-SERVICE": "",
                 "LPA-SERVICE": "",
                 "STOREHUB-SERVICE": ""
+            },
+            "hostname_detection": {
+                "windows_regex": r"([^-]+)-([0-9]{3})$",
+                "linux_regex": r"([^-]+)-([0-9]{3})$",
+                "test_hostname": "STORE-1234-101"
             }
         }
     
@@ -128,6 +133,91 @@ class DetectionManager:
             for component, path in config["detection_files"].items():
                 if component in self.detection_config["detection_files"]:
                     self.detection_config["detection_files"][component] = path
+                    
+        # Copy hostname detection settings if they exist
+        if "hostname_detection" in config:
+            for key, value in config["hostname_detection"].items():
+                self.detection_config["hostname_detection"][key] = value
+    
+    def get_hostname_regex(self, platform="linux"):
+        """Get the hostname detection regex for the specified platform"""
+        if platform.lower() == "windows":
+            return self.detection_config["hostname_detection"]["windows_regex"]
+        else:
+            return self.detection_config["hostname_detection"]["linux_regex"]
+    
+    def set_hostname_regex(self, regex, platform="linux"):
+        """Set the hostname detection regex for the specified platform"""
+        if platform.lower() == "windows":
+            self.detection_config["hostname_detection"]["windows_regex"] = regex
+        else:
+            self.detection_config["hostname_detection"]["linux_regex"] = regex
+    
+    def get_test_hostname(self):
+        """Get the test hostname for regex validation"""
+        return self.detection_config["hostname_detection"]["test_hostname"]
+    
+    def set_test_hostname(self, hostname):
+        """Set the test hostname for regex validation"""
+        self.detection_config["hostname_detection"]["test_hostname"] = hostname
+    
+    def test_hostname_regex(self, hostname, platform="linux"):
+        """Test the hostname regex against a sample hostname"""
+        import re
+        
+        regex_pattern = self.get_hostname_regex(platform)
+        
+        try:
+            # Create regex pattern based on platform
+            pattern = re.compile(regex_pattern)
+            
+            # Test against the hostname
+            match = pattern.search(hostname)
+            
+            if match and len(match.groups()) >= 2:
+                store_id = match.group(1)
+                workstation_id = match.group(2)
+                
+                # Additional validation based on platform
+                if platform.lower() == "windows":
+                    # Windows format: Match standard format
+                    return {
+                        "success": True,
+                        "store_id": store_id,
+                        "workstation_id": workstation_id
+                    }
+                else:
+                    # Linux - Check if store_id contains a dash for compound format
+                    store_number = store_id
+                    if "-" in store_id:
+                        # Try to extract a 4-digit number after the last dash
+                        store_match = re.search(r".*-([0-9]{4})$", store_id)
+                        if store_match:
+                            store_number = store_match.group(1)
+                    
+                    # Validate formats similar to the template validation
+                    is_valid_store = (
+                        re.match(r"^[0-9]{4}$", store_number) or 
+                        re.match(r"^[A-Za-z][0-9]{3}$", store_number) or 
+                        re.match(r"^[A-Za-z]{2}[0-9]{2}$", store_number)
+                    )
+                    
+                    # Accept workstation IDs of any length as long as they contain only digits
+                    is_valid_ws = re.match(r"^[0-9]+$", workstation_id)
+                    
+                    return {
+                        "success": bool(is_valid_store and is_valid_ws),
+                        "store_id": store_id,
+                        "store_number": store_number,
+                        "workstation_id": workstation_id,
+                        "is_valid_store": bool(is_valid_store),
+                        "is_valid_ws": bool(is_valid_ws)
+                    }
+            
+            return {"success": False, "error": "Regex did not match or insufficient capture groups"}
+            
+        except Exception as e:
+            return {"success": False, "error": str(e)}
     
     def generate_detection_code(self, component_type, script_type="powershell"):
         """Generate script code for file detection based on component and script type"""

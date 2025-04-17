@@ -294,6 +294,25 @@ class ProjectGenerator:
             
             with open(template_path, 'r') as f:
                 template = f.read()
+                
+            # Apply custom regex if available
+            if "detection_config" in config and "hostname_detection" in config["detection_config"]:
+                # Get the appropriate regex pattern based on platform
+                regex_key = "windows_regex" if platform == "Windows" else "linux_regex"
+                
+                if regex_key in config["detection_config"]["hostname_detection"]:
+                    custom_regex = config["detection_config"]["hostname_detection"][regex_key]
+                    
+                    # Debug info
+                    print(f"Using custom hostname detection regex: {custom_regex}")
+                    
+                    # For Windows (PowerShell) - replace the regex in the hostname detection section
+                    if platform == "Windows":
+                        # Replace the hostname detection regex in PowerShell
+                        template = self._replace_hostname_regex_powershell(template, custom_regex)
+                    else:
+                        # Replace the hostname detection regex in Bash
+                        template = self._replace_hostname_regex_bash(template, custom_regex)
             
             # Get version information
             default_version = config.get("version", "v1.0.0")
@@ -3282,3 +3301,63 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"Created default template: {filename}")
         except Exception as e:
             print(f"Error creating default template {filename}: {str(e)}")
+
+    def _replace_hostname_regex_powershell(self, template_content, custom_regex):
+        """Replace the hostname detection regex in PowerShell template"""
+        import re
+        
+        # The pattern to find in the PowerShell template
+        # We're looking for the hostname detection section where the regex is used
+        pattern = r'if \(\$hs -match "([^"]+)"\) \{[\s\n]+\s+\$storeId = \$matches\[1\][\s\n]+\s+\$workstationId = \$matches\[2\]'
+        
+        # Sanitize regex for PowerShell string
+        # Need to escape any backslashes for PowerShell string
+        sanitized_regex = custom_regex.replace('\\', '\\\\')
+        
+        # The replacement with our custom regex
+        replacement = f'if ($hs -match "{sanitized_regex}") {{\n    $storeId = $matches[1]\n    $workstationId = $matches[2]'
+        
+        # Replace in the template
+        modified_content = re.sub(pattern, replacement, template_content)
+        
+        # Also update the validation regex for workstation ID
+        # Find the validation pattern
+        ws_validation_pattern = r'\$workstationId -match \'\^\\\d\{3\}\$\''
+        
+        # Replace with more permissive pattern that accepts any digit length
+        ws_validation_replacement = r'$workstationId -match \'^\\\d+$\''
+        
+        # Replace in the template
+        modified_content = re.sub(ws_validation_pattern, ws_validation_replacement, modified_content)
+        
+        return modified_content
+        
+    def _replace_hostname_regex_bash(self, template_content, custom_regex):
+        """Replace the hostname detection regex in Bash template"""
+        import re
+        
+        # The pattern to find in the Bash template
+        # We're looking for the hostname detection section where the regex is used
+        pattern = r'if \[\[ "\$hs" =~ ([^\]]+) \]\]; then[\s\n]+\s+storeId="\$\{BASH_REMATCH\[1\]\}"[\s\n]+\s+workstationId="\$\{BASH_REMATCH\[2\]\}"'
+        
+        # Sanitize regex for Bash
+        # Need to escape any backslashes and special chars for Bash
+        sanitized_regex = custom_regex.replace('\\', '\\\\')
+        
+        # The replacement with our custom regex
+        replacement = f'if [[ "$hs" =~ {sanitized_regex} ]]; then\n      storeId="${{BASH_REMATCH[1]}}"\n      workstationId="${{BASH_REMATCH[2]}}"'
+        
+        # Replace in the template
+        modified_content = re.sub(pattern, replacement, template_content)
+        
+        # Also update the validation regex for workstation ID 
+        # Find the validation pattern
+        ws_validation_pattern = r'\[\[ "\$workstationId" =~ \^[0-9]{3}\$ \]\]'
+        
+        # Replace with more permissive pattern that accepts any digit length
+        ws_validation_replacement = r'[[ "$workstationId" =~ ^[0-9]+$ ]]'
+        
+        # Replace in the template
+        modified_content = re.sub(ws_validation_pattern, ws_validation_replacement, modified_content)
+        
+        return modified_content
