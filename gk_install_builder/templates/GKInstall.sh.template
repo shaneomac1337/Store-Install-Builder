@@ -805,21 +805,60 @@ if compgen -G "$security_dir/*.p12" > /dev/null; then
 fi
 
 ssl_path=""
+used_existing_cert=false
 
-if [ "${#security_p12_files[@]}" -gt 0 ]; then
-  # Use the first .p12 file found in the security directory
-  ssl_path="${security_p12_files[0]}"
-  echo "Found certificate at: $ssl_path"
-else
-  # Check for .p12 files in the current directory
-  if [ "${#p12_files[@]}" -gt 0 ]; then
-    echo "Found .p12 file(s) in script directory"
+# Check if we have certificates in current directory
+if [ "${#p12_files[@]}" -gt 0 ]; then
+  echo "Found .p12 file(s) in script directory"
+  
+  # Check if we have certificates in security directory
+  if [ "${#security_p12_files[@]}" -gt 0 ]; then
+    echo "Found existing certificate(s) in security directory, checking for name matches..."
+    
+    # Check for name matches
+    matching_cert=""
+    for p12_file in "${p12_files[@]}"; do
+      cert_name=$(basename "$p12_file")
+      
+      # Check if this certificate name exists in security directory
+      for security_cert in "${security_p12_files[@]}"; do
+        security_cert_name=$(basename "$security_cert")
+        if [ "$cert_name" = "$security_cert_name" ]; then
+          matching_cert="$security_cert"
+          break 2  # Break out of both loops
+        fi
+      done
+    done
+    
+    if [ -n "$matching_cert" ]; then
+      # Use the matching certificate from security directory
+      ssl_path="$matching_cert"
+      echo "Using existing certificate with matching name: $(basename "$matching_cert") from security directory"
+      used_existing_cert=true
+    else
+      # No matching certificate found, copy and use the new one
+      echo "Certificate in current directory has different name than existing ones, copying and using new certificate"
+      
+      # Copy the first p12 file found if there are multiple
+      new_cert="${p12_files[0]}"
+      cert_name=$(basename "$new_cert")
+      dest_path="$security_dir/$cert_name"
+      echo "Copying $cert_name to $dest_path"
+      cp "$new_cert" "$dest_path"
+      
+      # Use the newly copied certificate
+      ssl_path="$dest_path"
+    fi
+  else
+    # No certificates in security directory, copy all from current directory
+    echo "No certificates in security directory, copying all from current directory"
     
     # Copy each .p12 file found
     for p12_file in "${p12_files[@]}"; do
       # Copy with original filename
-      dest_path="$security_dir/$(basename "$p12_file")"
-      echo "Copying $(basename "$p12_file") to $dest_path"
+      cert_name=$(basename "$p12_file")
+      dest_path="$security_dir/$cert_name"
+      echo "Copying $cert_name to $dest_path"
       cp "$p12_file" "$dest_path"
       
       # Set the ssl_path to the first certificate copied
@@ -827,10 +866,16 @@ else
         ssl_path="$dest_path"
       fi
     done
-  else
-    # No certificate found
-    echo "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
   fi
+elif [ "${#security_p12_files[@]}" -gt 0 ]; then
+  # No certificates in current directory but some in security directory
+  # Use the first .p12 file found in the security directory
+  ssl_path="${security_p12_files[0]}"
+  echo "Found certificate at: $ssl_path"
+  used_existing_cert=true
+else
+  # No certificate found anywhere
+  echo "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
 fi
 
 # Paths

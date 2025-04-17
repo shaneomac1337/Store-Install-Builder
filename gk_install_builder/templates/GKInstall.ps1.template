@@ -748,14 +748,42 @@ if (-not (Test-Path $security_dir)) {
 $securityP12Files = Get-ChildItem -Path $security_dir -Filter "*.p12" -ErrorAction SilentlyContinue
 $ssl_path = $null
 
-if ($securityP12Files.Count -gt 0) {
-    # Use the first .p12 file found in the security directory
-    $ssl_path = $securityP12Files[0].FullName
-    Write-Host "Found certificate at: $ssl_path"
-} else {
-    # Check for .p12 files in the current directory
-    if ($p12Files.Count -gt 0) {
-        Write-Host "Found .p12 file(s) in script directory"
+# Check for certificates in the current directory
+$usedExistingCert = $false
+if ($p12Files.Count -gt 0) {
+    Write-Host "Found .p12 file(s) in script directory"
+    
+    # Check if we have certificates in security directory
+    if ($securityP12Files.Count -gt 0) {
+        Write-Host "Found existing certificate(s) in security directory, checking for name matches..."
+        
+        # Get certificate names from security directory
+        $securityCertNames = $securityP12Files | ForEach-Object { $_.Name }
+        
+        # Check if any of our current certificates match by name
+        $matchingCert = $p12Files | Where-Object { $securityCertNames -contains $_.Name } | Select-Object -First 1
+        
+        if ($matchingCert) {
+            # Use the matching certificate from security directory
+            $ssl_path = ($securityP12Files | Where-Object { $_.Name -eq $matchingCert.Name } | Select-Object -First 1).FullName
+            Write-Host "Using existing certificate with matching name: $($matchingCert.Name) from security directory"
+            $usedExistingCert = $true
+        } else {
+            # No matching certificate found, copy and use the new one
+            Write-Host "Certificate in current directory has different name than existing ones, copying and using new certificate"
+            
+            # Copy the first p12 file found if there are multiple
+            $newCert = $p12Files[0]
+            $destPath = Join-Path $security_dir $newCert.Name
+            Write-Host "Copying $($newCert.Name) to $destPath"
+            Copy-Item -Path $newCert.FullName -Destination $destPath -Force
+            
+            # Use the newly copied certificate
+            $ssl_path = $destPath
+        }
+    } else {
+        # No certificates in security directory, copy all from current directory
+        Write-Host "No certificates in security directory, copying all from current directory"
         
         # Copy each .p12 file found
         foreach ($p12File in $p12Files) {
@@ -769,10 +797,16 @@ if ($securityP12Files.Count -gt 0) {
                 $ssl_path = $destPath
             }
         }
-    } else {
-        # No certificate found
-        Write-Host "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
     }
+} elseif ($securityP12Files.Count -gt 0) {
+    # No certificates in current directory but some in security directory
+    # Use the first .p12 file found in the security directory
+    $ssl_path = $securityP12Files[0].FullName
+    Write-Host "Found certificate at: $ssl_path"
+    $usedExistingCert = $true
+} else {
+    # No certificate found anywhere
+    Write-Host "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
 }
 
 # Paths
