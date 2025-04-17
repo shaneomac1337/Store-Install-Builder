@@ -555,9 +555,13 @@ if ([string]::IsNullOrWhiteSpace($storeNumber)) {
 }
 
 # Prompt for Workstation ID
-do {
-    $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
-} while ($workstationId -notmatch '^\d{3}$')
+while true; do
+    $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+    if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+        break
+    fi
+    Write-Host "Invalid input. Please enter a numeric Workstation ID."
+done
 
 """
                         # Replace the entire section
@@ -597,11 +601,11 @@ fi
 
 # Prompt for Workstation ID
 while true; do
-    read -p "Please enter the Workstation ID (3 digits): " workstationId
-    if [[ "$workstationId" =~ ^[0-9]{3}$ ]]; then
+    read -p "Please enter the Workstation ID (numeric): " workstationId
+    if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
         break
     fi
-    echo "Invalid input. Please enter exactly 3 digits."
+    echo "Invalid input. Please enter a numeric Workstation ID."
 done
 
 """
@@ -682,7 +686,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             }}
             
             # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\d{{3}}$') {{
+            if ($storeNumber -and $workstationId -match '^\d+$') {{
                 $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
                 Write-Host "Successfully detected values from file:"
                 Write-Host "Store Number: $storeNumber"
@@ -788,7 +792,7 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
         done < "$stationFilePath"
         
         # Validate extracted values
-        if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]{{3}}$ ]]; then
+        if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]+$ ]]; then
             # Export the variable to ensure it's available in the parent scope
             export hostnameDetected=true
             echo "Successfully detected values from file:"

@@ -592,8 +592,8 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        if ($hs -match '(\w+)-(\d{3})$') {
-            # Pattern like R005-101 or SOMENAME-1674-101 where last part is 3 digits
+        if ($hs -match '(\w+)-(\d+)$') {
+            # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
             $storeId = $matches[1]
             $workstationId = $matches[2]
             
@@ -607,7 +607,7 @@ if ($isUpdate) {
             
             # Validate extracted parts
             if ($storeNumber -match '^\d{4}$' -or $storeNumber -match '^[A-Za-z]\d{3}$' -or $storeNumber -match '^[A-Za-z]{2}\d{2}$') {
-                if ($workstationId -match '^\d{3}$') {
+                if ($workstationId -match '^\d+$') {
                     $hostnameDetected = $true
                     Write-Host "Successfully detected values from hostname:"
                     Write-Host "Store Number: $storeNumber"
@@ -647,8 +647,8 @@ if ($isUpdate) {
         
         # Prompt for Workstation ID
         do {
-            $workstationId = Read-Host "Please enter the Workstation ID (3 digits)"
-        } while ($workstationId -notmatch '^\d{3}$')
+            $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+        } while ($workstationId -notmatch '^\d+$')
     }
 }
 
