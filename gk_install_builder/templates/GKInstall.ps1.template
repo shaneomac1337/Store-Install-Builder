@@ -606,7 +606,8 @@ if ($isUpdate) {
             }
             
             # Validate extracted parts
-            if ($storeNumber -match '^\d{4}$' -or $storeNumber -match '^[A-Za-z]\d{3}$' -or $storeNumber -match '^[A-Za-z]{2}\d{2}$') {
+            # Accept any alphanumeric characters for store ID with at least 1 character
+            if ($storeNumber -match '^[A-Za-z0-9_\-\.]+$') {
                 if ($workstationId -match '^\d+$') {
                     $hostnameDetected = $true
                     Write-Host "Successfully detected values from hostname:"

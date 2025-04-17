@@ -1,0 +1,128 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20250417225138
+Username: MARTIN-PC\Martin
+RunAs User: MARTIN-PC\Martin
+Configuration Name: 
+Machine: MARTIN-PC (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command Import-Module 'c:\Users\Martin\.cursor\extensions\ms-vscode.powershell-2025.0.0\modules\PowerShellEditorServices\PowerShellEditorServices.psd1'; Start-EditorServices -HostName 'Visual Studio Code Host' -HostProfileId 'Microsoft.VSCode' -HostVersion '2025.0.0' -BundledModulesPath 'c:\Users\Martin\.cursor\extensions\ms-vscode.powershell-2025.0.0\modules' -EnableConsoleRepl -StartupBanner "PowerShell Extension v2025.0.0
+Copyright (c) Microsoft Corporation.
+
+https://aka.ms/vscode-powershell
+Type 'help' to get help.
+" -LogLevel 'Warning' -LogPath 'c:\Users\Martin\AppData\Roaming\Cursor\logs\20250417T221845\window1\exthost\ms-vscode.powershell' -SessionDetailsPath 'c:\Users\Martin\AppData\Roaming\Cursor\User\globalStorage\ms-vscode.powershell\sessions\PSES-VSCode-7544-555558.json' -FeatureFlags @() 
+Process ID: 12104
+PSVersion: 5.1.26100.3624
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.3624
+BuildVersion: 10.0.26100.3624
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is GKInstall_POS_20250417_225138.log
+Console output is being saved to GKInstall_POS_20250417_225138.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : STORED-101
+===================
+Successfully detected values from hostname:
+Store Number: STORED
+Workstation ID: 101
+-------------------
+StoreNr   : STORED
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+Error during POS onboarding: The term '.\onboarding.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>$global:__psEditorServices_userInput = $args[0]
+PS>$global:__psEditorServices_userInput = ""
+PS>$env:COMPUTERNAME = "Martin-PC"
+]633;D;0]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>$global:__psEditorServices_userInput = $args[0]
+PS>$global:__psEditorServices_userInput = ""
+PS>.\GKInstall.ps1 -ComponentType POS -offline
+>> TerminatingError(): "The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+.\GKInstall.ps1 : The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the n
+ame, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ .\GKInstall.ps1 -ComponentType POS -offline
++ ~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (.\GKInstall.ps1:String) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>CommandInvocation(Get-PSBreakpoint): "Get-PSBreakpoint"
+>> CommandInvocation(Remove-PSBreakpoint): "Remove-PSBreakpoint"
+PS>CommandInvocation(Get-PSBreakpoint): "Get-PSBreakpoint"
+]633;D]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>. 'C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co\GKInstall.ps1'
+Transcript started, output file is GKInstall_POS_20250417_225200.log
+Console output is being saved to GKInstall_POS_20250417_225200.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : Martin-PC
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+Error during POS onboarding: The term '.\onboarding.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>$global:__psEditorServices_userInput = $args[0]
+PS>$global:__psEditorServices_userInput = ""
+PS>.\GKInstall.ps1 -ComponentType POS -offline
+>> TerminatingError(): "The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again."
+The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+.\GKInstall.ps1 : The term '.\GKInstall.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the n
+ame, or if a path was included, verify that the path is correct and try again.
+At line:1 char:1
++ .\GKInstall.ps1 -ComponentType POS -offline
++ ~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (.\GKInstall.ps1:String) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>CommandInvocation(Get-PSBreakpoint): "Get-PSBreakpoint"
+>> CommandInvocation(Remove-PSBreakpoint): "Remove-PSBreakpoint"
+PS>CommandInvocation(Get-PSBreakpoint): "Get-PSBreakpoint"
+]633;D]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
+PS>. 'C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co\GKInstall.ps1'
+Transcript started, output file is GKInstall_POS_20250417_225220.log
+Console output is being saved to GKInstall_POS_20250417_225220.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : Martin-PC
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Station file not found at: C:\\gkretail\\stations\POS.station
+Falling back to manual input.
+Please enter the Store Number in one of these formats (or any custom format):
+  - 4 digits (e.g., 1234)
+  - 1 letter + 3 digits (e.g., R005)
+  - 2 letters + 2 digits (e.g., CA45)
+  - Custom format (e.g., STORE-105)
+-------------------
+StoreNr   : 9999
+WorkstationId: 104
+-------------------
+Starting onboarding process for POS
+Error during POS onboarding: The term '.\onboarding.ps1' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-BuilderPS C:\Users\Martin\Desktop\Store-Install-Builder> ]633;B
