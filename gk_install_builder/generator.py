@@ -29,6 +29,7 @@ class WebDAVBrowser:
         self.base_url = base_url.rstrip('/')
         self.username = username
         self.password = password
+        self.connected = False
         
         self.options = {
             'webdav_hostname': f"{self.base_url}/dsg/webdav",
@@ -56,6 +57,11 @@ class WebDAVBrowser:
     def list_directories(self, path="/"):
         """List files and directories in the current path"""
         try:
+            # Check if connected
+            if not self.connected:
+                print("Warning: Not connected to WebDAV")
+                return []
+                
             # Normalize and store the path
             path = self._normalize_path(path)
             print(f"Listing directory: {path}")  # Debug print
@@ -99,9 +105,11 @@ class WebDAVBrowser:
             
             files = self.client.list()
             print(f"Connection successful. Found {len(files)} items")
+            self.connected = True
             return True, "Connected successfully"
         except Exception as e:
             print(f"Connection failed: {str(e)}")
+            self.connected = False
             return False, f"Connection failed: {str(e)}"
 
     def list_directory(self, path="/"):

@@ -3874,6 +3874,25 @@ class OfflinePackageCreator:
             font=("Helvetica", 16, "bold")
         ).pack(pady=(10, 5), padx=10)
         
+        # WebDAV connection prompt
+        connection_frame = ctk.CTkFrame(self.offline_package_frame, fg_color="transparent")
+        connection_frame.pack(pady=(0, 5), padx=10, fill="x")
+        
+        connection_icon = ctk.CTkLabel(
+            connection_frame,
+            text="ℹ️",
+            font=("Helvetica", 12)
+        )
+        connection_icon.pack(side="left", padx=(5, 0))
+        
+        self.connection_prompt = ctk.CTkLabel(
+            connection_frame,
+            text="Connect to WebDAV first to download components",
+            font=("Helvetica", 12, "italic"),
+            text_color="#8C8C8C"
+        )
+        self.connection_prompt.pack(side="left", padx=5)
+        
         # Platform information
         platform = self.config_manager.config.get("platform", "Windows")
         platform_color = "#3a7ebf" if platform == "Windows" else "#2eb82e"  # Blue for Windows, Green for Linux
@@ -4088,19 +4107,23 @@ class OfflinePackageCreator:
         # Call update_dependencies to set initial state based on default selections
         # Removed: update_dependencies()
         
-        # Create button
+        # Create button - initially disabled
         self.create_button = ctk.CTkButton(
             self.offline_package_frame,
             text="Create Offline Package",
-            command=self.create_offline_package
+            command=self.create_offline_package,
+            fg_color="#6B7280",  # Gray color for disabled state
+            hover_color="#858D9A",  # Slightly lighter gray for hover
+            state="normal"  # We'll keep it enabled but use visual cues instead
         )
         self.create_button.pack(pady=10, padx=10)
         
         # Status label
         self.status_label = ctk.CTkLabel(
             self.offline_package_frame,
-            text="",
-            font=("Helvetica", 12)
+            text="Please connect to WebDAV before creating packages",
+            font=("Helvetica", 12),
+            text_color="#FF9E3D"  # Orange for warning
         )
         self.status_label.pack(pady=5, padx=10)
     
@@ -4439,15 +4462,47 @@ class OfflinePackageCreator:
             self.config_manager.config["webdav_password"] = password
             self.config_manager.save_config_silent()
             
+            # Enable create offline package button with visual indicator
+            self.create_button.configure(
+                state="normal",
+                fg_color="#2B5BA0",  # Normal blue color
+                hover_color="#3A6AB0"  # Hover blue color
+            )
+            
+            # Clear the connection prompt and update status label
+            if hasattr(self, 'connection_prompt'):
+                self.connection_prompt.configure(
+                    text="WebDAV connected successfully",
+                    text_color="#53D86A"  # Green for success
+                )
+            
+            # Update the status label
+            self.status_label.configure(
+                text="Ready to create offline packages",
+                text_color="#53D86A"  # Green for success
+            )
+            
             # Navigate to SoftwarePackage directory
             self.webdav.current_path = "/SoftwarePackage"
             self.refresh_listing()
         else:
             self.webdav_status.configure(text=f"Connection failed", text_color="#FF6B6B")  # Red for error
+            
+            # Show specific error in a tooltip or status label
+            error_msg = message if len(message) < 50 else message[:47] + "..."
+            self.status_label.configure(text=f"WebDAV: {error_msg}", text_color="#FF6B6B")
     
     def create_offline_package(self):
         """Create offline package with selected components"""
         try:
+            # Check if WebDAV is connected
+            if not hasattr(self, 'webdav') or not getattr(self.webdav, 'connected', False):
+                self.show_error("WebDAV Connection Required", "Please Connect first to WebDAV before proceeding.")
+                # Highlight the connect button with a pulsing effect
+                self.webdav_status.configure(text="Not Connected", text_color="#FF6B6B")
+                self.webdav_status.update()
+                return
+                
             # Check if at least one component is selected
             if not (self.include_pos.get() or 
                    self.include_wdm.get() or 
