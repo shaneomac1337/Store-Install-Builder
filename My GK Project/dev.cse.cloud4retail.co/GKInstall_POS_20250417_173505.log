@@ -1,0 +1,52 @@
+Console output is being saved to GKInstall_POS_20250417_173505.log
+No default Jaybird driver path set - will detect during installation if available
+Found existing installation at /usr/local/gkretail/pos-full with log folder at /usr/local/gkretail/pos-full/log
+Found 17 recently modified log files (within 7 days)
+This appears to be an active installation. Performing update instead of full installation.
+-------------------
+Hostname  : Emulation-ArchLinux
+===================
+Running in update mode - attempting to extract store and workstation IDs from existing installation
+Found existing station.properties at: /usr/local/gkretail/pos-full/station.properties
+Found Store ID in station.properties: 9999
+Found Workstation ID in station.properties: 950
+Using Store ID and Workstation ID from existing installation
+-------------------
+StoreNr   : 9999
+WorkstationId: 950
+-------------------
+Starting onboarding process for POS
+Skipping onboarding and store initialization for update
+Skipping onboarding token check for update mode
+Found .p12 file(s) in script directory
+Found existing certificate(s) in security directory, checking for name matches...
+Using existing certificate with matching name: certificate.p12 from security directory
+Writing launcher properties to file...
+Launcher properties file created successfully. Launcher will use this for configuration.
+Attempting to download Launcher.run from: https://dev.cse.cloud4retail.co/dsg/content/cep/SoftwarePackage/CSE-OPOS-CLOUD/v1.1.0/Launcher.run
+Using curl for download with progress bar...
+##O=-#      #                                                                                                                                                                                          #=O#-   #      #                                                                                                                                                                                       -#O=#     #       #                                                                                                                                                                                    #                                                                                                                                                                                                  0.5%#####                                                                                                                                                                                              2.6%##########                                                                                                                                                                                         5.3%##########################                                                                                                                                                                        13.9%##################################                                                                                                                                                                17.9%###########################################                                                                                                                                                       22.8%####################################################                                                                                                                                              27.4%#############################################################                                                                                                                                     32.3%########################################################################                                                                                                                          37.5%#################################################################################                                                                                                                 42.2%##########################################################################################                                                                                                        47.3%#################################################################################################                                                                                                 50.8%#################################################################################################################                                                                                 59.0%########################################################################################################################                                                                          63.0%################################################################################################################################                                                                  66.9%#######################################################################################################################################                                                           70.7%###############################################################################################################################################                                                   74.9%######################################################################################################################################################                                            78.6%##############################################################################################################################################################                                    82.4%######################################################################################################################################################################                            86.5%#############################################################################################################################################################################                     90.4%#####################################################################################################################################################################################             94.7%#############################################################################################################################################################################################     98.5%################################################################################################################################################################################################ 100.0%
+Successfully downloaded Launcher.run using curl
+Starting installation...
+Found existing installer log file. Deleting to ensure clean installation...
+Existing installer log file deleted successfully.
+Running Launcher.run with arguments: --defaultsFile launcher.properties --mode unattended
+[1;36m=================================================================[0m
+[1;36m                     RUNNING IN UPDATE MODE                      [0m
+[1;36m=================================================================[0m
+Running Launcher with update arguments: --mode unattended --forceDownload false --station.applicationVersion v1.1.0 --station.propertiesPath /usr/local/gkretail/pos-full
+Waiting for installation to complete...
+Monitoring log: /usr/local/gkretail/pos-full/installer/log/installer.log
+Waiting for installer log file to be created... (0 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (2 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (4 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (6 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (8 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (10 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (12 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (14 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (16 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (18 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (20 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (22 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
+Waiting for installer log file to be created... (24 seconds elapsed) - Downloading installation files from dev.cse.cloud4retail.co DSG
