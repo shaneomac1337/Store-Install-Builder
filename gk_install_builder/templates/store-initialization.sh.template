@@ -9,6 +9,9 @@ base_url=""
 STORE_ID=""
 WORKSTATION_ID=""
 
+# Initialize StoreHub wait tracking variable
+storehub_wait_complete=0
+
 # Process command line options
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -642,7 +645,7 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
       echo -e "\033[33m=================================================================\033[0m"
       sleep 120
       echo -e "\033[32mWait complete. Resuming operations.\033[0m"
-      # Set a flag to indicate we've already waited
+      # Set flag to indicate we've already waited
       storehub_wait_complete=1
     fi
   else
@@ -662,7 +665,7 @@ echo "Saved response data to business-unit.json and workstation.json"
 # Always ensure we wait for StoreHub even if the workstation existed already
 if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
   # Check if we haven't already waited
-  if [ -z "${storehub_wait_complete}" ]; then
+  if [ "$storehub_wait_complete" -ne 1 ]; then
     echo -e "\033[33m=================================================================\033[0m"
     echo -e "\033[33mWaiting 2 minutes for backend to complete StoreHub workstation processing...\033[0m"
     echo -e "\033[33m=================================================================\033[0m"
