@@ -470,6 +470,68 @@ if (-not (Test-Path $install_dir)) {
     New-Item -ItemType Directory -Path $install_dir -Force
 }
 
+# Check if this is an update of an existing installation
+$isUpdate = $false
+if (Test-Path $install_dir) {
+    # Check for log folders
+    $logPath = Join-Path $install_dir "log"
+    $logsPath = Join-Path $install_dir "logs"
+    
+    # Determine which log folder exists
+    $logFolderPath = $null
+    if (Test-Path $logPath) {
+        $logFolderPath = $logPath
+    } elseif (Test-Path $logsPath) {
+        $logFolderPath = $logsPath
+    }
+    
+    # If a log folder exists, check for recent activity (last 7 days)
+    if ($logFolderPath) {
+        Write-Host "Found existing installation at $install_dir with log folder at $logFolderPath"
+        
+        try {
+            $recentFiles = Get-ChildItem -Path $logFolderPath -Recurse -File | 
+                           Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }
+            
+            if ($recentFiles.Count -gt 0) {
+                Write-Host "Found $($recentFiles.Count) recently modified log files (within 7 days)"
+                Write-Host "This appears to be an active installation. Performing update instead of full installation."
+                $isUpdate = $true
+            } else {
+                Write-Host "No recent activity found in logs. Performing full installation."
+            }
+        } catch {
+            Write-Host "Error checking log files: $_"
+            Write-Host "Continuing with full installation."
+        }
+    } else {
+        Write-Host "No log folder found. Performing full installation."
+    }
+} else {
+    Write-Host "Installation directory does not exist. Performing full installation."
+}
+
+# If this is an update in offline mode and we have an installer jar, copy it to the temp directory
+if ($isUpdate -and $offline_mode -and $has_installer_jar) {
+    $installerTempDir = Join-Path $install_dir "installer\temp"
+    
+    # Create the temp directory if it doesn't exist
+    if (-not (Test-Path $installerTempDir)) {
+        Write-Host "Creating installer temp directory: $installerTempDir"
+        New-Item -ItemType Directory -Path $installerTempDir -Force | Out-Null
+    }
+    
+    # Copy the installer jar to the temp directory
+    $installerJarDest = Join-Path $installerTempDir "installer.jar"
+    Write-Host "Copying installer JAR for offline update: $installer_jar -> $installerJarDest"
+    try {
+        Copy-Item -Path $installer_jar -Destination $installerJarDest -Force
+        Write-Host "Successfully copied installer JAR for offline update"
+    } catch {
+        Write-Host "Warning: Failed to copy installer JAR for offline update: $_"
+    }
+}
+
 # Get hostname
 $hs = $env:COMPUTERNAME
 if ([string]::IsNullOrEmpty($hs)) {
@@ -560,74 +622,85 @@ Write-Host "-------------------"
 # After the basic configuration section, update the onboarding call
 Write-Host "Starting onboarding process for $ComponentType"
 
-# Call the onboarding script with the appropriate component type
-try {
-    .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url
-    Write-Host "$ComponentType onboarding completed successfully"
+# Skip onboarding and store initialization if this is an update
+if (-not $isUpdate) {
+    # Call the onboarding script with the appropriate component type
+    try {
+        .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url
+        Write-Host "$ComponentType onboarding completed successfully"
 
-    # Execute store initialization right after successful onboarding
-    # Skip store initialization for WDM
-    if ($ComponentType -ne 'WDM') {
-        Write-Host "Starting store initialization..."
-        $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
-        if (Test-Path $storeInitScript) {
-            try {
-                # Update get_store.json with the store ID
-                $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
-                if (Test-Path $getStoreJsonPath) {
-                    Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
-                    # Create directory if it doesn't exist
-                    $initPath = Join-Path $PSScriptRoot "helper\init"
-                    if (-Not (Test-Path $initPath)) {
-                        New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+        # Execute store initialization right after successful onboarding
+        # Skip store initialization for WDM
+        if ($ComponentType -ne 'WDM') {
+            Write-Host "Starting store initialization..."
+            $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
+            if (Test-Path $storeInitScript) {
+                try {
+                    # Update get_store.json with the store ID
+                    $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
+                    if (Test-Path $getStoreJsonPath) {
+                        Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
+                        # Create directory if it doesn't exist
+                        $initPath = Join-Path $PSScriptRoot "helper\init"
+                        if (-Not (Test-Path $initPath)) {
+                            New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+                        }
+                        # Create processed copy
+                        $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
+                        # Read the original file
+                        $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
+                        # Replace the placeholder in memory
+                        $processedGetStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
+                        # Save to the processed file
+                        Set-Content -Path $processedGetStorePath -Value $processedGetStoreJson
+                        Write-Host "get_store_processed.json created successfully"
+                    } else {
+                        Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
                     }
-                    # Create processed copy
-                    $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
-                    # Read the original file
-                    $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
-                    # Replace the placeholder in memory
-                    $processedGetStoreJson = $getStoreJson -replace '@RETAIL_STORE_ID@', $storeNumber
-                    # Save to the processed file
-                    Set-Content -Path $processedGetStorePath -Value $processedGetStoreJson
-                    Write-Host "get_store_processed.json created successfully"
-                } else {
-                    Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
+                    
+                    # Pass the values collected from hostname or user input
+                    & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+                    if ($LASTEXITCODE -eq 0) {
+                        Write-Host "Store initialization completed successfully"
+                    } else {
+                        Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                        exit 1
+                    }
                 }
-                
-                # Pass the values collected from hostname or user input
-                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Host "Store initialization completed successfully"
-                } else {
-                    Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                catch {
+                    Write-Host "Error during store initialization: $_"
                     exit 1
                 }
-            }
-            catch {
-                Write-Host "Error during store initialization: $_"
+            } else {
+                Write-Host "Error: Store initialization script not found at: $storeInitScript"
                 exit 1
             }
         } else {
-            Write-Host "Error: Store initialization script not found at: $storeInitScript"
-            exit 1
+            Write-Host "Skipping store initialization for WDM component"
         }
-    } else {
-        Write-Host "Skipping store initialization for WDM component"
     }
-}
-catch {
-    Write-Host "Error during $ComponentType onboarding: $_"
-    exit 1
+    catch {
+        Write-Host "Error during $ComponentType onboarding: $_"
+        exit 1
+    }
+} else {
+    Write-Host "Skipping onboarding and store initialization for update"
 }
 
 # Read onboarding token
-$onboardingTokenPath = "onboarding.token"
-if (-not (Test-Path $onboardingTokenPath)) {
-    Write-Host "Error: Onboarding token file not found at: $onboardingTokenPath"
-    exit 1
+$onboardingToken = ""
+if (-not $isUpdate) {
+    $onboardingTokenPath = "onboarding.token"
+    if (-not (Test-Path $onboardingTokenPath)) {
+        Write-Host "Error: Onboarding token file not found at: $onboardingTokenPath"
+        exit 1
+    }
+    $onboardingToken = Get-Content -Path $onboardingTokenPath -Raw
+    $onboardingToken = $onboardingToken.Trim()
+} else {
+    Write-Host "Skipping onboarding token check for update mode"
+    $onboardingToken = "not-required-for-update"
 }
-$onboardingToken = Get-Content -Path $onboardingTokenPath -Raw
-$onboardingToken = $onboardingToken.Trim()
 
 # Create configuration files
 $installationToken = @"
@@ -698,7 +771,7 @@ if ($securityP12Files.Count -gt 0) {
         }
     } else {
         # No certificate found
-        Write-Host "Warning: No certificate found for WDM. The installation may fail if a certificate is required."
+        Write-Host "Warning: No certificate found for Tomcat. The installation may fail if a certificate is required."
     }
 }
 
@@ -773,7 +846,25 @@ if (-not $offline_mode) {
     $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"
     Write-Host "Attempting to download Launcher.exe from: $download_url"
     try {
-        Invoke-WebRequest -Uri $download_url -OutFile "Launcher.exe"
+        # Try to use curl first (faster), fall back to WebClient if not available or fails
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            Write-Host "Using curl for download..."
+            try {
+                curl.exe -L --progress-bar -o "Launcher.exe" "$download_url"
+                if (-not (Test-Path "Launcher.exe") -or (Get-Item "Launcher.exe").Length -eq 0) {
+                    throw "Curl download failed or produced empty file."
+                }
+                Write-Host "Successfully downloaded Launcher.exe using curl"
+            } catch {
+                Write-Host "Curl failed: $_. Falling back to WebClient..."
+                $webClient = New-Object System.Net.WebClient
+                $webClient.DownloadFile($download_url, "Launcher.exe")
+            }
+        } else {
+            Write-Host "curl not available, using WebClient..."
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($download_url, "Launcher.exe")
+        }
         Write-Host "Successfully downloaded Launcher.exe"
     }
     catch {
@@ -809,10 +900,21 @@ if (Test-Path $installerLogPath) {
     }
 }
 
-Write-Host "Running Launcher with arguments: --defaultsFile launcher.properties --mode unattended"
-
-# Start Launcher without waiting
-$launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList "--defaultsFile", "launcher.properties", "--mode", "unattended" -PassThru
+# Start Launcher with appropriate arguments for new installation or update
+if ($isUpdate) {
+    Write-Host "Running in update mode"
+    $launchArgs = @(
+        "--mode", "unattended",
+        "--forceDownload", "false",
+        "--station.applicationVersion", $component_version,
+        "--station.propertiesPath", $install_dir
+    )
+    Write-Host "Running Launcher with update arguments: $($launchArgs -join ' ')"
+    $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList $launchArgs -PassThru
+} else {
+    Write-Host "Running in full installation mode"
+    $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList "--defaultsFile", "launcher.properties", "--mode", "unattended" -PassThru
+}
 
 # Check installation logs
 $maxWaitTime = 7200 # 2 hours timeout
