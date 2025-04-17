@@ -902,7 +902,9 @@ if (Test-Path $installerLogPath) {
 
 # Start Launcher with appropriate arguments for new installation or update
 if ($isUpdate) {
-    Write-Host "Running in update mode"
+    Write-Host "================================================================="
+    Write-Host "                     RUNNING IN UPDATE MODE                      " -ForegroundColor Cyan
+    Write-Host "================================================================="
     $launchArgs = @(
         "--mode", "unattended",
         "--forceDownload", "false",
@@ -912,7 +914,9 @@ if ($isUpdate) {
     Write-Host "Running Launcher with update arguments: $($launchArgs -join ' ')"
     $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList $launchArgs -PassThru
 } else {
-    Write-Host "Running in full installation mode"
+    Write-Host "================================================================="
+    Write-Host "                 RUNNING IN FULL INSTALLATION MODE               " -ForegroundColor Green
+    Write-Host "================================================================="
     $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList "--defaultsFile", "launcher.properties", "--mode", "unattended" -PassThru
 }
 
