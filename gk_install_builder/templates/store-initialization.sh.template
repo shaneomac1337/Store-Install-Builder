@@ -272,22 +272,22 @@ else
           # Determine station name based on component type
           case "$COMPONENT_TYPE" in
             POS)
-              station_name="POS Client"
+              station_name="POS Client $WORKSTATION_ID"
               ;;
             WDM)
-              station_name="Wall Device Manager"
+              station_name="Wall Device Manager $WORKSTATION_ID"
               ;;
             FLOW-SERVICE)
-              station_name="Flow Service"
+              station_name="Flow Service $WORKSTATION_ID"
               ;;
             LPA-SERVICE)
-              station_name="Label Print Adapter"
+              station_name="Label Print Adapter $WORKSTATION_ID"
               ;;
             STOREHUB-SERVICE)
-              station_name="StoreHub"
+              station_name="StoreHub $WORKSTATION_ID"
               ;;
             *)
-              station_name="POS Client"
+              station_name="POS Client $WORKSTATION_ID"
               ;;
           esac
           
