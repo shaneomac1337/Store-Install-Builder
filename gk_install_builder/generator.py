@@ -18,6 +18,7 @@ import time
 import threading
 import queue
 from detection import DetectionManager
+import re
 
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -3311,28 +3312,28 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         import re
         
         # The pattern to find in the PowerShell template
-        # We're looking for the hostname detection section where the regex is used
-        pattern = r'if \(\$hs -match "([^"]+)"\) \{[\s\n]+\s+\$storeId = \$matches\[1\][\s\n]+\s+\$workstationId = \$matches\[2\]'
+        # Updated to match single quotes used in the actual template
+        pattern = r"if \(\$hs -match '([^']+)'\) \{"
         
-        # Sanitize regex for PowerShell string
-        # Need to escape any backslashes for PowerShell string
-        sanitized_regex = custom_regex.replace('\\', '\\\\')
+        # Use a function for the first replacement to avoid escape sequence issues
+        def hostname_replacement(match):
+            # Sanitize the regex for PowerShell single quotes
+            safe_regex = custom_regex.replace("'", "''")
+            return f"if ($hs -match '{safe_regex}') {{"
         
-        # The replacement with our custom regex
-        replacement = f'if ($hs -match "{sanitized_regex}") {{\n    $storeId = $matches[1]\n    $workstationId = $matches[2]'
-        
-        # Replace in the template
-        modified_content = re.sub(pattern, replacement, template_content)
+        # Replace in the template using the function
+        modified_content = re.sub(pattern, hostname_replacement, template_content)
         
         # Also update the validation regex for workstation ID
-        # Find the validation pattern
-        ws_validation_pattern = r'\$workstationId -match \'\^\\\d\{3\}\$\''
+        # Find the validation pattern - now using the exact pattern from the GKInstall.ps1
+        ws_validation_pattern = r"\$workstationId -match '\^\\\d\{3\}\$'"
         
-        # Replace with more permissive pattern that accepts any digit length
-        ws_validation_replacement = r'$workstationId -match \'^\\\d+$\''
+        # Use a function for replacement to avoid escape sequence issues
+        def ws_replacement(match):
+            return "$workstationId -match '^\\d+$'"
         
-        # Replace in the template
-        modified_content = re.sub(ws_validation_pattern, ws_validation_replacement, modified_content)
+        # Replace in the template using the function
+        modified_content = re.sub(ws_validation_pattern, ws_replacement, modified_content)
         
         return modified_content
         
@@ -3341,27 +3342,25 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         import re
         
         # The pattern to find in the Bash template
-        # We're looking for the hostname detection section where the regex is used
-        pattern = r'if \[\[ "\$hs" =~ ([^\]]+) \]\]; then[\s\n]+\s+storeId="\$\{BASH_REMATCH\[1\]\}"[\s\n]+\s+workstationId="\$\{BASH_REMATCH\[2\]\}"'
+        # Simplified pattern to match the actual code in GKInstall.sh
+        pattern = r'if \[\[ "\$hs" =~ ([^\]]+) \]\]; then'
         
-        # Sanitize regex for Bash
-        # Need to escape any backslashes and special chars for Bash
-        sanitized_regex = custom_regex.replace('\\', '\\\\')
+        # Use a function for replacement to avoid escape sequence issues
+        def hostname_replacement(match):
+            return f'if [[ "$hs" =~ {custom_regex} ]]; then'
         
-        # The replacement with our custom regex
-        replacement = f'if [[ "$hs" =~ {sanitized_regex} ]]; then\n      storeId="${{BASH_REMATCH[1]}}"\n      workstationId="${{BASH_REMATCH[2]}}"'
-        
-        # Replace in the template
-        modified_content = re.sub(pattern, replacement, template_content)
+        # Replace in the template using the function
+        modified_content = re.sub(pattern, hostname_replacement, template_content)
         
         # Also update the validation regex for workstation ID 
-        # Find the validation pattern
+        # Find the validation pattern using raw string
         ws_validation_pattern = r'\[\[ "\$workstationId" =~ \^[0-9]{3}\$ \]\]'
         
-        # Replace with more permissive pattern that accepts any digit length
-        ws_validation_replacement = r'[[ "$workstationId" =~ ^[0-9]+$ ]]'
+        # Use a function for replacement to avoid escape sequence issues
+        def ws_replacement(match):
+            return '[[ "$workstationId" =~ ^[0-9]+$ ]]'
         
-        # Replace in the template
-        modified_content = re.sub(ws_validation_pattern, ws_validation_replacement, modified_content)
+        # Replace in the template using the function
+        modified_content = re.sub(ws_validation_pattern, ws_replacement, modified_content)
         
         return modified_content
