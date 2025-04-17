@@ -624,7 +624,7 @@ $fileDetectionEnabled = $true
 $componentType = $ComponentType
 
 # Check if we're using base directory or custom paths
-$useBaseDirectory = $"{is_using_base_dir}".ToLower()
+$useBaseDirectory = "{is_using_base_dir}".ToLower()
 
 if ($useBaseDirectory -eq "true") {{
     # Use base directory approach
