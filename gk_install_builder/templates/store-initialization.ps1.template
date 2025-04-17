@@ -9,6 +9,9 @@ param (
     [string]$WorkstationId
 )
 
+# Initialize StoreHub wait tracking variable
+$script:storeHubWaitComplete = $false
+
 # Get script directory and set current directory as base path
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $basePath = Get-Location
@@ -490,6 +493,8 @@ try {
                 Write-Host "==========================================================" -ForegroundColor Yellow
                 Start-Sleep -Seconds 120
                 Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
+                # Set flag to indicate we've already waited
+                $script:storeHubWaitComplete = $true
             }
         }
         else {
@@ -525,7 +530,7 @@ try {
             Write-Host "StoreHub wait already completed. Skipping additional wait."
         }
     }
-
+    
     # Exit successfully
     exit 0
 }
