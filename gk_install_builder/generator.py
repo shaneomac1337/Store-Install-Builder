@@ -1506,6 +1506,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         """Ask user if they want to download dependencies even if component files are not found"""
         import customtkinter as ctk
         import tkinter as tk
+        import sys
         
         # Create message based on whether there was an error or just no files found
         if error_message:
@@ -1527,20 +1528,22 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         dialog.title(f"{component_type} Files Not Found")
         dialog.geometry("500x200")
         
-        # Make sure the dialog is visible before setting grab
+        # Force initial update
         dialog.update_idletasks()
-        dialog.deiconify()
-        dialog.wait_visibility()
-        dialog.lift()
-        dialog.focus_force()
         
+        # Linux-specific handling
+        if sys.platform.startswith('linux'):
+            dialog.attributes("-topmost", True)
+            dialog.update()
+            
         # Center the dialog on the parent window if available
         if parent_window:
             x = parent_window.winfo_x() + (parent_window.winfo_width() // 2) - (500 // 2)
             y = parent_window.winfo_y() + (parent_window.winfo_height() // 2) - (200 // 2)
             dialog.geometry(f"+{x}+{y}")
         
-        # Now that the window is visible, set grab
+        # Ensure focus and grab
+        dialog.focus_force()
         dialog.grab_set()
         
         # Result variable
@@ -1595,6 +1598,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             command=on_yes, 
             width=200
         ).pack(side="right", padx=10)
+        
+        # One more update to ensure everything is displayed
+        dialog.update_idletasks()
         
         # Wait for the dialog to close
         if parent_window:
@@ -1744,27 +1750,29 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Helper function to create a progress dialog
             def create_progress_dialog(parent, total_files):
                 import customtkinter as ctk
+                import sys
                 
                 progress_dialog = ctk.CTkToplevel(parent)
                 progress_dialog.title("Downloading Files")
                 progress_dialog.geometry("700x600")  # Increased size to accommodate multiple progress bars
                 progress_dialog.transient(parent)
                 
-                # Make sure the dialog is visible before setting grab
+                # Force initial update
                 progress_dialog.update_idletasks()
-                progress_dialog.deiconify()
-                progress_dialog.wait_visibility()
-                progress_dialog.lift()
-                progress_dialog.focus_force()
+                
+                # Linux-specific handling
+                if sys.platform.startswith('linux'):
+                    progress_dialog.attributes("-topmost", True)
+                    progress_dialog.update()
                 
                 # Center the dialog on the parent window
                 x = parent.winfo_x() + (parent.winfo_width() // 2) - (700 // 2)
                 y = parent.winfo_y() + (parent.winfo_height() // 2) - (600 // 2)
                 progress_dialog.geometry(f"+{x}+{y}")
                 
-                # Now that the window is visible, set grab
+                # Ensure focus and grab
+                progress_dialog.focus_force()
                 progress_dialog.grab_set()
-                progress_dialog.attributes("-topmost", True)
                 
                 # Title
                 ctk.CTkLabel(
@@ -1806,6 +1814,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 files_frame = ctk.CTkScrollableFrame(progress_frame, width=650, height=350)
                 files_frame.pack(fill="both", expand=True, padx=10, pady=10)
                 
+                # One more update to ensure everything is displayed 
+                progress_dialog.update_idletasks()
+                
                 # Dictionary to store progress bars and labels for each file
                 file_progress_widgets = {}
                 
@@ -1817,6 +1828,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             def prompt_for_file_selection(files, component_type, title=None, description=None, file_type=None, config=None):
                 import customtkinter as ctk
                 import tkinter as tk
+                import sys
                 
                 # Use default config if not provided
                 if config is None:
@@ -1895,21 +1907,23 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 dialog.title(title)
                 dialog.geometry("600x500")  # Increased size for better visibility
                 
-                # Make sure the dialog is visible before setting grab
+                # Force initial update for Linux
                 dialog.update_idletasks()
-                dialog.deiconify()
-                dialog.wait_visibility()
-                dialog.lift()
+                
+                # Linux-specific handling
+                if sys.platform.startswith('linux'):
+                    dialog.attributes("-topmost", True)
+                    dialog.update()
+                    
+                # Focus and grab management
                 dialog.focus_force()
+                dialog.grab_set()
                 
                 # Center the dialog on the parent window if available
                 if parent:
                     x = parent.winfo_x() + (parent.winfo_width() // 2) - (600 // 2)
                     y = parent.winfo_y() + (parent.winfo_height() // 2) - (500 // 2)
                     dialog.geometry(f"+{x}+{y}")
-                
-                # Now that the window is visible, set grab
-                dialog.grab_set()
                 
                 # Title and description
                 ctk.CTkLabel(
@@ -1943,6 +1957,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 # Create a scrollable frame for the checkboxes
                 scroll_frame = ctk.CTkScrollableFrame(dialog, width=450, height=200)
                 scroll_frame.pack(fill="both", expand=True, padx=20, pady=10)
+                
+                # Update to ensure scroll_frame is properly rendered
+                dialog.update_idletasks()
                 
                 # Find the latest version (assuming version numbers are in the filenames)
                 # This is a simple heuristic - we'll try to find the file with the highest version number
@@ -2956,6 +2973,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         """
         import customtkinter as ctk
         import tkinter as tk
+        import sys
         
         # Use the parent if provided, otherwise use self.parent_window, or create a new root
         parent = parent or self.parent_window
@@ -2971,8 +2989,16 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             dialog.title(f"Existing {component_type} Files Found")
             dialog.geometry("600x450")
             dialog.transient(parent)
+            
+            # Force update to ensure dialog is properly created
+            dialog.update_idletasks()
+            
+            # Linux-specific handling
+            if sys.platform.startswith('linux'):
+                dialog.attributes("-topmost", True)
+                dialog.update()
+                
             dialog.grab_set()
-            dialog.attributes("-topmost", True)
             dialog.focus_force()
             
             # Title
@@ -3036,6 +3062,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 command=on_yes,
                 width=180
             ).pack(side="right", padx=10)
+            
+            # One more update to ensure everything is displayed
+            dialog.update_idletasks()
             
             # Wait for the dialog to close
             parent.wait_window(dialog)
