@@ -3463,14 +3463,24 @@ class GKInstallBuilder:
             font=("Helvetica", 16, "bold")
         ).pack(anchor="w", padx=10, pady=10)
         
+        # Create a tabview for different detection settings sections
+        tabview = ctk.CTkTabview(main_frame)
+        tabview.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create tabs
+        tab_file_detection = tabview.add("File Detection")
+        tab_regex = tabview.add("Hostname Detection")
+        
+        # ----- FILE DETECTION TAB -----
+        
         ctk.CTkLabel(
-            main_frame, 
+            tab_file_detection, 
             text="Configure paths to station files for store and workstation ID detection.",
             wraplength=650
-        ).pack(anchor="w", padx=10, pady=(0, 10))
+        ).pack(anchor="w", padx=10, pady=(10, 10))
         
         # Enable/disable detection checkbox
-        enable_frame = ctk.CTkFrame(main_frame)
+        enable_frame = ctk.CTkFrame(tab_file_detection)
         enable_frame.pack(fill="x", padx=10, pady=5)
         
         # Create a BooleanVar for the detection option
@@ -3505,7 +3515,7 @@ class GKInstallBuilder:
             explanation_label.pack(anchor="w", padx=10, pady=(0, 10))
         
         # File format description
-        format_frame = ctk.CTkFrame(main_frame)
+        format_frame = ctk.CTkFrame(tab_file_detection)
         format_frame.pack(fill="x", padx=10, pady=10)
         
         ctk.CTkLabel(
@@ -3524,7 +3534,7 @@ WorkstationID=101"""
         
         # --- Path configuration ---
         # Create a frame for path configuration options
-        path_config_frame = ctk.CTkFrame(main_frame)
+        path_config_frame = ctk.CTkFrame(tab_file_detection)
         path_config_frame.pack(fill="x", padx=10, pady=10)
         
         ctk.CTkLabel(
@@ -3562,7 +3572,7 @@ WorkstationID=101"""
         custom_paths_radio.pack(anchor="w", padx=10, pady=5)
         
         # --- Base Directory Configuration ---
-        self.base_dir_frame = ctk.CTkFrame(main_frame)
+        self.base_dir_frame = ctk.CTkFrame(tab_file_detection)
         self.base_dir_frame.pack(fill="x", padx=10, pady=10)
         
         ctk.CTkLabel(
@@ -3639,7 +3649,7 @@ WorkstationID=101"""
             self.filename_entries[component] = entry
         
         # Custom Paths Configuration
-        self.custom_paths_frame = ctk.CTkFrame(main_frame)
+        self.custom_paths_frame = ctk.CTkFrame(tab_file_detection)
         self.custom_paths_frame.pack(fill="x", padx=10, pady=10)
         
         ctk.CTkLabel(
@@ -3684,6 +3694,45 @@ WorkstationID=101"""
         # Initially update UI based on selected approach
         self.update_detection_ui()
         
+        # ----- REGEX TAB -----
+        # Create a frame for regex editing
+        regex_frame = ctk.CTkFrame(tab_regex)
+        regex_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Title and description
+        ctk.CTkLabel(
+            regex_frame, 
+            text="Hostname Detection Regex Editor",
+            font=("Helvetica", 14, "bold")
+        ).pack(anchor="w", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            regex_frame, 
+            text="Customize the regular expressions used to extract Store ID and Workstation ID from hostnames.",
+            wraplength=650
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # Create a note about regex capture groups
+        note_frame = ctk.CTkFrame(regex_frame)
+        note_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            note_frame,
+            text="Important: Your regex must include exactly two capture groups:",
+            font=("Helvetica", 11, "bold"),
+            text_color="#FF8C00"  # Orange
+        ).pack(anchor="w", padx=10, pady=(5, 0))
+        
+        ctk.CTkLabel(
+            note_frame,
+            text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (should be 3 digits)",
+            justify="left"
+        ).pack(anchor="w", padx=20, pady=(0, 5))
+        
+        # Create two sections: one for Windows and one for Linux
+        self.create_regex_editor(regex_frame, "Windows")
+        self.create_regex_editor(regex_frame, "Linux")
+        
         # Buttons frame
         buttons_frame = ctk.CTkFrame(main_frame)
         buttons_frame.pack(fill="x", padx=10, pady=10)
@@ -3702,6 +3751,177 @@ WorkstationID=101"""
         )
         cancel_btn.pack(side="right", padx=10)
     
+    def create_regex_editor(self, parent_frame, platform):
+        """Create a regex editor section for a specific platform"""
+        # Create a frame for this platform
+        platform_frame = ctk.CTkFrame(parent_frame)
+        platform_frame.pack(fill="x", padx=10, pady=10)
+        
+        # Title
+        ctk.CTkLabel(
+            platform_frame,
+            text=f"{platform} Hostname Detection",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        # Regex entry
+        regex_frame = ctk.CTkFrame(platform_frame)
+        regex_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            regex_frame,
+            text="Regex Pattern:",
+            width=120
+        ).pack(side="left", padx=10)
+        
+        # Create entry for regex pattern
+        regex_entry = ctk.CTkEntry(regex_frame, width=450)
+        regex_entry.pack(side="left", padx=10, fill="x", expand=True)
+        
+        # Get current regex value
+        current_regex = self.detection_manager.get_hostname_regex(platform.lower())
+        regex_entry.insert(0, current_regex)
+        
+        # Store entry reference in instance variable
+        if platform.lower() == "windows":
+            self.windows_regex_entry = regex_entry
+        else:
+            self.linux_regex_entry = regex_entry
+        
+        # Test section
+        test_frame = ctk.CTkFrame(platform_frame)
+        test_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            test_frame,
+            text="Test Hostname:",
+            width=120
+        ).pack(side="left", padx=10)
+        
+        # Create entry for test hostname
+        test_hostname_entry = ctk.CTkEntry(test_frame, width=200)
+        test_hostname_entry.pack(side="left", padx=10)
+        
+        # Get current test hostname
+        test_hostname_entry.insert(0, self.detection_manager.get_test_hostname())
+        
+        # Store entry reference
+        if platform.lower() == "windows":
+            self.windows_test_entry = test_hostname_entry
+        else:
+            self.linux_test_entry = test_hostname_entry
+        
+        # Test button
+        test_btn = ctk.CTkButton(
+            test_frame,
+            text="Test Regex",
+            width=100,
+            command=lambda: self.test_regex(platform.lower())
+        )
+        test_btn.pack(side="left", padx=10)
+        
+        # Results frame
+        results_frame = ctk.CTkFrame(platform_frame)
+        results_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Create a text widget to show results
+        results_text = ctk.CTkTextbox(results_frame, height=80, width=650)
+        results_text.pack(fill="x", padx=10, pady=5)
+        results_text.insert("1.0", "Test results will appear here...")
+        results_text.configure(state="disabled")
+        
+        # Store text widget reference
+        if platform.lower() == "windows":
+            self.windows_results_text = results_text
+        else:
+            self.linux_results_text = results_text
+    
+    def test_regex(self, platform):
+        """Test the regex pattern against a sample hostname"""
+        try:
+            # Get the regex pattern and hostname from the appropriate entries
+            if platform == "windows":
+                regex_pattern = self.windows_regex_entry.get()
+                hostname = self.windows_test_entry.get()
+                results_text = self.windows_results_text
+            else:
+                regex_pattern = self.linux_regex_entry.get()
+                hostname = self.linux_test_entry.get()
+                results_text = self.linux_results_text
+            
+            # Update the pattern in the detection manager
+            self.detection_manager.set_hostname_regex(regex_pattern, platform)
+            self.detection_manager.set_test_hostname(hostname)
+            
+            # Test the regex
+            result = self.detection_manager.test_hostname_regex(hostname, platform)
+            
+            # Display the results
+            results_text.configure(state="normal")
+            results_text.delete("1.0", "end")
+            
+            if result["success"]:
+                # Success case
+                results_text.insert("1.0", f"✅ Match successful!\n\n")
+                
+                if platform == "windows":
+                    results_text.insert("end", f"Store ID: {result['store_id']}\n")
+                    results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
+                else:
+                    # Linux has more detailed results
+                    results_text.insert("end", f"Store ID: {result['store_id']}\n")
+                    if "store_number" in result:
+                        results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
+                    results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
+                    
+                    # Add validation results
+                    if "is_valid_store" in result:
+                        valid_indicator = "✅" if result["is_valid_store"] else "❌"
+                        results_text.insert("end", f"{valid_indicator} Store ID format: " + 
+                                         ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
+                        
+                    if "is_valid_ws" in result:
+                        valid_indicator = "✅" if result["is_valid_ws"] else "❌"
+                        results_text.insert("end", f"{valid_indicator} Workstation ID format: " + 
+                                         ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
+            else:
+                # Failure case
+                results_text.insert("1.0", f"❌ Regex did not match!\n\n")
+                if "error" in result:
+                    results_text.insert("end", f"Error: {result['error']}\n")
+                else:
+                    results_text.insert("end", "The regex pattern did not match the hostname or didn't capture the required groups.")
+            
+            results_text.configure(state="disabled")
+            
+        except Exception as e:
+            # Handle exceptions
+            if platform == "windows":
+                results_text = self.windows_results_text
+            else:
+                results_text = self.linux_results_text
+                
+            results_text.configure(state="normal")
+            results_text.delete("1.0", "end")
+            results_text.insert("1.0", f"❌ Error testing regex!\n\n{str(e)}")
+            results_text.configure(state="disabled")
+
+    def _safe_grab_set(self, window):
+        """Safely set grab on a window, handling potential Linux visibility issues"""
+        try:
+            # Make sure window is visible and updated
+            window.update_idletasks()
+            window.update()
+            window.deiconify()
+            window.focus_force()
+            
+            # Attempt to set grab
+            window.grab_set()
+        except Exception as e:
+            print(f"Warning: Could not set grab on window: {e}")
+            # Try again after a short delay
+            window.after(200, lambda: self._safe_grab_set(window))
+
     def update_detection_ui(self):
         """Update the detection UI based on the selected approach"""
         is_base_dir = self.path_approach_var.get() == "base_dir"
@@ -3766,6 +3986,30 @@ WorkstationID=101"""
             # Save custom file paths
             for component, entry in self.file_path_entries.items():
                 self.detection_manager.set_file_path(component, entry.get())
+        
+        # Save regex settings if they exist
+        try:
+            # Windows regex
+            if hasattr(self, 'windows_regex_entry'):
+                self.detection_manager.set_hostname_regex(
+                    self.windows_regex_entry.get(), 
+                    "windows"
+                )
+            
+            # Linux regex
+            if hasattr(self, 'linux_regex_entry'):
+                self.detection_manager.set_hostname_regex(
+                    self.linux_regex_entry.get(),
+                    "linux"
+                )
+            
+            # Test hostname
+            if hasattr(self, 'linux_test_entry'):
+                self.detection_manager.set_test_hostname(self.linux_test_entry.get())
+            elif hasattr(self, 'windows_test_entry'):
+                self.detection_manager.set_test_hostname(self.windows_test_entry.get())
+        except Exception as e:
+            print(f"Error saving regex settings: {e}")
         
         # Save to config
         self.config_manager.config["detection_config"] = self.detection_manager.get_config()
