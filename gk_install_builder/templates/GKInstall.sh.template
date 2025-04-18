@@ -670,7 +670,7 @@ else
     # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
     
-    # Extract the last part (workstation ID) if it's 3 digits
+    # Extract the last part (workstation ID)
     if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then
       storeId="${BASH_REMATCH[1]}"
       workstationId="${BASH_REMATCH[2]}"

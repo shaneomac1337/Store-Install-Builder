@@ -25,7 +25,7 @@ class DetectionManager:
             },
             "hostname_detection": {
                 "windows_regex": r"([^-]+)-([0-9]{3})$",
-                "linux_regex": r"([^-]+)-([0-9]{3})$",
+                "linux_regex": r"([^-]+)-([0-9]+)$",
                 "test_hostname": "STORE-1234-101"
             }
         }

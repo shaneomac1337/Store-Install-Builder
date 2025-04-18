@@ -754,9 +754,10 @@ class GKInstallBuilder:
         # Create tooltip for hostname detection
         self.create_tooltip(hostname_detection_label, "Controls whether installation scripts will attempt to extract store ID and workstation ID from the computer hostname")
         
-        # Create a BooleanVar for the hostname detection option
+        # Create BooleanVars for the detection options
         self.hostname_detection_var = ctk.BooleanVar(value=self.config_manager.config.get("use_hostname_detection", True))
-        
+        self.file_detection_var = ctk.BooleanVar(value=self.config_manager.config.get("file_detection_enabled", True))
+
         # Create checkbox for hostname detection
         hostname_detection_checkbox = ctk.CTkCheckBox(
             hostname_detection_frame, 
@@ -767,21 +768,31 @@ class GKInstallBuilder:
             command=self.on_hostname_detection_changed
         )
         hostname_detection_checkbox.pack(side="left", padx=10)
-        self.create_tooltip(hostname_detection_checkbox, 
-                           "When enabled, the installation script will try to extract store ID and workstation ID from the computer hostname.\n"
-                           "When disabled, the script will skip hostname detection and use file detection or manual input instead.")
+        self.create_tooltip(hostname_detection_checkbox,
+            "When enabled, the installation script will try to extract store ID and workstation ID from the computer hostname.\n"
+            "When disabled, the script will skip hostname detection and use file detection or manual input instead.")
+
+        # Create checkbox for file detection
+        file_detection_checkbox = ctk.CTkCheckBox(
+            hostname_detection_frame,
+            text="Enable file detection",
+            variable=self.file_detection_var,
+            onvalue=True,
+            offvalue=False,
+            command=self.on_file_detection_changed
+        )
+        file_detection_checkbox.pack(side="left", padx=10)
+        self.create_tooltip(file_detection_checkbox,
+            "When enabled, the installation script will try to extract store ID and workstation ID from station files on disk.\n"
+            "When disabled, file detection will not be attempted as a fallback.")
+
+        # Register both detection variables with config manager
+        self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
+        self.config_manager.register_entry("file_detection_enabled", self.file_detection_var)
         
         # Add an information label to explain the fallback behavior
-        hostname_info_frame = ctk.CTkFrame(form_frame)
-        hostname_info_frame.pack(fill="x", padx=10, pady=(0, 5))
-        
-        ctk.CTkLabel(
-            hostname_info_frame,
-            text="When hostname detection is disabled or fails, the installation script will use file detection (if enabled) or prompt for manual input. These settings can be configured independently.",
-            wraplength=550,
-            text_color="gray70",
-            justify="left"
-        ).pack(anchor="w", padx=35)
+
+
         
         # Add Detection Settings button
         detection_settings_btn = ctk.CTkButton(
@@ -794,9 +805,6 @@ class GKInstallBuilder:
         
         # Create tooltip for detection settings button
         self.create_tooltip(detection_settings_btn, "Configure file detection settings and hostname regex patterns\nFile detection serves as a fallback when hostname detection fails or is disabled")
-        
-        # Register the hostname detection variable with config manager
-        self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
         
         # Add validation and auto-fill for Base URL
         base_url_entry = self.config_manager.get_entry("base_url")
@@ -3408,21 +3416,22 @@ class GKInstallBuilder:
         # Get the current value
         is_hostname_enabled = self.hostname_detection_var.get()
         self.config_manager.update_entry_value("use_hostname_detection", is_hostname_enabled)
-        
-        # Show the user what this setting means with a tooltip or message dialog
-        if is_hostname_enabled:
-            message = "Hostname detection is now ENABLED. Installation scripts will attempt to extract store and workstation IDs from computer hostnames."
-        else:
-            message = "Hostname detection is now DISABLED. Installation scripts will use file detection (if enabled) or prompt for manual input."
-        
-        # Show a temporary message to the user
-        if hasattr(self, 'save_status_label'):
-            self.save_status_label.configure(text=message)
-            self.save_status_label.update()
-            
-            # Reset the status label after 5 seconds
-            self.root.after(5000, lambda: self.save_status_label.configure(text=""))
-        
+
+    def on_file_detection_changed(self):
+        """Handler for when file detection checkbox is changed"""
+        is_file_enabled = self.file_detection_var.get()
+        self.config_manager.update_entry_value("file_detection_enabled", is_file_enabled)
+        if hasattr(self, 'detection_manager'):
+            self.detection_manager.enable_file_detection(is_file_enabled)
+        # Optionally, save config immediately if desired:
+        # self.config_manager.save_config()
+        # Optionally, show a message about file detection status
+        # if hasattr(self, 'save_status_label'):
+        #     msg = "File detection is now {}.".format("ENABLED" if is_file_enabled else "DISABLED")
+        #     self.save_status_label.configure(text=msg)
+        #     self.save_status_label.update()
+        #     self.root.after(5000, lambda: self.save_status_label.configure(text=""))
+
         # If the detection settings window is open, update it
         if hasattr(self, 'detection_window') and self.detection_window is not None and self.detection_window.winfo_exists():
             # Update the hostname status on the regex tab
@@ -3437,40 +3446,12 @@ class GKInstallBuilder:
                                         for label in frame.winfo_children():
                                             if isinstance(label, ctk.CTkLabel) and ("currently" in label.cget("text") and ("ENABLED" in label.cget("text") or "DISABLED" in label.cget("text"))):
                                                 # Update the hostname status label
-                                                status_text = "Hostname detection is currently ENABLED" if is_hostname_enabled else "Hostname detection is currently DISABLED"
-                                                status_color = "green" if is_hostname_enabled else "red"
-                                                label.configure(text=status_text, text_color=status_color)
-            
-            # Also update the explanatory text
-            if hasattr(self, 'detection_var'):
-                file_detection_enabled = self.detection_var.get()
-                
-                # Determine the new explanation text
-                if is_hostname_enabled and file_detection_enabled:
-                    explanation_text = "Both hostname detection and file detection are enabled. If hostname detection fails, file detection will be used as a fallback."
-                elif is_hostname_enabled and not file_detection_enabled:
-                    explanation_text = "Hostname detection is enabled but file detection is disabled. If hostname detection fails, the user will be prompted for manual input."
-                elif not is_hostname_enabled and file_detection_enabled:
-                    explanation_text = "Hostname detection is disabled, but file detection is enabled. File detection will be used to extract store and workstation IDs."
-                else:
-                    explanation_text = "Both hostname detection and file detection are disabled. Users will be prompted for manual input."
-                
-                # Find the explanation label and update it
-                for widget in self.detection_window.winfo_children():
-                    if isinstance(widget, ctk.CTkScrollableFrame):
-                        for child in widget.winfo_children():
-                            if isinstance(child, ctk.CTkTabview):
-                                # Look for the file detection tab
-                                for tab in child.winfo_children():
-                                    for frame in tab.winfo_children():
-                                        if isinstance(frame, ctk.CTkFrame):
-                                            for label in frame.winfo_children():
-                                                if isinstance(label, ctk.CTkLabel) and ("hostname detection" in label.cget("text").lower() and "file detection" in label.cget("text").lower()):
-                                                    # Update the explanation label
-                                                    label.configure(text=explanation_text)
+                                                label.configure(text="Hostname detection is currently ENABLED" if self.hostname_detection_var.get() else "Hostname detection is currently DISABLED")
+                                                label.configure(text_color="green" if self.hostname_detection_var.get() else "red")
+                                                pass
         
         # If hostname detection is enabled, ensure detection configuration has defaults
-        if is_hostname_enabled:
+        if hasattr(self, 'hostname_detection_var') and self.hostname_detection_var.get():
             # Check if detection_config exists in the config
             if "detection_config" not in self.config_manager.config:
                 # Create default detection config
@@ -3998,22 +3979,41 @@ WorkstationID=101"""
                 regex_pattern = self.linux_regex_entry.get()
                 hostname = self.linux_test_entry.get()
                 results_text = self.linux_results_text
-            
+
+                # Perl/PCRE regex detection (basic heuristics)
+                perl_regex_detected = False
+                # Perl delimiters
+                if regex_pattern.strip().startswith('/') and regex_pattern.strip().endswith('/'):
+                    perl_regex_detected = True
+                # Named groups, Unicode classes, \K
+                if '(?<' in regex_pattern or '\p{' in regex_pattern or '\K' in regex_pattern:
+                    perl_regex_detected = True
+                # Common Perl/PCRE shorthands not supported by POSIX grep
+                if '\d' in regex_pattern or '\w' in regex_pattern or '\s' in regex_pattern or '\D' in regex_pattern or '\W' in regex_pattern or '\S' in regex_pattern:
+                    perl_regex_detected = True
+
+                if perl_regex_detected:
+                    results_text.configure(state="normal")
+                    results_text.delete("1.0", "end")
+                    results_text.insert("1.0", "❌ Perl/PCRE-style regex detected!\n\nPerl/PCRE regex syntax (e.g. /pattern/, named groups, Unicode classes, \\d, \\w, \\s, etc.) is not supported for Linux detection or POSIX grep.\nPlease use standard POSIX-compatible regex syntax, e.g. [0-9], [A-Za-z], etc.")
+                    results_text.configure(state="disabled")
+                    return
+
             # Update the pattern in the detection manager
             self.detection_manager.set_hostname_regex(regex_pattern, platform)
             self.detection_manager.set_test_hostname(hostname)
-            
+
             # Test the regex
             result = self.detection_manager.test_hostname_regex(hostname, platform)
-            
+
             # Display the results
             results_text.configure(state="normal")
             results_text.delete("1.0", "end")
-            
+
             if result["success"]:
                 # Success case
                 results_text.insert("1.0", f"✅ Match successful!\n\n")
-                
+
                 if platform == "windows":
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
@@ -4023,17 +4023,17 @@ WorkstationID=101"""
                     if "store_number" in result:
                         results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
-                    
+
                     # Add validation results
                     if "is_valid_store" in result:
                         valid_indicator = "✅" if result["is_valid_store"] else "❌"
-                        results_text.insert("end", f"{valid_indicator} Store ID format: " + 
-                                         ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
-                        
+                        results_text.insert("end", f"{valid_indicator} Store ID format: " +
+                                             ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
+
                     if "is_valid_ws" in result:
                         valid_indicator = "✅" if result["is_valid_ws"] else "❌"
-                        results_text.insert("end", f"{valid_indicator} Workstation ID format: " + 
-                                         ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
+                        results_text.insert("end", f"{valid_indicator} Workstation ID format: " +
+                                             ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
             else:
                 # Failure case
                 results_text.insert("1.0", f"❌ Regex did not match!\n\n")
@@ -4041,16 +4041,14 @@ WorkstationID=101"""
                     results_text.insert("end", f"Error: {result['error']}\n")
                 else:
                     results_text.insert("end", "The regex pattern did not match the hostname or didn't capture the required groups.")
-            
+
             results_text.configure(state="disabled")
-            
+
         except Exception as e:
-            # Handle exceptions
             if platform == "windows":
                 results_text = self.windows_results_text
             else:
                 results_text = self.linux_results_text
-                
             results_text.configure(state="normal")
             results_text.delete("1.0", "end")
             results_text.insert("1.0", f"❌ Error testing regex!\n\n{str(e)}")
