@@ -746,7 +746,7 @@ class GKInstallBuilder:
         
         hostname_detection_label = ctk.CTkLabel(
             hostname_detection_frame, 
-            text="Hostname Detection:",
+            text="Station Detection:",
             width=120
         )
         hostname_detection_label.pack(side="left", padx=10)
