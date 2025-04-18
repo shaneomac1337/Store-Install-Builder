@@ -3500,7 +3500,7 @@ class GKInstallBuilder:
         # Create a new window for detection settings
         self.detection_window = ctk.CTkToplevel(self.root)
         self.detection_window.title("Detection Settings")
-        self.detection_window.geometry("746x816")
+        self.detection_window.geometry("950x950")
         self.detection_window.transient(self.root)
         
         # Force window update and wait for it to be visible before grabbing

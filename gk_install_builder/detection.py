@@ -24,7 +24,7 @@ class DetectionManager:
                 "STOREHUB-SERVICE": ""
             },
             "hostname_detection": {
-                "windows_regex": r"([^-]+)-([0-9]{3})$",
+                "windows_regex": r"([^-]+)-([0-9]+)$",
                 "linux_regex": r"([^-]+)-([0-9]+)$",
                 "test_hostname": "STORE-1234-101"
             }
