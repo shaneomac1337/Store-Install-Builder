@@ -3656,6 +3656,32 @@ WorkstationID=101"""
             font=("Helvetica", 10)
         ).pack(anchor="w", padx=10, pady=(0, 10))
         
+        # Add regex engine information
+        regex_info_frame = ctk.CTkFrame(hostname_status_frame)
+        regex_info_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(
+            regex_info_frame,
+            text="Regex Engine Information:",
+            font=("Helvetica", 11, "bold"),
+            text_color="#FF8C00"  # Orange color
+        ).pack(anchor="w", padx=10, pady=(5, 0))
+        
+        ctk.CTkLabel(
+            regex_info_frame,
+            text="Linux: Uses POSIX Extended regex (grep -E). No lookahead/lookbehind, no \\d/\\w. Use [0-9] for digits.",
+            text_color="#FF8C00",  # Orange color
+            font=("Helvetica", 10),
+            justify="left"
+        ).pack(anchor="w", padx=20, pady=(0, 2))
+        
+        ctk.CTkLabel(
+            regex_info_frame,
+            text="Windows: PowerShell uses .NET/Perl-style regex. Supports \\d, \\w, lookahead.",
+            text_color="#FF8C00",  # Orange color
+            font=("Helvetica", 10),
+            justify="left"
+        ).pack(anchor="w", padx=20, pady=(0, 5))
         # --- Path configuration ---
         # Create a frame for path configuration options
         path_config_frame = ctk.CTkFrame(tab_file_detection)
