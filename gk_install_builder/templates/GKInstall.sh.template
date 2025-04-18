@@ -685,7 +685,7 @@ else
       
       # Validate extracted parts
       # Accept any alphanumeric characters for store ID with at least 1 character
-      if [[ "$storeNumber" =~ ^[A-Za-z0-9_\-\.]+$ ]]; then
+      if echo "$storeNumber" | grep -qE '^[A-Za-z0-9_\-\.]+$'; then
         if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
           hostnameDetected=true
           echo "Successfully detected values from hostname:"
