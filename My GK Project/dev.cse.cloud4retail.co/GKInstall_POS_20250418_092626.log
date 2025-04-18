@@ -1,0 +1,43 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20250418092626
+Username: MARTIN-PC\Martin
+RunAs User: MARTIN-PC\Martin
+Configuration Name: 
+Machine: MARTIN-PC (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe -noexit -command try { . "c:\Users\Martin\AppData\Local\Programs\Windsurf\resources\app\out\vs\workbench\contrib\terminal\common\scripts\shellIntegration.ps1" } catch {}
+Process ID: 18932
+PSVersion: 5.1.26100.3624
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.3624
+BuildVersion: 10.0.26100.3624
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is GKInstall_POS_20250418_092626.log
+Console output is being saved to GKInstall_POS_20250418_092626.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : MARTIN-PC
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+PS>TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+]633;D;1]633;A]633;P;Cwd=C:\x5cUsers\x5cMartin\x5cDesktop\x5cStore-Install-Builder\x5cMy GK Project\x5cdev.cse.cloud4retail.coPS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\dev.cse.cloud4retail.co> ]633;B
