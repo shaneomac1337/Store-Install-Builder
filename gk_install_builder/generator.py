@@ -6,12 +6,6 @@ import customtkinter as ctk
 import base64
 import platform
 from webdav3.client import Client
-from webdav3.exceptions import WebDavException
-from datetime import datetime
-from urllib.parse import unquote
-import requests
-import logging
-from string import Template
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
 import time
@@ -537,7 +531,7 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
                     
                     if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
                         # Compose the new detection block: file detection first, then manual input fallback
-                        station_detection_code = '''
+                        station_detection_code = r'''
 # File detection for the current component ($ComponentType)
 $fileDetectionEnabled = $true
 $componentType = $ComponentType

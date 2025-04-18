@@ -180,11 +180,15 @@ class DetectionManager:
                 
                 # Additional validation based on platform
                 if platform.lower() == "windows":
-                    # Windows format: Match standard format
+                    # Windows format: Validate store and workstation IDs similar to Linux
+                    is_valid_store = re.match(r'^[A-Za-z0-9_\-.]+$', store_id)
+                    is_valid_ws = re.match(r"^[0-9]+$", workstation_id)
                     return {
-                        "success": True,
+                        "success": bool(is_valid_store and is_valid_ws),
                         "store_id": store_id,
-                        "workstation_id": workstation_id
+                        "workstation_id": workstation_id,
+                        "is_valid_store": bool(is_valid_store),
+                        "is_valid_ws": bool(is_valid_ws)
                     }
                 else:
                     # Linux - Check if store_id contains a dash for compound format
@@ -196,12 +200,8 @@ class DetectionManager:
                             store_number = store_match.group(1)
                     
                     # Validate formats similar to the template validation
-                    is_valid_store = (
-                        re.match(r"^[0-9]{4}$", store_number) or 
-                        re.match(r"^[A-Za-z][0-9]{3}$", store_number) or 
-                        re.match(r"^[A-Za-z]{2}[0-9]{2}$", store_number)
-                    )
-                    
+                    is_valid_store = re.match(r'^[A-Za-z0-9_\-.]+$', store_number)
+
                     # Accept workstation IDs of any length as long as they contain only digits
                     is_valid_ws = re.match(r"^[0-9]+$", workstation_id)
                     
