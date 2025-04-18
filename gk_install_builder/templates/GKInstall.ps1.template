@@ -775,21 +775,24 @@ addonpacks=
 "@
 Set-Content -Path "$install_dir\addonpack.properties" -Value $addonpackProps
 
-# Handle .p12 file if it exists
-$p12Files = Get-ChildItem -Path "." -Filter "*.p12"
+# Only handle .p12 certificates for non-POS installations
+if ($ComponentType -ne 'POS') {
+    # Handle .p12 file if it exists
+    $p12Files = Get-ChildItem -Path "." -Filter "*.p12"
 
-# Create security directory if it doesn't exist
-if (-not (Test-Path $security_dir)) {
-    Write-Host "Creating security directory: $security_dir"
-    New-Item -ItemType Directory -Path $security_dir -Force | Out-Null
+    # Create security directory if it doesn't exist
+    if (-not (Test-Path $security_dir)) {
+        Write-Host "Creating security directory: $security_dir"
+        New-Item -ItemType Directory -Path $security_dir -Force | Out-Null
+    }
+
+    # Check for certificates in the security directory
+    $securityP12Files = Get-ChildItem -Path $security_dir -Filter "*.p12" -ErrorAction SilentlyContinue
+    $ssl_path = $null
+
+    # Check for certificates in the current directory
+    $usedExistingCert = $false
 }
-
-# Check for certificates in the security directory
-$securityP12Files = Get-ChildItem -Path $security_dir -Filter "*.p12" -ErrorAction SilentlyContinue
-$ssl_path = $null
-
-# Check for certificates in the current directory
-$usedExistingCert = $false
 if ($p12Files.Count -gt 0) {
     Write-Host "Found .p12 file(s) in script directory"
     
