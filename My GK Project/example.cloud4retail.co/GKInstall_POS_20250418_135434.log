@@ -1,0 +1,16 @@
+Console output is being saved to GKInstall_POS_20250418_135434.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : 9999-450
+===================
+Successfully detected values from hostname:
+Store Number: 9999
+Workstation ID: 450
+-------------------
+StoreNr   : 9999
+WorkstationId: 450
+-------------------
+Starting onboarding process for POS
+Error occurred during API call
+Error during POS onboarding
