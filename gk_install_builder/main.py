@@ -744,11 +744,15 @@ class GKInstallBuilder:
         hostname_detection_frame = ctk.CTkFrame(form_frame)
         hostname_detection_frame.pack(fill="x", padx=10, pady=5)
         
-        hostname_detection_label = ctk.CTkLabel(hostname_detection_frame, text="Station Detection:", width=150)
+        hostname_detection_label = ctk.CTkLabel(
+            hostname_detection_frame, 
+            text="Hostname Detection:",
+            width=120
+        )
         hostname_detection_label.pack(side="left", padx=10)
         
         # Create tooltip for hostname detection
-        self.create_tooltip(hostname_detection_label, "Enable or disable automatic hostname detection for store ID and workstation ID in installation scripts")
+        self.create_tooltip(hostname_detection_label, "Controls whether installation scripts will attempt to extract store ID and workstation ID from the computer hostname")
         
         # Create a BooleanVar for the hostname detection option
         self.hostname_detection_var = ctk.BooleanVar(value=self.config_manager.config.get("use_hostname_detection", True))
@@ -756,13 +760,28 @@ class GKInstallBuilder:
         # Create checkbox for hostname detection
         hostname_detection_checkbox = ctk.CTkCheckBox(
             hostname_detection_frame, 
-            text="Enable automatic station detection",
+            text="Enable automatic hostname detection",
             variable=self.hostname_detection_var,
             onvalue=True,
             offvalue=False,
             command=self.on_hostname_detection_changed
         )
         hostname_detection_checkbox.pack(side="left", padx=10)
+        self.create_tooltip(hostname_detection_checkbox, 
+                           "When enabled, the installation script will try to extract store ID and workstation ID from the computer hostname.\n"
+                           "When disabled, the script will skip hostname detection and use file detection or manual input instead.")
+        
+        # Add an information label to explain the fallback behavior
+        hostname_info_frame = ctk.CTkFrame(form_frame)
+        hostname_info_frame.pack(fill="x", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(
+            hostname_info_frame,
+            text="When hostname detection is disabled or fails, the installation script will use file detection (if enabled) or prompt for manual input. These settings can be configured independently.",
+            wraplength=550,
+            text_color="gray70",
+            justify="left"
+        ).pack(anchor="w", padx=35)
         
         # Add Detection Settings button
         detection_settings_btn = ctk.CTkButton(
@@ -774,7 +793,7 @@ class GKInstallBuilder:
         detection_settings_btn.pack(side="left", padx=20)
         
         # Create tooltip for detection settings button
-        self.create_tooltip(detection_settings_btn, "Configure automatic station detection settings")
+        self.create_tooltip(detection_settings_btn, "Configure file detection settings and hostname regex patterns\nFile detection serves as a fallback when hostname detection fails or is disabled")
         
         # Register the hostname detection variable with config manager
         self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
@@ -3390,6 +3409,66 @@ class GKInstallBuilder:
         is_hostname_enabled = self.hostname_detection_var.get()
         self.config_manager.update_entry_value("use_hostname_detection", is_hostname_enabled)
         
+        # Show the user what this setting means with a tooltip or message dialog
+        if is_hostname_enabled:
+            message = "Hostname detection is now ENABLED. Installation scripts will attempt to extract store and workstation IDs from computer hostnames."
+        else:
+            message = "Hostname detection is now DISABLED. Installation scripts will use file detection (if enabled) or prompt for manual input."
+        
+        # Show a temporary message to the user
+        if hasattr(self, 'save_status_label'):
+            self.save_status_label.configure(text=message)
+            self.save_status_label.update()
+            
+            # Reset the status label after 5 seconds
+            self.root.after(5000, lambda: self.save_status_label.configure(text=""))
+        
+        # If the detection settings window is open, update it
+        if hasattr(self, 'detection_window') and self.detection_window is not None and self.detection_window.winfo_exists():
+            # Update the hostname status on the regex tab
+            for widget in self.detection_window.winfo_children():
+                if isinstance(widget, ctk.CTkScrollableFrame):
+                    for child in widget.winfo_children():
+                        if isinstance(child, ctk.CTkTabview):
+                            # Try to find the hostname status label
+                            for tab in child.winfo_children():
+                                for frame in tab.winfo_children():
+                                    if isinstance(frame, ctk.CTkFrame):
+                                        for label in frame.winfo_children():
+                                            if isinstance(label, ctk.CTkLabel) and ("currently" in label.cget("text") and ("ENABLED" in label.cget("text") or "DISABLED" in label.cget("text"))):
+                                                # Update the hostname status label
+                                                status_text = "Hostname detection is currently ENABLED" if is_hostname_enabled else "Hostname detection is currently DISABLED"
+                                                status_color = "green" if is_hostname_enabled else "red"
+                                                label.configure(text=status_text, text_color=status_color)
+            
+            # Also update the explanatory text
+            if hasattr(self, 'detection_var'):
+                file_detection_enabled = self.detection_var.get()
+                
+                # Determine the new explanation text
+                if is_hostname_enabled and file_detection_enabled:
+                    explanation_text = "Both hostname detection and file detection are enabled. If hostname detection fails, file detection will be used as a fallback."
+                elif is_hostname_enabled and not file_detection_enabled:
+                    explanation_text = "Hostname detection is enabled but file detection is disabled. If hostname detection fails, the user will be prompted for manual input."
+                elif not is_hostname_enabled and file_detection_enabled:
+                    explanation_text = "Hostname detection is disabled, but file detection is enabled. File detection will be used to extract store and workstation IDs."
+                else:
+                    explanation_text = "Both hostname detection and file detection are disabled. Users will be prompted for manual input."
+                
+                # Find the explanation label and update it
+                for widget in self.detection_window.winfo_children():
+                    if isinstance(widget, ctk.CTkScrollableFrame):
+                        for child in widget.winfo_children():
+                            if isinstance(child, ctk.CTkTabview):
+                                # Look for the file detection tab
+                                for tab in child.winfo_children():
+                                    for frame in tab.winfo_children():
+                                        if isinstance(frame, ctk.CTkFrame):
+                                            for label in frame.winfo_children():
+                                                if isinstance(label, ctk.CTkLabel) and ("hostname detection" in label.cget("text").lower() and "file detection" in label.cget("text").lower()):
+                                                    # Update the explanation label
+                                                    label.configure(text=explanation_text)
+        
         # If hostname detection is enabled, ensure detection configuration has defaults
         if is_hostname_enabled:
             # Check if detection_config exists in the config
@@ -3400,7 +3479,7 @@ class GKInstallBuilder:
                 
                 # Create default detection configuration
                 default_config = {
-                    "file_detection_enabled": True,
+                    "file_detection_enabled": True,  # Default value, but won't force it
                     "use_base_directory": True,
                     "base_directory": default_base_dir,
                     "custom_filenames": {
@@ -3475,9 +3554,16 @@ class GKInstallBuilder:
         
         ctk.CTkLabel(
             tab_file_detection, 
-            text="Configure paths to station files for store and workstation ID detection.",
+            text="Configure file-based detection to extract store IDs and workstation IDs from station files.",
             wraplength=650
-        ).pack(anchor="w", padx=10, pady=(10, 10))
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        ctk.CTkLabel(
+            tab_file_detection, 
+            text="File detection is used as a fallback when hostname detection fails or is disabled.",
+            wraplength=650,
+            text_color="gray70",
+        ).pack(anchor="w", padx=10, pady=(0, 10))
         
         # Enable/disable detection checkbox
         enable_frame = ctk.CTkFrame(tab_file_detection)
@@ -3486,33 +3572,41 @@ class GKInstallBuilder:
         # Create a BooleanVar for the detection option
         self.detection_var = ctk.BooleanVar(value=self.detection_manager.is_detection_enabled())
         
-        # If hostname detection is enabled, also force station detection on
+        # Get hostname detection status
         hostname_detection_enabled = self.hostname_detection_var.get()
-        if hostname_detection_enabled:
-            self.detection_var.set(True)
+        
+        # No longer forcing file detection when hostname detection is enabled
+        # (allowing independent configuration)
         
         # Create checkbox for detection
         self.detection_checkbox = ctk.CTkCheckBox(
             enable_frame, 
-            text="Enable detection (fallback when hostname detection fails)",
+            text="Enable file-based detection",
             variable=self.detection_var,
             onvalue=True,
             offvalue=False
         )
         self.detection_checkbox.pack(anchor="w", padx=10, pady=10)
         
-        # If hostname detection is enabled, disable the checkbox
-        if hostname_detection_enabled:
-            self.detection_checkbox.configure(state="disabled")
-            
-            # Add an explanatory label
-            explanation_label = ctk.CTkLabel(
-                enable_frame,
-                text="Note: Station detection is trying to detect hostname with priority, if it fails, it will use the detection settings below",
-                text_color="gray70",
-                font=("Helvetica", 10)
-            )
-            explanation_label.pack(anchor="w", padx=10, pady=(0, 10))
+        # Add an explanatory label for the current settings
+        if hostname_detection_enabled and self.detection_var.get():
+            explanation_text = "Both hostname detection and file detection are enabled. If hostname detection fails, file detection will be used as a fallback."
+        elif hostname_detection_enabled and not self.detection_var.get():
+            explanation_text = "Hostname detection is enabled but file detection is disabled. If hostname detection fails, the user will be prompted for manual input."
+        elif not hostname_detection_enabled and self.detection_var.get():
+            explanation_text = "Hostname detection is disabled, but file detection is enabled. File detection will be used to extract store and workstation IDs."
+        else:
+            explanation_text = "Both hostname detection and file detection are disabled. Users will be prompted for manual input."
+        
+        explanation_label = ctk.CTkLabel(
+            enable_frame,
+            text=explanation_text,
+            text_color="gray70",
+            font=("Helvetica", 10),
+            wraplength=650,
+            justify="left"
+        )
+        explanation_label.pack(anchor="w", padx=10, pady=(0, 10))
         
         # File format description
         format_frame = ctk.CTkFrame(tab_file_detection)
@@ -3531,6 +3625,36 @@ WorkstationID=101"""
         example_textbox.pack(fill="x", padx=10, pady=5)
         example_textbox.insert("1.0", example_text)
         example_textbox.configure(state="disabled")
+        
+        # ----- HOSTNAME DETECTION TAB -----
+        
+        ctk.CTkLabel(
+            tab_regex, 
+            text="Configure regex patterns for extracting store IDs and workstation IDs from computer hostnames.",
+            wraplength=650
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        hostname_status_frame = ctk.CTkFrame(tab_regex)
+        hostname_status_frame.pack(fill="x", padx=10, pady=5)
+        
+        # Status of hostname detection
+        hostname_status_text = "Hostname detection is currently ENABLED" if self.hostname_detection_var.get() else "Hostname detection is currently DISABLED"
+        hostname_status_color = "green" if self.hostname_detection_var.get() else "red"
+        
+        ctk.CTkLabel(
+            hostname_status_frame,
+            text=hostname_status_text,
+            text_color=hostname_status_color,
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=10)
+        
+        # Add note about where to change the setting
+        ctk.CTkLabel(
+            hostname_status_frame,
+            text="You can change this setting in the main interface under 'Project Configuration'",
+            text_color="gray70",
+            font=("Helvetica", 10)
+        ).pack(anchor="w", padx=10, pady=(0, 10))
         
         # --- Path configuration ---
         # Create a frame for path configuration options
