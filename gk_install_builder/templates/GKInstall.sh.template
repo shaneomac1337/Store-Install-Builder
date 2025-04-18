@@ -830,25 +830,28 @@ dsg.addonpack.url=https://$dsg_server/dsg/content/cep/AddOnPacks
 addonpacks=
 EOF
 
-# Handle .p12 file if it exists
-p12_files=()
-if compgen -G "*.p12" > /dev/null; then
-  mapfile -t p12_files < <(ls *.p12 2>/dev/null)
+# Only handle .p12 certificates for non-POS installations
+if [ "$COMPONENT_TYPE" != "POS" ]; then
+  # Handle .p12 file if it exists
+  p12_files=()
+  if compgen -G "*.p12" > /dev/null; then
+    mapfile -t p12_files < <(ls *.p12 2>/dev/null)
+  fi
+
+  # Create security directory if it doesn't exist
+  mkdir -p "$security_dir"
+
+  # Check for certificates in the security directory
+  security_p12_files=()
+  if compgen -G "$security_dir/*.p12" > /dev/null; then
+    mapfile -t security_p12_files < <(ls $security_dir/*.p12 2>/dev/null)
+  fi
+
+  ssl_path=""
+  used_existing_cert=false
+
+  # Check if we have certificates in current directory
 fi
-
-# Create security directory if it doesn't exist
-mkdir -p "$security_dir"
-
-# Check for certificates in the security directory
-security_p12_files=()
-if compgen -G "$security_dir/*.p12" > /dev/null; then
-  mapfile -t security_p12_files < <(ls $security_dir/*.p12 2>/dev/null)
-fi
-
-ssl_path=""
-used_existing_cert=false
-
-# Check if we have certificates in current directory
 if [ "${#p12_files[@]}" -gt 0 ]; then
   echo "Found .p12 file(s) in script directory"
   
