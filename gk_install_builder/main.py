@@ -3986,10 +3986,10 @@ WorkstationID=101"""
                 if regex_pattern.strip().startswith('/') and regex_pattern.strip().endswith('/'):
                     perl_regex_detected = True
                 # Named groups, Unicode classes, \K
-                if '(?<' in regex_pattern or '\p{' in regex_pattern or '\K' in regex_pattern:
+                if '(?<' in regex_pattern or r'\p{' in regex_pattern or r'\K' in regex_pattern:
                     perl_regex_detected = True
                 # Common Perl/PCRE shorthands not supported by POSIX grep
-                if '\d' in regex_pattern or '\w' in regex_pattern or '\s' in regex_pattern or '\D' in regex_pattern or '\W' in regex_pattern or '\S' in regex_pattern:
+                if r'\d' in regex_pattern or r'\w' in regex_pattern or r'\s' in regex_pattern or r'\D' in regex_pattern or r'\W' in regex_pattern or r'\S' in regex_pattern:
                     perl_regex_detected = True
 
                 if perl_regex_detected:
@@ -4016,7 +4016,17 @@ WorkstationID=101"""
 
                 if platform == "windows":
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
+                    if "store_number" in result:
+                        results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
+                    if "is_valid_store" in result:
+                        valid_indicator = "✅" if result["is_valid_store"] else "❌"
+                        results_text.insert("end", f"{valid_indicator} Store ID format: " +
+                                             ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
+                    if "is_valid_ws" in result:
+                        valid_indicator = "✅" if result["is_valid_ws"] else "❌"
+                        results_text.insert("end", f"{valid_indicator} Workstation ID format: " +
+                                             ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
                 else:
                     # Linux has more detailed results
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
