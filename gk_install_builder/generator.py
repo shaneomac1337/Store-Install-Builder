@@ -556,13 +556,13 @@ if ([string]::IsNullOrWhiteSpace($storeNumber)) {
 }
 
 # Prompt for Workstation ID
-while true; do
+while ($true) {
     $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-    if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+    if ($workstationId -match '^\d+$') {
         break
-    fi
+    }
     Write-Host "Invalid input. Please enter a numeric Workstation ID."
-done
+}
 
 """
                         # Replace the entire section
