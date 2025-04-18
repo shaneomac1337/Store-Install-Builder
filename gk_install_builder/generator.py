@@ -536,38 +536,125 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
                     end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
                     
                     if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
-                        # Replace the entire hostname detection section with direct manual input
-                        manual_input_code = """# Manual input only (hostname detection disabled)
-$storeNumber = ""
-$workstationId = ""
+                        # Compose the new detection block: file detection first, then manual input fallback
+                        station_detection_code = '''
+# File detection for the current component ($ComponentType)
+$fileDetectionEnabled = $true
+$componentType = $ComponentType
 
-# Prompt for Store Number
-Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-Write-Host "  - 4 digits (e.g., 1234)"
-Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-Write-Host "  - Custom format (e.g., STORE-105)"
-$storeNumber = Read-Host "Store Number"
+# Check if we're using base directory or custom paths
+$useBaseDirectory = "{is_using_base_dir}".ToLower()
 
-# Validate that something was entered
-if ([string]::IsNullOrWhiteSpace($storeNumber)) {
-    Write-Host "Store Number cannot be empty. Please try again."
+if ($useBaseDirectory -eq "true") {{
+    # Use base directory approach
+    $basePath = "{base_dir}"
+    $customFilenames = @{{
+        "POS" = "{pos_filename}";
+        "WDM" = "{wdm_filename}";
+        "FLOW-SERVICE" = "{flow_filename}";
+        "LPA-SERVICE" = "{lpa_filename}";
+        "STOREHUB-SERVICE" = "{sh_filename}"
+    }}
+
+    # Get the appropriate station file for the current component
+    $stationFileName = $customFilenames[$componentType]
+    if (-not $stationFileName) {{
+        $stationFileName = "$componentType.station"
+    }}
+
+    $stationFilePath = Join-Path $basePath $stationFileName
+}} else {{
+    # Use custom paths approach
+    $customPaths = @{{
+        "POS" = "{pos_path}";
+        "WDM" = "{wdm_path}";
+        "FLOW-SERVICE" = "{flow_path}";
+        "LPA-SERVICE" = "{lpa_path}";
+        "STOREHUB-SERVICE" = "{sh_path}"
+    }}
+    
+    # Get the appropriate station file path for the current component
+    $stationFilePath = $customPaths[$componentType]
+    if (-not $stationFilePath) {{
+        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
+        # Fallback to a default path
+        $stationFilePath = "C:\gkretail\stations\$componentType.station"
+    }}
+}}
+
+# Try file detection first
+$hostnameDetected = $false
+if ($fileDetectionEnabled) {{
+    Write-Host "Trying file detection for $componentType using $stationFilePath"
+    if (Test-Path $stationFilePath) {{
+        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
+        if ($fileContent) {{
+            $lines = $fileContent -split "`r?`n"
+            foreach ($line in $lines) {{
+                if ($line -match "StoreID=(.+)") {{
+                    $storeNumber = $matches[1].Trim()
+                    Write-Host "Found Store ID in file: $storeNumber"
+                }}
+                if ($line -match "WorkstationID=(.+)") {{
+                    $workstationId = $matches[1].Trim()
+                    Write-Host "Found Workstation ID in file: $workstationId"
+                }}
+            }}
+            # Validate extracted values
+            if ($storeNumber -and $workstationId -match '^\d+$') {{
+                $hostnameDetected = $true
+                Write-Host "Successfully detected values from file:"
+                Write-Host "Store Number: $storeNumber"
+                Write-Host "Workstation ID: $workstationId"
+            }}
+        }}
+    }} else {{
+        Write-Host "Station file not found at: $stationFilePath"
+    }}
+}}
+
+# If file detection failed, prompt for manual input
+if (-not $hostnameDetected) {{
+    Write-Host "Falling back to manual input."
+    # Prompt for Store Number
+    Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
+    Write-Host "  - 4 digits (e.g., 1234)"
+    Write-Host "  - 1 letter + 3 digits (e.g., R005)"
+    Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
+    Write-Host "  - Custom format (e.g., STORE-105)"
     $storeNumber = Read-Host "Store Number"
-}
+    # Validate that something was entered
+    if ([string]::IsNullOrWhiteSpace($storeNumber)) {{
+        Write-Host "Store Number cannot be empty. Please try again."
+        $storeNumber = Read-Host "Store Number"
+    }}
+    # Prompt for Workstation ID
+    while ($true) {{
+        $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+        if ($workstationId -match '^\d+$') {{
+            break
+        }}
+        Write-Host "Invalid input. Please enter a numeric Workstation ID."
+    }}
+}}
 
-# Prompt for Workstation ID
-while ($true) {
-    $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-    if ($workstationId -match '^\d+$') {
-        break
-    }
-    Write-Host "Invalid input. Please enter a numeric Workstation ID."
-}
-
-"""
+'''.format(
+    is_using_base_dir=str(self.detection_manager.is_using_base_directory()).lower(),
+    base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
+    pos_filename=self.detection_manager.get_custom_filename("POS"),
+    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
+    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
+    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
+    pos_path=self.detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\'),
+    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\'),
+    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\'),
+    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\'),
+    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\')
+)
                         # Replace the entire section
-                        template = template[:start_pos] + manual_input_code + template[end_marker_pos:]
-                        print("Replaced hostname detection code with manual input in PowerShell script")
+                        template = template[:start_pos] + station_detection_code + template[end_marker_pos:]
+                        print("Replaced hostname detection code with file detection and manual input fallback in PowerShell script")
                 
                 else:  # Linux
                     # Locate the hostname detection section for Bash
