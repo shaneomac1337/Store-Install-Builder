@@ -668,38 +668,46 @@ if (-not $hostnameDetected) {{
                     end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
                     
                     if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
-                        # Replace the entire hostname detection section with direct manual input
-                        manual_input_code = """# Manual input only (hostname detection disabled)
+                        # For Linux, when hostname detection is disabled:
+                        # 1. We set up a structure that first tries file detection
+                        # 2. Only if file detection fails, then we use manual input
+                        hostname_replacement_code = """# File detection with manual input fallback (hostname detection disabled)
+hostnameDetected=false
 storeNumber=""
 workstationId=""
 
-# Prompt for Store Number
-echo "Please enter the Store Number in one of these formats (or any custom format):"
-echo "  - 4 digits (e.g., 1234)"
-echo "  - 1 letter + 3 digits (e.g., R005)"
-echo "  - 2 letters + 2 digits (e.g., CA45)"
-echo "  - Custom format (e.g., STORE-105)"
-read -p "Store Number: " storeNumber
+# File detection will be inserted here by the generator
 
-# Validate that something was entered
-if [ -z "$storeNumber" ]; then
-    echo "Store Number cannot be empty. Please try again."
+# If file detection failed, prompt for manual input
+if [ "$hostnameDetected" = false ]; then
+    # Prompt for Store Number
+    echo "Please enter the Store Number in one of these formats (or any custom format):"
+    echo "  - 4 digits (e.g., 1234)"
+    echo "  - 1 letter + 3 digits (e.g., R005)"
+    echo "  - 2 letters + 2 digits (e.g., CA45)"
+    echo "  - Custom format (e.g., STORE-105)"
     read -p "Store Number: " storeNumber
+
+    # Validate that something was entered
+    if [ -z "$storeNumber" ]; then
+        echo "Store Number cannot be empty. Please try again."
+        read -p "Store Number: " storeNumber
+    fi
+
+    # Prompt for Workstation ID
+    while true; do
+        read -p "Please enter the Workstation ID (numeric): " workstationId
+        if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+            break
+        fi
+        echo "Invalid input. Please enter a numeric Workstation ID."
+    done
 fi
 
-# Prompt for Workstation ID
-while true; do
-    read -p "Please enter the Workstation ID (numeric): " workstationId
-    if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
-        break
-    fi
-    echo "Invalid input. Please enter a numeric Workstation ID."
-done
-
 """
-                        # Replace the entire section
-                        template = template[:start_pos] + manual_input_code + template[end_marker_pos:]
-                        print("Replaced hostname detection code with manual input in Bash script")
+                        # Replace the hostname detection section with our new structure
+                        template = template[:start_pos] + hostname_replacement_code + template[end_marker_pos:]
+                        print("Created structure with file detection priority and manual input fallback in Bash script")
             
             # Apply file detection settings if enabled
             if self.detection_manager.is_detection_enabled():
@@ -803,7 +811,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
                     # Find where to insert the file detection code
                     if not use_hostname_detection:
                         # If hostname detection is disabled, we need to insert after the manual input code
-                        insert_marker = "# Print final results"
+                        insert_marker = "# File detection will be inserted here by the generator"
                     else:
                         # In the updated template, we look for the placeholder for file detection code
                         insert_marker = "# File detection code will be inserted here by the generator"
@@ -906,12 +914,12 @@ fi
     sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"]
 )
                     
-                    # Find where to insert the file detection code
+                    # For Linux, use a different insertion strategy based on hostname detection setting
                     if not use_hostname_detection:
-                        # If hostname detection is disabled, we need to insert after the manual input code
-                        insert_marker = "# Print final results"
+                        # When hostname detection is disabled, look for our special marker
+                        insert_marker = "# File detection will be inserted here by the generator"
                     else:
-                        # In the updated template, we look for the placeholder for file detection code
+                        # Otherwise use the standard placeholder
                         insert_marker = "# File detection code will be inserted here by the generator"
                     
                     # Find the position to insert the code
@@ -921,7 +929,15 @@ fi
                         template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
                         print(f"Added dynamic station detection code to Bash script")
                     else:
-                        print(f"Warning: Could not find insertion point for station detection code in Bash script")
+                        print(f"Warning: Could not find insertion point for station detection code in Bash script: '{insert_marker}' not found")
+                        # Debug: show where in the template we might insert the code as a fallback
+                        fallback_marker = "if [ \"$hostnameDetected\" = false ]; then"
+                        fallback_pos = template.find(fallback_marker)
+                        if fallback_pos != -1:
+                            print(f"Found fallback insertion point at position {fallback_pos}")
+                            # Insert file detection code before the manual input conditional
+                            template = template[:fallback_pos] + station_detection_code + "\n" + template[fallback_pos:]
+                            print(f"Added dynamic station detection code at fallback position in Bash script")
 
             # Write the modified template to the output file
             with open(output_path, 'w', newline='\n') as f:
