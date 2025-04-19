@@ -1,0 +1,547 @@
+param (
+    [Parameter(Mandatory=$true)]
+    [string]$ComponentType,
+    [Parameter(Mandatory=$true)]
+    [string]$base_url,
+    [Parameter(Mandatory=$true)]
+    [string]$StoreId,
+    [Parameter(Mandatory=$true)]
+    [string]$WorkstationId
+)
+
+# Initialize StoreHub wait tracking variable
+$script:storeHubWaitComplete = $false
+
+# Get script directory and set current directory as base path
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$basePath = Get-Location
+
+# Paths
+$tokensPath = Join-Path $PSScriptRoot "helper\tokens"
+
+# Verify paths exist
+if (-Not (Test-Path $tokensPath)) {
+    Write-Host "Tokens path does not exist: $tokensPath"
+    exit 1
+}
+
+# Read the access token created by onboarding.ps1
+$accessTokenPath = Join-Path $tokensPath "access_token.txt"
+if (-Not (Test-Path $accessTokenPath)) {
+    Write-Host "Access token file does not exist. Please run onboarding.ps1 first."
+    exit 1
+}
+
+$accessToken = Get-Content -Path $accessTokenPath -Raw
+
+# Common headers for all API calls
+$headers = @{
+    "Authorization" = "Bearer $accessToken"
+    "Content-Type" = "application/json; variant=Plain; charset=UTF-8"
+    "Accept" = "application/json; variant=Plain; charset=UTF-8"
+    "GK-Accept-Redirect" = "308"
+}
+
+# Map ComponentType to systemName for matching in the API response
+$systemNameMap = @{
+    'POS' = 'CLOUD4RETAIL-OPOS-CLOUD'
+    'WDM' = 'CLOUD4RETAIL-wdm'
+    'FLOW-SERVICE' = 'GKR-FLOWSERVICE-CLOUD'
+    'LPA-SERVICE' = 'CLOUD4RETAIL-lps-lpa'
+    'STOREHUB-SERVICE' = 'CLOUD4RETAIL-sh-cloud'
+}
+
+# Get the systemName for the current component
+$currentSystemName = $systemNameMap[$ComponentType]
+if (-Not $currentSystemName) {
+    Write-Host "Error: No systemName mapping found for ComponentType: $ComponentType"
+    Write-Host "Cannot proceed without a valid system name mapping."
+    exit 1
+}
+
+Write-Host "Using systemName: $currentSystemName for component: $ComponentType"
+
+try {
+    # Create init directory if it doesn't exist
+    $initPath = Join-Path $PSScriptRoot "helper\init"
+    if (-Not (Test-Path $initPath)) {
+        New-Item -ItemType Directory -Path $initPath -Force | Out-Null
+        Write-Host "Created init directory: $initPath"
+    }
+    
+    # Get store information using get_store.json
+    $getStoreJsonPath = Join-Path $initPath "get_store.json"
+    
+    if (-Not (Test-Path $getStoreJsonPath)) {
+        Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
+    } else {
+        Write-Host "Making API call to get store information..."
+        
+        # Read the get_store.json file
+        $getStoreJson = Get-Content -Path $getStoreJsonPath -Raw
+        
+        # Create a copy of get_store.json for processing
+        $processedGetStorePath = Join-Path $initPath "get_store_processed.json"
+        $getStoreJson | Set-Content -Path $processedGetStorePath -NoNewline
+        Write-Host "Created processed copy of get_store.json at: $processedGetStorePath"
+        
+        # Replace the placeholder with actual StoreId in the processed file
+        $processedContent = Get-Content -Path $processedGetStorePath -Raw
+        $processedContent = $processedContent -replace '@RETAIL_STORE_ID@', $StoreId
+        $processedContent | Set-Content -Path $processedGetStorePath -NoNewline
+        Write-Host "Updated @RETAIL_STORE_ID@ placeholder with: $StoreId in processed file"
+        
+        # Make the API call to get store information
+        $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+        
+        try {
+            $storeResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body (Get-Content -Path $processedGetStorePath -Raw) -ContentType "application/json; variant=Plain; charset=UTF-8"
+            Write-Host "Successfully retrieved store information"
+            
+            # Save the response to storemanager.json
+            $storemanagerPath = Join-Path $initPath "storemanager.json"
+            $storeResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $storemanagerPath -NoNewline
+            Write-Host "Store information saved to: $storemanagerPath"
+            
+            # Extract structure unique name for the current component
+            $structureUniqueName = ""
+            if (Test-Path $storemanagerPath) {
+                try {
+                    $storeManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
+                    
+                    # Look for the structure that matches our system name AND workstation ID
+                    Write-Host "Looking for system name: $currentSystemName with workstation ID: $WorkstationId"
+                    foreach ($item in $storeManagerData.childNodeList) {
+                        if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
+                            $structureUniqueName = $item.structureUniqueName
+                            Write-Host "Found matching structure for ${currentSystemName} with workstation ID ${WorkstationId}: $structureUniqueName"
+                            break
+                        }
+                    }
+                    
+                    if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                        Write-Host "No matching structure found for system name: $currentSystemName with workstation ID: $WorkstationId"
+                        Write-Host "Creating workstation through the standard flow and then refreshing structure data..."
+                    }
+                } catch {
+                    Write-Host "Error parsing storemanager.json: $_"
+                    Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                    exit 1
+                }
+            } else {
+                Write-Host "Error: storemanager.json not found"
+                Write-Host "Cannot proceed without a valid structure pattern from the API response."
+                exit 1
+            }
+            
+            # Save the structure unique name to a file for reference
+            $structureNamePath = Join-Path $initPath "structure_name.txt"
+            $structureUniqueName | Set-Content -Path $structureNamePath -NoNewline
+            Write-Host "Structure unique name saved to: $structureNamePath"
+            
+            # Check if the workstation exists for the current component
+            $workstationExists = $false
+            
+            # Check if the current component has a workstation ID in the response
+            foreach ($item in $storeManagerData.childNodeList) {
+                if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
+                    $workstationExists = $true
+                    Write-Host "Found existing workstation: $WorkstationId for $currentSystemName"
+                    break
+                }
+            }
+            
+            if ($workstationExists) {
+                Write-Host "Workstation $WorkstationId already exists for $currentSystemName. No need to create it."
+            } else {
+                Write-Host "Workstation $WorkstationId does not exist for $currentSystemName."
+                
+                # Ask the user if they want to create the workstation
+                $createChoice = Read-Host "Do you want to create this workstation? (y/n)"
+                
+                if ($createChoice -match "^[Yy]$") {
+                    Write-Host "Creating workstation structure..."
+                    
+                    # Path to the create structure template
+                    $createStructureTemplate = ""
+                    
+                    # Set the appropriate template path based on component type
+                    switch ($ComponentType) {
+                        'POS' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'WDM' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'FLOW-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'LPA-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                        'STOREHUB-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
+                    }
+                    
+                    if (-Not (Test-Path $createStructureTemplate)) {
+                        Write-Host "Warning: Create structure template not found at: $createStructureTemplate"
+                        Write-Host "Using default template from structure/create_structure.json"
+                        $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json"
+                        
+                        # Create directories if they don't exist
+                        $createStructureDir = Split-Path -Parent $createStructureTemplate
+                        if (-Not (Test-Path $createStructureDir)) {
+                            New-Item -ItemType Directory -Path $createStructureDir -Force | Out-Null
+                            Write-Host "Created directory: $createStructureDir"
+                        }
+                        
+                        if (-Not (Test-Path $createStructureTemplate)) {
+                            # Try in the current directory
+                            Write-Host "Checking for create_structure.json in structure subdirectory..."
+                            $flatPathTemplate = Join-Path (Get-Location) "structure\create_structure.json"
+                            if (Test-Path $flatPathTemplate) {
+                                $createStructureTemplate = $flatPathTemplate
+                                Write-Host "Found template at: $createStructureTemplate"
+                            } else {
+                                Write-Host "Error: Default template not found. Cannot create workstation."
+                                # Continue execution, don't exit
+                            }
+                        }
+                    }
+                    
+                    if (Test-Path $createStructureTemplate) {
+                        # Read the create_structure.json template
+                        $createStructureJson = Get-Content -Path $createStructureTemplate -Raw
+                        
+                        # Create a processed copy for making replacements
+                        $processedCreateStructurePath = Join-Path $initPath "create_structure_processed.json"
+                        $createStructureJson | Set-Content -Path $processedCreateStructurePath -NoNewline
+                        Write-Host "Created processed copy of create_structure.json at: $processedCreateStructurePath"
+                        
+                        # Determine station name based on component type
+                        $stationName = switch ($ComponentType) {
+                            'POS' { "POS Client $WorkstationId" }
+                            'WDM' { "Wall Device Manager $WorkstationId" }
+                            'FLOW-SERVICE' { "Flow Service $WorkstationId" }
+                            'LPA-SERVICE' { "Label Print Adapter $WorkstationId" }
+                            'STOREHUB-SERVICE' { "StoreHub $WorkstationId" }
+                            default { "POS Client $WorkstationId" }
+                        }
+                        
+                        # Get tenant ID from environment or use default
+                        $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "001" }
+                        
+                        # Get user ID from environment or use default
+                        $userId = if ($env:user_id) { $env:user_id } else { "1001" }
+                        
+                        # Read the content of the processed file
+                        $processedContent = Get-Content -Path $processedCreateStructurePath -Raw
+                        
+                        # Replace placeholders in the processed copy
+                        $processedContent = $processedContent -replace '@TENANT_ID@', $tenantId
+                        $processedContent = $processedContent -replace '@RETAIL_STORE_ID@', $StoreId
+                        $processedContent = $processedContent -replace '@SYSTEM_TYPE@', $currentSystemName
+                        $processedContent = $processedContent -replace '@WORKSTATION_ID@', $WorkstationId
+                        $processedContent = $processedContent -replace '@STATION_NAME@', $stationName
+                        $processedContent = $processedContent -replace '@USER_ID@', $userId
+                        
+                        # Write the updated content to the processed file
+                        $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
+                        
+                        # Make the API call to create the structure
+                        $structureCreateUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
+                        
+                        Write-Host "Creating workstation using API: $structureCreateUrl"
+                        
+                        try {
+                            $structureCreateResponse = Invoke-RestMethod -Uri $structureCreateUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                            Write-Host "Successfully created workstation structure"
+                            
+                            # Remove waiting time
+                            Write-Host "Refreshing structure data..."
+                            
+                            $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+                            
+                            try {
+                                $processedGetStoreContent = Get-Content -Path $processedGetStorePath -Raw
+                                $refreshedStoreResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body $processedGetStoreContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                                
+                                # Save the refreshed response to storemanager.json
+                                $refreshedStoreResponse | ConvertTo-Json -Depth 10 | Set-Content -Path $storemanagerPath -NoNewline
+                                Write-Host "Refreshed store information saved to: $storemanagerPath"
+                                
+                                # Look for our structure again with updated data
+                                $refreshedStoreManagerData = Get-Content -Path $storemanagerPath -Raw | ConvertFrom-Json
+                                
+                                # Try to find the structure by system name AND workstation ID
+                                Write-Host "Looking for system name: $currentSystemName with workstation ID: $WorkstationId in refreshed data"
+                                foreach ($item in $refreshedStoreManagerData.childNodeList) {
+                                    if ($item.systemName -eq $currentSystemName -and $item.workstationId -eq $WorkstationId) {
+                                        $structureUniqueName = $item.structureUniqueName
+                                        Write-Host "Found matching structure in refreshed data for ${currentSystemName} with workstation ID ${WorkstationId}: $structureUniqueName"
+                                        break
+                                    }
+                                }
+                                
+                                if ([string]::IsNullOrEmpty($structureUniqueName)) {
+                                    Write-Host "No matching structure found in refreshed data with systemName: $currentSystemName and workstationId: $WorkstationId"
+                                }
+                                else {
+                                    # Save the structure unique name if found
+                                    $structureNamePath = Join-Path $initPath "structure_name.txt"
+                                    $structureUniqueName | Set-Content -Path $structureNamePath -NoNewline
+                                    Write-Host "Updated structure unique name saved to: $structureNamePath"
+                                }
+                            }
+                            catch {
+                                Write-Host "Warning: Error refreshing structure data: $_"
+                                # Continue anyway, as this is just a refresh attempt
+                            }
+                        } catch {
+                            Write-Host "Error creating workstation structure: $_"
+                            if ($_.Exception.Response) {
+                                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                                $reader.BaseStream.Position = 0
+                                $reader.DiscardBufferedData()
+                                $responseBody = $reader.ReadToEnd()
+                                Write-Host "Response body: $responseBody"
+                            }
+                            # Continue execution even if this call fails
+                        }
+                    }
+                } else {
+                    Write-Host "Skipping workstation creation as per user choice."
+                }
+            }
+            
+            # Only proceed with configuration update for StoreHub components
+            if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+                # Now update the configuration using update_config.json from the storehub directory
+                $storehubDir = Join-Path $initPath "storehub"
+                $updateConfigPath = Join-Path $storehubDir "update_config.json"
+                
+                if (Test-Path $updateConfigPath) {
+                    Write-Host "Updating StoreHub configuration using update_config.json..."
+                    
+                    # Read the update_config.json template
+                    $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
+                    
+                    # Get hostname
+                    $hostname = $env:COMPUTERNAME
+                    if ([string]::IsNullOrEmpty($hostname)) {
+                        $hostname = "localhost"
+                    }
+                    
+                    # Get version from config
+                    $version = "v1.1.0"  # Default version
+                    
+                    # Create a processed copy for making replacements
+                    $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
+                    $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                    Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
+                    
+                    # Replace placeholders in the processed copy
+                    $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw
+                    $processedContent = $processedContent -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
+                    $processedContent = $processedContent -replace '@HOSTNAME@', $hostname
+                    
+                    # Additional replacements for other placeholders
+                    $processedContent = $processedContent -replace '@SYSTEM_NAME@', $currentSystemName
+                    $processedContent = $processedContent -replace '@SYSTEM_VERSION@', $version
+                    
+                    # Get configuration values from environment or use defaults
+                    $jmsPort = if ($env:jms_port) { $env:jms_port } else { "7001" }
+                    $firebirdPort = if ($env:firebird_port) { $env:firebird_port } else { "3050" }
+                    $firebirdUser = if ($env:firebird_user) { $env:firebird_user } else { "SYSDBA" }
+                    $firebirdPassword = if ($env:firebird_password) { $env:firebird_password } else { "masterkey" }
+                    $httpsPort = if ($env:https_port) { $env:https_port } else { "8543" }
+                    
+                    # Replace the remaining placeholders
+                    $processedContent = $processedContent -replace '@JMS_PORT@', $jmsPort
+                    $processedContent = $processedContent -replace '@FIREBIRD_PORT@', $firebirdPort
+                    $processedContent = $processedContent -replace '@FIREBIRD_USER@', $firebirdUser
+                    $processedContent = $processedContent -replace '@FIREBIRD_PASSWORD@', $firebirdPassword
+                    $processedContent = $processedContent -replace '@HTTPS_PORT@', $httpsPort
+                    
+                    # Write the updated content to the processed file
+                    $processedContent | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                    Write-Host "Updated processed file with all required values"
+                    
+                    # Make the API call to update the configuration
+                    $configUrl = "https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+                    
+                    try {
+                        # Verbose debug output
+                        Write-Host "`nAPI CALL DETAILS:" -ForegroundColor Cyan
+                        Write-Host "URL: $configUrl" -ForegroundColor Cyan
+                        Write-Host "JMS Port: $jmsPort" -ForegroundColor Cyan
+                        Write-Host "Firebird Port: $firebirdPort" -ForegroundColor Cyan
+                        Write-Host "Firebird User: $firebirdUser" -ForegroundColor Cyan
+                        Write-Host "Firebird Password: [not shown]" -ForegroundColor Cyan
+                        Write-Host "HTTPS Port: $httpsPort" -ForegroundColor Cyan
+                        Write-Host "Structure Unique Name: $structureUniqueName" -ForegroundColor Cyan
+                        Write-Host "Hostname: $hostname" -ForegroundColor Cyan
+                        Write-Host "System Name: $currentSystemName" -ForegroundColor Cyan
+                        Write-Host "System Version: $version" -ForegroundColor Cyan
+                        Write-Host "`nActual Request Content:" -ForegroundColor Green
+                        
+                        # Show the request content but mask the password
+                        $displayJson = $processedContent -replace '"ds-embedded.datasource.password_encrypted",\s*"value":\s*"[^"]*"', '"ds-embedded.datasource.password_encrypted", "value": "[not shown]"'
+                        Write-Host $displayJson -ForegroundColor Green
+                        Write-Host "`n"
+                        
+                        # Make the API call with the JSON content directly
+                        $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                        Write-Host "Successfully updated StoreHub configuration"
+                        
+                        # Run the StoreHub configuration update a second time
+                        Write-Host "`nRunning StoreHub configuration update a second time to ensure proper initialization..." -ForegroundColor Yellow
+                        try {
+                            Write-Host "Making second API call to update StoreHub configuration..."
+                            $configResponse2 = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                            Write-Host "Successfully updated StoreHub configuration (second attempt)" -ForegroundColor Green
+                        } catch {
+                            Write-Host "Error in second StoreHub configuration update: $_" -ForegroundColor Red
+                            if ($_.Exception.Response) {
+                                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                                $reader.BaseStream.Position = 0
+                                $reader.DiscardBufferedData()
+                                $responseBody = $reader.ReadToEnd()
+                                Write-Host "Response body (second attempt): $responseBody" -ForegroundColor Red
+                            }
+                            # Continue execution even if the second call fails
+                        }
+                        
+                    } catch {
+                        Write-Host "Error updating StoreHub configuration: $_" -ForegroundColor Red
+                        if ($_.Exception.Response) {
+                            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                            $reader.BaseStream.Position = 0
+                            $reader.DiscardBufferedData()
+                            $responseBody = $reader.ReadToEnd()
+                            Write-Host "Response body: $responseBody" -ForegroundColor Red
+                        }
+                        # Continue execution even if this call fails
+                    }
+                } else {
+                    Write-Host "Warning: StoreHub update_config.json not found at: $updateConfigPath"
+                }
+            } else {
+                Write-Host "Skipping configuration update - not a StoreHub component"
+            }
+        } catch {
+            Write-Host "Error retrieving store information: $_"
+            if ($_.Exception.Response) {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $reader.BaseStream.Position = 0
+                $reader.DiscardBufferedData()
+                $responseBody = $reader.ReadToEnd()
+                Write-Host "Response body: $responseBody"
+            }
+            # Continue execution even if this call fails
+        }
+    }
+
+    # First API call - Get Business Unit
+    $buUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$StoreId"
+    $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
+    Write-Host "Successfully retrieved business unit information"
+    
+    # Extract businessUnitGroupID from the key object in the response
+    $businessUnitGroupId = $buResponse.key.businessUnitGroupID
+    
+    if (-Not $businessUnitGroupId) {
+        Write-Host "Failed to get businessUnitGroupID from response"
+        Write-Host "Response content:"
+        Write-Host ($buResponse | ConvertTo-Json -Depth 10)
+        exit 1
+    }
+
+    Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
+
+    # Second API call - Try to Get Workstation first
+    $wsUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    try {
+        $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
+        Write-Host "Successfully retrieved existing workstation information"
+    }
+    catch {
+        if ($_.Exception.Response.StatusCode.value__ -eq 404) {
+            Write-Host "Workstation not found, creating new workstation..."
+            
+            # Determine workstation type based on ComponentType
+            $typeCode = switch ($ComponentType) {
+                'LPA-SERVICE' { 'LPAS' }
+                'STOREHUB-SERVICE' { 'SHS' }
+                'FLOW-SERVICE' { 'EDGE' }
+                'POS' { 'POS' }
+                'WDM' { 'EDGE' }
+                default { 'POS' }
+            }
+
+            # Create workstation payload
+            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
+            $wsPayload = @{
+                workstation = @{
+                    key = @{
+                        workstationID = $WorkstationId
+                        businessUnitGroupID = $businessUnitGroupId
+                    }
+                    typeCode = $typeCode
+                    createTimestampUTC0 = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+                }
+            } | ConvertTo-Json -Depth 10
+
+            $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
+            Write-Host "Successfully created new workstation"
+            
+            # Add a sleep for StoreHub components to allow time for backend processing
+            if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+                Write-Host "==========================================================" -ForegroundColor Yellow
+                Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+                Write-Host "==========================================================" -ForegroundColor Yellow
+                Start-Sleep -Seconds 120
+                Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
+                # Set flag to indicate we've already waited
+                $script:storeHubWaitComplete = $true
+            }
+        }
+        else {
+            Write-Host "Error accessing workstation:"
+            Write-Host $_
+            if ($_.Exception.Response) {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $reader.BaseStream.Position = 0
+                $reader.DiscardBufferedData()
+                $responseBody = $reader.ReadToEnd()
+                Write-Host "Response body: $responseBody"
+            }
+            exit 1
+        }
+    }
+
+    # Save responses to files for reference
+    $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
+    $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
+    Write-Host "Saved response data to business-unit.json and workstation.json"
+    
+    # Always ensure we wait for StoreHub even if the workstation existed already
+    if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
+        # Check if we haven't already waited
+        if (-not $script:storeHubWaitComplete) {
+            Write-Host "==========================================================" -ForegroundColor Yellow
+            Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+            Write-Host "==========================================================" -ForegroundColor Yellow
+            Start-Sleep -Seconds 120
+            Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
+            $script:storeHubWaitComplete = $true
+        } else {
+            Write-Host "StoreHub wait already completed. Skipping additional wait."
+        }
+    }
+    
+    # Exit successfully
+    exit 0
+}
+catch {
+    Write-Host "Error occurred: $_" -ForegroundColor Red
+    if ($_.Exception.Response) {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $reader.BaseStream.Position = 0
+        $reader.DiscardBufferedData()
+        $responseBody = $reader.ReadToEnd()
+        Write-Host "Response body: $responseBody" -ForegroundColor Red
+    }
+    exit 1
+} 

@@ -712,10 +712,12 @@ while ($true) {
                     end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
                     
                     if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
-                        # For Linux, when hostname detection is disabled:
-                        # 1. We set up a structure that first tries file detection
-                        # 2. Only if file detection fails, then we use manual input
-                        hostname_replacement_code = """# File detection with manual input fallback (hostname detection disabled)
+                        # Determine what to insert based on file detection setting
+                        if self.detection_manager.is_detection_enabled():
+                            # For Linux, when hostname detection is disabled but file detection is enabled:
+                            # 1. We set up a structure that first tries file detection
+                            # 2. Only if file detection fails, then we use manual input
+                            hostname_replacement_code = """# File detection with manual input fallback (hostname detection disabled)
 hostnameDetected=false
 storeNumber=""
 workstationId=""
@@ -749,9 +751,54 @@ if [ "$hostnameDetected" = false ]; then
 fi
 
 """
+                            print("Created structure with file detection priority and manual input fallback in Bash script")
+                        else:
+                            # For Linux, when both hostname and file detection are disabled:
+                            # Only include manual input code
+                            hostname_replacement_code = """# Manual input only mode (automatic detection is disabled)
+hostnameDetected=false
+storeNumber=""
+workstationId=""
+
+# Get hostname for display only
+hs=$(hostname)
+if [ -z "$hs" ]; then
+    echo "Warning: Could not read hostname. Falling back to manual input."
+else
+    echo "-------------------"
+    echo "Hostname  : $hs"
+    echo "==================="
+fi
+
+# Prompt for Store Number
+echo "Manual input mode (automatic detection is disabled)."
+echo "Please enter the Store Number in one of these formats (or any custom format):"
+echo "  - 4 digits (e.g., 1234)"
+echo "  - 1 letter + 3 digits (e.g., R005)"
+echo "  - 2 letters + 2 digits (e.g., CA45)"
+echo "  - Custom format (e.g., STORE-105)"
+read -p "Store Number: " storeNumber
+
+# Validate that something was entered
+if [ -z "$storeNumber" ]; then
+    echo "Store Number cannot be empty. Please try again."
+    read -p "Store Number: " storeNumber
+fi
+
+# Prompt for Workstation ID
+while true; do
+    read -p "Please enter the Workstation ID (numeric): " workstationId
+    if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+        break
+    fi
+    echo "Invalid input. Please enter a numeric Workstation ID."
+done
+
+"""
+                            print("Created structure with manual input only in Bash script")
+                        
                         # Replace the hostname detection section with our new structure
                         template = template[:start_pos] + hostname_replacement_code + template[end_marker_pos:]
-                        print("Created structure with file detection priority and manual input fallback in Bash script")
             
             # Apply file detection settings if enabled
             file_detection_enabled = self.detection_manager.is_detection_enabled()
@@ -856,12 +903,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
 )
                     
                     # Find where to insert the file detection code
-                    if not use_hostname_detection:
-                        # If hostname detection is disabled, we need to insert after the manual input code
-                        insert_marker = "# File detection will be inserted here by the generator"
-                    else:
-                        # In the updated template, we look for the placeholder for file detection code
-                        insert_marker = "# File detection code will be inserted here by the generator"
+                    insert_marker = "# File detection code will be inserted here by the generator"
                     
                     # Find the position to insert the code
                     insert_pos = template.find(insert_marker)
@@ -869,120 +911,13 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
                         if file_detection_enabled:
                             # Insert the detection code at the appropriate position
                             template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                            print(f"Added dynamic station detection code to PowerShell script")
+                            print(f"Added dynamic station detection code to Bash script")
                         else:
                             # If file detection is disabled, replace the marker with empty content or a comment
                             template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
-                            print(f"File detection is disabled, skipping in PowerShell script")
+                            print(f"File detection is disabled, skipping in Bash script")
                     else:
-                        print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
-            
-            # For Linux, always insert file detection regardless of the setting
-            # This is the original behavior that was working well
-            if platform == "Linux":
-                station_detection_code = '''
-# File detection for the current component ($COMPONENT_TYPE)
-fileDetectionEnabled=true
-componentType="$COMPONENT_TYPE"
-
-# Check if we're using base directory or custom paths
-useBaseDirectory="{is_using_base_dir}"
-
-if [ "$useBaseDirectory" = "True" ]; then
-    # Use base directory approach
-    basePath="{base_dir}"
-    declare -A customFilenames
-    customFilenames["POS"]="{pos_filename}"
-    customFilenames["WDM"]="{wdm_filename}"
-    customFilenames["FLOW-SERVICE"]="{flow_filename}"
-    customFilenames["LPA-SERVICE"]="{lpa_filename}"
-    customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
-
-    # Get the appropriate station file for the current component
-    stationFileName="${{customFilenames[$componentType]}}"
-    if [ -z "$stationFileName" ]; then
-        stationFileName="$componentType.station"
-    fi
-
-    stationFilePath="$basePath/$stationFileName"
-else
-    # Use custom paths approach
-    declare -A customPaths
-    customPaths["POS"]="{pos_path}"
-    customPaths["WDM"]="{wdm_path}"
-    customPaths["FLOW-SERVICE"]="{flow_path}"
-    customPaths["LPA-SERVICE"]="{lpa_path}"
-    customPaths["STOREHUB-SERVICE"]="{sh_path}"
-    
-    # Get the appropriate station file path for the current component
-    stationFilePath="${{customPaths[$componentType]}}"
-    if [ -z "$stationFilePath" ]; then
-        echo "Warning: No custom path defined for $componentType"
-        # Fallback to a default path
-        stationFilePath="/usr/local/gkretail/stations/$componentType.station"
-    fi
-fi
-
-# Check if hostname detection failed and file detection is enabled
-if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
-    echo "Trying file detection for $componentType using $stationFilePath"
-    
-    if [ -f "$stationFilePath" ]; then
-        while IFS= read -r line || [ -n "$line" ]; do
-            if [[ "$line" =~ StoreID=(.+) ]]; then
-                storeNumber="${{BASH_REMATCH[1]}}"
-                echo "Found Store ID in file: $storeNumber"
-            fi
-            
-            if [[ "$line" =~ WorkstationID=(.+) ]]; then
-                workstationId="${{BASH_REMATCH[1]}}"
-                echo "Found Workstation ID in file: $workstationId"
-            fi
-        done < "$stationFilePath"
-        
-        # Validate extracted values
-        if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]+$ ]]; then
-            # Export the variable to ensure it's available in the parent scope
-            export hostnameDetected=true
-            echo "Successfully detected values from file:"
-            echo "Store Number: $storeNumber"
-            echo "Workstation ID: $workstationId"
-        fi
-    else
-        echo "Station file not found at: $stationFilePath"
-    fi
-fi
-'''.format(
-    is_using_base_dir=str(self.detection_manager.is_using_base_directory()),
-    base_dir=self.detection_manager.get_base_directory(),
-    pos_filename=self.detection_manager.get_custom_filename("POS"),
-    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
-    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
-    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
-    pos_path=self.detection_manager.detection_config["detection_files"]["POS"],
-    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"],
-    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"],
-    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"],
-    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"]
-)
-                
-                # Find where to insert the file detection code
-                insert_marker = "# File detection code will be inserted here by the generator"
-                
-                # Find the position to insert the code
-                insert_pos = template.find(insert_marker)
-                if insert_pos == -1:
-                    # Try the alternative marker if the primary one isn't found
-                    insert_marker = "# File detection will be inserted here by the generator"
-                    insert_pos = template.find(insert_marker)
-                
-                if insert_pos != -1:
-                    # Insert the detection code at the appropriate position
-                    template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                    print(f"Added dynamic station detection code to Bash script")
-                else:
-                    print(f"Warning: Could not find insertion point for station detection code in Bash script")
+                        print(f"Warning: Could not find insertion point for station detection code in Bash script")
             
             # Write the modified template to the output file
             with open(output_path, 'w', newline='\n') as f:
