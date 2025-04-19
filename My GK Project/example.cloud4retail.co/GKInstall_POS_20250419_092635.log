@@ -1,0 +1,103 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20250419092635
+Username: MARTIN-PC\Martin
+RunAs User: MARTIN-PC\Martin
+Configuration Name: 
+Machine: MARTIN-PC (Microsoft Windows NT 10.0.26100.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 19552
+PSVersion: 5.1.26100.3624
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.3624
+BuildVersion: 10.0.26100.3624
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is GKInstall_POS_20250419_092635.log
+Console output is being saved to GKInstall_POS_20250419_092635.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : MARTIN-PC
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Falling back to manual input.
+Please enter the Store Number in one of these formats (or any custom format):
+  - 4 digits (e.g., 1234)
+  - 1 letter + 3 digits (e.g., R005)
+  - 2 letters + 2 digits (e.g., CA45)
+  - Custom format (e.g., STORE-105)
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> .\GKInstall_file.ps1 -ComponentType POS
+Transcript started, output file is GKInstall_POS_20250419_092646.log
+Console output is being saved to GKInstall_POS_20250419_092646.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error occurred: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+POS onboarding completed successfully
+Starting store initialization...
+Creating processed copy of get_store.json with Store ID: 9999
+get_store_processed.json created successfully
+Using systemName: CLOUD4RETAIL-OPOS-CLOUD for component: POS
+Making API call to get store information...
+Created processed copy of get_store.json at: C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co\helper\init\get_store_processed.json
+Updated @RETAIL_STORE_ID@ placeholder with: 9999 in processed file
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error retrieving store information: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error occurred: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+Warning: Store initialization failed with exit code 1
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> .\GKInstall_both.ps1 -ComponentType POS
+Transcript started, output file is GKInstall_POS_20250419_092654.log
+Console output is being saved to GKInstall_POS_20250419_092654.log
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : MARTIN-PC
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error occurred: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+POS onboarding completed successfully
+Starting store initialization...
+Creating processed copy of get_store.json with Store ID: 9999
+get_store_processed.json created successfully
+Using systemName: CLOUD4RETAIL-OPOS-CLOUD for component: POS
+Making API call to get store information...
+Created processed copy of get_store.json at: C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co\helper\init\get_store_processed.json
+Updated @RETAIL_STORE_ID@ placeholder with: 9999 in processed file
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error retrieving store information: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+PS C:\Users\Martin\Desktop\Store-Install-Builder\My GK Project\example.cloud4retail.co> TerminatingError(Invoke-RestMethod): "Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'"
+Error occurred: Vzdálený název nelze rozpoznat: 'example.cloud4retail.co'
+Warning: Store initialization failed with exit code 1
