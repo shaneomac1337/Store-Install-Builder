@@ -880,7 +880,9 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             # For Linux, always insert file detection regardless of the setting
             # This is the original behavior that was working well
             if platform == "Linux":
-                station_detection_code = '''
+                # Only insert file detection code if file detection is enabled
+                if file_detection_enabled:
+                    station_detection_code = '''
 # File detection for the current component ($COMPONENT_TYPE)
 fileDetectionEnabled=true
 componentType="$COMPONENT_TYPE"
@@ -979,8 +981,13 @@ fi
                 
                 if insert_pos != -1:
                     # Insert the detection code at the appropriate position
-                    template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                    print(f"Added dynamic station detection code to Bash script")
+                    if file_detection_enabled:
+                        template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
+                        print(f"Added dynamic station detection code to Bash script")
+                    else:
+                        # If file detection is disabled, replace the marker with empty content or a comment
+                        template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
+                        print(f"File detection is disabled, skipping in Bash script")
                 else:
                     print(f"Warning: Could not find insertion point for station detection code in Bash script")
             
