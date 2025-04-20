@@ -574,12 +574,15 @@ class GKInstallBuilder:
         # Ensure default values are set for critical fields
         # Set platform-specific paths based on selected platform
         platform = self.config_manager.config.get("platform", "Windows")
+        # Only set base_install_dir if missing or invalid for the platform
         if platform == "Windows":
-            self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+            if not self.config_manager.config.get("base_install_dir") or "/" in self.config_manager.config.get("base_install_dir", ""):
+                self.config_manager.config["base_install_dir"] = "C:\\gkretail"
             self.config_manager.config["firebird_server_path"] = "C:\\Program Files\\Firebird\\Firebird_3_0"
             self.config_manager.config["firebird_driver_path_local"] = "C:\\gkretail\\Jaybird"
         else:  # Linux
-            self.config_manager.config["base_install_dir"] = "/usr/local/gkretail"
+            if not self.config_manager.config.get("base_install_dir") or "\\" in self.config_manager.config.get("base_install_dir", ""):
+                self.config_manager.config["base_install_dir"] = "/usr/local/gkretail"
             self.config_manager.config["firebird_server_path"] = "/opt/firebird"
             self.config_manager.config["firebird_driver_path_local"] = "/usr/local/gkretail/Jaybird"
         
@@ -1224,23 +1227,21 @@ class GKInstallBuilder:
             print(f"Auto-filled StoreHub Service system type: {storehub_service_system_type}")
         
         # Set the base install directory only if other values were updated
-        if pos_system_type or wdm_system_type:
-            if self.config_manager.get_entry("base_install_dir"):
-                self.config_manager.update_entry_value("base_install_dir", default_install_dir)
-                print(f"Auto-filled base install directory: {default_install_dir}")
-            
-            if self.config_manager.get_entry("username") and not self.config_manager.get_entry("username").get():
-                self.config_manager.update_entry_value("username", "launchpad")
-            
-            if self.config_manager.get_entry("eh_launchpad_username") and not self.config_manager.get_entry("eh_launchpad_username").get():
-                self.config_manager.update_entry_value("eh_launchpad_username", "1001")
-            
-            if self.config_manager.get_entry("ssl_password") and not self.config_manager.get_entry("ssl_password").get():
-                self.config_manager.update_entry_value("ssl_password", "changeit")
-        else:
-            # Even if there's no valid URL, still set the base install directory
-            self.config_manager.update_entry_value("base_install_dir", default_install_dir)
-            print(f"Setting base install directory to: {default_install_dir} (no valid URL pattern detected)")
+        base_dir_entry = self.config_manager.get_entry("base_install_dir")
+        current = base_dir_entry.get() if base_dir_entry else self.config_manager.config.get("base_install_dir", "")
+        if not current or (platform == "Windows" and "/" in current) or (platform == "Linux" and "\\" in current):
+            if base_dir_entry:
+                base_dir_entry.delete(0, 'end')
+                base_dir_entry.insert(0, default_install_dir)
+            self.config_manager.config["base_install_dir"] = default_install_dir
+            print(f"Auto-filled base install directory: {default_install_dir}")
+        # Only set these other defaults if their fields are empty
+        if self.config_manager.get_entry("username") and not self.config_manager.get_entry("username").get():
+            self.config_manager.update_entry_value("username", "launchpad")
+        if self.config_manager.get_entry("eh_launchpad_username") and not self.config_manager.get_entry("eh_launchpad_username").get():
+            self.config_manager.update_entry_value("eh_launchpad_username", "1001")
+        if self.config_manager.get_entry("ssl_password") and not self.config_manager.get_entry("ssl_password").get():
+            self.config_manager.update_entry_value("ssl_password", "changeit")
     
     def create_section(self, title, fields):
         # Section Frame
