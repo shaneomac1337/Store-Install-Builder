@@ -59,6 +59,7 @@ if ($ComponentType -eq 'LPA') {
 function Handle-Error {
     param($LineNumber)
     Write-Host "Error occurred at line $LineNumber"
+    Stop-TranscriptSafely
     exit 1
 }
 
@@ -229,6 +230,7 @@ $offline_mode = $offline.IsPresent
 if ($ComponentType -eq 'WDM') {
     if ([string]::IsNullOrEmpty($ssl_password)) {
         Write-Host "Error: ssl_password is required for WDM installation"
+        Stop-TranscriptSafely
         exit 1
     }
 }
@@ -243,6 +245,7 @@ if ($offline.IsPresent) {
     # Check for component-specific offline package
     if (-not (Test-Path $package_dir)) {
         Write-Host "Error: Offline package directory not found: $package_dir"
+        Stop-TranscriptSafely
         exit 1
     }
 
@@ -282,11 +285,13 @@ if ($offline.IsPresent) {
         
         if ($jre_files.Count -eq 0) {
             Write-Host "Error: No JRE/Java package found in Java directory"
+            Stop-TranscriptSafely
             exit 1
         }
         
         if ($tomcat_files.Count -eq 0) {
             Write-Host "Error: No Tomcat package found in Tomcat directory"
+            Stop-TranscriptSafely
             exit 1
         }
         
@@ -378,6 +383,7 @@ if ($offline.IsPresent) {
             $required_files += $jre_file
         } else {
             Write-Host "Error: No JRE/Java package found for $ComponentType"
+            Stop-TranscriptSafely
             exit 1
         }
         
@@ -389,6 +395,7 @@ if ($offline.IsPresent) {
             $required_files += $tomcat_file
         } else {
             Write-Host "Error: No Tomcat package found for $ComponentType"
+            Stop-TranscriptSafely
             exit 1
         }
         
@@ -796,15 +803,18 @@ if (-not $isUpdate) {
                         Write-Host "Store initialization completed successfully"
                     } else {
                         Write-Host "Warning: Store initialization failed with exit code $LASTEXITCODE"
+                        Stop-TranscriptSafely
                         exit 1
                     }
                 }
                 catch {
                     Write-Host "Error during store initialization: $_"
+                    Stop-TranscriptSafely
                     exit 1
                 }
             } else {
                 Write-Host "Error: Store initialization script not found at: $storeInitScript"
+                Stop-TranscriptSafely
                 exit 1
             }
         } else {
@@ -813,6 +823,7 @@ if (-not $isUpdate) {
     }
     catch {
         Write-Host "Error during $ComponentType onboarding: $_"
+        Stop-TranscriptSafely
         exit 1
     }
 } else {
@@ -825,6 +836,7 @@ if (-not $isUpdate) {
     $onboardingTokenPath = "onboarding.token"
     if (-not (Test-Path $onboardingTokenPath)) {
         Write-Host "Error: Onboarding token file not found at: $onboardingTokenPath"
+        Stop-TranscriptSafely
         exit 1
     }
     $onboardingToken = Get-Content -Path $onboardingTokenPath -Raw
@@ -1038,6 +1050,7 @@ if (-not $offline_mode) {
     }
     catch {
         Write-Host "Error downloading Launcher.exe: $_"
+        Stop-TranscriptSafely
         exit 1
     }
 } else {
@@ -1049,6 +1062,7 @@ if (-not $offline_mode) {
     }
     catch {
         Write-Host "Error copying Launcher.exe: $_"
+        Stop-TranscriptSafely
         exit 1
     }
 }
@@ -1775,6 +1789,7 @@ while ($elapsed -lt $maxWaitTime) {
                 Write-Host "Terminating launcher process..."
                 $launcherProcess.Kill()
             }
+            Stop-TranscriptSafely
             exit 1
         }
     }
@@ -1901,4 +1916,5 @@ if (Test-Path $logFile) {
 
 Write-Host "Cleanup completed. Timed out installation files have been moved to $errorsDir directory."
 
+Stop-TranscriptSafely
 exit 1 
