@@ -3554,7 +3554,7 @@ class GKInstallBuilder:
         # Create a new window for detection settings
         self.detection_window = ctk.CTkToplevel(self.root)
         self.detection_window.title("Detection Settings")
-        self.detection_window.geometry("950x950")
+        self.detection_window.geometry("1024x1024")
         self.detection_window.transient(self.root)
         
         # Force window update and wait for it to be visible before grabbing
@@ -3910,7 +3910,7 @@ WorkstationID=101"""
         
         ctk.CTkLabel(
             note_frame,
-            text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (should be 3 digits)",
+            text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (usually 3 digits but can be different)",
             justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 5))
         
@@ -4009,8 +4009,8 @@ WorkstationID=101"""
         results_frame = ctk.CTkFrame(platform_frame)
         results_frame.pack(fill="x", padx=10, pady=5)
         
-        # Create a text widget to show results
-        results_text = ctk.CTkTextbox(results_frame, height=80, width=650)
+        # Create a text widget to show results (taller only)
+        results_text = ctk.CTkTextbox(results_frame, height=110, width=650)
         results_text.pack(fill="x", padx=10, pady=5)
         results_text.insert("1.0", "Test results will appear here...")
         results_text.configure(state="disabled")
@@ -4084,16 +4084,12 @@ WorkstationID=101"""
                 else:
                     # Linux has more detailed results
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
-                    if "store_number" in result:
-                        results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
-
                     # Add validation results
                     if "is_valid_store" in result:
                         valid_indicator = "✅" if result["is_valid_store"] else "❌"
                         results_text.insert("end", f"{valid_indicator} Store ID format: " +
                                              ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
-
                     if "is_valid_ws" in result:
                         valid_indicator = "✅" if result["is_valid_ws"] else "❌"
                         results_text.insert("end", f"{valid_indicator} Workstation ID format: " +
