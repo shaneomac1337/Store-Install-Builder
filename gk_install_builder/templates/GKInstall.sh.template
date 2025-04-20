@@ -994,11 +994,8 @@ if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
     launcher_props="${launcher_props}"$'\n'"firebird_driver_path_local=$firebird_driver_path_local"
     echo "Added detected Jaybird driver path to launcher.properties: $firebird_driver_path_local"
   fi
-else
-  # For other components, use the standard replacement
-  launcher_props="${launcher_props//@FIREBIRD_SERVER_PATH@/$firebird_server_path}"
-  launcher_props="${launcher_props//@FIREBIRD_DRIVER_PATH_LOCAL@/$firebird_driver_path_local}"
 fi
+launcher_props="${launcher_props//@FIREBIRD_DRIVER_PATH_LOCAL@/$firebird_driver_path_local}"
 
 # Add Tomcat replacements if Tomcat files were found
 if [ "${#tomcat_files[@]}" -gt 0 ]; then
