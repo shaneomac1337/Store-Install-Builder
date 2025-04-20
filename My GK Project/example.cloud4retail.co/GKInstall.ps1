@@ -29,6 +29,19 @@ function Stop-TranscriptSafely {
     }
 }
 
+# Trap for terminating errors (exceptions)
+trap {
+    Stop-TranscriptSafely
+    break
+}
+
+# Handle CTRL+C (SIGINT) to stop transcript
+$null = Register-EngineEvent -SourceIdentifier Console_CancelKeyPress -Action {
+    Write-Host "CTRL+C detected, stopping transcript and exiting..."
+    Stop-TranscriptSafely
+    exit 1
+}
+
 # Set certificate validation to always return true (bypass SSL validation)
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 
@@ -532,7 +545,6 @@ if ($isUpdate -and $offline_mode -and $has_installer_jar) {
     }
 }
 
-
 # Get hostname
 $hs = $env:COMPUTERNAME
 if ([string]::IsNullOrEmpty($hs)) {
@@ -543,30 +555,194 @@ if ([string]::IsNullOrEmpty($hs)) {
     Write-Host "==================="
 }
 
-# Using manual input (both hostname and file detection are disabled)
+# Initialize variables for Store Number and Workstation ID
+$storeNumber = ""
+$workstationId = ""
+
+# Try to extract Store Number and Workstation ID from hostname
 $hostnameDetected = $false
 
-# Prompt for Store Number and Workstation ID
-Write-Host "Manual input mode (automatic detection is disabled)."
-# Prompt for Store Number
-Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-Write-Host "  - 4 digits (e.g., 1234)"
-Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-Write-Host "  - Custom format (e.g., STORE-105)"
-$storeNumber = Read-Host "Store Number"
-# Validate that something was entered
-if ([string]::IsNullOrWhiteSpace($storeNumber)) {
-    Write-Host "Store Number cannot be empty. Please try again."
-    $storeNumber = Read-Host "Store Number"
-}
-# Prompt for Workstation ID
-while ($true) {
-    $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-    if ($workstationId -match '^\d+$') {
-        break
+# For update mode, we must extract values from the existing installation
+if ($isUpdate) {
+    Write-Host "Running in update mode - attempting to extract store and workstation IDs from existing installation"
+    
+    # Look for station.properties in the installation directory
+    $stationPropertiesPath = Join-Path $install_dir "station.properties"
+    if (Test-Path $stationPropertiesPath) {
+        Write-Host "Found existing station.properties at: $stationPropertiesPath"
+        $stationPropertiesContent = Get-Content -Path $stationPropertiesPath -Raw
+        
+        # Extract the store ID
+        if ($stationPropertiesContent -match 'station\.storeId=([^\r\n]+)') {
+            $storeNumber = $matches[1]
+            Write-Host "Found Store ID in station.properties: $storeNumber"
+        }
+        
+        # Extract the workstation ID
+        if ($stationPropertiesContent -match 'station\.workstationId=([^\r\n]+)') {
+            $workstationId = $matches[1]
+            Write-Host "Found Workstation ID in station.properties: $workstationId"
+        }
+        
+        # If both values were found, skip hostname detection
+        if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workstationId)) {
+            $hostnameDetected = $true
+            Write-Host "Using Store ID and Workstation ID from existing installation"
+        } else {
+            Write-Host "Error: Could not extract complete information from station.properties" -ForegroundColor Red
+            Write-Host "Update not possible. Exiting." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Error: No station.properties found at: $stationPropertiesPath" -ForegroundColor Red
+        Write-Host "Update not possible. Exiting." -ForegroundColor Red
+        exit 1
     }
-    Write-Host "Invalid input. Please enter a numeric Workstation ID."
+} else {
+    # For new installations, detect from hostname or prompt user
+    if (-not [string]::IsNullOrEmpty($hs)) {
+        # Try different patterns:
+        # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
+        # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
+        
+        if ($hs -match '([^-]+)-([0-9]+)$') {
+            # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
+            $storeId = $matches[1]
+            $workstationId = $matches[2]
+            
+            # If storeId contains a dash, it might be SOMENAME-1674-101 format
+            if ($storeId -match '.*-(\d{4})$') {
+                $storeNumber = $matches[1]
+            } else {
+                # Direct format like R005-101
+                $storeNumber = $storeId
+            }
+            
+            # Validate extracted parts
+            # Accept any alphanumeric characters for store ID with at least 1 character
+            if ($storeNumber -match '^[A-Za-z0-9_\-\.]+$') {
+                if ($workstationId -match '^\d+$') {
+                    $hostnameDetected = $true
+                    Write-Host "Successfully detected values from hostname:"
+                    Write-Host "Store Number: $storeNumber"
+                    Write-Host "Workstation ID: $workstationId"
+                }
+            }
+        }
+    }
+
+    # If hostname detection failed, try file detection
+    if (-not $hostnameDetected) {
+        if (-not [string]::IsNullOrEmpty($hs)) {
+            Write-Host "Could not extract valid Store Number and Workstation ID from hostname."
+            Write-Host "Trying file detection..."
+        }
+        
+        
+# File detection for the current component ($ComponentType)
+$fileDetectionEnabled = $true
+$componentType = $ComponentType
+
+# Check if we're using base directory or custom paths
+$useBaseDirectory = "true".ToLower()
+
+if ($useBaseDirectory -eq "true") {
+    # Use base directory approach
+    $basePath = "C:\\gkretail\\stations"
+    $customFilenames = @{
+        "POS" = "POS.station";
+        "WDM" = "WDM.station";
+        "FLOW-SERVICE" = "FLOW-SERVICE.station";
+        "LPA-SERVICE" = "LPA.station";
+        "STOREHUB-SERVICE" = "SH.station"
+    }
+
+    # Get the appropriate station file for the current component
+    $stationFileName = $customFilenames[$componentType]
+    if (-not $stationFileName) {
+        $stationFileName = "$componentType.station"
+    }
+
+    $stationFilePath = Join-Path $basePath $stationFileName
+} else {
+    # Use custom paths approach
+    $customPaths = @{
+        "POS" = "";
+        "WDM" = "";
+        "FLOW-SERVICE" = "";
+        "LPA-SERVICE" = "";
+        "STOREHUB-SERVICE" = ""
+    }
+    
+    # Get the appropriate station file path for the current component
+    $stationFilePath = $customPaths[$componentType]
+    if (-not $stationFilePath) {
+        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
+        # Fallback to a default path
+        $stationFilePath = "C:\gkretail\stations\$componentType.station"
+    }
+}
+
+# Check if hostname detection failed and file detection is enabled
+if (-not $hostnameDetected -and $fileDetectionEnabled) {
+    Write-Host "Trying file detection for $componentType using $stationFilePath"
+    
+    if (Test-Path $stationFilePath) {
+        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
+        
+        if ($fileContent) {
+            $lines = $fileContent -split "`r?`n"
+            
+            foreach ($line in $lines) {
+                if ($line -match "StoreID=(.+)") {
+                    $storeNumber = $matches[1].Trim()
+                    Write-Host "Found Store ID in file: $storeNumber"
+                }
+                
+                if ($line -match "WorkstationID=(.+)") {
+                    $workstationId = $matches[1].Trim()
+                    Write-Host "Found Workstation ID in file: $workstationId"
+                }
+            }
+            
+            # Validate extracted values
+            if ($storeNumber -and $workstationId -match '^\d+$') {
+                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
+                Write-Host "Successfully detected values from file:"
+                Write-Host "Store Number: $storeNumber"
+                Write-Host "Workstation ID: $workstationId"
+            }
+        }
+    } else {
+        Write-Host "Station file not found at: $stationFilePath"
+    }
+}
+
+    }
+
+    # If both hostname and file detection failed, prompt for manual input
+    if (-not $hostnameDetected) {
+        Write-Host "Falling back to manual input."
+        
+        # Prompt for Store Number
+        Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
+        Write-Host "  - 4 digits (e.g., 1234)"
+        Write-Host "  - 1 letter + 3 digits (e.g., R005)"
+        Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
+        Write-Host "  - Custom format (e.g., STORE-105)"
+        $storeNumber = Read-Host "Store Number"
+
+        # Validate that something was entered
+        if ([string]::IsNullOrWhiteSpace($storeNumber)) {
+            Write-Host "Store Number cannot be empty. Please try again."
+            $storeNumber = Read-Host "Store Number"
+        }
+        
+        # Prompt for Workstation ID
+        do {
+            $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+        } while ($workstationId -notmatch '^\d+$')
+    }
 }
 
 # Print final results
