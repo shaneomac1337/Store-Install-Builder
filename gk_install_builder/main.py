@@ -803,8 +803,47 @@ class GKInstallBuilder:
         )
         detection_settings_btn.pack(side="left", padx=20)
         
-        # Create tooltip for detection settings button
-        self.create_tooltip(detection_settings_btn, "Configure file detection settings and hostname regex patterns\nFile detection serves as a fallback when hostname detection fails or is disabled")
+        # Replace tooltip for detection settings button with robust logic
+        class _DetectionButtonToolTip:
+            def __init__(self, widget, text, delay=500):
+                self.widget = widget
+                self.text = text
+                self.delay = delay
+                self.tipwindow = None
+                self.id = None
+                self.widget.bind("<Enter>", self.schedule)
+                self.widget.bind("<Leave>", self.unschedule)
+                self.widget.bind("<ButtonPress>", self.unschedule)
+                self.widget.bind("<Destroy>", self.cleanup)
+            def schedule(self, event=None):
+                self.unschedule()
+                self.id = self.widget.after(self.delay, self.show)
+            def unschedule(self, event=None):
+                if self.id:
+                    self.widget.after_cancel(self.id)
+                    self.id = None
+                self.hide()
+            def show(self):
+                if self.tipwindow or not self.text:
+                    return
+                x = self.widget.winfo_rootx() + 20
+                y = self.widget.winfo_rooty() + 20
+                self.tipwindow = tw = ctk.CTkToplevel(self.widget)
+                tw.wm_overrideredirect(True)
+                tw.wm_geometry(f"+{x}+{y}")
+                label = ctk.CTkLabel(tw, text=self.text, fg_color="grey", text_color="white", corner_radius=4)
+                label.pack(ipadx=4, ipady=2)
+            def hide(self):
+                if self.tipwindow:
+                    self.tipwindow.destroy()
+                    self.tipwindow = None
+            def cleanup(self, event=None):
+                self.unschedule()
+                self.widget = None
+        _DetectionButtonToolTip(
+            detection_settings_btn,
+            "Configure file detection settings and hostname regex patterns\nFile detection serves as a fallback when hostname detection fails or is disabled"
+        )
         
         # Add validation and auto-fill for Base URL
         base_url_entry = self.config_manager.get_entry("base_url")
