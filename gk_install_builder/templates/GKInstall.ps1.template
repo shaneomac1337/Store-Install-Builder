@@ -592,7 +592,7 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        if ($hs -match '(\w+)-(\d+)$') {
+        if ($hs -match '([^-]+)-([0-9]+)$') {
             # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
             $storeId = $matches[1]
             $workstationId = $matches[2]
