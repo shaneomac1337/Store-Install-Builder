@@ -355,7 +355,10 @@ class ProjectGenerator:
                 # Windows-specific replacements
                 replacements = [
                     ("test.cse.cloud4retail.co", base_url),
-                    ("C:\\\\gkretail", base_install_dir.replace("\\", "\\\\")),
+                    ("C:\\gkretail", base_install_dir.replace("\\", "\\\\")),  # double backslash
+                    ("C:/gkretail", base_install_dir.replace("\\", "/")),  # handle any accidental forward slashes
+                    ("C:\gkretail", base_install_dir),  # single backslash (main fix)
+                    ("$base_install_dir = \"C:\\gkretail\"", f"$base_install_dir = \"{base_install_dir}\""),  # assignment line
                     ('"v1.0.0"', f'"{default_version}"'),
                     ("CSE-OPOS-CLOUD", pos_system_type),
                     ("CSE-wdm", wdm_system_type),
