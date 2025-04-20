@@ -570,21 +570,19 @@ class GKInstallBuilder:
         
         # Track whether this is first run (no config file)
         self.is_first_run = not os.path.exists(self.config_manager.config_file)
-        
-        # Ensure default values are set for critical fields
-        # Set platform-specific paths based on selected platform
         platform = self.config_manager.config.get("platform", "Windows")
-        # Only set base_install_dir if missing or invalid for the platform
-        if platform == "Windows":
-            if not self.config_manager.config.get("base_install_dir") or "/" in self.config_manager.config.get("base_install_dir", ""):
-                self.config_manager.config["base_install_dir"] = "C:\\gkretail"
-            self.config_manager.config["firebird_server_path"] = "C:\\Program Files\\Firebird\\Firebird_3_0"
-            self.config_manager.config["firebird_driver_path_local"] = "C:\\gkretail\\Jaybird"
-        else:  # Linux
-            if not self.config_manager.config.get("base_install_dir") or "\\" in self.config_manager.config.get("base_install_dir", ""):
-                self.config_manager.config["base_install_dir"] = "/usr/local/gkretail"
-            self.config_manager.config["firebird_server_path"] = "/opt/firebird"
-            self.config_manager.config["firebird_driver_path_local"] = "/usr/local/gkretail/Jaybird"
+        # Only set platform-specific defaults if NOT first run
+        if not self.is_first_run:
+            if platform == "Windows":
+                if not self.config_manager.config.get("base_install_dir") or "/" in self.config_manager.config.get("base_install_dir", ""):
+                    self.config_manager.config["base_install_dir"] = "C:\\gkretail"
+                self.config_manager.config["firebird_server_path"] = "C:\\Program Files\\Firebird\\Firebird_3_0"
+                self.config_manager.config["firebird_driver_path_local"] = "C:\\gkretail\\Jaybird"
+            else:  # Linux
+                if not self.config_manager.config.get("base_install_dir") or "\\" in self.config_manager.config.get("base_install_dir", ""):
+                    self.config_manager.config["base_install_dir"] = "/usr/local/gkretail"
+                self.config_manager.config["firebird_server_path"] = "/opt/firebird"
+                self.config_manager.config["firebird_driver_path_local"] = "/usr/local/gkretail/Jaybird"
         
         # Store section frames for progressive disclosure
         self.section_frames = {}
@@ -608,6 +606,13 @@ class GKInstallBuilder:
         
         # Set up window close handler
         self.root.protocol("WM_DELETE_WINDOW", self.on_window_close)
+        
+        # Register the platform variable with config manager
+        self.config_manager.register_entry("platform", self.platform_var)
+        
+        # On first run, ensure base install dir matches selected platform
+        if self.is_first_run:
+            self.on_platform_changed()
     
     def create_gui(self):
         # Create main container with scrollbar
@@ -1052,8 +1057,10 @@ class GKInstallBuilder:
         self.auto_fill_based_on_url(base_url)
         
         # Ensure base install directory is set
-        self.config_manager.config["base_install_dir"] = "C:\\gkretail"
-        print("Setting default base install directory to C:\\gkretail in on_continue")
+        platform = self.platform_var.get() if hasattr(self, 'platform_var') else "Windows"
+        default_dir = "/usr/local/gkretail" if platform == "Linux" else "C:\\gkretail"
+        self.config_manager.config["base_install_dir"] = default_dir
+        print(f"Setting default base install directory to {default_dir} in on_continue")
         
         # Save current configuration
         self.config_manager.update_config_from_entries()
@@ -3404,11 +3411,11 @@ class GKInstallBuilder:
         self.config_manager.config["firebird_server_path"] = firebird_path
         self.config_manager.config["firebird_driver_path_local"] = jaybird_driver_path
         
-        # Now update the entry fields if they exist - this directly updates the UI
+        # Always update the entry field to match config
         base_dir_entry = self.config_manager.get_entry("base_install_dir")
         if base_dir_entry:
             base_dir_entry.delete(0, 'end')
-            base_dir_entry.insert(0, default_dir)
+            base_dir_entry.insert(0, self.config_manager.config["base_install_dir"])
         
         firebird_path_entry = self.config_manager.get_entry("firebird_server_path")
         if firebird_path_entry:
