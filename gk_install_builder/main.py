@@ -3413,9 +3413,43 @@ class GKInstallBuilder:
 
     def on_hostname_detection_changed(self):
         """Handler for when hostname detection checkbox is changed"""
-        # Get the current value
         is_hostname_enabled = self.hostname_detection_var.get()
         self.config_manager.update_entry_value("use_hostname_detection", is_hostname_enabled)
+        # Ensure detection config is updated and saved
+        if "detection_config" in self.config_manager.config:
+            detection_config = self.config_manager.config["detection_config"]
+            detection_config["hostname_detection"] = detection_config.get("hostname_detection", {})
+            # Optionally update detection config with the new value if needed
+            # detection_config["hostname_detection"]["enabled"] = is_hostname_enabled
+            self.detection_manager.set_config(detection_config)
+            self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        else:
+            # Create default config if missing
+            platform_type = self.config_manager.config.get("platform", "Windows")
+            default_base_dir = "C:\\gkretail\\stations" if platform_type == "Windows" else "/usr/local/gkretail/stations"
+            default_config = {
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": default_base_dir,
+                "custom_filenames": {
+                    "POS": "POS.station",
+                    "WDM": "WDM.station",
+                    "FLOW-SERVICE": "FLOW-SERVICE.station",
+                    "LPA-SERVICE": "LPA.station",
+                    "STOREHUB-SERVICE": "SH.station"
+                },
+                "detection_files": {
+                    "POS": "",
+                    "WDM": "",
+                    "FLOW-SERVICE": "",
+                    "LPA-SERVICE": "",
+                    "STOREHUB-SERVICE": ""
+                },
+                "hostname_detection": {}
+            }
+            self.detection_manager.set_config(default_config)
+            self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        self.config_manager.save_config()
 
     def on_file_detection_changed(self):
         """Handler for when file detection checkbox is changed"""
@@ -3423,72 +3457,53 @@ class GKInstallBuilder:
         self.config_manager.update_entry_value("file_detection_enabled", is_file_enabled)
         if hasattr(self, 'detection_manager'):
             self.detection_manager.enable_file_detection(is_file_enabled)
-        # Optionally, save config immediately if desired:
-        # self.config_manager.save_config()
-        # Optionally, show a message about file detection status
-        # if hasattr(self, 'save_status_label'):
-        #     msg = "File detection is now {}.".format("ENABLED" if is_file_enabled else "DISABLED")
-        #     self.save_status_label.configure(text=msg)
-        #     self.save_status_label.update()
-        #     self.root.after(5000, lambda: self.save_status_label.configure(text=""))
-
+        # Always update and save the full detection config
+        if "detection_config" in self.config_manager.config:
+            detection_config = self.config_manager.config["detection_config"]
+            detection_config["file_detection_enabled"] = is_file_enabled
+            self.detection_manager.set_config(detection_config)
+            self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        else:
+            # Create default config if missing
+            platform_type = self.config_manager.config.get("platform", "Windows")
+            default_base_dir = "C:\\gkretail\\stations" if platform_type == "Windows" else "/usr/local/gkretail/stations"
+            default_config = {
+                "file_detection_enabled": is_file_enabled,
+                "use_base_directory": True,
+                "base_directory": default_base_dir,
+                "custom_filenames": {
+                    "POS": "POS.station",
+                    "WDM": "WDM.station",
+                    "FLOW-SERVICE": "FLOW-SERVICE.station",
+                    "LPA-SERVICE": "LPA.station",
+                    "STOREHUB-SERVICE": "SH.station"
+                },
+                "detection_files": {
+                    "POS": "",
+                    "WDM": "",
+                    "FLOW-SERVICE": "",
+                    "LPA-SERVICE": "",
+                    "STOREHUB-SERVICE": ""
+                },
+                "hostname_detection": {}
+            }
+            self.detection_manager.set_config(default_config)
+            self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        self.config_manager.save_config()
         # If the detection settings window is open, update it
         if hasattr(self, 'detection_window') and self.detection_window is not None and self.detection_window.winfo_exists():
-            # Update the hostname status on the regex tab
             for widget in self.detection_window.winfo_children():
                 if isinstance(widget, ctk.CTkScrollableFrame):
                     for child in widget.winfo_children():
                         if isinstance(child, ctk.CTkTabview):
-                            # Try to find the hostname status label
                             for tab in child.winfo_children():
                                 for frame in tab.winfo_children():
                                     if isinstance(frame, ctk.CTkFrame):
                                         for label in frame.winfo_children():
                                             if isinstance(label, ctk.CTkLabel) and ("currently" in label.cget("text") and ("ENABLED" in label.cget("text") or "DISABLED" in label.cget("text"))):
-                                                # Update the hostname status label
                                                 label.configure(text="Hostname detection is currently ENABLED" if self.hostname_detection_var.get() else "Hostname detection is currently DISABLED")
                                                 label.configure(text_color="green" if self.hostname_detection_var.get() else "red")
                                                 pass
-        
-        # If hostname detection is enabled, ensure detection configuration has defaults
-        if hasattr(self, 'hostname_detection_var') and self.hostname_detection_var.get():
-            # Check if detection_config exists in the config
-            if "detection_config" not in self.config_manager.config:
-                # Create default detection config
-                platform_type = self.config_manager.config.get("platform", "Windows")
-                default_base_dir = "C:\\gkretail\\stations" if platform_type == "Windows" else "/usr/local/gkretail/stations"
-                
-                # Create default detection configuration
-                default_config = {
-                    "file_detection_enabled": True,  # Default value, but won't force it
-                    "use_base_directory": True,
-                    "base_directory": default_base_dir,
-                    "custom_filenames": {
-                        "POS": "POS.station",
-                        "WDM": "WDM.station",
-                        "FLOW-SERVICE": "FLOW-SERVICE.station",
-                        "LPA-SERVICE": "LPA.station",
-                        "STOREHUB-SERVICE": "SH.station"
-                    },
-                    "detection_files": {
-                        "POS": "",
-                        "WDM": "",
-                        "FLOW-SERVICE": "",
-                        "LPA-SERVICE": "",
-                        "STOREHUB-SERVICE": ""
-                    }
-                }
-                
-                # Set the default config in the config_manager
-                self.config_manager.config["detection_config"] = default_config
-                
-                # Update detection manager with the new config
-                self.detection_manager.set_config(default_config)
-                
-                print(f"Initialized detection settings with default base directory: {default_base_dir}")
-        
-        # Save the config
-        self.config_manager.save_config()
 
     def open_detection_settings(self):
         """Open the detection settings window"""
