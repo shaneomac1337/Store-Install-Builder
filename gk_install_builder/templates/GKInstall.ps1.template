@@ -490,6 +490,274 @@ if (-not (Test-Path $install_dir)) {
     New-Item -ItemType Directory -Path $install_dir -Force
 }
 
+# Special handling for WDM component - shutdown existing services and backup
+if ($ComponentType -eq 'WDM') {
+    Write-Host "================================================================="
+    Write-Host "                   WDM PRE-INSTALLATION TASKS                    " -ForegroundColor Cyan
+    Write-Host "================================================================="
+    
+    # Function to check if a port is in use
+    function Test-PortInUse {
+        param(
+            [int]$Port
+        )
+        
+        # Try primary method first
+        try {
+            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+            if ($connections.Count -gt 0) {
+                return $true
+            }
+        } catch {
+            Write-Host ("Primary port check method failed for port " + $Port + ": " + $_)
+            # Continue to fallback method
+        }
+        
+        # Fallback method using netstat
+        try {
+            $netstatOutput = netstat -ano | Select-String "LISTENING" | Select-String ":$Port "
+            if ($netstatOutput) {
+                Write-Host "Fallback method detected service on port $Port"
+                return $true
+            }
+        } catch {
+            Write-Host ("Fallback port check method failed for port " + $Port + ": " + $_)
+        }
+        
+        # Try another approach to detect Java processes that might be Tomcat
+        if ($Port -eq 8080) {
+            $javaProcList = Get-Process -Name "java" -ErrorAction SilentlyContinue
+            if ($javaProcList) {
+                Write-Host "Found Java processes that could be Tomcat, assuming port 8080 is in use"
+                return $true
+            }
+        }
+        
+        return $false
+    }
+    
+    # Function to find process using a specific port
+    function Get-ProcessByPort {
+        param(
+            [int]$Port
+        )
+        
+        # Try primary method
+        try {
+            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+            if ($connections.Count -gt 0) {
+                foreach ($conn in $connections) {
+                    $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+                    if ($process) {
+                        return $process
+                    }
+                }
+            }
+        } catch {
+            Write-Host ("Primary process detection method failed for port " + $Port + ": " + $_)
+            # Continue to fallback
+        }
+        
+        # Fallback method using netstat
+        try {
+            $netstatOutput = netstat -ano | Select-String "LISTENING" | Select-String ":$Port "
+            if ($netstatOutput) {
+                $pidMatches = $netstatOutput -match '\s+(\d+)$'
+                if ($pidMatches) {
+                    $processPid = $matches[1]
+                    $process = Get-Process -Id $processPid -ErrorAction SilentlyContinue
+                    if ($process) {
+                        Write-Host "Fallback method detected process ${process.Name} (PID: $processPid) on port $Port"
+                        return $process
+                    }
+                }
+            }
+        } catch {
+            Write-Host ("Fallback process detection method failed for port " + $Port + ": " + $_)
+        }
+        
+        # Special handling for Java/Tomcat detection
+        if ($Port -eq 8080) {
+            $javaProcList = Get-Process -Name "java" -ErrorAction SilentlyContinue
+            if ($javaProcList) {
+                Write-Host "Found Java process that could be Tomcat: $($javaProcList[0].Name) (PID: $($javaProcList[0].Id))"
+                return $javaProcList[0]  # Return the first Java process found
+            }
+        }
+        
+        return $null
+    }
+    
+    # Check for Tomcat on port 8080
+    Write-Host "Checking for Tomcat or other services on port 8080..."
+    if (Test-PortInUse -Port 8080) {
+        $process = Get-ProcessByPort -Port 8080
+        if ($process) {
+            Write-Host "Found process using port 8080: $($process.Name) (PID: $($process.Id))"
+            
+            # Check if it's a Tomcat process
+            $isTomcat = $process.Name -eq "java" -or $process.Name -eq "tomcat" -or $process.Path -match "tomcat"
+            
+            if ($isTomcat) {
+                Write-Host "Detected Tomcat process. Attempting to stop Tomcat service..."
+                
+                # Try to stop via service first
+                $tomcatServices = Get-Service | Where-Object { $_.DisplayName -like "*Tomcat*" -or $_.Name -like "*Tomcat*" }
+                $serviceFound = $false
+                
+                if ($tomcatServices.Count -gt 0) {
+                    Write-Host "Found $($tomcatServices.Count) Tomcat service(s)"
+                    foreach ($service in $tomcatServices) {
+                        Write-Host "Stopping service: $($service.DisplayName) ($($service.Name))"
+                        try {
+                            Stop-Service -Name $service.Name -Force
+                            $serviceFound = $true
+                            Write-Host "Successfully stopped service: $($service.Name)"
+                        } catch {
+                            Write-Host "Error stopping service $($service.Name): $_"
+                        }
+                    }
+                }
+                
+                # If no service found or service stop failed, try to kill the process
+                if (-not $serviceFound -or (Test-PortInUse -Port 8080)) {
+                    Write-Host "Attempting to terminate process directly..."
+                    try {
+                        Stop-Process -Id $process.Id -Force
+                        Write-Host "Process terminated successfully"
+                    } catch {
+                        Write-Host "Error terminating process: $_"
+                    }
+                }
+            } else {
+                Write-Host "Tomcat process detected on port 8080. Attempting to terminate..."
+                try {
+                    Stop-Process -Id $process.Id -Force
+                    Write-Host "Process terminated successfully"
+                } catch {
+                    Write-Host "Error terminating process: $_"
+                }
+            }
+        }
+    } else {
+        Write-Host "No process found using port 8080"
+    }
+    
+    # Check for application on port 4333
+    Write-Host "Checking for services on port 4333..."
+    if (Test-PortInUse -Port 4333) {
+        $process = Get-ProcessByPort -Port 4333
+        if ($process) {
+            Write-Host "Found process using port 4333: $($process.Name) (PID: $($process.Id))"
+            Write-Host "Attempting to terminate process..."
+            try {
+                Stop-Process -Id $process.Id -Force
+                Write-Host "Process terminated successfully"
+            } catch {
+                Write-Host "Error terminating process: $_"
+            }
+        }
+    } else {
+        Write-Host "No process found using port 4333"
+    }
+    
+    # Validate that ports are free
+    $attempts = 0
+    $maxAttempts = 10
+    $wait = 2
+    
+    Write-Host "Validating ports are free..."
+    while (($attempts -lt $maxAttempts) -and ((Test-PortInUse -Port 8080) -or (Test-PortInUse -Port 4333))) {
+        $attempts++
+        Write-Host "Port check attempt $attempts/$maxAttempts - waiting for ports to be free..."
+        Start-Sleep -Seconds $wait
+    }
+    
+    if ((Test-PortInUse -Port 8080) -or (Test-PortInUse -Port 4333)) {
+        Write-Host "Warning: Could not free up required ports after $maxAttempts attempts." -ForegroundColor Yellow
+        Write-Host "The installation may fail if these ports are still in use." -ForegroundColor Yellow
+        Write-Host "Port 8080 in use: $(Test-PortInUse -Port 8080)"
+        Write-Host "Port 4333 in use: $(Test-PortInUse -Port 4333)"
+        
+        # Give user a chance to abort
+        Write-Host "Do you want to continue with the installation anyway? (Y/N)" -ForegroundColor Yellow
+        $response = Read-Host
+        if ($response -ne "Y" -and $response -ne "y") {
+            Write-Host "Installation aborted by user."
+            Stop-TranscriptSafely
+            exit 1
+        }
+    } else {
+        Write-Host "All required ports are now free." -ForegroundColor Green
+    }
+    
+    # Wait an additional 5 seconds to ensure processes are fully terminated and resources released
+    Write-Host "Waiting 5 seconds for processes to fully terminate before proceeding with backup..."
+    Start-Sleep -Seconds 5
+    
+    # Backup existing WDM installation if it exists
+    if (Test-Path $install_dir) {
+        Write-Host "Creating backup of existing WDM installation..."
+        # Create a timestamp for the backup folder
+        $backupTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupDir = "$install_dir.backup_$backupTimestamp"
+        
+        # Remove old backup if it exists
+        if (Test-Path $backupDir) {
+            Write-Host "Removing old backup directory..."
+            try {
+                Remove-Item -Path $backupDir -Recurse -Force
+                Write-Host "Old backup directory removed successfully"
+            } catch {
+                Write-Host "Error removing old backup directory: $_"
+                Write-Host "Continuing with installation..."
+            }
+        }
+        
+        # Create backup
+        try {
+            Write-Host "Copying WDM directory to backup location..."
+            Copy-Item -Path $install_dir -Destination $backupDir -Recurse -Force
+            
+            # Verify backup was successful
+            if (Test-Path $backupDir) {
+                Write-Host "Backup completed successfully to: $backupDir" -ForegroundColor Green
+                
+                # Wait an additional 5 seconds to ensure backup is fully complete
+                Write-Host "Waiting 5 seconds for backup file operations to complete before cleaning directory..."
+                Start-Sleep -Seconds 5
+                
+                # Clean the WDM directory
+                Write-Host "Cleaning existing WDM directory..."
+                try {
+                    Get-ChildItem -Path $install_dir -Recurse | Remove-Item -Force -Recurse
+                    Write-Host "WDM directory cleaned successfully"
+                } catch {
+                    Write-Host "Error cleaning WDM directory: $_"
+                    Write-Host "Continuing with installation..."
+                }
+            } else {
+                Write-Host "Error: Backup directory was not created" -ForegroundColor Red
+            }
+        } catch {
+            Write-Host "Error creating backup: $_" -ForegroundColor Red
+            Write-Host "Do you want to continue with the installation without a backup? (Y/N)" -ForegroundColor Yellow
+            $response = Read-Host
+            if ($response -ne "Y" -and $response -ne "y") {
+                Write-Host "Installation aborted by user."
+                Stop-TranscriptSafely
+                exit 1
+            }
+        }
+    } else {
+        Write-Host "No existing WDM installation found. Skipping backup."
+    }
+    
+    Write-Host "================================================================="
+    Write-Host "             WDM PRE-INSTALLATION TASKS COMPLETED                " -ForegroundColor Green
+    Write-Host "================================================================="
+}
+
 # Check if this is an update of an existing installation
 $isUpdate = $false
 if (Test-Path $install_dir) {

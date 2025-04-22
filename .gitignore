@@ -185,3 +185,43 @@ My GK Project/example.cloud4retail.co/GKInstall_POS_20250420_153503.log
 My GK Project/example.cloud4retail.co/GKInstall_POS_20250420_153545.log
 My GK Project/example.cloud4retail.co/GKInstall.ps1
 My GK Project/example.cloud4retail.co/GKInstall.ps1_both.ps1
+Coop Sweden.backup/dev.cse.cloud4retail.co/certificate.p12
+Coop Sweden.backup/dev.cse.cloud4retail.co/GKInstall.ps1
+Coop Sweden.backup/dev.cse.cloud4retail.co/onboarding.ps1
+Coop Sweden.backup/dev.cse.cloud4retail.co/store-initialization.ps1
+Coop Sweden.backup/dev.cse.cloud4retail.co/errors_WDM/GKInstall_WDM_20250422_190711.log
+Coop Sweden.backup/dev.cse.cloud4retail.co/errors_WDM/installationtoken.base64
+Coop Sweden.backup/dev.cse.cloud4retail.co/errors_WDM/installationtoken.txt
+Coop Sweden.backup/dev.cse.cloud4retail.co/errors_WDM/Launcher.exe
+Coop Sweden.backup/dev.cse.cloud4retail.co/errors_WDM/launcher.properties
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/init/get_store.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/init/storehub/update_config.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/launchers/launcher.flow-service.template
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/launchers/launcher.lpa-service.template
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/launchers/launcher.pos.template
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/launchers/launcher.storehub-service.template
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/launchers/launcher.wdm.template
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/onboarding/flow-service.onboarding.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/onboarding/lpa-service.onboarding.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/onboarding/pos.onboarding.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/onboarding/storehub-service.onboarding.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/onboarding/wdm.onboarding.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/storehub/update_config.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/structure/create_structure.json
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/tokens/access_token.txt
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/tokens/basic_auth_password.txt
+Coop Sweden.backup/dev.cse.cloud4retail.co/helper/tokens/form_password.txt
+Coop Sweden.backup/dev.cse.cloud4retail.co/Java/zulujre-windows_x64-11.0.18.zip
+Coop Sweden.backup/dev.cse.cloud4retail.co/offline_package_WDM/Launcher.exe
+Coop Sweden.backup/dev.cse.cloud4retail.co/offline_package_WDM/wdm-installer-cloud-1.1.1-b02.jar
+Coop Sweden.backup/dev.cse.cloud4retail.co/offline_package_WDM/wdm-installer-cloud-1.1.1-b03-20250416.152702-1.jar
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/GKInstall_WDM_20250422_190423.log
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/GKInstall_WDM_20250422_190436.log
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/GKInstall_WDM_20250422_191202.log
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/GKInstall_WDM_20250422_192707.log
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/installationtoken.base64
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/installationtoken.txt
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/Launcher.exe
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/launcher.properties
+Coop Sweden.backup/dev.cse.cloud4retail.co/results_WDM/onboarding.token
+Coop Sweden.backup/dev.cse.cloud4retail.co/Tomcat/tomcat-cloud-9.0.85.zip
