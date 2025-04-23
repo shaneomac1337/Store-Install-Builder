@@ -502,21 +502,22 @@ if ($ComponentType -eq 'WDM') {
             [int]$Port
         )
         
-        # Try primary method first
-        try {
-            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-            if ($connections.Count -gt 0) {
-                return $true
-            }
-        } catch {
-            Write-Host ("Primary port check method failed for port " + $Port + ": " + $_)
-            # Continue to fallback method
-        }
-        
-        # Fallback method using netstat
+        # Use netstat method as primary approach
         try {
             $netstatOutput = netstat -ano | Select-String "LISTENING" | Select-String ":$Port "
             if ($netstatOutput) {
+                Write-Host "Netstat detected service on port $Port"
+                return $true
+            }
+        } catch {
+            Write-Host ("Netstat port check method failed for port " + $Port + ": " + $_)
+            # Continue to fallback method
+        }
+        
+        # Fallback to Get-NetTCPConnection method
+        try {
+            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+            if ($connections.Count -gt 0) {
                 Write-Host "Fallback method detected service on port $Port"
                 return $true
             }
@@ -542,23 +543,7 @@ if ($ComponentType -eq 'WDM') {
             [int]$Port
         )
         
-        # Try primary method
-        try {
-            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-            if ($connections.Count -gt 0) {
-                foreach ($conn in $connections) {
-                    $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-                    if ($process) {
-                        return $process
-                    }
-                }
-            }
-        } catch {
-            Write-Host ("Primary process detection method failed for port " + $Port + ": " + $_)
-            # Continue to fallback
-        }
-        
-        # Fallback method using netstat
+        # Use netstat method as primary approach
         try {
             $netstatOutput = netstat -ano | Select-String "LISTENING" | Select-String ":$Port "
             if ($netstatOutput) {
@@ -567,7 +552,24 @@ if ($ComponentType -eq 'WDM') {
                     $processPid = $matches[1]
                     $process = Get-Process -Id $processPid -ErrorAction SilentlyContinue
                     if ($process) {
-                        Write-Host "Fallback method detected process ${process.Name} (PID: $processPid) on port $Port"
+                        Write-Host "Netstat method detected process ${process.Name} (PID: $processPid) on port $Port"
+                        return $process
+                    }
+                }
+            }
+        } catch {
+            Write-Host ("Netstat process detection method failed for port " + $Port + ": " + $_)
+            # Continue to fallback
+        }
+        
+        # Fallback to Get-NetTCPConnection method
+        try {
+            $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+            if ($connections.Count -gt 0) {
+                foreach ($conn in $connections) {
+                    $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+                    if ($process) {
+                        Write-Host "Fallback method detected process ${process.Name} (PID: $($process.Id)) on port $Port"
                         return $process
                     }
                 }
