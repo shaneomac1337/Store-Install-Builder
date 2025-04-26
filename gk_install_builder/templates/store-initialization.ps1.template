@@ -212,10 +212,10 @@ try {
                         # Determine station name based on component type
                         $stationName = switch ($ComponentType) {
                             'POS' { "POS Client $WorkstationId" }
-                            'WDM' { "Wall Device Manager $WorkstationId" }
-                            'FLOW-SERVICE' { "Flow Service $WorkstationId" }
-                            'LPA-SERVICE' { "Label Print Adapter $WorkstationId" }
-                            'STOREHUB-SERVICE' { "StoreHub $WorkstationId" }
+                            'WDM' { "Wall Device Manager" }
+                            'FLOW-SERVICE' { "Flow Service" }
+                            'LPA-SERVICE' { "Label Print Adapter" }
+                            'STOREHUB-SERVICE' { "StoreHub" }
                             default { "POS Client $WorkstationId" }
                         }
                         

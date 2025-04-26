@@ -275,16 +275,16 @@ else
               station_name="POS Client $WORKSTATION_ID"
               ;;
             WDM)
-              station_name="Wall Device Manager $WORKSTATION_ID"
+              station_name="Wall Device Manager"
               ;;
             FLOW-SERVICE)
-              station_name="Flow Service $WORKSTATION_ID"
+              station_name="Flow Service"
               ;;
             LPA-SERVICE)
-              station_name="Label Print Adapter $WORKSTATION_ID"
+              station_name="Label Print Adapter"
               ;;
             STOREHUB-SERVICE)
-              station_name="StoreHub $WORKSTATION_ID"
+              station_name="StoreHub"
               ;;
             *)
               station_name="POS Client $WORKSTATION_ID"
