@@ -54,7 +54,7 @@ Based on the selected configuration, GK Install Builder generates the following 
 
 - **Launcher Templates**:
   - `launcher.pos.template` - Point of Sale launcher
-  - `launcher.wdm.template` - Warehouse & Distribution Management launcher
+  - `launcher.wdm.template` - Wall Device Manager launcher
   - `launcher.flow-service.template` - Flow Service launcher
   - `launcher.lpa-service.template` - LPA Service launcher
   - `launcher.storehub-service.template` - StoreHub Service launcher
