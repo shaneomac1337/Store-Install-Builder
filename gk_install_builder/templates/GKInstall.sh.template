@@ -747,11 +747,9 @@ if [ "$isUpdate" = false ]; then
     echo "$COMPONENT_TYPE onboarding completed successfully"
 
     # Execute store initialization right after successful onboarding
-    # Skip store initialization for WDM
-    if [ "$COMPONENT_TYPE" != "WDM" ]; then
-      echo "Starting store initialization..."
-      store_init_script="$PWD/store-initialization.sh"
-      if [ -f "$store_init_script" ]; then
+    echo "Starting store initialization..."
+    store_init_script="$PWD/store-initialization.sh"
+    if [ -f "$store_init_script" ]; then
         # Update get_store.json with the store ID
         get_store_json_path="$PWD/helper/init/get_store.json"
         if [ -f "$get_store_json_path" ]; then
