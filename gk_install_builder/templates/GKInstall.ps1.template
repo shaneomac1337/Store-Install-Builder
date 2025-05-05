@@ -690,14 +690,13 @@ if (-not $isUpdate) {
         Write-Host "$ComponentType onboarding completed successfully"
 
         # Execute store initialization right after successful onboarding
-        # Skip store initialization for WDM
-        if ($ComponentType -ne 'WDM') {
-            Write-Host "Starting store initialization..."
-            $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
-            if (Test-Path $storeInitScript) {
-                try {
-                    # Update get_store.json with the store ID
-                    $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
+        # Run store initialization for all components including WDM
+        Write-Host "Starting store initialization..."
+        $storeInitScript = Join-Path $PSScriptRoot "store-initialization.ps1"
+        if (Test-Path $storeInitScript) {
+            try {
+                # Update get_store.json with the store ID
+                $getStoreJsonPath = Join-Path $PSScriptRoot "helper\init\get_store.json"
                     if (Test-Path $getStoreJsonPath) {
                         Write-Host "Creating processed copy of get_store.json with Store ID: $storeNumber"
                         # Create directory if it doesn't exist
