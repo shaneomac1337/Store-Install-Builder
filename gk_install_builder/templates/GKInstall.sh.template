@@ -77,59 +77,59 @@ trap 'handle_error $LINENO' ERR
 get_package_version() {
   local package_file="$1"
   local component_prefix="$2"
-  
+
   # Get filename without extension
   local filename=$(basename "$package_file" | sed 's/\.[^.]*$//')
-  
+
   # Try different patterns to extract version
-  
+
   # Pattern 1: prefix-1.2.3 (standard format)
   if [[ "$filename" =~ ^$component_prefix-([0-9]+(\.[0-9]+)*)$ ]]; then
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # Pattern 2: prefix-1.2.3-suffix (with additional info)
   if [[ "$filename" =~ ^$component_prefix-([0-9]+(\.[0-9]+)*)\- ]]; then
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # Pattern 3: prefix_1_2_3 (underscore format)
   if [[ "$filename" =~ ^$component_prefix[_-]([0-9]+)[_\.]([0-9]+)[_\.]([0-9]+) ]]; then
     echo "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
     return 0
   fi
-  
+
   # Pattern 4: prefix1.2.3 (no separator)
   if [[ "$filename" =~ ^$component_prefix([0-9]+(\.[0-9]+)*)$ ]]; then
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # Pattern 5: just extract any sequence of numbers and dots
   if [[ "$filename" =~ ([0-9]+(\.[0-9]+)*) ]]; then
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # If no pattern matches, return the original filename without prefix
   local version=${filename/#$component_prefix-/}
   if [ -z "$version" ]; then
     echo "Error: Could not extract version from filename $package_file"
     return 1
   fi
-  
+
   echo "$version"
 }
 
 # Function to get JRE version from filename
 get_jre_version() {
   local jre_zip="$1"
-  
+
   # Get filename without extension
   local filename=$(basename "$jre_zip" | sed 's/\.[^.]*$//')
-  
+
   # Special case for Java_zulujre pattern
   if [[ "$filename" =~ Java_zulujre.*?[-_]([0-9]+\.[0-9]+\.[0-9]+) ]]; then
     # Log detection but only return the version
@@ -137,7 +137,7 @@ get_jre_version() {
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # Special case for x64/x86 in filename to avoid extracting "64" as version
   if [[ "$filename" =~ x64-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
     # Log detection but only return the version
@@ -145,20 +145,20 @@ get_jre_version() {
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   if [[ "$filename" =~ x86-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
     # Log detection but only return the version
     echo >&2 "Detected Java version ${BASH_REMATCH[1]} from x86 pattern"
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   # Try jre prefix first, then java if that fails
   local version=$(get_package_version "$jre_zip" "jre")
   if [ -z "$version" ]; then
     version=$(get_package_version "$jre_zip" "java")
   fi
-  
+
   # Validate version format - if it's just a number like "64", it's probably wrong
   if [[ "$version" =~ ^[0-9]+$ ]] && [[ "$filename" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]]; then
     # Extract version with format like 11.0.18
@@ -166,7 +166,7 @@ get_jre_version() {
     echo "${BASH_REMATCH[1]}"
     return 0
   fi
-  
+
   echo "$version"
 }
 
@@ -298,7 +298,7 @@ if [ "$offline_mode" = true ]; then
   if [ "$COMPONENT_TYPE" = "WDM" ]; then
     # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
     jre_files=()
-    
+
     # Try different JRE patterns in Java directory
     for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
@@ -306,7 +306,7 @@ if [ "$offline_mode" = true ]; then
         jre_files+=("${new_files[@]}")
       fi
     done
-    
+
     tomcat_files=()
     # Try different Tomcat patterns in Tomcat directory
     for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
@@ -315,16 +315,16 @@ if [ "$offline_mode" = true ]; then
         tomcat_files+=("${new_files[@]}")
       fi
     done
-    
+
     # Look for any JAR file to use as installer in the component directory
     jar_files=()
     if compgen -G "$package_dir/*.jar" > /dev/null; then
       mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
     fi
-    
+
     installer_jar=""
     has_installer_jar=false
-    
+
     if [ "${#jar_files[@]}" -gt 0 ]; then
       if [ "${#jar_files[@]}" -gt 1 ]; then
         echo "Warning: Multiple JAR files found in $package_dir. Using the first one: $(basename ${jar_files[0]})"
@@ -333,10 +333,10 @@ if [ "$offline_mode" = true ]; then
       has_installer_jar=true
       echo "Found installer JAR: $(basename ${jar_files[0]})"
     fi
-    
+
     # Initialize required files with Launcher binary
     required_files=("$package_dir/Launcher.run")
-    
+
     # Process JRE files if available
     if [ "${#jre_files[@]}" -gt 0 ]; then
       jre_file="${jre_files[0]}"
@@ -347,7 +347,7 @@ if [ "$offline_mode" = true ]; then
       echo "Error: No JRE/Java package found in Java directory"
       exit 1
     fi
-    
+
     # Process Tomcat files if available
     if [ "${#tomcat_files[@]}" -gt 0 ]; then
       tomcat_file="${tomcat_files[0]}"
@@ -358,7 +358,7 @@ if [ "$offline_mode" = true ]; then
       echo "Error: No Tomcat package found in Tomcat directory"
       exit 1
     fi
-    
+
     # Add installer.jar to required files if it exists
     if [ "$has_installer_jar" = true ]; then
       required_files+=("$installer_jar")
@@ -367,7 +367,7 @@ if [ "$offline_mode" = true ]; then
     # For StoreHub components - with Jaybird support
     # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
     jre_files=()
-    
+
     # Try different JRE patterns in Java directory
     for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
@@ -375,7 +375,7 @@ if [ "$offline_mode" = true ]; then
         jre_files+=("${new_files[@]}")
       fi
     done
-    
+
     tomcat_files=()
     # Try different Tomcat patterns in Tomcat directory
     for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
@@ -384,16 +384,16 @@ if [ "$offline_mode" = true ]; then
         tomcat_files+=("${new_files[@]}")
       fi
     done
-    
+
     # Look for Jaybird JAR files
     jaybird_files=()
     if compgen -G "Jaybird/*.jar" > /dev/null; then
       mapfile -t jaybird_files < <(ls Jaybird/*.jar 2>/dev/null)
     fi
-    
+
     jaybird_file=""
     has_jaybird=false
-    
+
     if [ "${#jaybird_files[@]}" -gt 0 ]; then
       if [ "${#jaybird_files[@]}" -gt 1 ]; then
         echo "Warning: Multiple Jaybird JAR files found. Using the first one: $(basename ${jaybird_files[0]})"
@@ -401,23 +401,23 @@ if [ "$offline_mode" = true ]; then
       jaybird_file="${jaybird_files[0]}"
       has_jaybird=true
       echo "Found Jaybird driver: $(basename ${jaybird_files[0]})"
-      
+
       # Update the firebird_driver_path_local to point to the actual JAR file, not just the directory
       firebird_driver_path_local="$jaybird_file"
       echo "Updated Jaybird driver path to: $firebird_driver_path_local"
     else
       echo "Warning: No Jaybird driver found in Jaybird directory"
     fi
-    
+
     # Look for any JAR file to use as installer in the component directory
     jar_files=()
     if compgen -G "$package_dir/*.jar" > /dev/null; then
       mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
     fi
-    
+
     installer_jar=""
     has_installer_jar=false
-    
+
     if [ "${#jar_files[@]}" -gt 0 ]; then
       if [ "${#jar_files[@]}" -gt 1 ]; then
         echo "Warning: Multiple JAR files found in $package_dir. Using the first one: $(basename ${jar_files[0]})"
@@ -426,10 +426,10 @@ if [ "$offline_mode" = true ]; then
       has_installer_jar=true
       echo "Found installer JAR: $(basename ${jar_files[0]})"
     fi
-    
+
     # Initialize required files with Launcher binary
     required_files=("$package_dir/Launcher.run")
-    
+
     # Process JRE files if available
     if [ "${#jre_files[@]}" -gt 0 ]; then
       jre_file="${jre_files[0]}"
@@ -440,7 +440,7 @@ if [ "$offline_mode" = true ]; then
       echo "Error: No JRE/Java package found for $COMPONENT_TYPE"
       exit 1
     fi
-    
+
     # Process Tomcat files if available
     if [ "${#tomcat_files[@]}" -gt 0 ]; then
       tomcat_file="${tomcat_files[0]}"
@@ -451,12 +451,12 @@ if [ "$offline_mode" = true ]; then
       echo "Error: No Tomcat package found for $COMPONENT_TYPE"
       exit 1
     fi
-    
+
     # Add Jaybird file to required files if it exists
     if [ "$has_jaybird" = true ]; then
       required_files+=("$jaybird_file")
     fi
-    
+
     # Add installer.jar to required files if it exists
     if [ "$has_installer_jar" = true ]; then
       required_files+=("$installer_jar")
@@ -465,7 +465,7 @@ if [ "$offline_mode" = true ]; then
     # For other components - generic approach with improved detection
     # Find JRE and Tomcat packages from dedicated Java and Tomcat directories
     jre_files=()
-    
+
     # Try different JRE patterns in Java directory
     for pattern in "Java/*.zip" "Java/*jre*.zip" "Java/*java*.zip"; do
       if compgen -G "$pattern" > /dev/null; then
@@ -473,7 +473,7 @@ if [ "$offline_mode" = true ]; then
         jre_files+=("${new_files[@]}")
       fi
     done
-    
+
     tomcat_files=()
     # Try different Tomcat patterns in Tomcat directory
     for pattern in "Tomcat/*.zip" "Tomcat/*tomcat*.zip"; do
@@ -482,16 +482,16 @@ if [ "$offline_mode" = true ]; then
         tomcat_files+=("${new_files[@]}")
       fi
     done
-    
+
     # Look for any JAR file to use as installer in the component directory
     jar_files=()
     if compgen -G "$package_dir/*.jar" > /dev/null; then
       mapfile -t jar_files < <(ls $package_dir/*.jar 2>/dev/null)
     fi
-    
+
     installer_jar=""
     has_installer_jar=false
-    
+
     if [ "${#jar_files[@]}" -gt 0 ]; then
       if [ "${#jar_files[@]}" -gt 1 ]; then
         echo "Warning: Multiple JAR files found in $package_dir. Using the first one: $(basename ${jar_files[0]})"
@@ -500,10 +500,10 @@ if [ "$offline_mode" = true ]; then
       has_installer_jar=true
       echo "Found installer JAR: $(basename ${jar_files[0]})"
     fi
-    
+
     # Initialize required files with Launcher binary
     required_files=("$package_dir/Launcher.run")
-    
+
     # Process JRE files if available
     if [ "${#jre_files[@]}" -gt 0 ]; then
       jre_file="${jre_files[0]}"
@@ -513,7 +513,7 @@ if [ "$offline_mode" = true ]; then
     else
       echo "No JRE/Java package found for $COMPONENT_TYPE."
     fi
-    
+
     # Process Tomcat files if available
     if [ "${#tomcat_files[@]}" -gt 0 ]; then
       tomcat_file="${tomcat_files[0]}"
@@ -523,7 +523,7 @@ if [ "$offline_mode" = true ]; then
     else
       echo "No Tomcat package found for $COMPONENT_TYPE."
     fi
-    
+
     # Add installer.jar to required files if it exists
     if [ "$has_installer_jar" = true ]; then
       required_files+=("$installer_jar")
@@ -551,7 +551,7 @@ if [ -d "$install_dir" ]; then
     # Check for log folders
     logPath="$install_dir/log"
     logsPath="$install_dir/logs"
-    
+
     # Determine which log folder exists
     logFolderPath=""
     if [ -d "$logPath" ]; then
@@ -559,15 +559,15 @@ if [ -d "$install_dir" ]; then
     elif [ -d "$logsPath" ]; then
         logFolderPath="$logsPath"
     fi
-    
+
     # If a log folder exists, check for recent activity (last 7 days)
     if [ -n "$logFolderPath" ]; then
         echo "Found existing installation at $install_dir with log folder at $logFolderPath"
-        
+
         # Get files modified in the last 7 days
         recentFiles=$(find "$logFolderPath" -type f -mtime -7 2>/dev/null)
         recentFileCount=$(echo "$recentFiles" | grep -v '^$' | wc -l)
-        
+
         if [ $recentFileCount -gt 0 ]; then
             echo "Found $recentFileCount recently modified log files (within 7 days)"
             echo "This appears to be an active installation. Performing update instead of full installation."
@@ -585,13 +585,13 @@ fi
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
 if [ "$isUpdate" = true ] && [ "$offline_mode" = true ] && [ "$has_installer_jar" = true ]; then
     installerTempDir="$install_dir/installer/temp"
-    
+
     # Create the temp directory if it doesn't exist
     if [ ! -d "$installerTempDir" ]; then
         echo "Creating installer temp directory: $installerTempDir"
         mkdir -p "$installerTempDir"
     fi
-    
+
     # Copy the installer jar to the temp directory
     installerJarDest="$installerTempDir/installer.jar"
     echo "Copying installer JAR for offline update: $installer_jar -> $installerJarDest"
@@ -622,26 +622,26 @@ hostnameDetected=false
 # For update mode, we must extract values from the existing installation
 if [ "$isUpdate" = true ]; then
   echo "Running in update mode - attempting to extract store and workstation IDs from existing installation"
-  
+
   # Look for station.properties in the installation directory
   station_properties_path="$install_dir/station.properties"
   if [ -f "$station_properties_path" ]; then
     echo "Found existing station.properties at: $station_properties_path"
-    
+
     # Extract the store ID
     store_id_line=$(grep "station.storeId=" "$station_properties_path")
     if [ -n "$store_id_line" ]; then
       storeNumber=$(echo "$store_id_line" | cut -d'=' -f2)
       echo "Found Store ID in station.properties: $storeNumber"
     fi
-    
+
     # Extract the workstation ID
     workstation_id_line=$(grep "station.workstationId=" "$station_properties_path")
     if [ -n "$workstation_id_line" ]; then
       workstationId=$(echo "$workstation_id_line" | cut -d'=' -f2)
       echo "Found Workstation ID in station.properties: $workstationId"
     fi
-    
+
     # If both values were found, skip hostname detection
     if [ -n "$storeNumber" ] && [ -n "$workstationId" ]; then
       hostnameDetected=true
@@ -662,12 +662,12 @@ else
     # Try different patterns:
     # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
-    
+
     # Extract the last part (workstation ID)
     if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then
       storeId="${BASH_REMATCH[1]}"
       workstationId="${BASH_REMATCH[2]}"
-      
+
       # If storeId contains a dash, it might be SOMENAME-1674-101 format
       if [[ "$storeId" =~ .*-([0-9]{4})$ ]]; then
         storeNumber="${BASH_REMATCH[1]}"
@@ -675,7 +675,7 @@ else
         # Direct format like R005-101
         storeNumber="$storeId"
       fi
-      
+
       # Validate extracted parts
       # Accept any alphanumeric characters for store ID with at least 1 character
       if echo "$storeNumber" | grep -qE '^[A-Za-z0-9_\-\.]+$'; then
@@ -695,14 +695,14 @@ else
       echo "Could not extract valid Store Number and Workstation ID from hostname."
       echo "Trying file detection..."
     fi
-    
+
     # File detection code will be inserted here by the generator
   fi
 
   # If both hostname and file detection failed, prompt for manual input
   if [ "$hostnameDetected" = false ]; then
     echo "Falling back to manual input."
-    
+
     # Prompt for Store Number
     echo "Please enter the Store Number in one of these formats (or any custom format):"
     echo "  - 4 digits (e.g., 1234)"
@@ -716,7 +716,7 @@ else
       echo "Store Number cannot be empty. Please try again."
       read -p "Store Number: " storeNumber
     fi
-    
+
     # Prompt for Workstation ID
     while true; do
       read -p "Please enter the Workstation ID (numeric): " workstationId
@@ -726,6 +726,12 @@ else
       echo "Invalid input. Please enter a numeric Workstation ID."
     done
   fi
+fi
+
+# Override WorkstationID for WDM components
+if [ "$COMPONENT_TYPE" = "WDM" ]; then
+  workstationId="200"
+  echo "WDM component detected - WorkstationID hardcoded to 200"
 fi
 
 # Print final results
@@ -768,7 +774,7 @@ if [ "$isUpdate" = false ]; then
         else
           echo "Warning: get_store.json not found at: $get_store_json_path"
         fi
-        
+
         # Call the store initialization script
         if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
           echo "Error during store initialization"
@@ -847,16 +853,16 @@ if [ "$COMPONENT_TYPE" != "POS" ]; then
 fi
 if [ "${#p12_files[@]}" -gt 0 ]; then
   echo "Found .p12 file(s) in script directory"
-  
+
   # Check if we have certificates in security directory
   if [ "${#security_p12_files[@]}" -gt 0 ]; then
     echo "Found existing certificate(s) in security directory, checking for name matches..."
-    
+
     # Check for name matches
     matching_cert=""
     for p12_file in "${p12_files[@]}"; do
       cert_name=$(basename "$p12_file")
-      
+
       # Check if this certificate name exists in security directory
       for security_cert in "${security_p12_files[@]}"; do
         security_cert_name=$(basename "$security_cert")
@@ -866,7 +872,7 @@ if [ "${#p12_files[@]}" -gt 0 ]; then
         fi
       done
     done
-    
+
     if [ -n "$matching_cert" ]; then
       # Use the matching certificate from security directory
       ssl_path="$matching_cert"
@@ -875,21 +881,21 @@ if [ "${#p12_files[@]}" -gt 0 ]; then
     else
       # No matching certificate found, copy and use the new one
       echo "Certificate in current directory has different name than existing ones, copying and using new certificate"
-      
+
       # Copy the first p12 file found if there are multiple
       new_cert="${p12_files[0]}"
       cert_name=$(basename "$new_cert")
       dest_path="$security_dir/$cert_name"
       echo "Copying $cert_name to $dest_path"
       cp "$new_cert" "$dest_path"
-      
+
       # Use the newly copied certificate
       ssl_path="$dest_path"
     fi
   else
     # No certificates in security directory, copy all from current directory
     echo "No certificates in security directory, copying all from current directory"
-    
+
     # Copy each .p12 file found
     for p12_file in "${p12_files[@]}"; do
       # Copy with original filename
@@ -897,7 +903,7 @@ if [ "${#p12_files[@]}" -gt 0 ]; then
       dest_path="$security_dir/$cert_name"
       echo "Copying $cert_name to $dest_path"
       cp "$p12_file" "$dest_path"
-      
+
       # Set the ssl_path to the first certificate copied
       if [ -z "$ssl_path" ]; then
         ssl_path="$dest_path"
@@ -987,7 +993,7 @@ if [[ "$COMPONENT_TYPE" == "STOREHUB-SERVICE" ]]; then
   # by removing the existing line and adding a new one
   launcher_props=$(echo "$launcher_props" | grep -v "firebirdServerPath=")
   launcher_props="${launcher_props}"$'\n'"firebirdServerPath=$firebird_server_path"
-  
+
   # Add the Jaybird path only if it was detected
   if [ "$has_jaybird" = true ]; then
     launcher_props=$(echo "$launcher_props" | grep -v "firebird_driver_path_local=")
@@ -1016,7 +1022,7 @@ echo "Launcher properties file created successfully. Launcher will use this for 
 if [ "$offline_mode" = false ]; then
   download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
   echo "Attempting to download Launcher.run from: $download_url"
-  
+
   # Try using curl with progress bar first
   if command -v curl >/dev/null 2>&1; then
     echo "Using curl for download with progress bar..."
@@ -1067,7 +1073,7 @@ if [ "$offline_mode" = false ]; then
     echo "Error: Neither curl nor wget is available for downloading"
     exit 1
   fi
-  
+
   chmod +x "./Launcher.run"
 else
   # In offline mode, copy the Launcher from the package directory to the current directory
@@ -1134,14 +1140,14 @@ while [ $elapsed -lt $max_wait_time ]; do
     launcher_exit_code=$?
     echo "Launcher process has exited with code: $launcher_exit_code"
     echo "Continuing to monitor logs for 5 seconds..."
-    
+
     post_exit_time=5
     while [ $post_exit_time -gt 0 ]; do
       if [ -f "$installer_log_path" ]; then
         # Read new lines from the log
         current_content=$(cat "$installer_log_path" 2>/dev/null || echo "")
         current_line_count=$(echo "$current_content" | wc -l)
-        
+
         if [ $current_line_count -gt $last_line_number ]; then
           new_lines=$(echo "$current_content" | tail -n $((current_line_count - last_line_number)))
           echo "$new_lines" | while read -r line; do
@@ -1150,21 +1156,21 @@ while [ $elapsed -lt $max_wait_time ]; do
           last_line_number=$current_line_count
         fi
       fi
-      
+
       echo -n -e "\rTime remaining for log monitoring: $post_exit_time seconds..."
       sleep 1
       post_exit_time=$((post_exit_time - 1))
     done
     echo -e "\nCompleting installation..."
-    
+
     # Final log check
     if [ -f "$installer_log_path" ]; then
       final_log_content=$(tail -n 20 "$installer_log_path" 2>/dev/null || echo "")
-      
+
       if echo "$final_log_content" | grep -q "Installation finished successfully"; then
         echo "Installation completed successfully!"
         echo "Installation directory: $install_dir"
-        
+
         # Component-specific completion messages
         if [ "$COMPONENT_TYPE" = "WDM" ]; then
           echo "WDM installation completed. Please check the following:"
@@ -1173,14 +1179,14 @@ while [ $elapsed -lt $max_wait_time ]; do
         else
           echo "$COMPONENT_TYPE installation completed. Please check the application status."
         fi
-        
+
         # Cleanup: Move generated files to a results directory
         results_dir="results_$COMPONENT_TYPE"
         echo "Performing cleanup - Moving generated files to $results_dir directory..."
-        
+
         # Create the results directory if it doesn't exist
         mkdir -p "$results_dir"
-        
+
         # List of files to move
         files_to_move=(
           "installationtoken.txt"
@@ -1189,7 +1195,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           "onboarding.token"
           "Launcher.run"
         )
-        
+
         # Add log files
         log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
         # Only add log files if they actually exist
@@ -1200,7 +1206,7 @@ while [ $elapsed -lt $max_wait_time ]; do
             fi
           done
         fi
-        
+
         # Find all JSON files in the current directory only
         json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
         if [ -n "$json_files" ]; then
@@ -1211,7 +1217,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         else
           echo "No JSON files need to be cleaned up"
         fi
-        
+
         # Move each file to the results directory
         for file in "${files_to_move[@]}"; do
           if [ -f "$file" ]; then
@@ -1219,11 +1225,11 @@ while [ $elapsed -lt $max_wait_time ]; do
             if [[ "$file" == *"/helper/"* ]]; then
               continue
             fi
-            
+
             # Process only files in current directory
             filename=$(basename "$file")
             dest_file="$results_dir/$filename"
-            
+
             # Copy file to results directory then remove original
             cp "$file" "$dest_file" 2>/dev/null
             if [ $? -eq 0 ]; then
@@ -1234,7 +1240,7 @@ while [ $elapsed -lt $max_wait_time ]; do
             fi
           fi
         done
-        
+
         # Make sure the log file is moved to results directory at the end
         if [ -f "$log_file" ]; then
             dest_log_file="$results_dir/$log_file"
@@ -1246,7 +1252,7 @@ while [ $elapsed -lt $max_wait_time ]; do
                 echo "Warning: Could not move log file to results directory"
             fi
         fi
-        
+
         echo "Cleanup completed. Installation files have been moved to $results_dir directory."
         exit 0
       elif echo "$final_log_content" | grep -q "Installation failed"; then
@@ -1254,19 +1260,19 @@ while [ $elapsed -lt $max_wait_time ]; do
         exit 1
       fi
     fi
-    
+
     # If we couldn't determine status from logs, use process exit code
     if [ $launcher_exit_code -eq 0 ]; then
       echo "Launcher completed successfully based on exit code."
       echo "Installation directory: $install_dir"
-      
+
       # Cleanup: Move generated files to a results directory
       results_dir="results_$COMPONENT_TYPE"
       echo "Performing cleanup - Moving generated files to $results_dir directory..."
-      
+
       # Create the results directory if it doesn't exist
       mkdir -p "$results_dir"
-      
+
       # List of files to move
       files_to_move=(
         "installationtoken.txt"
@@ -1275,7 +1281,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         "onboarding.token"
         "Launcher.run"
       )
-      
+
       # Add log files
       log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
       # Only add log files if they actually exist
@@ -1286,7 +1292,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         done
       fi
-      
+
       # Find all JSON files in the current directory only
       json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
       if [ -n "$json_files" ]; then
@@ -1297,7 +1303,7 @@ while [ $elapsed -lt $max_wait_time ]; do
       else
         echo "No JSON files need to be cleaned up"
       fi
-      
+
       # Move each file to the results directory
       for file in "${files_to_move[@]}"; do
         if [ -f "$file" ]; then
@@ -1305,11 +1311,11 @@ while [ $elapsed -lt $max_wait_time ]; do
           if [[ "$file" == *"/helper/"* ]]; then
             continue
           fi
-          
+
           # Process only files in current directory
           filename=$(basename "$file")
           dest_file="$results_dir/$filename"
-          
+
           # Copy file to results directory then remove original
           cp "$file" "$dest_file" 2>/dev/null
           if [ $? -eq 0 ]; then
@@ -1320,7 +1326,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -1332,20 +1338,20 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to results directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Installation files have been moved to $results_dir directory."
       exit 0
     else
       echo "Launcher failed with exit code: $launcher_exit_code"
       echo "Please check the logs at: $installer_log_path"
-      
+
       # Cleanup for failed installation
       errors_dir="errors_$COMPONENT_TYPE"
       echo "Performing cleanup for failed installation - Moving files to $errors_dir directory..."
-      
+
       # Create the errors directory if it doesn't exist
       mkdir -p "$errors_dir"
-      
+
       # List of files to move
       files_to_move=(
         "installationtoken.txt"
@@ -1354,7 +1360,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         "onboarding.token"
         "Launcher.run"
       )
-      
+
       # Add log files
       log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
       # Only add log files if they actually exist
@@ -1365,7 +1371,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         done
       fi
-      
+
       # Find all JSON files in the current directory only
       json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
       if [ -n "$json_files" ]; then
@@ -1376,7 +1382,7 @@ while [ $elapsed -lt $max_wait_time ]; do
       else
         echo "No JSON files need to be cleaned up"
       fi
-      
+
       # Move each file to the errors directory
       for file in "${files_to_move[@]}"; do
         if [ -f "$file" ]; then
@@ -1384,11 +1390,11 @@ while [ $elapsed -lt $max_wait_time ]; do
           if [[ "$file" == *"/helper/"* ]]; then
             continue
           fi
-          
+
           # Process only files in current directory
           filename=$(basename "$file")
           dest_file="$errors_dir/$filename"
-          
+
           # Copy file to errors directory then remove original
           cp "$file" "$dest_file" 2>/dev/null
           if [ $? -eq 0 ]; then
@@ -1399,7 +1405,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to errors directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$errors_dir/$log_file"
@@ -1411,7 +1417,7 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to errors directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
       exit 1
     fi
@@ -1427,7 +1433,7 @@ while [ $elapsed -lt $max_wait_time ]; do
     # Read new lines from the log
     current_content=$(cat "$installer_log_path" 2>/dev/null || echo "")
     current_line_count=$(echo "$current_content" | wc -l)
-    
+
     if [ $current_line_count -gt $last_line_number ]; then
       new_lines=$(echo "$current_content" | tail -n $((current_line_count - last_line_number)))
       echo "$new_lines" | while read -r line; do
@@ -1438,11 +1444,11 @@ while [ $elapsed -lt $max_wait_time ]; do
 
     # Check for completion
     log_content=$(tail -n 20 "$installer_log_path" 2>/dev/null || echo "")
-    
+
     if echo "$log_content" | grep -q "Installation finished successfully"; then
       echo "Installation completed successfully!"
       echo "Installation directory: $install_dir"
-      
+
       # Component-specific completion messages
       if [ "$COMPONENT_TYPE" = "WDM" ]; then
         echo "WDM installation completed. Please check the following:"
@@ -1451,19 +1457,19 @@ while [ $elapsed -lt $max_wait_time ]; do
       else
         echo "$COMPONENT_TYPE installation completed. Please check the application status."
       fi
-      
+
       # Kill the launcher process if it's still running
       if kill -0 $launcher_pid 2>/dev/null; then
         kill $launcher_pid
       fi
-      
+
       # Cleanup: Move generated files to a results directory
       results_dir="results_$COMPONENT_TYPE"
       echo "Performing cleanup - Moving generated files to $results_dir directory..."
-      
+
       # Create the results directory if it doesn't exist
       mkdir -p "$results_dir"
-      
+
       # List of files to move
       files_to_move=(
         "installationtoken.txt"
@@ -1472,7 +1478,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         "onboarding.token"
         "Launcher.run"
       )
-      
+
       # Add log files
       log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
       # Only add log files if they actually exist
@@ -1483,7 +1489,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         done
       fi
-      
+
       # Find all JSON files in the current directory only
       json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
       if [ -n "$json_files" ]; then
@@ -1494,7 +1500,7 @@ while [ $elapsed -lt $max_wait_time ]; do
       else
         echo "No JSON files need to be cleaned up"
       fi
-      
+
       # Move each file to the results directory
       for file in "${files_to_move[@]}"; do
         if [ -f "$file" ]; then
@@ -1502,11 +1508,11 @@ while [ $elapsed -lt $max_wait_time ]; do
           if [[ "$file" == *"/helper/"* ]]; then
             continue
           fi
-          
+
           # Process only files in current directory
           filename=$(basename "$file")
           dest_file="$results_dir/$filename"
-          
+
           # Copy file to results directory then remove original
           cp "$file" "$dest_file" 2>/dev/null
           if [ $? -eq 0 ]; then
@@ -1517,7 +1523,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -1529,24 +1535,24 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to results directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Installation files have been moved to $results_dir directory."
       exit 0
     elif echo "$log_content" | grep -q "Installation failed"; then
       echo "Installation failed. Please check the logs at: $installer_log_path"
-      
+
       # Kill the launcher process if it's still running
       if kill -0 $launcher_pid 2>/dev/null; then
         kill $launcher_pid
       fi
-      
+
       # Cleanup for failed installation
       errors_dir="errors_$COMPONENT_TYPE"
       echo "Performing cleanup for failed installation - Moving files to $errors_dir directory..."
-      
+
       # Create the errors directory if it doesn't exist
       mkdir -p "$errors_dir"
-      
+
       # List of files to move
       files_to_move=(
         "installationtoken.txt"
@@ -1555,7 +1561,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         "onboarding.token"
         "Launcher.run"
       )
-      
+
       # Add log files
       log_files=$(find . -maxdepth 1 -name "*.log" -type f 2>/dev/null || echo "")
       # Only add log files if they actually exist
@@ -1566,7 +1572,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         done
       fi
-      
+
       # Find all JSON files in the current directory only
       json_files=$(find . -maxdepth 1 -name "*.json" -type f 2>/dev/null || echo "")
       if [ -n "$json_files" ]; then
@@ -1577,7 +1583,7 @@ while [ $elapsed -lt $max_wait_time ]; do
       else
         echo "No JSON files need to be cleaned up"
       fi
-      
+
       # Move each file to the errors directory
       for file in "${files_to_move[@]}"; do
         if [ -f "$file" ]; then
@@ -1585,11 +1591,11 @@ while [ $elapsed -lt $max_wait_time ]; do
           if [[ "$file" == *"/helper/"* ]]; then
             continue
           fi
-          
+
           # Process only files in current directory
           filename=$(basename "$file")
           dest_file="$errors_dir/$filename"
-          
+
           # Copy file to errors directory then remove original
           cp "$file" "$dest_file" 2>/dev/null
           if [ $? -eq 0 ]; then
@@ -1600,7 +1606,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to errors directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$errors_dir/$log_file"
@@ -1612,7 +1618,7 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to errors directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
       exit 1
     fi
@@ -1634,10 +1640,10 @@ while [ $elapsed -lt $max_wait_time ]; do
       exit 1
     fi
   fi
-  
+
   sleep $check_interval
   elapsed=$((elapsed + check_interval))
-  
+
   # Show progress less frequently
   if [ $((elapsed % 30)) -eq 0 ]; then
     echo "Installation in progress... ($((elapsed / 60)) minutes elapsed)"
@@ -1698,11 +1704,11 @@ for file in "${files_to_move[@]}"; do
     if [[ "$file" == *"/helper/"* ]]; then
       continue
     fi
-    
+
     # Process only files in current directory
     filename=$(basename "$file")
     dest_file="$errors_dir/$filename"
-    
+
     # Copy file to errors directory then remove original
     cp "$file" "$dest_file" 2>/dev/null
     if [ $? -eq 0 ]; then
@@ -1727,4 +1733,4 @@ if [ -f "$log_file" ]; then
 fi
 
 echo "Cleanup completed. Timed out installation files have been moved to $errors_dir directory."
-exit 1 
+exit 1
