@@ -684,12 +684,38 @@ if ($ComponentType -eq 'WDM') {
         exit 1
     } else {
         # Both processes were successfully terminated, continue with installation
-        Write-Host "All processes successfully terminated. Continuing with installation." -ForegroundColor Green
-    }
+        Write-Host "All processes successfully terminated. Waiting for TCP states to clear..." -ForegroundColor Green
 
-    # Wait an additional 5 seconds to ensure processes are fully terminated and resources released
-    Write-Host "Waiting 5 seconds for processes to fully terminate before proceeding with backup..."
-    Start-Sleep -Seconds 5
+        # Wait for TCP CLOSE_WAIT and TIME_WAIT states to expire on our ports
+        $maxWaitTime = 120  # Maximum wait time in seconds (2 minutes)
+        $checkInterval = 5  # Check every 5 seconds
+        $elapsedTime = 0
+
+        Write-Host "Checking for lingering TCP connections on ports 8080 and 4333..."
+
+        while ($elapsedTime -lt $maxWaitTime) {
+            # Check for any TCP connections in transitional states on our ports
+            $tcpConnections = netstat -an | Select-String ":8080|:4333" | Select-String "CLOSE_WAIT|TIME_WAIT|FIN_WAIT_1|FIN_WAIT_2|CLOSING|LAST_ACK"
+
+            if ($tcpConnections.Count -eq 0) {
+                Write-Host "No lingering TCP connections found. Ports are clean." -ForegroundColor Green
+                break
+            } else {
+                Write-Host "Found $($tcpConnections.Count) lingering TCP connection(s). Waiting for them to expire..."
+                $tcpConnections | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+                Start-Sleep -Seconds $checkInterval
+                $elapsedTime += $checkInterval
+            }
+        }
+
+        if ($elapsedTime -ge $maxWaitTime) {
+            Write-Host "Warning: Some TCP connections may still be lingering after $maxWaitTime seconds, but proceeding anyway." -ForegroundColor Yellow
+        }
+
+        # Additional short wait to ensure everything is settled
+        Write-Host "Waiting additional 5 seconds for final cleanup..."
+        Start-Sleep -Seconds 5
+    }
 
     # Backup existing WDM installation if it exists
     if (Test-Path $install_dir) {
