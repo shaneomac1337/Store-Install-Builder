@@ -669,49 +669,22 @@ if ($ComponentType -eq 'WDM') {
         $port4333TerminationSuccess = $true  # Port is already free
     }
 
-    # Validate that ports are free
-    if ($port8080TerminationSuccess -and $port4333TerminationSuccess) {
-        # Both processes were successfully terminated, skip port checking
-        Write-Host "Processes were successfully terminated. Skipping port validation - trusting that ports will be freed." -ForegroundColor Green
+    # Check if process termination failed - if so, fail the installation
+    if (-not $port8080TerminationSuccess -or -not $port4333TerminationSuccess) {
+        Write-Host "Error: Process termination failed. Installation cannot continue." -ForegroundColor Red
+
+        if (-not $port8080TerminationSuccess) {
+            Write-Host "Failed to terminate process on port 8080" -ForegroundColor Red
+        }
+        if (-not $port4333TerminationSuccess) {
+            Write-Host "Failed to terminate process on port 4333" -ForegroundColor Red
+        }
+
+        Stop-TranscriptSafely
+        exit 1
     } else {
-        # Some processes failed to terminate or were uncertain, perform port validation
-        Write-Host "Process termination was unsuccessful or uncertain. Performing port validation..."
-
-        $attempts = 0
-        $maxAttempts = 10
-        $wait = 2
-
-        while (($attempts -lt $maxAttempts) -and ((Test-PortInUse -Port 8080) -or (Test-PortInUse -Port 4333))) {
-            $attempts++
-            Write-Host "Port check attempt $attempts/$maxAttempts - waiting for ports to be free..."
-            Start-Sleep -Seconds $wait
-        }
-
-        if ((Test-PortInUse -Port 8080) -or (Test-PortInUse -Port 4333)) {
-            Write-Host "Warning: Could not free up required ports after $maxAttempts attempts." -ForegroundColor Yellow
-            Write-Host "The installation may fail if these ports are still in use." -ForegroundColor Yellow
-            Write-Host "Port 8080 in use: $(Test-PortInUse -Port 8080)"
-            Write-Host "Port 4333 in use: $(Test-PortInUse -Port 4333)"
-
-            # Provide additional context about what happened during termination
-            if (-not $port8080TerminationSuccess) {
-                Write-Host "Note: Process termination for port 8080 was unsuccessful or uncertain." -ForegroundColor Yellow
-            }
-            if (-not $port4333TerminationSuccess) {
-                Write-Host "Note: Process termination for port 4333 was unsuccessful or uncertain." -ForegroundColor Yellow
-            }
-
-            # Give user a chance to abort
-            Write-Host "Do you want to continue with the installation anyway? (Y/N)" -ForegroundColor Yellow
-            $response = Read-Host
-            if ($response -ne "Y" -and $response -ne "y") {
-                Write-Host "Installation aborted by user."
-                Stop-TranscriptSafely
-                exit 1
-            }
-        } else {
-            Write-Host "All required ports are now free." -ForegroundColor Green
-        }
+        # Both processes were successfully terminated, continue with installation
+        Write-Host "All processes successfully terminated. Continuing with installation." -ForegroundColor Green
     }
 
     # Wait an additional 5 seconds to ensure processes are fully terminated and resources released
