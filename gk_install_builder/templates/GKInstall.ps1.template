@@ -632,17 +632,20 @@ if ($ComponentType -eq 'WDM') {
                     }
                 }
             } else {
-                Write-Host "Tomcat process detected on port 8080. Attempting to terminate..."
+                Write-Host "Non-Tomcat process detected on port 8080. Attempting to terminate..."
                 try {
                     Stop-Process -Id $process.Id -Force
                     Write-Host "Process terminated successfully"
+                    $port8080TerminationSuccess = $true
                 } catch {
                     Write-Host "Error terminating process: $_"
+                    $port8080TerminationSuccess = $false
                 }
             }
         }
     } else {
         Write-Host "No process found using port 8080"
+        $port8080TerminationSuccess = $true  # Port is already free
     }
 
     # Check for application on port 4333
@@ -655,12 +658,15 @@ if ($ComponentType -eq 'WDM') {
             try {
                 Stop-Process -Id $process.Id -Force
                 Write-Host "Process terminated successfully"
+                $port4333TerminationSuccess = $true
             } catch {
                 Write-Host "Error terminating process: $_"
+                $port4333TerminationSuccess = $false
             }
         }
     } else {
         Write-Host "No process found using port 4333"
+        $port4333TerminationSuccess = $true  # Port is already free
     }
 
     # Validate that ports are free
