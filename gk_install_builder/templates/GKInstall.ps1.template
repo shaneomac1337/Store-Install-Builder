@@ -943,6 +943,55 @@ if ($isUpdate) {
     }
 }
 
+# IP-based Store ID mapping
+if ([string]::IsNullOrEmpty($storeNumber)) {
+    Write-Host "Attempting IP-based store detection..."
+    $mappingFile = Join-Path $PSScriptRoot "store_ip_mapping.txt"
+
+    if (Test-Path $mappingFile) {
+        try {
+            # Get current IP address
+            $currentIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -eq "Dhcp" -or $_.PrefixOrigin -eq "Manual" } | Select-Object -First 1).IPAddress
+
+            if (-not $currentIP) {
+                # Fallback method using WMI
+                $currentIP = (Get-WmiObject -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true -and $_.IPAddress -ne $null } | Select-Object -First 1).IPAddress[0]
+            }
+
+            if ($currentIP) {
+                Write-Host "Current IP address: $currentIP"
+
+                # Read mapping file and search for IP
+                $mappingContent = Get-Content -Path $mappingFile
+                foreach ($line in $mappingContent) {
+                    if ($line -match "^(\d+):(.+)$") {
+                        $mappedStoreId = $matches[1]
+                        $mappedIP = $matches[2].Trim()
+
+                        if ($mappedIP -eq $currentIP) {
+                            $storeNumber = $mappedStoreId
+                            Write-Host "Found store mapping: IP $currentIP -> Store ID $storeNumber"
+                            break
+                        }
+                    }
+                }
+
+                if ([string]::IsNullOrEmpty($storeNumber)) {
+                    Write-Host "No store mapping found for IP address: $currentIP"
+                } else {
+                    Write-Host "Successfully mapped store ID from IP address"
+                }
+            } else {
+                Write-Host "Could not determine current IP address"
+            }
+        } catch {
+            Write-Host "Error during IP-based store detection: $_"
+        }
+    } else {
+        Write-Host "Store IP mapping file not found: $mappingFile"
+    }
+}
+
 # Override WorkstationID for WDM components
 if ($ComponentType -eq "WDM") {
     $workstationId = "200"
