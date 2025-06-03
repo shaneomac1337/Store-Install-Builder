@@ -1,10 +1,17 @@
 param(
     [switch]$offline,
     [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
-    [string]$ComponentType = 'POS',
+    [string]$ComponentType = 'WDM',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId  # Will be determined by hostname detection or user input
 )
+
+# If no parameters are provided, default to WDM with offline mode
+if ($PSBoundParameters.Count -eq 0) {
+    $ComponentType = 'WDM'
+    $offline = $true
+    Write-Host "No parameters provided. Defaulting to: WDM -offline"
+}
 
 # Create a unique log filename based on timestamp
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
@@ -938,6 +945,132 @@ if ($isUpdate) {
         # File detection code will be inserted here by the generator
     }
 
+    # IP-based Store ID mapping (hardcoded to ensure it's always included)
+    if ([string]::IsNullOrEmpty($storeNumber)) {
+        Write-Host "Attempting IP-based store detection..."
+        $mappingFile = "store_ip_mapping.txt"
+        $mappingUrl = "https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.txt"
+
+        # Download store IP mapping from DSG server
+        try {
+            Write-Host "Downloading store IP mapping from: $mappingUrl"
+            
+            # Try to use curl first (faster), fall back to WebClient if not available or fails
+            $downloadSuccess = $false
+            
+            if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+                try {
+                    Write-Host "Executing curl command: curl.exe -L --fail --show-error --output `"$mappingFile`" `"$mappingUrl`""
+                    & curl.exe -L --fail --show-error --output "$mappingFile" "$mappingUrl"
+                    Write-Host "Curl command completed. Checking if file was created..."
+                    if (Test-Path $mappingFile) {
+                        $fileSize = (Get-Item $mappingFile).Length
+                        Write-Host "File created: $mappingFile (Size: $fileSize bytes)"
+                        if ($fileSize -gt 0) {
+                            Write-Host "Successfully downloaded store IP mapping using curl"
+                            $downloadSuccess = $true
+                        } else {
+                            throw "Curl download produced empty file."
+                        }
+                    } else {
+                        throw "Curl download failed - file not created."
+                    }
+                } catch {
+                    Write-Host "Curl failed: $_. Falling back to WebClient..."
+                    # Clean up any empty file from failed curl attempt
+                    if (Test-Path $mappingFile) {
+                        Remove-Item $mappingFile -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+            
+            # If curl failed or is not available, try WebClient
+            if (-not $downloadSuccess) {
+                try {
+                    Write-Host "Using WebClient to download store IP mapping..."
+                    $webClient = New-Object System.Net.WebClient
+                    $webClient.DownloadFile($mappingUrl, $mappingFile)
+                    
+                    if (Test-Path $mappingFile -and (Get-Item $mappingFile).Length -gt 0) {
+                        Write-Host "Successfully downloaded store IP mapping using WebClient"
+                        $downloadSuccess = $true
+                    } else {
+                        throw "WebClient download failed or produced empty file."
+                    }
+                } catch {
+                    Write-Host "WebClient also failed: $_"
+                    # Clean up any empty file
+                    if (Test-Path $mappingFile) {
+                        Remove-Item $mappingFile -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
+            
+            # Check if download was successful
+            if (-not $downloadSuccess) {
+                throw "All download methods failed"
+            }
+
+            if (Test-Path $mappingFile) {
+                try {
+                    # Get current IP address
+                    $currentIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -ne "127.0.0.1" -and ($_.PrefixOrigin -eq "Dhcp" -or $_.PrefixOrigin -eq "Manual") } | Select-Object -First 1).IPAddress
+
+                    if (-not $currentIP) {
+                        # Fallback method using WMI
+                        $currentIP = (Get-WmiObject -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true -and $_.IPAddress -ne $null } | Select-Object -First 1).IPAddress[0]
+                    }
+
+                    if ($currentIP) {
+                        Write-Host "Current IP address: $currentIP"
+
+                        # Read mapping file and search for IP
+                        $mappingContent = Get-Content -Path $mappingFile
+                        foreach ($line in $mappingContent) {
+                            if ($line -match "^(\d+):(.+)$") {
+                                $mappedStoreId = $matches[1]
+                                $mappedIP = $matches[2].Trim()
+
+                                if ($mappedIP -eq $currentIP) {
+                                    $storeNumber = $mappedStoreId
+                                    Write-Host "Found store mapping: IP $currentIP -> Store ID $storeNumber"
+                                    break
+                                }
+                            }
+                        }
+
+                        if ([string]::IsNullOrEmpty($storeNumber)) {
+                            Write-Host "No store mapping found for IP address: $currentIP"
+                        } else {
+                            Write-Host "Successfully mapped store ID from IP address"
+                            $hostnameDetected = $true  # Mark as detected to skip manual input
+                        }
+                    } else {
+                        Write-Host "Could not determine current IP address"
+                    }
+                } catch {
+                    Write-Host "Error during IP-based store detection: $_"
+                }
+            } else {
+                Write-Host "Failed to download store IP mapping file"
+            }
+        } catch {
+            Write-Host "Error downloading store IP mapping from DSG server: $_"
+            Write-Host "Skipping IP-based store detection"
+        }
+    }
+
+    # Override WorkstationID for WDM components (hardcoded to ensure it's always included)
+    if ($ComponentType -eq "WDM") {
+        $workstationId = "200"
+        Write-Host "WDM component detected - WorkstationID hardcoded to 200"
+        # If we have a store number from IP mapping, mark as detected
+        if (-not [string]::IsNullOrEmpty($storeNumber)) {
+            $hostnameDetected = $true
+            Write-Host "Store ID and WorkstationID both available - skipping manual input"
+        }
+    }
+
     # If both hostname and file detection failed, prompt for manual input
     if (-not $hostnameDetected) {
         Write-Host "Falling back to manual input."
@@ -956,67 +1089,22 @@ if ($isUpdate) {
             $storeNumber = Read-Host "Store Number"
         }
 
-        # Prompt for Workstation ID
-        do {
-            $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-        } while ($workstationId -notmatch '^\d+$')
-    }
-}
-
-# IP-based Store ID mapping
-if ([string]::IsNullOrEmpty($storeNumber)) {
-    Write-Host "Attempting IP-based store detection..."
-    $mappingFile = Join-Path $PSScriptRoot "store_ip_mapping.txt"
-
-    if (Test-Path $mappingFile) {
-        try {
-            # Get current IP address
-            $currentIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -eq "Dhcp" -or $_.PrefixOrigin -eq "Manual" } | Select-Object -First 1).IPAddress
-
-            if (-not $currentIP) {
-                # Fallback method using WMI
-                $currentIP = (Get-WmiObject -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true -and $_.IPAddress -ne $null } | Select-Object -First 1).IPAddress[0]
+        # Prompt for Workstation ID (unless it's WDM which is hardcoded)
+        if ($ComponentType -ne "WDM") {
+            do {
+                $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+            } while ($workstationId -notmatch '^\d+$')
+        } else {
+            # For WDM, workstationId should already be set to 200
+            if ([string]::IsNullOrEmpty($workstationId)) {
+                $workstationId = "200"
+                Write-Host "WDM WorkstationID set to 200"
             }
-
-            if ($currentIP) {
-                Write-Host "Current IP address: $currentIP"
-
-                # Read mapping file and search for IP
-                $mappingContent = Get-Content -Path $mappingFile
-                foreach ($line in $mappingContent) {
-                    if ($line -match "^(\d+):(.+)$") {
-                        $mappedStoreId = $matches[1]
-                        $mappedIP = $matches[2].Trim()
-
-                        if ($mappedIP -eq $currentIP) {
-                            $storeNumber = $mappedStoreId
-                            Write-Host "Found store mapping: IP $currentIP -> Store ID $storeNumber"
-                            break
-                        }
-                    }
-                }
-
-                if ([string]::IsNullOrEmpty($storeNumber)) {
-                    Write-Host "No store mapping found for IP address: $currentIP"
-                } else {
-                    Write-Host "Successfully mapped store ID from IP address"
-                }
-            } else {
-                Write-Host "Could not determine current IP address"
-            }
-        } catch {
-            Write-Host "Error during IP-based store detection: $_"
         }
-    } else {
-        Write-Host "Store IP mapping file not found: $mappingFile"
     }
 }
 
-# Override WorkstationID for WDM components
-if ($ComponentType -eq "WDM") {
-    $workstationId = "200"
-    Write-Host "WDM component detected - WorkstationID hardcoded to 200"
-}
+# Duplicate IP mapping section removed - already handled above
 
 # Print final results
 Write-Host "-------------------"

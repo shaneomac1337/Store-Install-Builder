@@ -188,8 +188,7 @@ class ProjectGenerator:
             self._generate_gk_install(output_dir, config)
             self._generate_onboarding(output_dir, config)
 
-            # Generate store IP mapping template
-            self._generate_store_ip_mapping(output_dir, config)
+            # Store IP mapping will be downloaded from DSG server during script execution
 
             # Copy and modify helper files
             self._copy_helper_files(output_dir, config)
@@ -298,6 +297,12 @@ class ProjectGenerator:
 
             with open(template_path, 'r') as f:
                 template = f.read()
+            
+            # Debug: Check original template length
+            original_template_length = len(template)
+            original_line_count = template.count('\n') + 1
+            print(f"DEBUG: Original template length: {original_template_length}")
+            print(f"DEBUG: Original template line count: {original_line_count}")
 
             # Apply custom regex if available
             if "detection_config" in config and "hostname_detection" in config["detection_config"]:
@@ -715,67 +720,25 @@ if ($ComponentType -eq "WDM") {
 }
 
 '''
-                        # Add IP-based store detection before manual input
+                        # IP-based store detection is now handled in the template itself
+                        # The template downloads the mapping file from DSG server at runtime
                         ip_detection_code = '''
-# IP-based Store ID mapping
-if ([string]::IsNullOrEmpty($storeNumber)) {
-    Write-Host "Attempting IP-based store detection..."
-    $mappingFile = Join-Path $PSScriptRoot "store_ip_mapping.txt"
-
-    if (Test-Path $mappingFile) {
-        try {
-            # Get current IP address
-            $currentIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -eq "Dhcp" -or $_.PrefixOrigin -eq "Manual" } | Select-Object -First 1).IPAddress
-
-            if (-not $currentIP) {
-                # Fallback method using WMI
-                $currentIP = (Get-WmiObject -Class Win32_NetworkAdapterConfiguration | Where-Object { $_.IPEnabled -eq $true -and $_.IPAddress -ne $null } | Select-Object -First 1).IPAddress[0]
-            }
-
-            if ($currentIP) {
-                Write-Host "Current IP address: $currentIP"
-
-                # Read mapping file and search for IP
-                $mappingContent = Get-Content -Path $mappingFile
-                foreach ($line in $mappingContent) {
-                    if ($line -match "^(\d+):(.+)$") {
-                        $mappedStoreId = $matches[1]
-                        $mappedIP = $matches[2].Trim()
-
-                        if ($mappedIP -eq $currentIP) {
-                            $storeNumber = $mappedStoreId
-                            Write-Host "Found store mapping: IP $currentIP -> Store ID $storeNumber"
-                            break
-                        }
-                    }
-                }
-
-                if ([string]::IsNullOrEmpty($storeNumber)) {
-                    Write-Host "No store mapping found for IP address: $currentIP"
-                } else {
-                    Write-Host "Successfully mapped store ID from IP address"
-                }
-            } else {
-                Write-Host "Could not determine current IP address"
-            }
-        } catch {
-            Write-Host "Error during IP-based store detection: $_"
-        }
-    } else {
-        Write-Host "Store IP mapping file not found: $mappingFile"
-    }
-}
-
+# IP-based Store ID mapping is handled in the template
 '''
 
-                        # Insert IP detection and WDM hardcoding before the manual input section
-                        manual_input_marker = "# If file detection failed, prompt for manual input"
-                        manual_input_pos = station_detection_code.find(manual_input_marker)
-                        if manual_input_pos != -1:
-                            station_detection_code = station_detection_code[:manual_input_pos] + ip_detection_code + wdm_hardcode_before_manual + station_detection_code[manual_input_pos:]
+                        # WDM hardcoding is now handled in the template itself
+                        # IP detection is also handled in the template
+                        # No need to insert additional code here
 
-                        # Replace the entire section
-                        template = template[:start_pos] + station_detection_code + template[end_marker_pos:]
+                        # Find the end of the manual input section to preserve content after it
+                        # Look for the next major section marker after the manual input
+                        preserve_from_pos = template.find("# Print final results", end_marker_pos)
+                        if preserve_from_pos == -1:
+                            # If we can't find the marker, preserve everything after end_marker_pos
+                            preserve_from_pos = end_marker_pos
+                        
+                        # Replace the section but preserve everything after the manual input
+                        template = template[:start_pos] + station_detection_code + template[preserve_from_pos:]
 
                 else:  # Linux
                     # Locate the hostname detection section for Bash
@@ -837,70 +800,15 @@ if [ "$COMPONENT_TYPE" = "WDM" ]; then
 fi
 
 '''
-                        # Add IP-based store detection for Linux
+                        # IP-based store detection is now handled in the template itself
+                        # The template downloads the mapping file from DSG server at runtime
                         ip_detection_code_bash = '''
-# IP-based Store ID mapping
-if [ -z "$storeNumber" ]; then
-  echo "Attempting IP-based store detection..."
-  mappingFile="$PWD/store_ip_mapping.txt"
-
-  if [ -f "$mappingFile" ]; then
-    # Get current IP address
-    currentIP=""
-
-    # Try different methods to get IP address
-    if command -v ip >/dev/null 2>&1; then
-      # Modern Linux systems with ip command
-      currentIP=$(ip route get 8.8.8.8 | grep -oP 'src \\K\\S+' 2>/dev/null)
-    fi
-
-    if [ -z "$currentIP" ] && command -v hostname >/dev/null 2>&1; then
-      # Try hostname -I
-      currentIP=$(hostname -I | awk '{print $1}' 2>/dev/null)
-    fi
-
-    if [ -z "$currentIP" ]; then
-      # Fallback to ifconfig
-      currentIP=$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\\.){3}[0-9]*' | grep -Eo '([0-9]*\\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1 2>/dev/null)
-    fi
-
-    if [ -n "$currentIP" ]; then
-      echo "Current IP address: $currentIP"
-
-      # Read mapping file and search for IP
-      while IFS= read -r line || [ -n "$line" ]; do
-        if [[ "$line" =~ ^([0-9]+):(.+)$ ]]; then
-          mappedStoreId="${BASH_REMATCH[1]}"
-          mappedIP="${BASH_REMATCH[2]// /}"  # Remove spaces
-
-          if [ "$mappedIP" = "$currentIP" ]; then
-            storeNumber="$mappedStoreId"
-            echo "Found store mapping: IP $currentIP -> Store ID $storeNumber"
-            break
-          fi
-        fi
-      done < "$mappingFile"
-
-      if [ -z "$storeNumber" ]; then
-        echo "No store mapping found for IP address: $currentIP"
-      else
-        echo "Successfully mapped store ID from IP address"
-      fi
-    else
-      echo "Could not determine current IP address"
-    fi
-  else
-    echo "Store IP mapping file not found: $mappingFile"
-  fi
-fi
-
+# IP-based Store ID mapping is handled in the template
 '''
 
-                        # Insert IP detection and WDM hardcoding before the manual input section
-                        manual_input_marker_bash = "# If file detection failed, prompt for manual input"
-                        manual_input_pos_bash = hostname_replacement_code.find(manual_input_marker_bash)
-                        if manual_input_pos_bash != -1:
-                            hostname_replacement_code = hostname_replacement_code[:manual_input_pos_bash] + ip_detection_code_bash + wdm_hardcode_bash_before_manual + hostname_replacement_code[manual_input_pos_bash:]
+                        # WDM hardcoding is now handled in the template itself
+                        # IP detection is also handled in the template
+                        # No need to insert additional code here
 
                         # Replace the hostname detection section with our new structure
                         template = template[:start_pos] + hostname_replacement_code + template[end_marker_pos:]
@@ -909,12 +817,12 @@ fi
             # Apply file detection settings if enabled
             file_detection_enabled = self.detection_manager.is_detection_enabled()
 
-            # Only insert file detection code if file detection is enabled
-            if file_detection_enabled:
-                if platform == "Windows":
-                    # Instead of trying to determine component type from filename,
-                    # use a placeholder that will be replaced with the actual ComponentType parameter
-                    station_detection_code = '''
+            # Insert file detection code for Windows if enabled
+            # BUT only if hostname detection is still enabled (otherwise it was already handled above)
+            if file_detection_enabled and platform == "Windows" and use_hostname_detection:
+                # Instead of trying to determine component type from filename,
+                # use a placeholder that will be replaced with the actual ComponentType parameter
+                station_detection_code = '''
 # File detection for the current component ($ComponentType)
 $fileDetectionEnabled = $true
 $componentType = $ComponentType
@@ -959,31 +867,27 @@ if ($useBaseDirectory -eq "true") {{
     }}
 }}
 
-# Check if hostname detection failed and file detection is enabled
-if (-not $hostnameDetected -and $fileDetectionEnabled) {{
+# Try file detection first
+$hostnameDetected = $false
+if ($fileDetectionEnabled) {{
     Write-Host "Trying file detection for $componentType using $stationFilePath"
-
     if (Test-Path $stationFilePath) {{
         $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
-
         if ($fileContent) {{
             $lines = $fileContent -split "`r?`n"
-
             foreach ($line in $lines) {{
                 if ($line -match "StoreID=(.+)") {{
                     $storeNumber = $matches[1].Trim()
                     Write-Host "Found Store ID in file: $storeNumber"
                 }}
-
                 if ($line -match "WorkstationID=(.+)") {{
                     $workstationId = $matches[1].Trim()
                     Write-Host "Found Workstation ID in file: $workstationId"
                 }}
             }}
-
             # Validate extracted values
             if ($storeNumber -and $workstationId -match '^\d+$') {{
-                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
+                $hostnameDetected = $true
                 Write-Host "Successfully detected values from file:"
                 Write-Host "Store Number: $storeNumber"
                 Write-Host "Workstation ID: $workstationId"
@@ -993,6 +897,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
         Write-Host "Station file not found at: $stationFilePath"
     }}
 }}
+
 '''.format(
     is_using_base_dir=str(self.detection_manager.is_using_base_directory()).lower(),
     base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
@@ -1008,34 +913,61 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
     sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\')
 )
 
-                    # Find where to insert the file detection code
-                    if not use_hostname_detection:
-                        # If hostname detection is disabled, we need to insert after the manual input code
-                        insert_marker = "# File detection will be inserted here by the generator"
-                    else:
-                        # In the updated template, we look for the placeholder for file detection code
-                        insert_marker = "# File detection code will be inserted here by the generator"
+                # Find where to insert the file detection code
+                insert_marker = "        # File detection code will be inserted here by the generator"
 
-                    # Find the position to insert the code
-                    insert_pos = template.find(insert_marker)
-                    if insert_pos != -1:
-                        if file_detection_enabled:
-                            # Insert the detection code at the appropriate position
-                            template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                            print(f"Added dynamic station detection code to PowerShell script")
-                        else:
-                            # If file detection is disabled, replace the marker with empty content or a comment
-                            template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
-                            print(f"File detection is disabled, skipping in PowerShell script")
-                    else:
-                        print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
+                # Find the position to insert the code
+                insert_pos = template.find(insert_marker)
+                if insert_pos != -1:
+                    # Debug: Check template length before and after
+                    original_length = len(template)
+                    original_line_count = template.count('\n') + 1
+                    print(f"DEBUG: Original template length: {original_length}")
+                    print(f"DEBUG: Original template line count: {original_line_count}")
+                    print(f"DEBUG: Insert position: {insert_pos}")
+                    print(f"DEBUG: Marker length: {len(insert_marker)}")
+                    
+                    # Insert the detection code at the appropriate position
+                    # Replace the marker with the station detection code
+                    template = template.replace(insert_marker, station_detection_code, 1)
+                    
+                    new_length = len(template)
+                    new_line_count = template.count('\n') + 1
+                    print(f"DEBUG: New template length: {new_length}")
+                    print(f"DEBUG: New template line count: {new_line_count}")
+                    print(f"DEBUG: Length difference: {new_length - original_length}")
+                    print(f"DEBUG: Line count difference: {new_line_count - original_line_count}")
+                    print(f"Added dynamic station detection code to PowerShell script")
+                else:
+                    print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
+            elif platform == "Windows":
+                # If file detection is disabled, replace the marker with empty content or a comment
+                insert_marker = "        # File detection code will be inserted here by the generator"
+                insert_pos = template.find(insert_marker)
+                if insert_pos != -1:
+                    # Debug: Check template length before and after
+                    original_length = len(template)
+                    original_line_count = template.count('\n') + 1
+                    print(f"DEBUG: Original template length (disabled): {original_length}")
+                    print(f"DEBUG: Original template line count (disabled): {original_line_count}")
+                    print(f"DEBUG: Insert position (disabled): {insert_pos}")
+                    print(f"DEBUG: Marker length (disabled): {len(insert_marker)}")
+                    
+                    # Replace the marker with a comment
+                    template = template.replace(insert_marker, "        # File detection is disabled", 1)
+                    
+                    new_length = len(template)
+                    new_line_count = template.count('\n') + 1
+                    print(f"DEBUG: New template length (disabled): {new_length}")
+                    print(f"DEBUG: New template line count (disabled): {new_line_count}")
+                    print(f"DEBUG: Length difference (disabled): {new_length - original_length}")
+                    print(f"DEBUG: Line count difference (disabled): {new_line_count - original_line_count}")
+                    print(f"File detection is disabled, skipping in PowerShell script")
 
-            # For Linux, always insert file detection regardless of the setting
-            # This is the original behavior that was working well
-            if platform == "Linux":
-                # Only insert file detection code if file detection is enabled
-                if file_detection_enabled:
-                    station_detection_code = '''
+            # Insert file detection code for Linux if enabled
+            # BUT only if hostname detection is still enabled (otherwise it was already handled above)
+            if file_detection_enabled and platform == "Linux" and use_hostname_detection:
+                station_detection_code = '''
 # File detection for the current component ($COMPONENT_TYPE)
 fileDetectionEnabled=true
 componentType="$COMPONENT_TYPE"
@@ -1078,8 +1010,9 @@ else
     fi
 fi
 
-# Check if hostname detection failed and file detection is enabled
-if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
+# Try file detection first
+hostnameDetected=false
+if [ "$fileDetectionEnabled" = true ]; then
     echo "Trying file detection for $componentType using $stationFilePath"
 
     if [ -f "$stationFilePath" ]; then
@@ -1107,6 +1040,7 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
         echo "Station file not found at: $stationFilePath"
     fi
 fi
+
 '''.format(
     is_using_base_dir=str(self.detection_manager.is_using_base_directory()),
     base_dir=self.detection_manager.get_base_directory(),
@@ -1123,26 +1057,59 @@ fi
 )
 
                 # Find where to insert the file detection code
-                insert_marker = "# File detection code will be inserted here by the generator"
+                insert_marker = "    # File detection code will be inserted here by the generator"
 
                 # Find the position to insert the code
                 insert_pos = template.find(insert_marker)
                 if insert_pos == -1:
                     # Try the alternative marker if the primary one isn't found
-                    insert_marker = "# File detection will be inserted here by the generator"
+                    insert_marker = "    # File detection will be inserted here by the generator"
                     insert_pos = template.find(insert_marker)
 
                 if insert_pos != -1:
-                    # Insert the detection code at the appropriate position
-                    if file_detection_enabled:
-                        template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                        print(f"Added dynamic station detection code to Bash script")
-                    else:
-                        # If file detection is disabled, replace the marker with empty content or a comment
-                        template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
-                        print(f"File detection is disabled, skipping in Bash script")
+                    # Debug: Check template length before and after
+                    original_length = len(template)
+                    original_line_count = template.count('\n') + 1
+                    print(f"DEBUG: Original Bash template length: {original_length}")
+                    print(f"DEBUG: Original Bash template line count: {original_line_count}")
+                    
+                    # Replace the marker with the station detection code
+                    template = template.replace(insert_marker, station_detection_code, 1)
+                    
+                    new_length = len(template)
+                    new_line_count = template.count('\n') + 1
+                    print(f"DEBUG: New Bash template length: {new_length}")
+                    print(f"DEBUG: New Bash template line count: {new_line_count}")
+                    print(f"DEBUG: Bash length difference: {new_length - original_length}")
+                    print(f"DEBUG: Bash line count difference: {new_line_count - original_line_count}")
+                    print(f"Added dynamic station detection code to Bash script")
                 else:
                     print(f"Warning: Could not find insertion point for station detection code in Bash script")
+            elif platform == "Linux":
+                # If file detection is disabled, replace the marker with empty content or a comment
+                insert_marker = "    # File detection code will be inserted here by the generator"
+                insert_pos = template.find(insert_marker)
+                if insert_pos == -1:
+                    insert_marker = "    # File detection will be inserted here by the generator"
+                    insert_pos = template.find(insert_marker)
+                
+                if insert_pos != -1:
+                    # Debug: Check template length before and after
+                    original_length = len(template)
+                    original_line_count = template.count('\n') + 1
+                    print(f"DEBUG: Original Bash template length (disabled): {original_length}")
+                    print(f"DEBUG: Original Bash template line count (disabled): {original_line_count}")
+                    
+                    # Replace the marker with a comment
+                    template = template.replace(insert_marker, "    # File detection is disabled", 1)
+                    
+                    new_length = len(template)
+                    new_line_count = template.count('\n') + 1
+                    print(f"DEBUG: New Bash template length (disabled): {new_length}")
+                    print(f"DEBUG: New Bash template line count (disabled): {new_line_count}")
+                    print(f"DEBUG: Bash length difference (disabled): {new_length - original_length}")
+                    print(f"DEBUG: Bash line count difference (disabled): {new_line_count - original_line_count}")
+                    print(f"File detection is disabled, skipping in Bash script")
 
             # Check if WDM hardcoding was already added (it should be in the detection section now)
             wdm_hardcode_check = "# Override WorkstationID for WDM components before manual input"
@@ -1152,6 +1119,12 @@ fi
                 print(f"Warning: WDM WorkstationID hardcoding not found in {platform} script")
 
             # Write the modified template to the output file
+            # Debug: Check final template length before writing
+            final_length = len(template)
+            line_count = template.count('\n') + 1
+            print(f"DEBUG: Final template length before writing: {final_length}")
+            print(f"DEBUG: Final template line count: {line_count}")
+            
             with open(output_path, 'w', newline='\n') as f:
                 f.write(template)
 
@@ -1475,31 +1448,6 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"Error generating onboarding script: {error_details}")
             raise Exception(f"Failed to generate onboarding script: {str(e)}")
 
-    def _generate_store_ip_mapping(self, output_dir, config):
-        """Generate store IP mapping template file"""
-        try:
-            mapping_file_path = os.path.join(output_dir, "store_ip_mapping.txt")
-
-            # Create template content with examples
-            mapping_content = """# Store IP Mapping File
-# Format: StoreID:IPAddress
-# Example entries (replace with your actual store mappings):
-9999:192.168.27.84
-1467:10.1.0.20
-
-# Add your store mappings below:
-# 1234:192.168.1.100
-# 5678:10.0.0.50
-"""
-
-            # Write the mapping file
-            with open(mapping_file_path, 'w', newline='\n') as f:
-                f.write(mapping_content)
-
-            print(f"Generated store IP mapping template: {mapping_file_path}")
-
-        except Exception as e:
-            print(f"Error generating store IP mapping file: {str(e)}")
 
     def _copy_helper_files(self, output_dir, config):
         """Copy helper files to output directory"""

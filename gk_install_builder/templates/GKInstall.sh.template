@@ -2,9 +2,16 @@
 
 # Parse command line arguments
 offline=false
-COMPONENT_TYPE="POS"
+COMPONENT_TYPE="WDM"
 base_url="test.cse.cloud4retail.co"
 storeId=""  # Will be determined by hostname detection or user input
+
+# If no parameters are provided, default to WDM with offline mode
+if [ $# -eq 0 ]; then
+    COMPONENT_TYPE="WDM"
+    offline=true
+    echo "No parameters provided. Defaulting to: WDM -offline"
+fi
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -731,9 +738,60 @@ fi
 # IP-based Store ID mapping
 if [ -z "$storeNumber" ]; then
   echo "Attempting IP-based store detection..."
-  mappingFile="$PWD/store_ip_mapping.txt"
+  mappingFile="store_ip_mapping.txt"
+  mappingUrl="https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.txt"
 
-  if [ -f "$mappingFile" ]; then
+  # Download store IP mapping from DSG server
+  echo "Downloading store IP mapping from: $mappingUrl"
+  
+  # Try downloading with multiple fallback methods
+  downloadSuccess=false
+  
+  # Method 1: Try curl first
+  if command -v curl >/dev/null 2>&1; then
+    echo "Trying to download with curl..."
+    if curl -L --silent -o "$mappingFile" "$mappingUrl"; then
+      if [ -f "$mappingFile" ] && [ -s "$mappingFile" ]; then
+        echo "Successfully downloaded store IP mapping using curl"
+        downloadSuccess=true
+      else
+        echo "Curl download produced empty file"
+        # Clean up empty file
+        [ -f "$mappingFile" ] && rm -f "$mappingFile"
+      fi
+    else
+      echo "Curl download failed"
+      # Clean up any partial file
+      [ -f "$mappingFile" ] && rm -f "$mappingFile"
+    fi
+  fi
+  
+  # Method 2: Try wget if curl failed or is not available
+  if [ "$downloadSuccess" = false ] && command -v wget >/dev/null 2>&1; then
+    echo "Trying to download with wget..."
+    if wget --quiet -O "$mappingFile" "$mappingUrl"; then
+      if [ -f "$mappingFile" ] && [ -s "$mappingFile" ]; then
+        echo "Successfully downloaded store IP mapping using wget"
+        downloadSuccess=true
+      else
+        echo "Wget download produced empty file"
+        # Clean up empty file
+        [ -f "$mappingFile" ] && rm -f "$mappingFile"
+      fi
+    else
+      echo "Wget download failed"
+      # Clean up any partial file
+      [ -f "$mappingFile" ] && rm -f "$mappingFile"
+    fi
+  fi
+  
+  # Check if any download method succeeded
+  if [ "$downloadSuccess" = false ]; then
+    echo "Error: All download methods failed or no download tools available"
+    mappingFile=""
+  fi
+
+  if [ -f "$mappingFile" ] && [ -s "$mappingFile" ]; then
     # Get current IP address
     currentIP=""
 
@@ -779,7 +837,7 @@ if [ -z "$storeNumber" ]; then
       echo "Could not determine current IP address"
     fi
   else
-    echo "Store IP mapping file not found: $mappingFile"
+    echo "Failed to download or empty store IP mapping file. Skipping IP-based store detection."
   fi
 fi
 
