@@ -984,21 +984,39 @@ if ($isUpdate) {
                 }
             }
             
-            # If curl failed or is not available, try WebClient
+            # If curl failed or is not available, try WebClient with memory-first approach
             if (-not $downloadSuccess) {
                 try {
                     Write-Host "Using WebClient to download store IP mapping..."
                     $webClient = New-Object System.Net.WebClient
-                    $webClient.DownloadFile($mappingUrl, $mappingFile)
                     
-                    if (Test-Path $mappingFile -and (Get-Item $mappingFile).Length -gt 0) {
-                        Write-Host "Successfully downloaded store IP mapping using WebClient"
-                        $downloadSuccess = $true
+                    # Download to memory first, then save to file
+                    Write-Host "Downloading content to memory..."
+                    $content = $webClient.DownloadString($mappingUrl)
+                    
+                    if ($content -and $content.Length -gt 0) {
+                        Write-Host "Content downloaded to memory successfully. Size: $($content.Length) characters"
+                        Write-Host "Saving content to file: $mappingFile"
+                        Set-Content -Path $mappingFile -Value $content -Encoding UTF8
+                        
+                        # Verify file was created and has content
+                        if (Test-Path $mappingFile) {
+                            $fileSize = (Get-Item $mappingFile).Length
+                            Write-Host "File saved successfully. Size: $fileSize bytes"
+                            if ($fileSize -gt 0) {
+                                Write-Host "Successfully downloaded store IP mapping using WebClient memory-first approach"
+                                $downloadSuccess = $true
+                            } else {
+                                throw "File was created but is empty."
+                            }
+                        } else {
+                            throw "File was not created."
+                        }
                     } else {
-                        throw "WebClient download failed or produced empty file."
+                        throw "Downloaded content is empty or null."
                     }
                 } catch {
-                    Write-Host "WebClient also failed: $_"
+                    Write-Host "WebClient memory-first approach also failed: $_"
                     # Clean up any empty file
                     if (Test-Path $mappingFile) {
                         Remove-Item $mappingFile -Force -ErrorAction SilentlyContinue
