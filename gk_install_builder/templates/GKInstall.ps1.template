@@ -948,8 +948,8 @@ if ($isUpdate) {
     # IP-based Store ID mapping (hardcoded to ensure it's always included)
     if ([string]::IsNullOrEmpty($storeNumber)) {
         Write-Host "Attempting IP-based store detection..."
-        $mappingFile = "store_ip_mapping.txt"
-        $mappingUrl = "https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.txt"
+        $mappingFile = "store_ip_mapping.properties"
+        $mappingUrl = "https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.properties"
 
         # Download store IP mapping from DSG server
         try {

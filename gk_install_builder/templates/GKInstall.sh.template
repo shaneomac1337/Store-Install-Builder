@@ -738,8 +738,8 @@ fi
 # IP-based Store ID mapping
 if [ -z "$storeNumber" ]; then
   echo "Attempting IP-based store detection..."
-  mappingFile="store_ip_mapping.txt"
-  mappingUrl="https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.txt"
+  mappingFile="store_ip_mapping.properties"
+  mappingUrl="https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.properties"
 
   # Download store IP mapping from DSG server
   echo "Downloading store IP mapping from: $mappingUrl"
