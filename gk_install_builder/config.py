@@ -113,7 +113,7 @@ class ConfigManager:
             "platform": default_platform,  # Default platform (Windows or Linux)
             
             # Installation Options
-            "use_hostname_detection": True,  # Enable hostname detection by default
+            "use_hostname_detection": True,  # Enable hostname detection by default (but regex set to never match for testing)
             
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override
