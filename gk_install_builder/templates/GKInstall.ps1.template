@@ -949,7 +949,7 @@ if (-not $offline_mode) {
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
             Write-Host "Using curl for download..."
             try {
-                curl.exe -L --progress-bar -o "Launcher.exe" "$download_url"
+                curl.exe -L --progress-bar --ssl-no-revoke -o "Launcher.exe" "$download_url"
                 if (-not (Test-Path "Launcher.exe") -or (Get-Item "Launcher.exe").Length -eq 0) {
                     throw "Curl download failed or produced empty file."
                 }
