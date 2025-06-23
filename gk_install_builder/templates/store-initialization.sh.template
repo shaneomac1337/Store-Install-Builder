@@ -54,7 +54,7 @@ system_name_map["FLOW-SERVICE"]="${flow_service_system_type}"
 system_name_map["LPA-SERVICE"]="${lpa_service_system_type}"
 system_name_map["STOREHUB-SERVICE"]="${storehub_service_system_type}"
 
-# Get the systemName for the current component
+# Get the systemName for the current component (used for creation if workstation doesn't exist)
 current_system_name="${system_name_map[$COMPONENT_TYPE]}"
 if [ -z "$current_system_name" ]; then
   echo "Error: No systemName mapping found for ComponentType: $COMPONENT_TYPE"
@@ -62,7 +62,8 @@ if [ -z "$current_system_name" ]; then
   exit 1
 fi
 
-echo "Using systemName: $current_system_name for component: $COMPONENT_TYPE"
+echo "Template systemName: $current_system_name for component: $COMPONENT_TYPE"
+echo "Note: Will search by workstation ID (unique per store) and use actual system name if found"
 
 # Paths
 tokens_path="$PWD/helper/tokens"
@@ -134,14 +135,16 @@ else
       if command -v jq >/dev/null 2>&1; then
         echo "JQ is available. Using JQ for structure JSON parsing."
         
-        # First try to match on both system name AND workstation ID
-        echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
-        structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-        
+        # Search by workstation ID (unique per store)
+        echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
+        structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+        actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+
         if [ -n "$structure_unique_name" ]; then
-          echo "Found matching structure for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+          echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          echo "Structure unique name: $structure_unique_name"
         else
-          echo "No matching structure found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+          echo "No structure found for workstation ID: $WORKSTATION_ID"
         fi
       else
         echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
@@ -151,21 +154,22 @@ else
         # Convert JSON to one-object-per-line format with tr and sed
         cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
         
-        # First try to match on both system name AND workstation ID
-        echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID"
-        
-        # Use a more robust pattern that handles minified JSON
-        matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/flattened.json || 
-                       grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json || 
+        # Search by workstation ID (unique per store)
+        echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
+
+        # Use a more robust pattern that handles minified JSON - search by workstation ID only
+        matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
+                       grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
                        echo "")
-        
+
         if [ -n "$matching_line" ]; then
-          # Extract the structureUniqueName from the matching line using a more precise pattern
+          # Extract the structureUniqueName and systemName from the matching line
           structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-          echo "Found matching object with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+          actual_system_name=$(echo "$matching_line" | grep -o '"systemName":"[^"]*"' | sed 's/"systemName":"//g' | sed 's/"//g')
+          echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          echo "Structure unique name: $structure_unique_name"
         else
-          # If no match found, do not try any alternative approaches
-          echo "No direct match found with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+          echo "No structure found for workstation ID: $WORKSTATION_ID"
         fi
         
         # Clean up temp files
@@ -173,11 +177,11 @@ else
       fi
       
       if [ -n "$structure_unique_name" ]; then
-        echo "Found matching structure for $current_system_name: $structure_unique_name"
+        echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
       else
-        echo "No matching structure found for system name: $current_system_name in response"
+        echo "No structure found for workstation ID: $WORKSTATION_ID"
         echo "Creating workstation through the standard flow and then refreshing structure data..."
-        
+
         # Don't exit - allow the script to continue to the normal workstation creation section
         # After the workstation is created through the normal flow, we'll refresh the structure data
         # This will be handled automatically by the existing code
@@ -197,26 +201,28 @@ else
     # Check if the workstation exists for the current component
     workstation_exists=false
     
-    # Check if the current component has a workstation ID in the response
+    # Check if workstation ID exists in the response (workstation IDs are unique per store)
     if command -v jq >/dev/null 2>&1; then
       echo "Checking for existing workstation using JQ..."
-      matching_workstation=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
+      matching_workstation=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
       if [ -n "$matching_workstation" ]; then
         workstation_exists=true
+        actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
       fi
     else
       # Fallback method if jq is not available
       echo "Checking for existing workstation using bash methods..."
-      if grep -q "\"systemName\":\"$current_system_name\".*\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path" || \
-         grep -q "\"workstationId\":\"$WORKSTATION_ID\".*\"systemName\":\"$current_system_name\"" "$storemanager_path"; then
+      if grep -q "\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path"; then
         workstation_exists=true
+        # Extract actual system name
+        actual_system_name=$(grep -o "\"workstationId\":\"$WORKSTATION_ID\"[^}]*\"systemName\":\"[^\"]*\"" "$storemanager_path" | grep -o "\"systemName\":\"[^\"]*\"" | sed 's/"systemName":"//g' | sed 's/"//g')
       fi
     fi
-    
+
     if [ "$workstation_exists" = true ]; then
-      echo "Workstation $WORKSTATION_ID already exists for $current_system_name. No need to create it."
+      echo "Workstation $WORKSTATION_ID already exists with system: $actual_system_name. No need to create it."
     else
-      echo "Workstation $WORKSTATION_ID does not exist for $current_system_name."
+      echo "Workstation $WORKSTATION_ID does not exist in the store structure."
       
       # Ask the user if they want to create the workstation
       read -p "Do you want to create this workstation? (y/n): " create_choice
@@ -358,33 +364,36 @@ else
                 
                 # Look for our structure again with updated data
                 if command -v jq >/dev/null 2>&1; then
-                  # Try to find the structure by system name AND workstation ID
-                  echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
-                  structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\" and .workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-                  
+                  # Try to find the structure by workstation ID (unique per store)
+                  echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
+                  structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+                  actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+
                   if [ -n "$structure_unique_name" ]; then
-                    echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                    echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    echo "Structure unique name: $structure_unique_name"
                   else
-                    echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+                    echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
                   fi
                 else
                   # Fallback for no jq - search for workstation ID
                   cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
                   
                   # Search for our specific workstation in updated data
-                  echo "Looking for system name: $current_system_name with workstation ID: $WORKSTATION_ID in refreshed data"
-                  
-                  # Use a more robust pattern that handles minified JSON
-                  matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/refreshed_flattened.json || 
-                                 grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","systemName":"'$current_system_name'"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json || 
+                  echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
+
+                  # Use a more robust pattern that handles minified JSON - search by workstation ID only
+                  matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
+                                 grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
                                  echo "")
-                  
+
                   if [ -n "$matching_line" ]; then
                     structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
-                    echo "Found matching structure in refreshed data for $current_system_name with workstation ID $WORKSTATION_ID: $structure_unique_name"
+                    actual_system_name=$(echo "$matching_line" | grep -o '"systemName":"[^"]*"' | sed 's/"systemName":"//g' | sed 's/"//g')
+                    echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    echo "Structure unique name: $structure_unique_name"
                   else
-                    # No fallback, just report no match found
-                    echo "No matching structure found in refreshed data with systemName: $current_system_name and workstationId: $WORKSTATION_ID"
+                    echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
                   fi
                   
                   # Clean up temp file
