@@ -208,3 +208,23 @@ My GK Project/dev.cse.cloud4retail.co/helper/init/create_structure_processed.jso
 My GK Project/dev.cse.cloud4retail.co/helper/init/get_store_processed.json
 My GK Project/dev.cse.cloud4retail.co/helper/init/storemanager.json
 My GK Project/dev.cse.cloud4retail.co/helper/init/structure_name.txt
+Coop/dev.cse.cloud4retail.co/GKInstall.sh
+Coop/dev.cse.cloud4retail.co/onboarding.sh
+Coop/dev.cse.cloud4retail.co/store-initialization.sh
+Coop/dev.cse.cloud4retail.co/helper/init/get_store.json
+Coop/dev.cse.cloud4retail.co/helper/init/storehub/update_config.json
+Coop/dev.cse.cloud4retail.co/helper/launchers/launcher.flow-service.template
+Coop/dev.cse.cloud4retail.co/helper/launchers/launcher.lpa-service.template
+Coop/dev.cse.cloud4retail.co/helper/launchers/launcher.pos.template
+Coop/dev.cse.cloud4retail.co/helper/launchers/launcher.storehub-service.template
+Coop/dev.cse.cloud4retail.co/helper/launchers/launcher.wdm.template
+Coop/dev.cse.cloud4retail.co/helper/onboarding/flow-service.onboarding.json
+Coop/dev.cse.cloud4retail.co/helper/onboarding/lpa-service.onboarding.json
+Coop/dev.cse.cloud4retail.co/helper/onboarding/pos.onboarding.json
+Coop/dev.cse.cloud4retail.co/helper/onboarding/storehub-service.onboarding.json
+Coop/dev.cse.cloud4retail.co/helper/onboarding/wdm.onboarding.json
+Coop/dev.cse.cloud4retail.co/helper/storehub/update_config.json
+Coop/dev.cse.cloud4retail.co/helper/structure/create_structure.json
+Coop/dev.cse.cloud4retail.co/helper/tokens/access_token.txt
+Coop/dev.cse.cloud4retail.co/helper/tokens/basic_auth_password.txt
+Coop/dev.cse.cloud4retail.co/helper/tokens/form_password.txt

@@ -1369,8 +1369,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 user_id = config.get("eh_launchpad_username", "1001")
                 template_content = template_content.replace("${user_id}", user_id)
                 
-                # Write the processed content to the destination file
-                with open(dst_script, 'w') as f:
+                # Write the processed content to the destination file with Unix line endings
+                with open(dst_script, 'w', newline='\n') as f:
                     f.write(template_content)
                 
                 print(f"  Generated store initialization script with dynamic system types at: {dst_script}")
