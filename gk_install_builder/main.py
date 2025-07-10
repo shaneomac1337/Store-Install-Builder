@@ -2946,33 +2946,33 @@ class GKInstallBuilder:
         """Find Basic Auth password entry in KeePass folder structure"""
         print("\nSearching for Basic Auth password entry...")
         env_name = None
-        
+
         # Try to extract environment name from folder structure
         if isinstance(folder_structure, dict):
             folder_name = folder_structure.get('Name', '')
             if folder_name:
                 env_name = folder_name
                 print(f"Current environment: {env_name}")
-        
+
         # Create a list to store all found credentials for debugging
         all_credentials = []
         found_entries = []
         target_entry = None
-        
+
         def search_recursively(structure, path=""):
             """Recursively search for credentials in the folder structure"""
             nonlocal target_entry
-            
+
             if not isinstance(structure, dict):
                 return None
-                
+
             # Check credentials in current folder
             credentials = structure.get('Credentials', [])
             folder_name = structure.get('Name', '')
             current_path = f"{path}/{folder_name}" if path else folder_name
-            
+
             print(f"Checking folder: {current_path} - Found {len(credentials)} credentials")
-            
+
             # Look for credentials in this folder
             for cred in credentials:
                 cred_name = cred.get('Name', '')
@@ -2982,28 +2982,46 @@ class GKInstallBuilder:
                     'name': cred_name,
                     'id': cred_id
                 })
-                
-                # Dynamically build the target credential name based on environment
+
+                # Dynamically build the target credential names based on environment
                 if env_name:
-                    target_cred_name = f"{env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD"
-                    
-                    # First priority: exact match for {ENV}-LAUNCHPAD-OAUTH-BA-PASSWORD in APP subfolder
-                    if cred_name == target_cred_name and "APP" in current_path:
-                        print(f"FOUND TARGET ENTRY: {target_cred_name} in {current_path}")
+                    # Support both naming formats: dashes and underscores
+                    target_cred_name_dash = f"{env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD"
+                    target_cred_name_underscore = f"{env_name}_LAUNCHPAD_OAUTH_BA_PASSWORD"
+
+                    # First priority: exact match for dash format in APP subfolder
+                    if cred_name == target_cred_name_dash and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY (dash format): {target_cred_name_dash} in {current_path}")
                         target_entry = cred
                         return cred
-                    
-                    # Second priority: exact match for {ENV}-LAUNCHPAD-OAUTH-BA-PASSWORD anywhere
-                    if cred_name == target_cred_name:
-                        print(f"FOUND EXACT MATCH: {target_cred_name} in {current_path}")
+
+                    # First priority: exact match for underscore format in APP subfolder
+                    if cred_name == target_cred_name_underscore and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY (underscore format): {target_cred_name_underscore} in {current_path}")
+                        target_entry = cred
+                        return cred
+
+                    # Second priority: exact match for dash format anywhere
+                    if cred_name == target_cred_name_dash:
+                        print(f"FOUND EXACT MATCH (dash format): {target_cred_name_dash} in {current_path}")
                         found_entries.append({
                             'priority': 1,
                             'entry': cred,
                             'path': current_path,
-                            'reason': f'Exact match for {target_cred_name}'
+                            'reason': f'Exact match for {target_cred_name_dash} (dash format)'
                         })
-            
-            # Third priority: entries with LAUNCHPAD-OAUTH-BA-PASSWORD
+
+                    # Second priority: exact match for underscore format anywhere
+                    if cred_name == target_cred_name_underscore:
+                        print(f"FOUND EXACT MATCH (underscore format): {target_cred_name_underscore} in {current_path}")
+                        found_entries.append({
+                            'priority': 1,
+                            'entry': cred,
+                            'path': current_path,
+                            'reason': f'Exact match for {target_cred_name_underscore} (underscore format)'
+                        })
+
+            # Third priority: entries with LAUNCHPAD-OAUTH-BA-PASSWORD (dash format)
             for cred in credentials:
                 cred_name = cred.get('Name', '')
                 if 'LAUNCHPAD-OAUTH-BA-PASSWORD' in cred_name:
@@ -3012,10 +3030,22 @@ class GKInstallBuilder:
                         'priority': 2,
                         'entry': cred,
                         'path': current_path,
-                        'reason': f'Contains LAUNCHPAD-OAUTH-BA-PASSWORD: {cred_name}'
+                        'reason': f'Contains LAUNCHPAD-OAUTH-BA-PASSWORD: {cred_name} (dash format)'
                     })
-            
-            # Fourth priority: entries with BA-PASSWORD
+
+            # Third priority: entries with LAUNCHPAD_OAUTH_BA_PASSWORD (underscore format)
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'LAUNCHPAD_OAUTH_BA_PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains LAUNCHPAD_OAUTH_BA_PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 2,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains LAUNCHPAD_OAUTH_BA_PASSWORD: {cred_name} (underscore format)'
+                    })
+
+            # Fourth priority: entries with BA-PASSWORD (dash format)
             for cred in credentials:
                 cred_name = cred.get('Name', '')
                 if 'BA-PASSWORD' in cred_name:
@@ -3024,9 +3054,21 @@ class GKInstallBuilder:
                         'priority': 3,
                         'entry': cred,
                         'path': current_path,
-                        'reason': f'Contains BA-PASSWORD: {cred_name}'
+                        'reason': f'Contains BA-PASSWORD: {cred_name} (dash format)'
                     })
-                    
+
+            # Fourth priority: entries with BA_PASSWORD (underscore format)
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'BA_PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains BA_PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 3,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains BA_PASSWORD: {cred_name} (underscore format)'
+                    })
+
             # Fifth priority: entries with rare format LAUNCHPAD_OAUTH
             for cred in credentials:
                 cred_name = cred.get('Name', '')
@@ -3060,7 +3102,7 @@ class GKInstallBuilder:
             # Sort by priority (lowest number = highest priority)
             found_entries.sort(key=lambda x: x['priority'])
             best_match = found_entries[0]
-            print(f"\nNo exact match for {env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD found in APP subfolder.")
+            print(f"\nNo exact match for {env_name}-LAUNCHPAD-OAUTH-BA-PASSWORD or {env_name}_LAUNCHPAD_OAUTH_BA_PASSWORD found in APP subfolder.")
             print(f"Using best match: {best_match['reason']} in {best_match['path']}")
             return best_match['entry']
         
@@ -3076,33 +3118,33 @@ class GKInstallBuilder:
         """Find Webdav Admin password entry in KeePass folder structure"""
         print("\nSearching for Webdav Admin password entry...")
         env_name = None
-        
+
         # Try to extract environment name from folder structure
         if isinstance(folder_structure, dict):
             folder_name = folder_structure.get('Name', '')
             if folder_name:
                 env_name = folder_name
                 print(f"Current environment: {env_name}")
-        
+
         # Create a list to store all found credentials for debugging
         all_credentials = []
         found_entries = []
         target_entry = None
-        
+
         def search_recursively(structure, path=""):
             """Recursively search for credentials in the folder structure"""
             nonlocal target_entry
-            
+
             if not isinstance(structure, dict):
                 return None
-                
+
             # Check credentials in current folder
             credentials = structure.get('Credentials', [])
             folder_name = structure.get('Name', '')
             current_path = f"{path}/{folder_name}" if path else folder_name
-            
+
             print(f"Checking folder: {current_path} - Found {len(credentials)} credentials")
-            
+
             # Look for credentials in this folder
             for cred in credentials:
                 cred_name = cred.get('Name', '')
@@ -3112,28 +3154,46 @@ class GKInstallBuilder:
                     'name': cred_name,
                     'id': cred_id
                 })
-                
-                # Dynamically build the target credential name based on environment
+
+                # Dynamically build the target credential names based on environment
                 if env_name:
-                    target_cred_name = f"{env_name}-DSG-WEBDAV-ADMIN-PASSWORD"
-                    
-                    # First priority: exact match for {ENV}-DSG-WEBDAV-ADMIN-PASSWORD in APP subfolder
-                    if cred_name == target_cred_name and "APP" in current_path:
-                        print(f"FOUND TARGET ENTRY: {target_cred_name} in {current_path}")
+                    # Support both naming formats: dashes and underscores
+                    target_cred_name_dash = f"{env_name}-DSG-WEBDAV-ADMIN-PASSWORD"
+                    target_cred_name_underscore = f"{env_name}_DSG_WEBDAV_ADMIN_PASSWORD"
+
+                    # First priority: exact match for dash format in APP subfolder
+                    if cred_name == target_cred_name_dash and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY (dash format): {target_cred_name_dash} in {current_path}")
                         target_entry = cred
                         return cred
-                    
-                    # Second priority: exact match for {ENV}-DSG-WEBDAV-ADMIN-PASSWORD anywhere
-                    if cred_name == target_cred_name:
-                        print(f"FOUND EXACT MATCH: {target_cred_name} in {current_path}")
+
+                    # First priority: exact match for underscore format in APP subfolder
+                    if cred_name == target_cred_name_underscore and "APP" in current_path:
+                        print(f"FOUND TARGET ENTRY (underscore format): {target_cred_name_underscore} in {current_path}")
+                        target_entry = cred
+                        return cred
+
+                    # Second priority: exact match for dash format anywhere
+                    if cred_name == target_cred_name_dash:
+                        print(f"FOUND EXACT MATCH (dash format): {target_cred_name_dash} in {current_path}")
                         found_entries.append({
                             'priority': 1,
                             'entry': cred,
                             'path': current_path,
-                            'reason': f'Exact match for {target_cred_name}'
+                            'reason': f'Exact match for {target_cred_name_dash} (dash format)'
                         })
-            
-            # Third priority: entries with DSG-WEBDAV-ADMIN-PASSWORD
+
+                    # Second priority: exact match for underscore format anywhere
+                    if cred_name == target_cred_name_underscore:
+                        print(f"FOUND EXACT MATCH (underscore format): {target_cred_name_underscore} in {current_path}")
+                        found_entries.append({
+                            'priority': 1,
+                            'entry': cred,
+                            'path': current_path,
+                            'reason': f'Exact match for {target_cred_name_underscore} (underscore format)'
+                        })
+
+            # Third priority: entries with DSG-WEBDAV-ADMIN-PASSWORD (dash format)
             for cred in credentials:
                 cred_name = cred.get('Name', '')
                 if 'DSG-WEBDAV-ADMIN-PASSWORD' in cred_name:
@@ -3142,10 +3202,22 @@ class GKInstallBuilder:
                         'priority': 2,
                         'entry': cred,
                         'path': current_path,
-                        'reason': f'Contains DSG-WEBDAV-ADMIN-PASSWORD: {cred_name}'
+                        'reason': f'Contains DSG-WEBDAV-ADMIN-PASSWORD: {cred_name} (dash format)'
                     })
-            
-            # Fourth priority: entries with WEBDAV-ADMIN-PASSWORD
+
+            # Third priority: entries with DSG_WEBDAV_ADMIN_PASSWORD (underscore format)
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'DSG_WEBDAV_ADMIN_PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains DSG_WEBDAV_ADMIN_PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 2,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains DSG_WEBDAV_ADMIN_PASSWORD: {cred_name} (underscore format)'
+                    })
+
+            # Fourth priority: entries with WEBDAV-ADMIN-PASSWORD (dash format)
             for cred in credentials:
                 cred_name = cred.get('Name', '')
                 if 'WEBDAV-ADMIN-PASSWORD' in cred_name:
@@ -3154,7 +3226,19 @@ class GKInstallBuilder:
                         'priority': 3,
                         'entry': cred,
                         'path': current_path,
-                        'reason': f'Contains WEBDAV-ADMIN-PASSWORD: {cred_name}'
+                        'reason': f'Contains WEBDAV-ADMIN-PASSWORD: {cred_name} (dash format)'
+                    })
+
+            # Fourth priority: entries with WEBDAV_ADMIN_PASSWORD (underscore format)
+            for cred in credentials:
+                cred_name = cred.get('Name', '')
+                if 'WEBDAV_ADMIN_PASSWORD' in cred_name:
+                    print(f"FOUND MATCH: Contains WEBDAV_ADMIN_PASSWORD: {cred_name} in {current_path}")
+                    found_entries.append({
+                        'priority': 3,
+                        'entry': cred,
+                        'path': current_path,
+                        'reason': f'Contains WEBDAV_ADMIN_PASSWORD: {cred_name} (underscore format)'
                     })
             
             # Check children folders
@@ -3178,7 +3262,7 @@ class GKInstallBuilder:
             # Sort by priority (lowest number = highest priority)
             found_entries.sort(key=lambda x: x['priority'])
             best_match = found_entries[0]
-            print(f"\nNo exact match for {env_name}-DSG-WEBDAV-ADMIN-PASSWORD found in APP subfolder.")
+            print(f"\nNo exact match for {env_name}-DSG-WEBDAV-ADMIN-PASSWORD or {env_name}_DSG_WEBDAV_ADMIN_PASSWORD found in APP subfolder.")
             print(f"Using best match: {best_match['reason']} in {best_match['path']}")
             return best_match['entry']
         
