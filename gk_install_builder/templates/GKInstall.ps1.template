@@ -628,6 +628,27 @@ if ($ComponentType -eq 'WDM') {
                     }
                 }
 
+                # Also try to stop TomcatWDMMonitor service if it exists
+                Write-Host "Checking for TomcatWDMMonitor service..."
+                try {
+                    $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+                    if ($wdmMonitorService) {
+                        Write-Host "Found TomcatWDMMonitor service. Attempting to stop..."
+                        try {
+                            Stop-Service -Name "TomcatWDMMonitor" -Force
+                            Write-Host "Successfully stopped TomcatWDMMonitor service"
+                        } catch {
+                            Write-Host "Error stopping TomcatWDMMonitor service: $_"
+                            Write-Host "This is okay - continuing with installation..."
+                        }
+                    } else {
+                        Write-Host "TomcatWDMMonitor service not found (this is normal if not previously installed)"
+                    }
+                } catch {
+                    Write-Host "Error checking for TomcatWDMMonitor service: $_"
+                    Write-Host "This is okay - continuing with installation..."
+                }
+
                 # If no service found or service stop failed, try to kill the process
                 if (-not $serviceFound -or (Test-PortInUse -Port 8080)) {
                     Write-Host "Attempting to terminate process directly..."
@@ -1916,6 +1937,27 @@ while ($elapsed -lt $maxWaitTime) {
                     Write-Host "WDM installation completed. Please check the following:"
                     Write-Host "1. Tomcat service status"
                     Write-Host "2. WDM application accessibility at https://localhost:8543"
+
+                    # Try to start TomcatWDMMonitor service if it exists
+                    Write-Host "Checking for TomcatWDMMonitor service to start..."
+                    try {
+                        $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+                        if ($wdmMonitorService) {
+                            Write-Host "Found TomcatWDMMonitor service. Attempting to start..."
+                            try {
+                                Start-Service -Name "TomcatWDMMonitor"
+                                Write-Host "Successfully started TomcatWDMMonitor service" -ForegroundColor Green
+                            } catch {
+                                Write-Host "Error starting TomcatWDMMonitor service: $_" -ForegroundColor Yellow
+                                Write-Host "You may need to start it manually later."
+                            }
+                        } else {
+                            Write-Host "TomcatWDMMonitor service is not installed yet, skipping." -ForegroundColor Yellow
+                        }
+                    } catch {
+                        Write-Host "Error checking for TomcatWDMMonitor service: $_" -ForegroundColor Yellow
+                        Write-Host "You may need to start it manually later."
+                    }
                 } else {
                     Write-Host "$ComponentType installation completed. Please check the application status."
                 }
