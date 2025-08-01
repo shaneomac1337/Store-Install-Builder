@@ -125,7 +125,7 @@ Progress Tracking → Multi-threading → Error Handling → Completion Notifica
 
 ### 2. Component Management
 - **POS (Point of Sale)**: Retail transaction processing
-- **WDM (Workstation Data Manager)**: Data synchronization with hardcoded WorkstationID=200
+- **WDM** (Wall Device Manager): Data synchronization with hardcoded WorkstationID=200
 - **Flow Service**: Business process automation
 - **LPA Service**: Local Processing Agent
 - **StoreHub Service**: Central store management with Firebird database integration
