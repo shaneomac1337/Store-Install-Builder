@@ -447,7 +447,7 @@ else
         fi
         
         # Get version from config
-        version="v1.1.0"  # Default version
+        version="@VERSION@"  # Will be replaced with actual version
         
         # Create a temporary file for processing
         temp_file=$(mktemp)

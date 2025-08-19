@@ -331,7 +331,7 @@ try {
                     }
                     
                     # Get version from config
-                    $version = "v1.1.0"  # Default version
+                    $version = "@VERSION@"  # Will be replaced with actual version
                     
                     # Create a processed copy for making replacements
                     $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
