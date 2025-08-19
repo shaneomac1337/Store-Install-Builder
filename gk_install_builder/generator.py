@@ -1342,6 +1342,15 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
             base_url = config.get("base_url", "test.cse.cloud4retail.co")
             tenant_id = config.get("tenant_id", "001")
+
+            # Get version information (same logic as in _generate_gk_install)
+            default_version = config.get("version", "v1.0.0")
+            use_version_override = config.get("use_version_override", False)
+            if use_version_override:
+                # Use the storehub version since that's what the store initialization script primarily uses
+                version = config.get("storehub_service_version", default_version)
+            else:
+                version = default_version
             
             # Copy the appropriate store initialization script based on platform
             if platform == "Windows":
@@ -1364,10 +1373,13 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 template_content = template_content.replace("${storehub_service_system_type}", storehub_service_system_type)
                 template_content = template_content.replace("${base_url}", base_url)
                 template_content = template_content.replace("${tenant_id}", tenant_id)
-                
+
                 # Add user_id replacement from configuration
                 user_id = config.get("eh_launchpad_username", "1001")
                 template_content = template_content.replace("${user_id}", user_id)
+
+                # Add version replacement
+                template_content = template_content.replace("@VERSION@", version)
                 
                 # Write the processed content to the destination file with Unix line endings
                 with open(dst_script, 'w', newline='\n') as f:
