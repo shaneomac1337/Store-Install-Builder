@@ -1719,69 +1719,81 @@ class GKInstallBuilder:
         # Version override checkbox
         self.version_override_var = ctk.BooleanVar(value=self.config_manager.config.get("use_version_override", False))
         override_checkbox = ctk.CTkCheckBox(
-            grid_frame, 
-            text="Enable Version Override", 
+            grid_frame,
+            text="Enable Version Override",
             variable=self.version_override_var,
             command=self.toggle_version_override
         )
         override_checkbox.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="w")
         self.create_tooltip(override_checkbox, "Enable to specify custom versions for each component type")
+
+        # Use Default Versions checkbox
+        self.use_default_versions_var = ctk.BooleanVar(value=self.config_manager.config.get("use_default_versions", False))
+        default_versions_checkbox = ctk.CTkCheckBox(
+            grid_frame,
+            text="Use Default Versions (fetch from Employee Hub Service API)",
+            variable=self.use_default_versions_var,
+            command=self.toggle_default_versions
+        )
+        default_versions_checkbox.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Service API instead of using hardcoded versions")
         
         # Get project version from config
         project_version = self.config_manager.config.get("version", "")
         
         # POS Version
         pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
-        pos_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        pos_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
         self.pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.pos_version_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.pos_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
         self.pos_version_entry.insert(0, self.config_manager.config.get("pos_version", project_version))
         self.config_manager.register_entry("pos_version", self.pos_version_entry)
         self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
         self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
-        
+
         # WDM Version
         wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
-        wdm_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        wdm_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
         self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.wdm_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
         self.wdm_version_entry.insert(0, self.config_manager.config.get("wdm_version", project_version))
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
         self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
-        
+
         # Flow Service Version
         flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
-        flow_service_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        flow_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.flow_service_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry.insert(0, self.config_manager.config.get("flow_service_version", project_version))
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
         self.create_tooltip(self.flow_service_version_entry, "Example: v1.0.0")
-        
+
         # LPA Service Version
         lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
-        lpa_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        lpa_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.lpa_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry.insert(0, self.config_manager.config.get("lpa_service_version", project_version))
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
         self.create_tooltip(self.lpa_service_version_entry, "Example: v1.0.0")
-        
+
         # StoreHub Service Version
         storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
-        storehub_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        storehub_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.storehub_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
         self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
         self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
-        
-        # Register the override checkbox with config manager
+
+        # Register the checkboxes with config manager
         self.config_manager.register_entry("use_version_override", self.version_override_var)
+        self.config_manager.register_entry("use_default_versions", self.use_default_versions_var)
         
         # Initialize state based on config
         self.toggle_version_override()
@@ -1820,7 +1832,21 @@ class GKInstallBuilder:
         # Update config
         self.config_manager.config["use_version_override"] = enabled
         self.config_manager.save_config_silent()
-    
+
+    def toggle_default_versions(self):
+        """Toggle the use default versions setting"""
+        enabled = self.use_default_versions_var.get()
+
+        # Update config
+        self.config_manager.config["use_default_versions"] = enabled
+        self.config_manager.save_config_silent()
+
+        # Show informational message about what this does
+        if enabled:
+            print("Default versions enabled: Installation script will fetch component versions from Employee Hub Service API")
+        else:
+            print("Default versions disabled: Installation script will use hardcoded versions from GUI configuration")
+
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
         frame.pack(fill="x", padx=10, pady=(0, 20))

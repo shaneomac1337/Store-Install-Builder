@@ -371,6 +371,7 @@ class ProjectGenerator:
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                     ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
+                    ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
                     ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 
@@ -399,6 +400,7 @@ class ProjectGenerator:
                     ("@LPA_SERVICE_VERSION@", lpa_service_version),
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                     ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
+                    ("@USE_DEFAULT_VERSIONS@", "true" if config.get("use_default_versions", False) else "false"),
                     ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 
@@ -526,235 +528,20 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
             self._generate_launcher_templates(launchers_dir, config)
             
             # Apply hostname detection setting
+            # Instead of completely different code paths, we'll use a pattern that never matches
+            # when hostname detection is disabled, ensuring consistent credential setup
             if not use_hostname_detection:
+                print("Hostname detection disabled - using never-match pattern to ensure consistent structure")
+                # Use a regex pattern that will never match any real hostname
+                never_match_pattern = "^NEVER_MATCH_THIS_HOSTNAME_PATTERN$"
+
                 if platform == "Windows":
-                    # Locate the hostname detection section for PowerShell
-                    hostname_section_start = "# Get hostname"
-                    hostname_section_end = "if (-not $hostnameDetected) {"
-                    manual_input_end = "# Print final results"
-                    
-                    # Find positions in the template
-                    start_pos = template.find(hostname_section_start)
-                    conditional_pos = template.find(hostname_section_end, start_pos) if start_pos != -1 else -1
-                    end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
-                    
-                    if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
-                        # Determine what to insert based on file detection setting
-                        if self.detection_manager.is_detection_enabled():
-                            # Include both file detection and manual input fallback
-                            station_detection_code = r'''
-# File detection for the current component ($ComponentType)
-$fileDetectionEnabled = $true
-$componentType = $ComponentType
+                    # Replace the hostname detection regex with a never-match pattern
+                    template = self._replace_hostname_regex_powershell(template, never_match_pattern)
+                else:
+                    # Replace the hostname detection regex with a never-match pattern
+                    template = self._replace_hostname_regex_bash(template, never_match_pattern)
 
-# Check if we're using base directory or custom paths
-$useBaseDirectory = "{is_using_base_dir}".ToLower()
-
-if ($useBaseDirectory -eq "true") {{
-    # Use base directory approach
-    $basePath = "{base_dir}"
-    $customFilenames = @{{
-        "POS" = "{pos_filename}";
-        "WDM" = "{wdm_filename}";
-        "FLOW-SERVICE" = "{flow_filename}";
-        "LPA-SERVICE" = "{lpa_filename}";
-        "STOREHUB-SERVICE" = "{sh_filename}"
-    }}
-
-    # Get the appropriate station file for the current component
-    $stationFileName = $customFilenames[$componentType]
-    if (-not $stationFileName) {{
-        $stationFileName = "$componentType.station"
-    }}
-
-    $stationFilePath = Join-Path $basePath $stationFileName
-}} else {{
-    # Use custom paths approach
-    $customPaths = @{{
-        "POS" = "{pos_path}";
-        "WDM" = "{wdm_path}";
-        "FLOW-SERVICE" = "{flow_path}";
-        "LPA-SERVICE" = "{lpa_path}";
-        "STOREHUB-SERVICE" = "{sh_path}"
-    }}
-    
-    # Get the appropriate station file path for the current component
-    $stationFilePath = $customPaths[$componentType]
-    if (-not $stationFilePath) {{
-        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
-        # Fallback to a default path
-        $stationFilePath = "C:\gkretail\stations\$componentType.station"
-    }}
-}}
-
-# Try file detection first
-$hostnameDetected = $false
-if ($fileDetectionEnabled) {{
-    Write-Host "Trying file detection for $componentType using $stationFilePath"
-    if (Test-Path $stationFilePath) {{
-        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
-        if ($fileContent) {{
-            $lines = $fileContent -split "`r?`n"
-            foreach ($line in $lines) {{
-                if ($line -match "StoreID=(.+)") {{
-                    $storeNumber = $matches[1].Trim()
-                    Write-Host "Found Store ID in file: $storeNumber"
-                }}
-                if ($line -match "WorkstationID=(.+)") {{
-                    $workstationId = $matches[1].Trim()
-                    Write-Host "Found Workstation ID in file: $workstationId"
-                }}
-            }}
-            # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\d+$') {{
-                $hostnameDetected = $true
-                Write-Host "Successfully detected values from file:"
-                Write-Host "Store Number: $storeNumber"
-                Write-Host "Workstation ID: $workstationId"
-            }}
-        }}
-    }} else {{
-        Write-Host "Station file not found at: $stationFilePath"
-    }}
-}}
-
-# If file detection failed, prompt for manual input
-if (-not $hostnameDetected) {{
-    Write-Host "Falling back to manual input."
-    # Prompt for Store Number
-    Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-    Write-Host "  - 4 digits (e.g., 1234)"
-    Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-    Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-    Write-Host "  - Custom format (e.g., STORE-105)"
-    $storeNumber = Read-Host "Store Number"
-    # Validate that something was entered
-    if ([string]::IsNullOrWhiteSpace($storeNumber)) {{
-        Write-Host "Store Number cannot be empty. Please try again."
-        $storeNumber = Read-Host "Store Number"
-    }}
-    # Prompt for Workstation ID
-    while ($true) {{
-        $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-        if ($workstationId -match '^\d+$') {{
-            break
-        }}
-        Write-Host "Invalid input. Please enter a numeric Workstation ID."
-    }}
-}}
-
-'''.format(
-    is_using_base_dir=str(self.detection_manager.is_using_base_directory()).lower(),
-    base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
-    pos_filename=self.detection_manager.get_custom_filename("POS"),
-    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
-    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
-    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
-    pos_path=self.detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\'),
-    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\'),
-    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\'),
-    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\'),
-    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\')
-)
-                            print("Replaced hostname detection code with file detection and manual input fallback in PowerShell script")
-                        else:
-                            # Only manual input for both hostname and file detection disabled
-                            station_detection_code = r'''
-# Get hostname
-$hs = $env:COMPUTERNAME
-if ([string]::IsNullOrEmpty($hs)) {
-    Write-Host "Warning: Could not read hostname. Falling back to manual input."
-} else {
-    Write-Host "-------------------"
-    Write-Host "Hostname  : $hs"
-    Write-Host "==================="
-}
-
-# Using manual input (both hostname and file detection are disabled)
-$hostnameDetected = $false
-
-# Prompt for Store Number and Workstation ID
-Write-Host "Manual input mode (automatic detection is disabled)."
-# Prompt for Store Number
-Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-Write-Host "  - 4 digits (e.g., 1234)"
-Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-Write-Host "  - Custom format (e.g., STORE-105)"
-$storeNumber = Read-Host "Store Number"
-# Validate that something was entered
-if ([string]::IsNullOrWhiteSpace($storeNumber)) {
-    Write-Host "Store Number cannot be empty. Please try again."
-    $storeNumber = Read-Host "Store Number"
-}
-# Prompt for Workstation ID
-while ($true) {
-    $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-    if ($workstationId -match '^\d+$') {
-        break
-    }
-    Write-Host "Invalid input. Please enter a numeric Workstation ID."
-}
-
-'''
-                            print("Replaced hostname detection code with manual input only in PowerShell script")
-                        
-                        # Replace the entire section
-                        template = template[:start_pos] + station_detection_code + template[end_marker_pos:]
-                
-                else:  # Linux
-                    # Locate the hostname detection section for Bash
-                    hostname_section_start = "# Get hostname"
-                    hostname_section_end = "if [ \"$hostnameDetected\" = false ]; then"
-                    manual_input_end = "# Print final results"
-                    
-                    # Find positions in the template
-                    start_pos = template.find(hostname_section_start)
-                    conditional_pos = template.find(hostname_section_end, start_pos) if start_pos != -1 else -1
-                    end_marker_pos = template.find(manual_input_end, conditional_pos) if conditional_pos != -1 else -1
-                    
-                    if start_pos != -1 and conditional_pos != -1 and end_marker_pos != -1:
-                        # For Linux, when hostname detection is disabled:
-                        # 1. We set up a structure that first tries file detection
-                        # 2. Only if file detection fails, then we use manual input
-                        hostname_replacement_code = """# File detection with manual input fallback (hostname detection disabled)
-hostnameDetected=false
-storeNumber=""
-workstationId=""
-
-# File detection will be inserted here by the generator
-
-# If file detection failed, prompt for manual input
-if [ "$hostnameDetected" = false ]; then
-    # Prompt for Store Number
-    echo "Please enter the Store Number in one of these formats (or any custom format):"
-    echo "  - 4 digits (e.g., 1234)"
-    echo "  - 1 letter + 3 digits (e.g., R005)"
-    echo "  - 2 letters + 2 digits (e.g., CA45)"
-    echo "  - Custom format (e.g., STORE-105)"
-    read -p "Store Number: " storeNumber
-
-    # Validate that something was entered
-    if [ -z "$storeNumber" ]; then
-        echo "Store Number cannot be empty. Please try again."
-        read -p "Store Number: " storeNumber
-    fi
-
-    # Prompt for Workstation ID
-    while true; do
-        read -p "Please enter the Workstation ID (numeric): " workstationId
-        if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
-            break
-        fi
-        echo "Invalid input. Please enter a numeric Workstation ID."
-    done
-fi
-
-"""
-                        # Replace the hostname detection section with our new structure
-                        template = template[:start_pos] + hostname_replacement_code + template[end_marker_pos:]
-                        print("Created structure with file detection priority and manual input fallback in Bash script")
             
             # Apply file detection settings if enabled
             file_detection_enabled = self.detection_manager.is_detection_enabled()
@@ -859,16 +646,25 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
 )
                     
                     # Find where to insert the file detection code
-                    if not use_hostname_detection:
-                        # If hostname detection is disabled, we need to insert after the manual input code
-                        insert_marker = "# File detection will be inserted here by the generator"
-                    else:
-                        # In the updated template, we look for the placeholder for file detection code
-                        insert_marker = "# File detection code will be inserted here by the generator"
+                    # Try multiple possible markers to ensure we find the insertion point
+                    possible_markers = [
+                        "# File detection code will be inserted here by the generator",
+                        "# File detection will be inserted here by the generator",
+                        "        # File detection code will be inserted here by the generator"
+                    ]
+
+                    insert_marker = None
+                    insert_pos = -1
+
+                    for marker in possible_markers:
+                        insert_pos = template.find(marker)
+                        if insert_pos != -1:
+                            insert_marker = marker
+                            print(f"Found insertion marker: '{marker}' at position {insert_pos}")
+                            break
                     
-                    # Find the position to insert the code
-                    insert_pos = template.find(insert_marker)
-                    if insert_pos != -1:
+                    # Use the found insertion point
+                    if insert_pos != -1 and insert_marker is not None:
                         if file_detection_enabled:
                             # Insert the detection code at the appropriate position
                             template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]

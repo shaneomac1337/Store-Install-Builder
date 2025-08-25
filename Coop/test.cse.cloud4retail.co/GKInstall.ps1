@@ -4,7 +4,7 @@ param(
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Will be determined by hostname detection or user input
-    [bool]$UseDefaultVersions = @USE_DEFAULT_VERSIONS@
+    [bool]$UseDefaultVersions = $true
 )
 
 # Create a unique log filename based on timestamp
@@ -223,14 +223,14 @@ $server = $base_url
 $dsg_server = $base_url
 
 # Basic configuration
-$version = "v1.0.0"
-$base_install_dir = "C:\gkretail"
+$version = "v1.1.0"
+$base_install_dir = "C:\\gkretail"
 
 # Set component-specific configurations
 $systemType = switch ($ComponentType) {
     'POS' { "CSE-OPOS-CLOUD" }
     'WDM' { "CSE-wdm" }
-    'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
+    'FLOW-SERVICE' { "GKR-FLOWSERVICE-CLOUD" }
     'LPA-SERVICE' { "CSE-lps-lpa" }
     'STOREHUB-SERVICE' { "CSE-sh-cloud" }
     default { "CSE-OPOS-CLOUD" }
@@ -304,11 +304,11 @@ if ($UseDefaultVersions) {
         Write-Host "Warning: Could not get version for $ComponentType from API, falling back to hardcoded version"
         # Fall back to hardcoded versions
         $component_version = switch ($systemType) {
-            "CSE-OPOS-CLOUD" { "@POS_VERSION@" }
-            "CSE-wdm" { "@WDM_VERSION@" }
-            "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
-            "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
-            "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
+            "CSE-OPOS-CLOUD" { "v1.1.0" }
+            "CSE-wdm" { "v1.1.0" }
+            "GKR-FLOWSERVICE-CLOUD" { "v1.1.0" }
+            "CSE-lps-lpa" { "v1.1.0" }
+            "CSE-sh-cloud" { "v1.1.0" }
             default { "" }
         }
     }
@@ -316,11 +316,11 @@ if ($UseDefaultVersions) {
     Write-Host "Using hardcoded versions from configuration..."
     # Set component-specific version if available
     $component_version = switch ($systemType) {
-        "CSE-OPOS-CLOUD" { "@POS_VERSION@" }
-        "CSE-wdm" { "@WDM_VERSION@" }
-        "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
-        "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
-        "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
+        "CSE-OPOS-CLOUD" { "v1.1.0" }
+        "CSE-wdm" { "v1.1.0" }
+        "GKR-FLOWSERVICE-CLOUD" { "v1.1.0" }
+        "CSE-lps-lpa" { "v1.1.0" }
+        "CSE-sh-cloud" { "v1.1.0" }
         default { "" }
     }
 }
@@ -354,7 +354,7 @@ $security_dir = Join-Path $base_install_dir "security"
 $ssl_password = "changeit"
 
 # For StoreHub, set the Firebird server path
-$firebird_server_path = "@FIREBIRD_SERVER_PATH@"
+$firebird_server_path = "C:\Program Files\Firebird\Firebird_3_0"
 # If the placeholder wasn't replaced (still contains @), use a default value
 if ($firebird_server_path -like "*@*") {
     $firebird_server_path = "C:\Program Files\Firebird\Firebird_3_0"
@@ -758,7 +758,7 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        if ($hs -match '([^-]+)-([0-9]+)$') {
+        if ($hs -match '^NEVER_MATCH_THIS_HOSTNAME_PATTERN$') {
             # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
             $storeId = $matches[1]
             $workstationId = $matches[2]
@@ -791,7 +791,86 @@ if ($isUpdate) {
             Write-Host "Trying file detection..."
         }
         
-        # File detection code will be inserted here by the generator
+        
+# File detection for the current component ($ComponentType)
+$fileDetectionEnabled = $true
+$componentType = $ComponentType
+
+# Check if we're using base directory or custom paths
+$useBaseDirectory = "true".ToLower()
+
+if ($useBaseDirectory -eq "true") {
+    # Use base directory approach
+    $basePath = "C:\\gkretail\\stations"
+    $customFilenames = @{
+        "POS" = "POS.station";
+        "WDM" = "WDM.station";
+        "FLOW-SERVICE" = "FLOW-SERVICE.station";
+        "LPA-SERVICE" = "LPA.station";
+        "STOREHUB-SERVICE" = "SH.station"
+    }
+
+    # Get the appropriate station file for the current component
+    $stationFileName = $customFilenames[$componentType]
+    if (-not $stationFileName) {
+        $stationFileName = "$componentType.station"
+    }
+
+    $stationFilePath = Join-Path $basePath $stationFileName
+} else {
+    # Use custom paths approach
+    $customPaths = @{
+        "POS" = "";
+        "WDM" = "";
+        "FLOW-SERVICE" = "";
+        "LPA-SERVICE" = "";
+        "STOREHUB-SERVICE" = ""
+    }
+    
+    # Get the appropriate station file path for the current component
+    $stationFilePath = $customPaths[$componentType]
+    if (-not $stationFilePath) {
+        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
+        # Fallback to a default path
+        $stationFilePath = "C:\gkretail\stations\$componentType.station"
+    }
+}
+
+# Check if hostname detection failed and file detection is enabled
+if (-not $hostnameDetected -and $fileDetectionEnabled) {
+    Write-Host "Trying file detection for $componentType using $stationFilePath"
+    
+    if (Test-Path $stationFilePath) {
+        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
+        
+        if ($fileContent) {
+            $lines = $fileContent -split "`r?`n"
+            
+            foreach ($line in $lines) {
+                if ($line -match "StoreID=(.+)") {
+                    $storeNumber = $matches[1].Trim()
+                    Write-Host "Found Store ID in file: $storeNumber"
+                }
+                
+                if ($line -match "WorkstationID=(.+)") {
+                    $workstationId = $matches[1].Trim()
+                    Write-Host "Found Workstation ID in file: $workstationId"
+                }
+            }
+            
+            # Validate extracted values
+            if ($storeNumber -and $workstationId -match '^\d+$') {
+                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
+                Write-Host "Successfully detected values from file:"
+                Write-Host "Store Number: $storeNumber"
+                Write-Host "Workstation ID: $workstationId"
+            }
+        }
+    } else {
+        Write-Host "Station file not found at: $stationFilePath"
+    }
+}
+
     }
 
     # If both hostname and file detection failed, prompt for manual input
@@ -1062,7 +1141,7 @@ $replacements = @{
     '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
-    '@FIREBIRD_SERVER_PATH@' = $firebird_server_path
+    'C:\Program Files\Firebird\Firebird_3_0' = $firebird_server_path
     '@FIREBIRD_DRIVER_PATH_LOCAL@' = $firebird_driver_path_local
 }
 

@@ -5,7 +5,7 @@ offline=false
 COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 storeId=""  # Will be determined by hostname detection or user input
-use_default_versions=@USE_DEFAULT_VERSIONS@
+use_default_versions=true
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -245,7 +245,7 @@ server="$base_url"
 dsg_server="$base_url"
 
 # Basic configuration
-version="v1.0.0"
+version="v1.1.0"
 base_install_dir="/usr/local/gkretail"
 
 # Set component-specific configurations
@@ -259,7 +259,7 @@ case "$COMPONENT_TYPE" in
     install_dir="$base_install_dir/wdm"
     ;;
   'FLOW-SERVICE')
-    systemType="CSE-FLOWSERVICE-CLOUD"
+    systemType="GKR-FLOWSERVICE-CLOUD"
     install_dir="$base_install_dir/flow-service"
     ;;
   'LPA-SERVICE')
@@ -369,19 +369,19 @@ if [ "$use_default_versions" = true ]; then
     # Fall back to hardcoded versions
     case "$systemType" in
       "CSE-OPOS-CLOUD")
-        component_version="@POS_VERSION@"
+        component_version="v1.1.0"
         ;;
       "CSE-wdm")
-        component_version="@WDM_VERSION@"
+        component_version="v1.1.0"
         ;;
-      "CSE-FLOWSERVICE-CLOUD")
-        component_version="@FLOW_SERVICE_VERSION@"
+      "GKR-FLOWSERVICE-CLOUD")
+        component_version="v1.1.0"
         ;;
       "CSE-lps-lpa")
-        component_version="@LPA_SERVICE_VERSION@"
+        component_version="v1.1.0"
         ;;
       "CSE-sh-cloud")
-        component_version="@STOREHUB_SERVICE_VERSION@"
+        component_version="v1.1.0"
         ;;
       *)
         component_version=""
@@ -393,19 +393,19 @@ else
   # Set component-specific version if available
   case "$systemType" in
     "CSE-OPOS-CLOUD")
-      component_version="@POS_VERSION@"
+      component_version="v1.1.0"
       ;;
     "CSE-wdm")
-      component_version="@WDM_VERSION@"
+      component_version="v1.1.0"
       ;;
-    "CSE-FLOWSERVICE-CLOUD")
-      component_version="@FLOW_SERVICE_VERSION@"
+    "GKR-FLOWSERVICE-CLOUD")
+      component_version="v1.1.0"
       ;;
     "CSE-lps-lpa")
-      component_version="@LPA_SERVICE_VERSION@"
+      component_version="v1.1.0"
       ;;
     "CSE-sh-cloud")
-      component_version="@STOREHUB_SERVICE_VERSION@"
+      component_version="v1.1.0"
       ;;
     *)
       component_version=""
@@ -433,7 +433,7 @@ security_dir="$base_install_dir/security"
 ssl_password="changeit"
 
 # For StoreHub, set the Firebird server path
-firebird_server_path="@FIREBIRD_SERVER_PATH@"
+firebird_server_path="/opt/firebird"
 # If the placeholder wasn't replaced (still contains @), use a default value
 if [[ "$firebird_server_path" == *@* ]]; then
   firebird_server_path="/opt/firebird"
@@ -846,7 +846,7 @@ else
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
     
     # Extract the last part (workstation ID)
-    if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then
+    if [[ "$hs" =~ ^NEVER_MATCH_THIS_HOSTNAME_PATTERN$ ]]; then
       storeId="${BASH_REMATCH[1]}"
       workstationId="${BASH_REMATCH[2]}"
       
@@ -878,7 +878,79 @@ else
       echo "Trying file detection..."
     fi
     
-    # File detection code will be inserted here by the generator
+    
+# File detection for the current component ($COMPONENT_TYPE)
+fileDetectionEnabled=true
+componentType="$COMPONENT_TYPE"
+
+# Check if we're using base directory or custom paths
+useBaseDirectory="True"
+
+if [ "$useBaseDirectory" = "True" ]; then
+    # Use base directory approach
+    basePath="C:\gkretail\stations"
+    declare -A customFilenames
+    customFilenames["POS"]="POS.station"
+    customFilenames["WDM"]="WDM.station"
+    customFilenames["FLOW-SERVICE"]="FLOW-SERVICE.station"
+    customFilenames["LPA-SERVICE"]="LPA.station"
+    customFilenames["STOREHUB-SERVICE"]="SH.station"
+
+    # Get the appropriate station file for the current component
+    stationFileName="${customFilenames[$componentType]}"
+    if [ -z "$stationFileName" ]; then
+        stationFileName="$componentType.station"
+    fi
+
+    stationFilePath="$basePath/$stationFileName"
+else
+    # Use custom paths approach
+    declare -A customPaths
+    customPaths["POS"]=""
+    customPaths["WDM"]=""
+    customPaths["FLOW-SERVICE"]=""
+    customPaths["LPA-SERVICE"]=""
+    customPaths["STOREHUB-SERVICE"]=""
+    
+    # Get the appropriate station file path for the current component
+    stationFilePath="${customPaths[$componentType]}"
+    if [ -z "$stationFilePath" ]; then
+        echo "Warning: No custom path defined for $componentType"
+        # Fallback to a default path
+        stationFilePath="/usr/local/gkretail/stations/$componentType.station"
+    fi
+fi
+
+# Check if hostname detection failed and file detection is enabled
+if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
+    echo "Trying file detection for $componentType using $stationFilePath"
+    
+    if [ -f "$stationFilePath" ]; then
+        while IFS= read -r line || [ -n "$line" ]; do
+            if [[ "$line" =~ StoreID=(.+) ]]; then
+                storeNumber="${BASH_REMATCH[1]}"
+                echo "Found Store ID in file: $storeNumber"
+            fi
+            
+            if [[ "$line" =~ WorkstationID=(.+) ]]; then
+                workstationId="${BASH_REMATCH[1]}"
+                echo "Found Workstation ID in file: $workstationId"
+            fi
+        done < "$stationFilePath"
+        
+        # Validate extracted values
+        if [ -n "$storeNumber" ] && [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+            # Export the variable to ensure it's available in the parent scope
+            export hostnameDetected=true
+            echo "Successfully detected values from file:"
+            echo "Store Number: $storeNumber"
+            echo "Workstation ID: $workstationId"
+        fi
+    else
+        echo "Station file not found at: $stationFilePath"
+    fi
+fi
+
   fi
 
   # If both hostname and file detection failed, prompt for manual input
