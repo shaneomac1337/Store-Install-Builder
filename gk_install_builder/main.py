@@ -1802,7 +1802,13 @@ class GKInstallBuilder:
         """Toggle the enabled state of version fields based on checkbox"""
         enabled = self.version_override_var.get()
         state = "normal" if enabled else "disabled"
-        
+
+        # Mutual exclusion: disable default versions when version override is enabled
+        if enabled and self.use_default_versions_var.get():
+            self.use_default_versions_var.set(False)
+            self.config_manager.config["use_default_versions"] = False
+            print("Default versions disabled: Version override takes precedence")
+
         # Get project version
         project_version = self.config_manager.config.get("version", "")
         
@@ -1836,6 +1842,14 @@ class GKInstallBuilder:
     def toggle_default_versions(self):
         """Toggle the use default versions setting"""
         enabled = self.use_default_versions_var.get()
+
+        # Mutual exclusion: disable version override when default versions is enabled
+        if enabled and self.version_override_var.get():
+            self.version_override_var.set(False)
+            self.config_manager.config["use_version_override"] = False
+            # Also disable the version entry fields
+            self.toggle_version_override()
+            print("Version override disabled: Default versions take precedence")
 
         # Update config
         self.config_manager.config["use_default_versions"] = enabled

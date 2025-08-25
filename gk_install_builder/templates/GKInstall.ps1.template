@@ -181,12 +181,13 @@ function Get-DefaultVersions {
         $bearerToken = $bearerToken.Trim()
 
         # Construct the API URL
-        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
 
-        # Prepare simplified headers
+        # Prepare headers (including Referer as in working example)
         $headers = @{
             "authorization" = "Bearer $bearerToken"
             "gk-tenant-id" = $TenantId
+            "Referer" = "https://$BaseUrl/employee-hub/app/index.html"
         }
 
         # Make the API request (token should be fresh from onboarding)

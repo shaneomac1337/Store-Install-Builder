@@ -1,0 +1,102 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20250825153852
+Username: GK-DOMAIN\mpenkava
+RunAs User: GK-DOMAIN\mpenkava
+Configuration Name: 
+Machine: NB-ES-0635 (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 19416
+PSVersion: 5.1.22621.5697
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.5697
+BuildVersion: 10.0.22621.5697
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is GKInstall_FLOW-SERVICE_20250825_153852.log
+Console output is being saved to GKInstall_FLOW-SERVICE_20250825_153852.log
+UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API...
+Getting fresh OAuth token for version API call...
+OAuth token obtained and saved successfully
+Fetching default versions from Employee Hub Service API...
+=== FULL API RESPONSE DEBUG ===
+Response type: Object[]
+Response count: 5
+[
+    {
+        "propertyId":  "MobilePOS_Version",
+        "tenantId":  "001",
+        "scope":  "FP",
+        "referenceId":  "platform",
+        "value":  "v5.25.1",
+        "description":  "Version of Mobile POS for installation"
+    },
+    {
+        "propertyId":  "POSClient_Version",
+        "tenantId":  "001",
+        "scope":  "FP",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of POS Client for installation"
+    },
+    {
+        "propertyId":  "SIM_Version",
+        "tenantId":  "001",
+        "scope":  "FP",
+        "referenceId":  "platform",
+        "value":  "v5.25.3",
+        "description":  "Version of SIM Mobile Client for installation"
+    },
+    {
+        "propertyId":  "Station_Key_DSG_Url",
+        "tenantId":  "001",
+        "scope":  "FP",
+        "referenceId":  "platform",
+        "value":  "",
+        "description":  "DSG URL override for installation key"
+    },
+    {
+        "propertyId":  "StoreHub_Version",
+        "tenantId":  "001",
+        "scope":  "FP",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of Store Hub for installation"
+    }
+]
+=== END API RESPONSE DEBUG ===
+=== PROCESSING PROPERTIES DEBUG ===
+Processing property: MobilePOS_Version = v5.25.1
+  -> Unknown property, skipping
+Processing property: POSClient_Version = v1.3.0
+  -> Mapped to POS: v1.3.0
+Processing property: SIM_Version = v5.25.3
+  -> Unknown property, skipping
+Processing property: Station_Key_DSG_Url =
+  -> Unknown property, skipping
+Processing property: StoreHub_Version = v1.3.0
+  -> Mapped to STOREHUB-SERVICE: v1.3.0
+=== END PROCESSING PROPERTIES DEBUG ===
+Successfully fetched default versions:
+  STOREHUB-SERVICE: v1.3.0
+  POS: v1.3.0
+Warning: Could not get version for FLOW-SERVICE from API, falling back to hardcoded version
+Using component version: v1.1.0
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : NB-ES-0635
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for FLOW-SERVICE using C:\\gkretail\\stations\FLOW-SERVICE.station
+Station file not found at: C:\\gkretail\\stations\FLOW-SERVICE.station
+Falling back to manual input.
+Please enter the Store Number in one of these formats (or any custom format):
+  - 4 digits (e.g., 1234)
+  - 1 letter + 3 digits (e.g., R005)
+  - 2 letters + 2 digits (e.g., CA45)
+  - Custom format (e.g., STORE-105)

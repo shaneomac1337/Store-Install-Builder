@@ -206,12 +206,13 @@ get_default_versions() {
   fi
 
   # Construct the API URL
-  local api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+  local api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
 
-  # Make the simplified API request using curl (token should be fresh from onboarding)
+  # Make the API request using curl (including Referer as in working example)
   local response=$(curl -s -k \
     -H "authorization: Bearer $bearer_token" \
     -H "gk-tenant-id: $tenant_id" \
+    -H "Referer: https://$base_url/employee-hub/app/index.html" \
     "$api_url")
 
   if [ $? -eq 0 ] && [ -n "$response" ]; then

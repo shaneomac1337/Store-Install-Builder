@@ -1,0 +1,14 @@
+{
+    "tenant": {
+        "tenantId": "001"
+    },
+    "store": {
+        "retailStoreId": "9999"
+    },
+    "station": {
+        "systemName": "CSE-OPOS-CLOUD",
+        "workstationId": "101",
+        "name": "POS Client 101"
+    },
+    "user": "1001"
+}
