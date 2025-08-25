@@ -100,3 +100,582 @@ Please enter the Store Number in one of these formats (or any custom format):
   - 1 letter + 3 digits (e.g., R005)
   - 2 letters + 2 digits (e.g., CA45)
   - Custom format (e.g., STORE-105)
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> .\GKInstall.ps1 -ComponentType FLOW-SERVICE
+Transcript started, output file is GKInstall_FLOW-SERVICE_20250825_154711.log
+Console output is being saved to GKInstall_FLOW-SERVICE_20250825_154711.log
+UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API...
+Getting fresh OAuth token for version API call...
+OAuth token obtained and saved successfully
+Fetching default versions from Employee Hub Service API...
+=== FULL API RESPONSE DEBUG ===
+Response type: Object[]
+Response count: 47
+[
+    {
+        "propertyId":  "Download_File_Types",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "properties",
+        "description":  "Allowed files types for download in Software Package Upload"
+    },
+    {
+        "propertyId":  "DriveService_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan DriveService Update"
+    },
+    {
+        "propertyId":  "DriveService_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "DriveService",
+        "description":  "Default node name for DriveService in SM"
+    },
+    {
+        "propertyId":  "DriveService_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of DriveService to same version"
+    },
+    {
+        "propertyId":  "DriveService_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.0",
+        "description":  "Version for DriveService Update"
+    },
+    {
+        "propertyId":  "DriveService_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.0",
+        "description":  "Version of DriveService for installation"
+    },
+    {
+        "propertyId":  "FlowService_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan FlowService Update"
+    },
+    {
+        "propertyId":  "FlowService_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "FlowService",
+        "description":  "Default node name for FlowService in SM"
+    },
+    {
+        "propertyId":  "FlowService_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of FlowService to same version"
+    },
+    {
+        "propertyId":  "FlowService_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.0",
+        "description":  "Version for FlowService Update"
+    },
+    {
+        "propertyId":  "FlowService_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.0",
+        "description":  "Version of FlowService for installation"
+    },
+    {
+        "propertyId":  "GA_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan GateAdapter Update"
+    },
+    {
+        "propertyId":  "GA_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of GateAdapter to same version"
+    },
+    {
+        "propertyId":  "GA_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.1.9",
+        "description":  "Version for GateAdapter Update"
+    },
+    {
+        "propertyId":  "GateAdapter_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "Gate Adapter",
+        "description":  "Default node name for Gate Adapter in SM"
+    },
+    {
+        "propertyId":  "GateAdapter_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.5.16",
+        "description":  "Version of Gate Adapter for installation"
+    },
+    {
+        "propertyId":  "LPA_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan LPA Update"
+    },
+    {
+        "propertyId":  "LPA_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "Label Print Adapter",
+        "description":  "Default node name for Label Print Adapter in SM"
+    },
+    {
+        "propertyId":  "LPA_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of Label Print Adapter to same version"
+    },
+    {
+        "propertyId":  "LPA_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version for Label Print Adapter Update"
+    },
+    {
+        "propertyId":  "LPA_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of Label Print Adapter for installation"
+    },
+    {
+        "propertyId":  "MobilePOS_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.0",
+        "description":  "Version of Mobile POS for installation"
+    },
+    {
+        "propertyId":  "OneX_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan OneX Update"
+    },
+    {
+        "propertyId":  "OneX_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "One X Client",
+        "description":  "Default node name for OneX in SM"
+    },
+    {
+        "propertyId":  "OneX_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of OneX to same version"
+    },
+    {
+        "propertyId":  "OneX_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version for OneX Update"
+    },
+    {
+        "propertyId":  "OneX_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of OneX for installation"
+    },
+    {
+        "propertyId":  "POSClient_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan POS Client Update"
+    },
+    {
+        "propertyId":  "POSClient_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "POS Client",
+        "description":  "Default node name for POS Client node in SM"
+    },
+    {
+        "propertyId":  "POSClient_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of POS Client to same version"
+    },
+    {
+        "propertyId":  "POSClient_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version for POS Client Update"
+    },
+    {
+        "propertyId":  "POSClient_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of POS Client for installation"
+    },
+    {
+        "propertyId":  "RCS_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan Resource Cache Service Update"
+    },
+    {
+        "propertyId":  "RCS_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "Resource Cache Service",
+        "description":  "Default node name for Resource Cache Service in SM"
+    },
+    {
+        "propertyId":  "RCS_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of Resource Cache Service to same version"
+    },
+    {
+        "propertyId":  "RCS_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v2.0.3",
+        "description":  "Version for Resource Cache Service Update"
+    },
+    {
+        "propertyId":  "RCS_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v2.0.5",
+        "description":  "Version of Resource Cache Service for installation"
+    },
+    {
+        "propertyId":  "Receipt_Image_Extensions",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "jpg,png,bmp",
+        "description":  "Allowed Extensions for Receipt Image Upload"
+    },
+    {
+        "propertyId":  "SH_Max_Future_Update_Date",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "7",
+        "description":  "Max Number of days in future to plan StoreHub Update"
+    },
+    {
+        "propertyId":  "SH_Update_Same_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "true",
+        "description":  "Allow update of StoreHub to same version"
+    },
+    {
+        "propertyId":  "SH_Update_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version for StoreHub Update"
+    },
+    {
+        "propertyId":  "SIM_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "UI5 Mobile Device Client",
+        "description":  "Default node name for SIM Mobile Client in SM"
+    },
+    {
+        "propertyId":  "SIM_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v5.25.1",
+        "description":  "Version of SIM Mobile Client for installation"
+    },
+    {
+        "propertyId":  "Software_Package_Extensions",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "zip,jar,exe,properties,run,apk,crt,ipa,plist,md5,pfx",
+        "description":  "Allowed Extensions for Software Package Upload"
+    },
+    {
+        "propertyId":  "Station_Key_DSG_Url",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "",
+        "description":  "DSG URL override for installation key"
+    },
+    {
+        "propertyId":  "StoreHub_Node_Name",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "StoreHub",
+        "description":  "Default node name for Store Hub in SM"
+    },
+    {
+        "propertyId":  "StoreHub_Version",
+        "tenantId":  "000",
+        "scope":  "FPD",
+        "referenceId":  "platform",
+        "value":  "v1.3.0",
+        "description":  "Version of Store Hub for installation"
+    }
+]
+=== END API RESPONSE DEBUG ===
+=== PROCESSING PROPERTIES DEBUG ===
+Processing property: Download_File_Types = properties
+  -> Unknown property, skipping
+Processing property: DriveService_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: DriveService_Node_Name = DriveService
+  -> Unknown property, skipping
+Processing property: DriveService_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: DriveService_Update_Version = v5.25.0
+  -> Unknown property, skipping
+Processing property: DriveService_Version = v5.25.0
+  -> Unknown property, skipping
+Processing property: FlowService_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: FlowService_Node_Name = FlowService
+  -> Unknown property, skipping
+Processing property: FlowService_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: FlowService_Update_Version = v5.25.0
+  -> Unknown property, skipping
+Processing property: FlowService_Version = v5.25.0
+  -> Mapped to FLOW-SERVICE: v5.25.0
+Processing property: GA_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: GA_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: GA_Update_Version = v1.1.9
+  -> Unknown property, skipping
+Processing property: GateAdapter_Node_Name = Gate Adapter
+  -> Unknown property, skipping
+Processing property: GateAdapter_Version = v1.5.16
+  -> Unknown property, skipping
+Processing property: LPA_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: LPA_Node_Name = Label Print Adapter
+  -> Unknown property, skipping
+Processing property: LPA_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: LPA_Update_Version = v1.3.0
+  -> Unknown property, skipping
+Processing property: LPA_Version = v1.3.0
+  -> Mapped to LPA-SERVICE: v1.3.0
+Processing property: MobilePOS_Version = v5.25.0
+  -> Unknown property, skipping
+Processing property: OneX_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: OneX_Node_Name = One X Client
+  -> Unknown property, skipping
+Processing property: OneX_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: OneX_Update_Version = v1.3.0
+  -> Unknown property, skipping
+Processing property: OneX_Version = v1.3.0
+  -> Unknown property, skipping
+Processing property: POSClient_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: POSClient_Node_Name = POS Client
+  -> Unknown property, skipping
+Processing property: POSClient_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: POSClient_Update_Version = v1.3.0
+  -> Unknown property, skipping
+Processing property: POSClient_Version = v1.3.0
+  -> Mapped to POS: v1.3.0
+Processing property: RCS_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: RCS_Node_Name = Resource Cache Service
+  -> Unknown property, skipping
+Processing property: RCS_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: RCS_Update_Version = v2.0.3
+  -> Unknown property, skipping
+Processing property: RCS_Version = v2.0.5
+  -> Unknown property, skipping
+Processing property: Receipt_Image_Extensions = jpg,png,bmp
+  -> Unknown property, skipping
+Processing property: SH_Max_Future_Update_Date = 7
+  -> Unknown property, skipping
+Processing property: SH_Update_Same_Version = true
+  -> Unknown property, skipping
+Processing property: SH_Update_Version = v1.3.0
+  -> Unknown property, skipping
+Processing property: SIM_Node_Name = UI5 Mobile Device Client
+  -> Unknown property, skipping
+Processing property: SIM_Version = v5.25.1
+  -> Unknown property, skipping
+Processing property: Software_Package_Extensions = zip,jar,exe,properties,run,apk,crt,ipa,plist,md5,pfx
+  -> Unknown property, skipping
+Processing property: Station_Key_DSG_Url =
+  -> Unknown property, skipping
+Processing property: StoreHub_Node_Name = StoreHub
+  -> Unknown property, skipping
+Processing property: StoreHub_Version = v1.3.0
+  -> Mapped to STOREHUB-SERVICE: v1.3.0
+=== END PROCESSING PROPERTIES DEBUG ===
+Successfully fetched default versions:
+  POS: v1.3.0
+  STOREHUB-SERVICE: v1.3.0
+  FLOW-SERVICE: v5.25.0
+  LPA-SERVICE: v1.3.0
+Using API version for FLOW-SERVICE: v5.25.0
+Using component version: v5.25.0
+No default Jaybird driver path set - will detect during installation if available
+No log folder found. Performing full installation.
+-------------------
+Hostname  : NB-ES-0635
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for FLOW-SERVICE using C:\\gkretail\\stations\FLOW-SERVICE.station
+Station file not found at: C:\\gkretail\\stations\FLOW-SERVICE.station
+Falling back to manual input.
+Please enter the Store Number in one of these formats (or any custom format):
+  - 4 digits (e.g., 1234)
+  - 1 letter + 3 digits (e.g., R005)
+  - 2 letters + 2 digits (e.g., CA45)
+  - Custom format (e.g., STORE-105)
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> .\GKInstall.ps1 -ComponentType POS
+Transcript started, output file is GKInstall_POS_20250825_160058.log
+Console output is being saved to GKInstall_POS_20250825_160058.log
+UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API...
+Getting fresh OAuth token for version API call...
+OAuth token obtained and saved successfully
+Fetching default versions from Employee Hub Service API...
+Successfully fetched default versions:
+  POS: v1.3.0
+  STOREHUB-SERVICE: v1.3.0
+  FLOW-SERVICE: v5.25.0
+  LPA-SERVICE: v1.3.0
+Using API version for POS: v1.3.0
+Using component version: v1.3.0
+No default Jaybird driver path set - will detect during installation if available
+Found existing installation at C:\\gkretail\pos-full with log folder at C:\\gkretail\pos-full\log
+No recent activity found in logs. Performing full installation.
+-------------------
+Hostname  : NB-ES-0635
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+Access token successfully saved
+POS onboarding token successfully saved to onboarding.token
+POS onboarding completed successfully
+Starting store initialization...
+Creating processed copy of get_store.json with Store ID: 9999
+get_store_processed.json created successfully
+Template systemName: CSE-OPOS-CLOUD for component: POS
+Note: Will search by workstation ID (unique per store) and use actual system name if found
+Making API call to get store information...
+Created processed copy of get_store.json at: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\get_store_processed.json
+Updated @RETAIL_STORE_ID@ placeholder with: 9999 in processed file
+Successfully retrieved store information
+Store information saved to: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\storemanager.json
+Looking for workstation ID: 101 (workstation IDs are unique per store)
+Found workstation 101 with system: CSE-OPOS-CLOUD
+Structure unique name: ENTERPRISE.TENANT.SWEDEN.IDNET_TEST_STORE.POS_CLIENT_101.101
+Structure unique name saved to: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\structure_name.txt
+Found existing workstation: 101 with system: CSE-OPOS-CLOUD
+Workstation 101 already exists with system: CSE-OPOS-CLOUD. No need to create it.
+Skipping configuration update - not a StoreHub component
+Successfully retrieved business unit information
+Found businessUnitGroupID: 100000000000001507
+Successfully retrieved existing workstation information
+Saved response data to business-unit.json and workstation.json
+Store initialization completed successfully
+Writing launcher properties to file...
+Launcher properties file created successfully. Launcher will use this for configuration.
+Attempting to download Launcher.exe from: https://test.cse.cloud4retail.co/dsg/content/cep/SoftwarePackage/CSE-OPOS-CLOUD/v1.3.0/Launcher.exe
+Using curl for download...
+######################################################                                                            48.9%
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
