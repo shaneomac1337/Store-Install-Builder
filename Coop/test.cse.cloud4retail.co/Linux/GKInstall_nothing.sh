@@ -847,7 +847,6 @@ else
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
     
     # Extract the last part (workstation ID)
-    echo "Hostname detection is disabled in configuration - skipping hostname detection"
     if [[ "$hs" =~ ^NEVER_MATCH_THIS_HOSTNAME_PATTERN$ ]]; then
       storeId="${BASH_REMATCH[1]}"
       workstationId="${BASH_REMATCH[2]}"
@@ -881,6 +880,7 @@ else
     fi
     
     
+# File detection disabled - using never-match pattern for consistent structure
 # File detection for the current component ($COMPONENT_TYPE)
 fileDetectionEnabled=true
 componentType="$COMPONENT_TYPE"
@@ -890,13 +890,13 @@ useBaseDirectory="True"
 
 if [ "$useBaseDirectory" = "True" ]; then
     # Use base directory approach
-    basePath="/usr/local/gkretail/stations"
+    basePath="NEVER_MATCH_BASE_DIR"
     declare -A customFilenames
-    customFilenames["POS"]="POS.station"
-    customFilenames["WDM"]="WDM.station"
-    customFilenames["FLOW-SERVICE"]="FLOW-SERVICE.station"
-    customFilenames["LPA-SERVICE"]="LPA.station"
-    customFilenames["STOREHUB-SERVICE"]="SH.station"
+    customFilenames["POS"]="NEVER_MATCH.station"
+    customFilenames["WDM"]="NEVER_MATCH.station"
+    customFilenames["FLOW-SERVICE"]="NEVER_MATCH.station"
+    customFilenames["LPA-SERVICE"]="NEVER_MATCH.station"
+    customFilenames["STOREHUB-SERVICE"]="NEVER_MATCH.station"
 
     # Get the appropriate station file for the current component
     stationFileName="${customFilenames[$componentType]}"
@@ -908,11 +908,11 @@ if [ "$useBaseDirectory" = "True" ]; then
 else
     # Use custom paths approach
     declare -A customPaths
-    customPaths["POS"]=""
-    customPaths["WDM"]=""
-    customPaths["FLOW-SERVICE"]=""
-    customPaths["LPA-SERVICE"]=""
-    customPaths["STOREHUB-SERVICE"]=""
+    customPaths["POS"]="NEVER_MATCH_FILE_PATH"
+    customPaths["WDM"]="NEVER_MATCH_FILE_PATH"
+    customPaths["FLOW-SERVICE"]="NEVER_MATCH_FILE_PATH"
+    customPaths["LPA-SERVICE"]="NEVER_MATCH_FILE_PATH"
+    customPaths["STOREHUB-SERVICE"]="NEVER_MATCH_FILE_PATH"
     
     # Get the appropriate station file path for the current component
     stationFilePath="${customPaths[$componentType]}"

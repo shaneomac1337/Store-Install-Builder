@@ -847,7 +847,6 @@ else
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
     
     # Extract the last part (workstation ID)
-    echo "Hostname detection is disabled in configuration - skipping hostname detection"
     if [[ "$hs" =~ ^NEVER_MATCH_THIS_HOSTNAME_PATTERN$ ]]; then
       storeId="${BASH_REMATCH[1]}"
       workstationId="${BASH_REMATCH[2]}"

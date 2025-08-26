@@ -759,7 +759,6 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        Write-Host "Hostname detection is disabled in configuration - skipping hostname detection" -ForegroundColor Yellow
         if ($hs -match '^NEVER_MATCH_THIS_HOSTNAME_PATTERN$') {
             # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
             $storeId = $matches[1]
@@ -828,7 +827,7 @@ if ($useBaseDirectory -eq "true") {
         "LPA-SERVICE" = "";
         "STOREHUB-SERVICE" = ""
     }
-
+    
     # Get the appropriate station file path for the current component
     $stationFilePath = $customPaths[$componentType]
     if (-not $stationFilePath) {

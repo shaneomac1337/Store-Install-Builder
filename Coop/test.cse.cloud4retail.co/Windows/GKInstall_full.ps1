@@ -181,12 +181,13 @@ function Get-DefaultVersions {
         $bearerToken = $bearerToken.Trim()
 
         # Construct the API URL
-        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
 
-        # Prepare simplified headers
+        # Prepare headers (including Referer as in working example)
         $headers = @{
             "authorization" = "Bearer $bearerToken"
             "gk-tenant-id" = $TenantId
+            "Referer" = "https://$BaseUrl/employee-hub/app/index.html"
         }
 
         # Make the API request (token should be fresh from onboarding)
@@ -252,17 +253,24 @@ if ($UseDefaultVersions) {
         $formPasswordPath = Join-Path $tokensPath "form_password.txt"
 
         if ((Test-Path $basicAuthPath) -and (Test-Path $formPasswordPath)) {
+            # Function to Base64 decode (same as onboarding.ps1)
+            function Decode-Base64 {
+                param($encodedText)
+                return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedText))
+            }
+
             $username = "launchpad"
-            $password = Get-Content $basicAuthPath -Raw
-            $formPassword = Get-Content $formPasswordPath -Raw
+            # Decode the Base64 encoded passwords (same as onboarding.ps1)
+            $basicAuthPassword = Decode-Base64 (Get-Content $basicAuthPath)
+            $formPassword = Decode-Base64 (Get-Content $formPasswordPath)
 
             # Create Basic Auth header (same as onboarding.ps1)
-            $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:$($password.Trim())"))
+            $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${basicAuthPassword}"))
 
             # Form data (same as onboarding.ps1)
             $body = @{
                 username = "1001"
-                password = $formPassword.Trim()
+                password = $formPassword
                 grant_type = "password"
             }
 

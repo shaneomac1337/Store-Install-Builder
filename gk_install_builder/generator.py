@@ -296,17 +296,17 @@ class ProjectGenerator:
             with open(template_path, 'r') as f:
                 template = f.read()
                 
-            # Apply custom regex if available
-            if "detection_config" in config and "hostname_detection" in config["detection_config"]:
+            # Apply custom regex if available and hostname detection is enabled
+            if use_hostname_detection and "detection_config" in config and "hostname_detection" in config["detection_config"]:
                 # Get the appropriate regex pattern based on platform
                 regex_key = "windows_regex" if platform == "Windows" else "linux_regex"
-                
+
                 if regex_key in config["detection_config"]["hostname_detection"]:
                     custom_regex = config["detection_config"]["hostname_detection"][regex_key]
-                    
+
                     # Debug info
                     print(f"Using custom hostname detection regex: {custom_regex}")
-                    
+
                     # For Windows (PowerShell) - replace the regex in the hostname detection section
                     if platform == "Windows":
                         # Replace the hostname detection regex in PowerShell
@@ -357,7 +357,7 @@ class ProjectGenerator:
                     ("test.cse.cloud4retail.co", base_url),
                     ("C:\\gkretail", base_install_dir.replace("\\", "\\\\")),  # double backslash
                     ("C:/gkretail", base_install_dir.replace("\\", "/")),  # handle any accidental forward slashes
-                    ("C:\gkretail", base_install_dir),  # single backslash (main fix)
+                    (r"C:\gkretail", base_install_dir),  # single backslash (main fix)
                     ("$base_install_dir = \"C:\\gkretail\"", f"$base_install_dir = \"{base_install_dir}\""),  # assignment line
                     ('"v1.0.0"', f'"{default_version}"'),
                     ("CSE-OPOS-CLOUD", pos_system_type),
@@ -536,24 +536,33 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
                 never_match_pattern = "^NEVER_MATCH_THIS_HOSTNAME_PATTERN$"
 
                 if platform == "Windows":
-                    # Replace the hostname detection regex with a never-match pattern
-                    template = self._replace_hostname_regex_powershell(template, never_match_pattern)
+                    # Replace the hostname detection regex with a never-match pattern and add informative message
+                    template = self._replace_hostname_regex_powershell(template, never_match_pattern, add_disabled_message=True)
                 else:
-                    # Replace the hostname detection regex with a never-match pattern
-                    template = self._replace_hostname_regex_bash(template, never_match_pattern)
+                    # Replace the hostname detection regex with a never-match pattern and add informative message
+                    template = self._replace_hostname_regex_bash(template, never_match_pattern, add_disabled_message=True)
 
             
-            # Apply file detection settings if enabled
+            # Apply file detection settings - always insert code but use never-match pattern when disabled
             file_detection_enabled = self.detection_manager.is_detection_enabled()
-            
-            # Only insert file detection code if file detection is enabled
-            if file_detection_enabled:
-                if platform == "Windows":
-                    # Instead of trying to determine component type from filename,
-                    # use a placeholder that will be replaced with the actual ComponentType parameter
-                    station_detection_code = '''
-# File detection for the current component ($ComponentType)
-$fileDetectionEnabled = $true
+
+            # Always insert file detection code for consistent structure
+            # Use never-match pattern when file detection is disabled
+            if platform == "Windows":
+                # Always generate file detection code, but use never-match pattern when disabled
+                # This ensures consistent script structure regardless of detection settings
+                if file_detection_enabled:
+                    file_enabled_flag = "$true"
+                    never_match_comment = ""
+                    file_detection_message = ""
+                else:
+                    file_enabled_flag = "$true"  # Keep true but use never-match paths
+                    never_match_comment = "# File detection disabled - using never-match pattern for consistent structure\n"
+                    file_detection_message = 'Write-Host "File detection is disabled in configuration - skipping file detection" -ForegroundColor Yellow\n'
+
+                station_detection_code = '''
+{never_match_comment}# File detection for the current component ($ComponentType)
+$fileDetectionEnabled = {file_enabled_flag}
 $componentType = $ComponentType
 
 # Check if we're using base directory or custom paths
@@ -586,19 +595,19 @@ if ($useBaseDirectory -eq "true") {{
         "LPA-SERVICE" = "{lpa_path}";
         "STOREHUB-SERVICE" = "{sh_path}"
     }}
-    
+
     # Get the appropriate station file path for the current component
     $stationFilePath = $customPaths[$componentType]
     if (-not $stationFilePath) {{
         Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
         # Fallback to a default path
-        $stationFilePath = "C:\gkretail\stations\$componentType.station"
+        $stationFilePath = "C:\\gkretail\\stations\\$componentType.station"
     }}
 }}
 
 # Check if hostname detection failed and file detection is enabled
 if (-not $hostnameDetected -and $fileDetectionEnabled) {{
-    Write-Host "Trying file detection for $componentType using $stationFilePath"
+    {file_detection_message}Write-Host "Trying file detection for $componentType using $stationFilePath"
     
     if (Test-Path $stationFilePath) {{
         $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
@@ -619,7 +628,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             }}
             
             # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\d+$') {{
+            if ($storeNumber -and $workstationId -match '^\\d+$') {{
                 $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
                 Write-Host "Successfully detected values from file:"
                 Write-Host "Store Number: $storeNumber"
@@ -631,58 +640,66 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
     }}
 }}
 '''.format(
+    never_match_comment=never_match_comment,
+    file_enabled_flag=file_enabled_flag,
+    file_detection_message=file_detection_message,
     is_using_base_dir=str(self.detection_manager.is_using_base_directory()).lower(),
-    base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\'),
-    pos_filename=self.detection_manager.get_custom_filename("POS"),
-    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
-    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
-    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
-    pos_path=self.detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\'),
-    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\'),
-    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\'),
-    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\'),
-    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\')
+    base_dir=self.detection_manager.get_base_directory().replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_BASE_DIR",
+    pos_filename=self.detection_manager.get_custom_filename("POS") if file_detection_enabled else r"NEVER_MATCH.station",
+    wdm_filename=self.detection_manager.get_custom_filename("WDM") if file_detection_enabled else r"NEVER_MATCH.station",
+    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    pos_path=self.detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
 )
-                    
-                    # Find where to insert the file detection code
-                    # Try multiple possible markers to ensure we find the insertion point
-                    possible_markers = [
-                        "# File detection code will be inserted here by the generator",
-                        "# File detection will be inserted here by the generator",
-                        "        # File detection code will be inserted here by the generator"
-                    ]
 
-                    insert_marker = None
-                    insert_pos = -1
+                # Find where to insert the file detection code
+                # Try multiple possible markers to ensure we find the insertion point
+                possible_markers = [
+                    "# File detection code will be inserted here by the generator",
+                    "# File detection will be inserted here by the generator",
+                    "        # File detection code will be inserted here by the generator"
+                ]
 
-                    for marker in possible_markers:
-                        insert_pos = template.find(marker)
-                        if insert_pos != -1:
-                            insert_marker = marker
-                            print(f"Found insertion marker: '{marker}' at position {insert_pos}")
-                            break
-                    
-                    # Use the found insertion point
-                    if insert_pos != -1 and insert_marker is not None:
-                        if file_detection_enabled:
-                            # Insert the detection code at the appropriate position
-                            template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
-                            print(f"Added dynamic station detection code to PowerShell script")
-                        else:
-                            # If file detection is disabled, replace the marker with empty content or a comment
-                            template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
-                            print(f"File detection is disabled, skipping in PowerShell script")
+                insert_marker = None
+                insert_pos = -1
+
+                for marker in possible_markers:
+                    insert_pos = template.find(marker)
+                    if insert_pos != -1:
+                        insert_marker = marker
+                        print(f"Found insertion marker: '{marker}' at position {insert_pos}")
+                        break
+
+                # Use the found insertion point
+                if insert_pos != -1 and insert_marker is not None:
+                    # Always insert the detection code for consistent structure
+                    # When disabled, it uses never-match patterns so will always fall through to manual input
+                    template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
+                    if file_detection_enabled:
+                        print(f"Added dynamic station detection code to PowerShell script")
                     else:
-                        print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
+                        print(f"Added station detection code with never-match pattern to PowerShell script (file detection disabled)")
+                else:
+                    print(f"Warning: Could not find insertion point for station detection code in PowerShell script")
             
-            # For Linux, always insert file detection regardless of the setting
-            # This is the original behavior that was working well
+            # For Linux, always insert file detection code for consistent structure
+            # Use never-match pattern when file detection is disabled
             if platform == "Linux":
-                # Only insert file detection code if file detection is enabled
+                # Always generate file detection code, but use never-match pattern when disabled
                 if file_detection_enabled:
-                    station_detection_code = '''
-# File detection for the current component ($COMPONENT_TYPE)
+                    never_match_comment = ""
+                    file_detection_message = ""
+                else:
+                    never_match_comment = "# File detection disabled - using never-match pattern for consistent structure\n"
+                    file_detection_message = 'echo "File detection is disabled in configuration - skipping file detection"\n'
+
+                station_detection_code = '''
+{never_match_comment}# File detection for the current component ($COMPONENT_TYPE)
 fileDetectionEnabled=true
 componentType="$COMPONENT_TYPE"
 
@@ -726,7 +743,7 @@ fi
 
 # Check if hostname detection failed and file detection is enabled
 if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
-    echo "Trying file detection for $componentType using $stationFilePath"
+    {file_detection_message}echo "Trying file detection for $componentType using $stationFilePath"
     
     if [ -f "$stationFilePath" ]; then
         while IFS= read -r line || [ -n "$line" ]; do
@@ -754,18 +771,20 @@ if [ "$hostnameDetected" = false ] && [ "$fileDetectionEnabled" = true ]; then
     fi
 fi
 '''.format(
+    never_match_comment=never_match_comment,
+    file_detection_message=file_detection_message,
     is_using_base_dir=str(self.detection_manager.is_using_base_directory()),
-    base_dir=self.detection_manager.get_base_directory(),
-    pos_filename=self.detection_manager.get_custom_filename("POS"),
-    wdm_filename=self.detection_manager.get_custom_filename("WDM"),
-    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE"),
-    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE"),
-    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE"),
-    pos_path=self.detection_manager.detection_config["detection_files"]["POS"],
-    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"],
-    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"],
-    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"],
-    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"]
+    base_dir=self.detection_manager.get_base_directory() if file_detection_enabled else "NEVER_MATCH_BASE_DIR",
+    pos_filename=self.detection_manager.get_custom_filename("POS") if file_detection_enabled else r"NEVER_MATCH.station",
+    wdm_filename=self.detection_manager.get_custom_filename("WDM") if file_detection_enabled else r"NEVER_MATCH.station",
+    flow_filename=self.detection_manager.get_custom_filename("FLOW-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    lpa_filename=self.detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    sh_filename=self.detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else r"NEVER_MATCH.station",
+    pos_path=self.detection_manager.detection_config["detection_files"]["POS"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    wdm_path=self.detection_manager.detection_config["detection_files"]["WDM"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    flow_path=self.detection_manager.detection_config["detection_files"]["FLOW-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    lpa_path=self.detection_manager.detection_config["detection_files"]["LPA-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH",
+    sh_path=self.detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
 )
                 
                 # Find where to insert the file detection code
@@ -779,14 +798,13 @@ fi
                     insert_pos = template.find(insert_marker)
                 
                 if insert_pos != -1:
-                    # Insert the detection code at the appropriate position
+                    # Always insert the detection code for consistent structure
+                    # When disabled, it uses never-match patterns so will always fall through to manual input
+                    template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
                     if file_detection_enabled:
-                        template = template[:insert_pos] + station_detection_code + template[insert_pos + len(insert_marker):]
                         print(f"Added dynamic station detection code to Bash script")
                     else:
-                        # If file detection is disabled, replace the marker with empty content or a comment
-                        template = template[:insert_pos] + "# File detection is disabled" + template[insert_pos + len(insert_marker):]
-                        print(f"File detection is disabled, skipping in Bash script")
+                        print(f"Added station detection code with never-match pattern to Bash script (file detection disabled)")
                 else:
                     print(f"Warning: Could not find insertion point for station detection code in Bash script")
             
@@ -3273,20 +3291,24 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         except Exception as e:
             print(f"Error creating default template {filename}: {str(e)}")
 
-    def _replace_hostname_regex_powershell(self, template_content, custom_regex):
+    def _replace_hostname_regex_powershell(self, template_content, custom_regex, add_disabled_message=False):
         """Replace the hostname detection regex in PowerShell template"""
         import re
-        
+
         # The pattern to find in the PowerShell template
         # Updated to match single quotes used in the actual template
         pattern = r"if \(\$hs -match '([^']+)'\) \{"
-        
+
         # Use a function for the first replacement to avoid escape sequence issues
         def hostname_replacement(match):
             # Sanitize the regex for PowerShell single quotes
             safe_regex = custom_regex.replace("'", "''")
-            return f"if ($hs -match '{safe_regex}') {{"
-        
+            if add_disabled_message:
+                # Add informative message before the hostname detection
+                return f'Write-Host "Hostname detection is disabled in configuration - skipping hostname detection" -ForegroundColor Yellow\n        if ($hs -match \'{safe_regex}\') {{'
+            else:
+                return f"if ($hs -match '{safe_regex}') {{"
+
         # Replace in the template using the function
         modified_content = re.sub(pattern, hostname_replacement, template_content)
         
@@ -3303,13 +3325,17 @@ tomcat_package_local=@TOMCAT_PACKAGE@
         
         return modified_content
         
-    def _replace_hostname_regex_bash(self, template_content, custom_regex):
+    def _replace_hostname_regex_bash(self, template_content, custom_regex, add_disabled_message=False):
         """Replace the hostname detection regex in Bash template using direct string substitution"""
         print(f"Attempting bash hostname regex replacement with: {custom_regex}")
-        
+
         # The exact line we need to change from the template file
         target_line = '    if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then'
-        replacement_line = f'    if [[ "$hs" =~ {custom_regex} ]]; then'
+        if add_disabled_message:
+            # Add informative message before the hostname detection
+            replacement_line = f'    echo "Hostname detection is disabled in configuration - skipping hostname detection"\n    if [[ "$hs" =~ {custom_regex} ]]; then'
+        else:
+            replacement_line = f'    if [[ "$hs" =~ {custom_regex} ]]; then'
         
         # Check if the target line exists
         if target_line in template_content:

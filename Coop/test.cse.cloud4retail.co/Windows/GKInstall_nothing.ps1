@@ -759,7 +759,6 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        Write-Host "Hostname detection is disabled in configuration - skipping hostname detection" -ForegroundColor Yellow
         if ($hs -match '^NEVER_MATCH_THIS_HOSTNAME_PATTERN$') {
             # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
             $storeId = $matches[1]
@@ -793,86 +792,7 @@ if ($isUpdate) {
             Write-Host "Trying file detection..."
         }
         
-        
-# File detection for the current component ($ComponentType)
-$fileDetectionEnabled = $true
-$componentType = $ComponentType
-
-# Check if we're using base directory or custom paths
-$useBaseDirectory = "true".ToLower()
-
-if ($useBaseDirectory -eq "true") {
-    # Use base directory approach
-    $basePath = "C:\\gkretail\\stations"
-    $customFilenames = @{
-        "POS" = "POS.station";
-        "WDM" = "WDM.station";
-        "FLOW-SERVICE" = "FLOW-SERVICE.station";
-        "LPA-SERVICE" = "LPA.station";
-        "STOREHUB-SERVICE" = "SH.station"
-    }
-
-    # Get the appropriate station file for the current component
-    $stationFileName = $customFilenames[$componentType]
-    if (-not $stationFileName) {
-        $stationFileName = "$componentType.station"
-    }
-
-    $stationFilePath = Join-Path $basePath $stationFileName
-} else {
-    # Use custom paths approach
-    $customPaths = @{
-        "POS" = "";
-        "WDM" = "";
-        "FLOW-SERVICE" = "";
-        "LPA-SERVICE" = "";
-        "STOREHUB-SERVICE" = ""
-    }
-
-    # Get the appropriate station file path for the current component
-    $stationFilePath = $customPaths[$componentType]
-    if (-not $stationFilePath) {
-        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
-        # Fallback to a default path
-        $stationFilePath = "C:\gkretail\stations\$componentType.station"
-    }
-}
-
-# Check if hostname detection failed and file detection is enabled
-if (-not $hostnameDetected -and $fileDetectionEnabled) {
-    Write-Host "Trying file detection for $componentType using $stationFilePath"
-    
-    if (Test-Path $stationFilePath) {
-        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
-        
-        if ($fileContent) {
-            $lines = $fileContent -split "`r?`n"
-            
-            foreach ($line in $lines) {
-                if ($line -match "StoreID=(.+)") {
-                    $storeNumber = $matches[1].Trim()
-                    Write-Host "Found Store ID in file: $storeNumber"
-                }
-                
-                if ($line -match "WorkstationID=(.+)") {
-                    $workstationId = $matches[1].Trim()
-                    Write-Host "Found Workstation ID in file: $workstationId"
-                }
-            }
-            
-            # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\d+$') {
-                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
-                Write-Host "Successfully detected values from file:"
-                Write-Host "Store Number: $storeNumber"
-                Write-Host "Workstation ID: $workstationId"
-            }
-        }
-    } else {
-        Write-Host "Station file not found at: $stationFilePath"
-    }
-}
-
+        # File detection code will be inserted here by the generator
     }
 
     # If both hostname and file detection failed, prompt for manual input
