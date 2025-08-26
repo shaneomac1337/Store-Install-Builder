@@ -709,6 +709,15 @@ class GKInstallBuilder:
             
             # Register entry with config manager
             self.config_manager.register_entry(config_key, entry)
+
+            # Special handling for main project version field
+            if config_key == "version":
+                # Bind to auto-update component versions on multiple events
+                entry.bind("<KeyRelease>", lambda event: self.on_project_version_change())
+                entry.bind("<FocusOut>", lambda event: self.on_project_version_change())
+                entry.bind("<Return>", lambda event: self.on_project_version_change())
+                # Also bind to paste events
+                entry.bind("<Control-v>", lambda event: self.root.after(10, self.on_project_version_change))
         
         # Add Platform Selection
         platform_frame = ctk.CTkFrame(form_frame)
@@ -1735,12 +1744,26 @@ class GKInstallBuilder:
             variable=self.use_default_versions_var,
             command=self.toggle_default_versions
         )
-        default_versions_checkbox.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        default_versions_checkbox.grid(row=1, column=0, padx=10, pady=5, sticky="w")
         self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Function Pack API instead of using hardcoded versions")
+
+        # Test API button next to the checkbox
+        test_api_button = ctk.CTkButton(
+            grid_frame,
+            text="Test API",
+            command=self.test_default_versions_api,
+            width=80,
+            height=28
+        )
+        test_api_button.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.create_tooltip(test_api_button, "Test the Employee Hub Function Pack API to verify it can fetch default component versions")
         
         # Get project version from config
         project_version = self.config_manager.config.get("version", "")
         
+        # Store version field references for show/hide functionality
+        self.version_fields = []
+
         # POS Version
         pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
         pos_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
@@ -1750,6 +1773,7 @@ class GKInstallBuilder:
         self.config_manager.register_entry("pos_version", self.pos_version_entry)
         self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
         self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
+        self.version_fields.extend([pos_label, self.pos_version_entry])
 
         # WDM Version
         wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
@@ -1760,6 +1784,7 @@ class GKInstallBuilder:
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
         self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
+        self.version_fields.extend([wdm_label, self.wdm_version_entry])
 
         # Flow Service Version
         flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
@@ -1770,6 +1795,7 @@ class GKInstallBuilder:
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
         self.create_tooltip(self.flow_service_version_entry, "Example: v1.0.0")
+        self.version_fields.extend([flow_service_label, self.flow_service_version_entry])
 
         # LPA Service Version
         lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
@@ -1780,6 +1806,7 @@ class GKInstallBuilder:
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
         self.create_tooltip(self.lpa_service_version_entry, "Example: v1.0.0")
+        self.version_fields.extend([lpa_service_label, self.lpa_service_version_entry])
 
         # StoreHub Service Version
         storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
@@ -1787,6 +1814,7 @@ class GKInstallBuilder:
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
         self.storehub_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
+        self.version_fields.extend([storehub_service_label, self.storehub_service_version_entry])
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
         self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
         self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
@@ -1839,6 +1867,13 @@ class GKInstallBuilder:
         self.config_manager.config["use_version_override"] = enabled
         self.config_manager.save_config_silent()
 
+        # Update version fields visibility
+        self.update_version_fields_visibility()
+
+        # If version override was just enabled, sync component versions with project version
+        if enabled:
+            self.force_project_version_update()
+
     def toggle_default_versions(self):
         """Toggle the use default versions setting"""
         enabled = self.use_default_versions_var.get()
@@ -1860,6 +1895,341 @@ class GKInstallBuilder:
             print("Default versions enabled: Installation script will fetch component versions from Employee Hub Function Pack API")
         else:
             print("Default versions disabled: Installation script will use hardcoded versions from GUI configuration")
+
+        # Update version fields visibility
+        self.update_version_fields_visibility()
+
+    def on_project_version_change(self):
+        """Handle changes to the main project version field"""
+        try:
+            # Get the new project version
+            version_entry = self.config_manager.get_entry("version")
+            if not version_entry:
+                return
+
+            new_version = version_entry.get().strip()
+            if not new_version:
+                return
+
+            # Only update component versions if version override is enabled
+            # and the component version fields exist
+            if (hasattr(self, 'version_override_var') and
+                self.version_override_var.get() and
+                hasattr(self, 'pos_version_entry')):
+
+                print(f"Project version changed to: {new_version}")
+                print("Auto-updating component versions...")
+
+                # List of component version entries to update
+                component_entries = [
+                    (self.pos_version_entry, "pos_version"),
+                    (self.wdm_version_entry, "wdm_version"),
+                    (self.flow_service_version_entry, "flow_service_version"),
+                    (self.lpa_service_version_entry, "lpa_service_version"),
+                    (self.storehub_service_version_entry, "storehub_service_version")
+                ]
+
+                # Update each component version field
+                for entry, config_key in component_entries:
+                    if entry:
+                        # Get current value to avoid unnecessary updates
+                        current_value = entry.get().strip()
+                        if current_value != new_version:
+                            # Clear and update the field
+                            entry.delete(0, 'end')
+                            entry.insert(0, new_version)
+                            # Update the config
+                            self.config_manager.config[config_key] = new_version
+
+                # Save the config
+                self.config_manager.save_config_silent()
+                print("Component versions updated successfully!")
+        except Exception as e:
+            print(f"Error updating component versions: {e}")
+
+    def force_project_version_update(self):
+        """Force an update of component versions from project version"""
+        self.on_project_version_change()
+
+    def update_version_fields_visibility(self):
+        """Update visibility of version input fields based on current settings"""
+        # Version fields should only be visible when:
+        # 1. Version override is enabled AND
+        # 2. Default versions is disabled
+        show_version_fields = (self.version_override_var.get() and not self.use_default_versions_var.get())
+
+        if hasattr(self, 'version_fields'):
+            for field in self.version_fields:
+                if show_version_fields:
+                    field.grid()  # Show the field
+                else:
+                    field.grid_remove()  # Hide the field but keep its grid position
+
+    def test_default_versions_api(self):
+        """Test the Employee Hub Function Pack API to fetch default versions"""
+        try:
+            # Force save current GUI values to config before testing
+            print("Forcing config update from GUI fields...")
+            self.config_manager.update_config_from_entries()
+            self.config_manager.save_config_silent()
+
+            # Get base URL from config
+            base_url = self.config_manager.config.get("base_url", "")
+            if not base_url:
+                messagebox.showerror("Error", "Please configure the Base URL first")
+                return
+
+            # Show loading message
+            loading_dialog = ctk.CTkToplevel(self.root)
+            loading_dialog.title("Testing API")
+            loading_dialog.geometry("400x250")
+            loading_dialog.transient(self.root)
+            loading_dialog.grab_set()
+
+            # Center the dialog
+            loading_dialog.update_idletasks()
+            x = (loading_dialog.winfo_screenwidth() // 2) - (400 // 2)
+            y = (loading_dialog.winfo_screenheight() // 2) - (250 // 2)
+            loading_dialog.geometry(f"400x250+{x}+{y}")
+
+            loading_label = ctk.CTkLabel(loading_dialog, text="Testing Employee Hub Function Pack API...\nGenerating authentication token...\nPlease wait...")
+            loading_label.pack(expand=True)
+
+            # Update the dialog
+            loading_dialog.update()
+
+            # Construct API URL
+            api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+            # Try to generate token using credentials from config
+            bearer_token = self._generate_api_token(base_url, loading_label, loading_dialog)
+
+            if not bearer_token:
+                loading_dialog.destroy()
+                messagebox.showerror("Authentication Failed",
+                    "Could not generate authentication token. Please check:\n\n"
+                    "1. Basic Auth Password is configured\n"
+                    "2. Form Password is configured\n"
+                    "3. Base URL is correct\n"
+                    "4. Network connectivity")
+                return
+
+            # Update loading message
+            loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching component versions...\nPlease wait...")
+            loading_dialog.update()
+
+            # Make API request
+            headers = {
+                "authorization": f"Bearer {bearer_token}",
+                "gk-tenant-id": "001",
+                "Referer": f"https://{base_url}/employee-hub/app/index.html"
+            }
+
+            response = requests.get(api_url, headers=headers, timeout=30, verify=False)
+            loading_dialog.destroy()
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Parse versions - initialize all components as "Not Found"
+                versions = {
+                    "POS": None,
+                    "WDM": None,
+                    "FLOW-SERVICE": None,
+                    "LPA-SERVICE": None,
+                    "STOREHUB-SERVICE": None
+                }
+
+                for property_item in data:
+                    prop_id = property_item.get("propertyId", "")
+                    value = property_item.get("value", "")
+
+                    if prop_id == "POSClient_Version":
+                        versions["POS"] = value
+                    elif prop_id == "WDM_Version":
+                        versions["WDM"] = value
+                    elif prop_id == "FlowService_Version":
+                        versions["FLOW-SERVICE"] = value
+                    elif prop_id == "LPA_Version":
+                        versions["LPA-SERVICE"] = value
+                    elif prop_id == "StoreHub_Version":
+                        versions["STOREHUB-SERVICE"] = value
+
+                # Show results with status for each component
+                result_text = "✅ API Test Successful!\n\nComponent Version Status:\n\n"
+
+                found_count = 0
+                for component, version in versions.items():
+                    if version:
+                        result_text += f"✅ {component}: {version}\n"
+                        found_count += 1
+                    else:
+                        result_text += f"❌ {component}: Not Found\n"
+
+                result_text += f"\n📊 Summary: {found_count}/5 components found in API response"
+
+                if found_count == 0:
+                    result_text += "\n\n⚠️ No component versions found in API response"
+
+                messagebox.showinfo("API Test Results", result_text)
+
+            else:
+                messagebox.showerror("API Test Failed",
+                    f"HTTP {response.status_code}: {response.text}\n\n"
+                    f"URL: {api_url}")
+
+        except requests.exceptions.RequestException as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed", f"Network error: {str(e)}")
+        except Exception as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed", f"Error: {str(e)}")
+
+    def _generate_api_token(self, base_url, loading_label, loading_dialog):
+        """Generate API token using credentials from config - with comprehensive debug output"""
+        try:
+            print("=== API TOKEN GENERATION DEBUG ===")
+
+            # Update loading message
+            loading_label.configure(text="Generating authentication token...\nUsing credentials from configuration...")
+            loading_dialog.update()
+
+            # Get credentials from config - check multiple possible keys
+            print(f"Available config keys: {list(self.config_manager.config.keys())}")
+
+            # Get the correct credentials from config
+            # launchpad_oauth2 contains the Basic Auth password for the launchpad user
+            basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")
+            form_password = self.config_manager.config.get("eh_launchpad_password", "")
+
+            print(f"Base URL: {base_url}")
+            print(f"Basic auth password found: {bool(basic_auth_password)}")
+            print(f"Form password found: {bool(form_password)}")
+
+            if basic_auth_password:
+                print(f"Basic auth password length: {len(basic_auth_password)}")
+                print(f"Basic auth password starts with: {basic_auth_password[:10]}...")
+            if form_password:
+                print(f"Form password length: {len(form_password)}")
+                print(f"Form password starts with: {form_password[:10]}...")
+
+            if not basic_auth_password or not form_password:
+                print("ERROR: Missing credentials in config")
+                print("Available config keys for debugging:")
+                for key in sorted(self.config_manager.config.keys()):
+                    if 'password' in key.lower() or 'auth' in key.lower():
+                        print(f"  - {key}: {bool(self.config_manager.config[key])}")
+                return None
+
+            print(f"Basic auth password length: {len(basic_auth_password)}")
+            print(f"Form password length: {len(form_password)}")
+
+            # Handle both base64 encoded and plain text passwords
+            import base64
+            try:
+                print("Attempting to decode base64 passwords...")
+                # Try to decode as base64 first
+                basic_auth_password_decoded = base64.b64decode(basic_auth_password).decode('utf-8')
+                form_password_decoded = base64.b64decode(form_password).decode('utf-8')
+                print(f"Basic auth password decoded length: {len(basic_auth_password_decoded)}")
+                print(f"Form password decoded length: {len(form_password_decoded)}")
+                basic_auth_password = basic_auth_password_decoded
+                form_password = form_password_decoded
+                print("Successfully decoded base64 passwords")
+            except Exception as decode_error:
+                print(f"Base64 decode failed: {decode_error}")
+                print("Assuming passwords are already plain text...")
+                # Use the passwords as-is (they're already plain text)
+                print(f"Using plain text passwords (lengths: {len(basic_auth_password)}, {len(form_password)})")
+
+            # Create Basic Auth header (exact same as onboarding script)
+            username = "launchpad"
+            auth_string = f"{username}:{basic_auth_password}"
+            print(f"Auth string length: {len(auth_string)}")
+            auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+            print(f"Base64 auth header length: {len(auth_b64)}")
+
+            # Prepare form data exactly like PowerShell onboarding script
+            import urllib.parse
+
+            # PowerShell script uses this exact order and format:
+            # $body = @{
+            #     username = "1001"
+            #     password = $formPassword
+            #     grant_type = "password"
+            # }
+            form_data_dict = {
+                'username': '1001',
+                'password': form_password,
+                'grant_type': 'password'
+            }
+
+            print(f"Form data dict keys: {list(form_data_dict.keys())}")
+
+            # URL encode exactly like PowerShell: "$([System.Net.WebUtility]::UrlEncode($_.Key))=$([System.Net.WebUtility]::UrlEncode($_.Value))"
+            encoded_pairs = []
+            for key, value in form_data_dict.items():
+                encoded_key = urllib.parse.quote_plus(str(key))
+                encoded_value = urllib.parse.quote_plus(str(value))
+                encoded_pairs.append(f"{encoded_key}={encoded_value}")
+
+            form_data = '&'.join(encoded_pairs)
+            print(f"Form data length: {len(form_data)}")
+            print(f"Form data preview: {form_data[:50]}...")
+
+            # Make OAuth token request (exact same URL as onboarding script)
+            token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
+            headers = {
+                'Authorization': f'Basic {auth_b64}',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+
+            print(f"Token URL: {token_url}")
+            print(f"Headers: {list(headers.keys())}")
+
+            # Update loading message
+            loading_label.configure(text="Requesting OAuth token...\nPlease wait...")
+            loading_dialog.update()
+
+            # Disable SSL warnings for this request
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            print("Making POST request...")
+            response = requests.post(token_url, headers=headers, data=form_data, timeout=30, verify=False)
+
+            print(f"Response status code: {response.status_code}")
+            print(f"Response headers: {dict(response.headers)}")
+            print(f"Response text length: {len(response.text)}")
+            print(f"Response text preview: {response.text[:200]}...")
+
+            if response.status_code == 200:
+                try:
+                    token_data = response.json()
+                    print(f"Token data keys: {list(token_data.keys())}")
+                    access_token = token_data.get('access_token')
+                    if access_token:
+                        print(f"Access token received, length: {len(access_token)}")
+                        print("=== TOKEN GENERATION SUCCESS ===")
+                        return access_token
+                    else:
+                        print("ERROR: No access_token in response")
+                except Exception as json_error:
+                    print(f"JSON parse error: {json_error}")
+            else:
+                print(f"Token request failed: {response.status_code}")
+                print(f"Error response: {response.text}")
+
+            print("=== TOKEN GENERATION FAILED ===")
+            return None
+
+        except Exception as e:
+            print(f"Token generation exception: {e}")
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
+            return None
 
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
