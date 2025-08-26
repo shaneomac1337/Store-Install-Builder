@@ -185,24 +185,23 @@ get_tomcat_version() {
 get_default_versions() {
   local base_url="$1"
   local tenant_id="${2:-001}"
+  local result_version=""
 
-  echo "Fetching default versions from Employee Hub Service API..."
+  echo "Fetching default versions from Employee Hub Service API..." >&2
 
   # Get bearer token from access_token.txt (should be fresh from onboarding)
   local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local token_file="$script_dir/helper/tokens/access_token.txt"
 
   if [ ! -f "$token_file" ]; then
-    echo "Warning: Bearer token file not found at $token_file"
-    echo ""
-    return
+    echo "Warning: Bearer token file not found at $token_file" >&2
+    return 1
   fi
 
   local bearer_token=$(cat "$token_file" | tr -d '\n\r ')
   if [ -z "$bearer_token" ]; then
-    echo "Warning: Bearer token is empty"
-    echo ""
-    return
+    echo "Warning: Bearer token is empty" >&2
+    return 1
   fi
 
   # Construct the API URL
@@ -216,7 +215,7 @@ get_default_versions() {
     "$api_url")
 
   if [ $? -eq 0 ] && [ -n "$response" ]; then
-    echo "Successfully fetched default versions from API"
+    echo "Successfully fetched default versions from API" >&2
 
     # Parse JSON response and extract versions
     # Using grep and sed to extract version values (avoiding dependency on jq)
@@ -226,18 +225,26 @@ get_default_versions() {
     local lpa_version=$(echo "$response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
     local storehub_version=$(echo "$response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
 
-    # Return the version for the requested component type
+    # Set the result version based on component type
     case "$COMPONENT_TYPE" in
-      "POS") echo "$pos_version" ;;
-      "WDM") echo "$wdm_version" ;;
-      "FLOW-SERVICE") echo "$flow_version" ;;
-      "LPA-SERVICE") echo "$lpa_version" ;;
-      "STOREHUB-SERVICE") echo "$storehub_version" ;;
-      *) echo "" ;;
+      "POS") result_version="$pos_version" ;;
+      "WDM") result_version="$wdm_version" ;;
+      "FLOW-SERVICE") result_version="$flow_version" ;;
+      "LPA-SERVICE") result_version="$lpa_version" ;;
+      "STOREHUB-SERVICE") result_version="$storehub_version" ;;
     esac
+
+    # Only output the version if it's not empty
+    if [ -n "$result_version" ]; then
+      echo "$result_version"
+      return 0
+    else
+      echo "Warning: No version found for component type $COMPONENT_TYPE" >&2
+      return 1
+    fi
   else
-    echo "Warning: Failed to fetch default versions from API after retries"
-    echo ""
+    echo "Warning: Failed to fetch default versions from API after retries" >&2
+    return 1
   fi
 }
 
@@ -360,9 +367,7 @@ if [ "$use_default_versions" = true ]; then
   fi
 
   # Fetch default version from API
-  api_version=$(get_default_versions "$base_url" "$tenant_id")
-
-  if [ -n "$api_version" ]; then
+  if api_version=$(get_default_versions "$base_url" "$tenant_id") && [ -n "$api_version" ]; then
     component_version="$api_version"
     echo "Using API version for $COMPONENT_TYPE: $component_version"
   else
