@@ -2088,87 +2088,45 @@ class GKInstallBuilder:
             messagebox.showerror("API Test Failed", f"Error: {str(e)}")
 
     def _generate_api_token(self, base_url, loading_label, loading_dialog):
-        """Generate API token using credentials from config - with comprehensive debug output"""
+        """Generate API token using credentials from config"""
         try:
-            print("=== API TOKEN GENERATION DEBUG ===")
-
             # Update loading message
             loading_label.configure(text="Generating authentication token...\nUsing credentials from configuration...")
             loading_dialog.update()
 
-            # Get credentials from config - check multiple possible keys
-            print(f"Available config keys: {list(self.config_manager.config.keys())}")
-
             # Get the correct credentials from config
-            # launchpad_oauth2 contains the Basic Auth password for the launchpad user
             basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")
             form_password = self.config_manager.config.get("eh_launchpad_password", "")
 
-            print(f"Base URL: {base_url}")
-            print(f"Basic auth password found: {bool(basic_auth_password)}")
-            print(f"Form password found: {bool(form_password)}")
-
-            if basic_auth_password:
-                print(f"Basic auth password length: {len(basic_auth_password)}")
-                print(f"Basic auth password starts with: {basic_auth_password[:10]}...")
-            if form_password:
-                print(f"Form password length: {len(form_password)}")
-                print(f"Form password starts with: {form_password[:10]}...")
-
             if not basic_auth_password or not form_password:
-                print("ERROR: Missing credentials in config")
-                print("Available config keys for debugging:")
-                for key in sorted(self.config_manager.config.keys()):
-                    if 'password' in key.lower() or 'auth' in key.lower():
-                        print(f"  - {key}: {bool(self.config_manager.config[key])}")
                 return None
-
-            print(f"Basic auth password length: {len(basic_auth_password)}")
-            print(f"Form password length: {len(form_password)}")
 
             # Handle both base64 encoded and plain text passwords
             import base64
             try:
-                print("Attempting to decode base64 passwords...")
                 # Try to decode as base64 first
                 basic_auth_password_decoded = base64.b64decode(basic_auth_password).decode('utf-8')
                 form_password_decoded = base64.b64decode(form_password).decode('utf-8')
-                print(f"Basic auth password decoded length: {len(basic_auth_password_decoded)}")
-                print(f"Form password decoded length: {len(form_password_decoded)}")
                 basic_auth_password = basic_auth_password_decoded
                 form_password = form_password_decoded
-                print("Successfully decoded base64 passwords")
-            except Exception as decode_error:
-                print(f"Base64 decode failed: {decode_error}")
-                print("Assuming passwords are already plain text...")
+            except Exception:
                 # Use the passwords as-is (they're already plain text)
-                print(f"Using plain text passwords (lengths: {len(basic_auth_password)}, {len(form_password)})")
+                pass
 
-            # Create Basic Auth header (exact same as onboarding script)
+            # Create Basic Auth header
             username = "launchpad"
             auth_string = f"{username}:{basic_auth_password}"
-            print(f"Auth string length: {len(auth_string)}")
             auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
-            print(f"Base64 auth header length: {len(auth_b64)}")
 
-            # Prepare form data exactly like PowerShell onboarding script
+            # Prepare form data
             import urllib.parse
-
-            # PowerShell script uses this exact order and format:
-            # $body = @{
-            #     username = "1001"
-            #     password = $formPassword
-            #     grant_type = "password"
-            # }
             form_data_dict = {
                 'username': '1001',
                 'password': form_password,
                 'grant_type': 'password'
             }
 
-            print(f"Form data dict keys: {list(form_data_dict.keys())}")
-
-            # URL encode exactly like PowerShell: "$([System.Net.WebUtility]::UrlEncode($_.Key))=$([System.Net.WebUtility]::UrlEncode($_.Value))"
+            # URL encode form data
             encoded_pairs = []
             for key, value in form_data_dict.items():
                 encoded_key = urllib.parse.quote_plus(str(key))
@@ -2176,18 +2134,13 @@ class GKInstallBuilder:
                 encoded_pairs.append(f"{encoded_key}={encoded_value}")
 
             form_data = '&'.join(encoded_pairs)
-            print(f"Form data length: {len(form_data)}")
-            print(f"Form data preview: {form_data[:50]}...")
 
-            # Make OAuth token request (exact same URL as onboarding script)
+            # Make OAuth token request
             token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
             headers = {
                 'Authorization': f'Basic {auth_b64}',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
-
-            print(f"Token URL: {token_url}")
-            print(f"Headers: {list(headers.keys())}")
 
             # Update loading message
             loading_label.configure(text="Requesting OAuth token...\nPlease wait...")
@@ -2197,38 +2150,20 @@ class GKInstallBuilder:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-            print("Making POST request...")
             response = requests.post(token_url, headers=headers, data=form_data, timeout=30, verify=False)
-
-            print(f"Response status code: {response.status_code}")
-            print(f"Response headers: {dict(response.headers)}")
-            print(f"Response text length: {len(response.text)}")
-            print(f"Response text preview: {response.text[:200]}...")
 
             if response.status_code == 200:
                 try:
                     token_data = response.json()
-                    print(f"Token data keys: {list(token_data.keys())}")
                     access_token = token_data.get('access_token')
                     if access_token:
-                        print(f"Access token received, length: {len(access_token)}")
-                        print("=== TOKEN GENERATION SUCCESS ===")
                         return access_token
-                    else:
-                        print("ERROR: No access_token in response")
-                except Exception as json_error:
-                    print(f"JSON parse error: {json_error}")
-            else:
-                print(f"Token request failed: {response.status_code}")
-                print(f"Error response: {response.text}")
+                except Exception:
+                    pass
 
-            print("=== TOKEN GENERATION FAILED ===")
             return None
 
-        except Exception as e:
-            print(f"Token generation exception: {e}")
-            import traceback
-            print(f"Full traceback: {traceback.format_exc()}")
+        except Exception:
             return None
 
     def create_output_selection(self):
