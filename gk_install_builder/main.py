@@ -1731,12 +1731,12 @@ class GKInstallBuilder:
         self.use_default_versions_var = ctk.BooleanVar(value=self.config_manager.config.get("use_default_versions", False))
         default_versions_checkbox = ctk.CTkCheckBox(
             grid_frame,
-            text="Use Default Versions (fetch from Employee Hub Service API)",
+            text="Use Default Versions (fetch from Employee Hub Function Pack)",
             variable=self.use_default_versions_var,
             command=self.toggle_default_versions
         )
         default_versions_checkbox.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
-        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Service API instead of using hardcoded versions")
+        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Function Pack API instead of using hardcoded versions")
         
         # Get project version from config
         project_version = self.config_manager.config.get("version", "")
@@ -1857,7 +1857,7 @@ class GKInstallBuilder:
 
         # Show informational message about what this does
         if enabled:
-            print("Default versions enabled: Installation script will fetch component versions from Employee Hub Service API")
+            print("Default versions enabled: Installation script will fetch component versions from Employee Hub Function Pack API")
         else:
             print("Default versions disabled: Installation script will use hardcoded versions from GUI configuration")
 

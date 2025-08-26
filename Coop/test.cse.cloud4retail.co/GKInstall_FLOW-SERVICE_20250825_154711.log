@@ -591,3 +591,69 @@ Using curl for download...
 PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
 >> TerminatingError(): "The pipeline has been stopped."
 >> TerminatingError(): "The pipeline has been stopped."
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> .\GKInstall.ps1 -ComponentType POS
+Transcript started, output file is GKInstall_POS_20250825_195018.log
+Console output is being saved to GKInstall_POS_20250825_195018.log
+UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API...
+Getting fresh OAuth token for version API call...
+OAuth token obtained and saved successfully
+Fetching default versions from Employee Hub Service API...
+Successfully fetched default versions:
+  POS: v1.3.0
+  STOREHUB-SERVICE: v1.3.0
+  FLOW-SERVICE: v5.25.0
+  LPA-SERVICE: v1.3.0
+Using API version for POS: v1.3.0
+Using component version: v1.3.0
+No default Jaybird driver path set - will detect during installation if available
+Found existing installation at C:\\gkretail\pos-full with log folder at C:\\gkretail\pos-full\log
+No recent activity found in logs. Performing full installation.
+-------------------
+Hostname  : NB-ES-0635
+===================
+Could not extract valid Store Number and Workstation ID from hostname.
+Trying file detection...
+Trying file detection for POS using C:\\gkretail\\stations\POS.station
+Found Store ID in file: 9999
+Found Workstation ID in file: 101
+Successfully detected values from file:
+Store Number: 9999
+Workstation ID: 101
+-------------------
+StoreNr   : 9999
+WorkstationId: 101
+-------------------
+Starting onboarding process for POS
+Access token successfully saved
+POS onboarding token successfully saved to onboarding.token
+POS onboarding completed successfully
+Starting store initialization...
+Creating processed copy of get_store.json with Store ID: 9999
+get_store_processed.json created successfully
+Template systemName: CSE-OPOS-CLOUD for component: POS
+Note: Will search by workstation ID (unique per store) and use actual system name if found
+Making API call to get store information...
+Created processed copy of get_store.json at: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\get_store_processed.json
+Updated @RETAIL_STORE_ID@ placeholder with: 9999 in processed file
+Successfully retrieved store information
+Store information saved to: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\storemanager.json
+Looking for workstation ID: 101 (workstation IDs are unique per store)
+Found workstation 101 with system: CSE-OPOS-CLOUD
+Structure unique name: ENTERPRISE.TENANT.SWEDEN.IDNET_TEST_STORE.POS_CLIENT_101.101
+Structure unique name saved to: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co\helper\init\structure_name.txt
+Found existing workstation: 101 with system: CSE-OPOS-CLOUD
+Workstation 101 already exists with system: CSE-OPOS-CLOUD. No need to create it.
+Skipping configuration update - not a StoreHub component
+Successfully retrieved business unit information
+Found businessUnitGroupID: 100000000000001507
+Successfully retrieved existing workstation information
+Saved response data to business-unit.json and workstation.json
+Store initialization completed successfully
+Writing launcher properties to file...
+Launcher properties file created successfully. Launcher will use this for configuration.
+Attempting to download Launcher.exe from: https://test.cse.cloud4retail.co/dsg/content/cep/SoftwarePackage/CSE-OPOS-CLOUD/v1.3.0/Launcher.exe
+Using curl for download...
+#################################################                                                                 44.0%
+PS C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\test.cse.cloud4retail.co> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
+>> TerminatingError(): "The pipeline has been stopped."
