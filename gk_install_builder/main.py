@@ -1984,7 +1984,6 @@ class GKInstallBuilder:
             loading_dialog.title("Testing API")
             loading_dialog.geometry("400x250")
             loading_dialog.transient(self.root)
-            loading_dialog.grab_set()
 
             # Center the dialog
             loading_dialog.update_idletasks()
@@ -1995,8 +1994,16 @@ class GKInstallBuilder:
             loading_label = ctk.CTkLabel(loading_dialog, text="Testing Employee Hub Function Pack API...\nGenerating authentication token...\nPlease wait...")
             loading_label.pack(expand=True)
 
-            # Update the dialog
+            # Update the dialog and ensure it's visible before grabbing
             loading_dialog.update()
+            loading_dialog.deiconify()  # Ensure window is visible
+
+            # Try to grab focus with error handling for Linux compatibility
+            try:
+                loading_dialog.grab_set()
+            except Exception as e:
+                print(f"Warning: Could not grab window focus: {e}")
+                # Continue without grab - dialog will still work
 
             # Construct API URL
             api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"

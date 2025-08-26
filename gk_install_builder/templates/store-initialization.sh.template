@@ -8,6 +8,7 @@ COMPONENT_TYPE=""
 base_url=""
 STORE_ID=""
 WORKSTATION_ID=""
+VERSION=""
 
 # Initialize StoreHub wait tracking variable
 storehub_wait_complete=0
@@ -31,9 +32,13 @@ while [ $# -gt 0 ]; do
       WORKSTATION_ID="$2"
       shift 2
       ;;
+    --Version)
+      VERSION="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>]"
+      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>]"
       exit 1
       ;;
   esac
@@ -42,7 +47,7 @@ done
 # Verify all required parameters are provided
 if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z "$WORKSTATION_ID" ]; then
   echo "Error: All parameters are required"
-  echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id>"
+  echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id> [--Version <version>]"
   exit 1
 fi
 
@@ -428,17 +433,25 @@ else
       # Now update the configuration using update_config.json from the storehub directory
       storehub_dir="$init_path/storehub"
       update_config_path="$storehub_dir/update_config.json"
-      
+      processed_update_config_path="$storehub_dir/update_config_processed.json"
+
       # Create storehub directory if it doesn't exist
       mkdir -p "$storehub_dir"
-      
-      if [ -f "$update_config_path" ]; then
+
+      # Check if GKInstall already created a processed version with dynamic version
+      if [ -f "$processed_update_config_path" ]; then
+        echo "Using processed StoreHub configuration with dynamic version from GKInstall..."
+        echo "Processed config found at: $processed_update_config_path"
+      elif [ -f "$update_config_path" ]; then
         echo "Updating StoreHub configuration using update_config.json..."
-        
+
         # Create a processed copy of update_config.json
-        processed_update_config_path="$storehub_dir/update_config_processed.json"
         cp "$update_config_path" "$processed_update_config_path"
         echo "Created processed copy of update_config.json at: $processed_update_config_path"
+      else
+        echo "Warning: StoreHub update_config.json not found at: $update_config_path"
+        return
+      fi
         
         # Get hostname
         hostname=$(hostname)
@@ -446,8 +459,14 @@ else
           hostname="localhost"
         fi
         
-        # Get version from config
-        version="@VERSION@"  # Will be replaced with actual version
+        # Get version from parameter or fallback to config
+        if [ -n "$VERSION" ]; then
+          version="$VERSION"
+          echo "Using dynamic version from parameter: $version"
+        else
+          version="@VERSION@"  # Will be replaced with actual version
+          echo "Using fallback version from config: $version"
+        fi
         
         # Create a temporary file for processing
         temp_file=$(mktemp)
@@ -544,9 +563,6 @@ else
           echo "Response: $config_response"
           # Continue execution even if this call fails
         fi
-      else
-        echo "Warning: StoreHub update_config.json not found at: $update_config_path"
-      fi
     else
       echo "Skipping configuration update - not a StoreHub component"
     fi

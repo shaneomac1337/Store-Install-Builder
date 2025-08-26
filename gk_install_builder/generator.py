@@ -1443,7 +1443,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
     "systemName": "''' + system_name + '''",
     "systemVersionList": [
       {
-        "name": "''' + version + '''"
+        "name": "@SYSTEM_VERSION@"
       }
     ]
   },

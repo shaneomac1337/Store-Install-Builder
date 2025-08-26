@@ -864,8 +864,28 @@ if (-not $isUpdate) {
                     Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
                 }
 
-                # Pass the values collected from hostname or user input
-                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+                # Update StoreHub configuration with dynamic version if this is a StoreHub installation
+                if ($ComponentType -eq "STOREHUB-SERVICE") {
+                    $storehubConfigPath = Join-Path $PSScriptRoot "helper\init\storehub\update_config.json"
+                    if (Test-Path $storehubConfigPath) {
+                        Write-Host "Updating StoreHub configuration with dynamic version: $component_version"
+                        # Create a backup of the original
+                        $backupPath = "$storehubConfigPath.backup"
+                        Copy-Item -Path $storehubConfigPath -Destination $backupPath -Force
+                        # Create a processed copy with the dynamic version
+                        $processedStorehubConfigPath = Join-Path $PSScriptRoot "helper\init\storehub\update_config_processed.json"
+                        $storehubConfig = Get-Content -Path $storehubConfigPath -Raw
+                        # Replace the version placeholder with the dynamic version
+                        $processedStorehubConfig = $storehubConfig -replace '@SYSTEM_VERSION@', $component_version
+                        Set-Content -Path $processedStorehubConfigPath -Value $processedStorehubConfig
+                        Write-Host "StoreHub configuration updated with version: $component_version"
+                    } else {
+                        Write-Host "Warning: StoreHub config not found at: $storehubConfigPath"
+                    }
+                }
+
+                # Pass the values collected from hostname or user input with the dynamic version
+                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId -Version $component_version
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "Store initialization completed successfully"
                 } else {
