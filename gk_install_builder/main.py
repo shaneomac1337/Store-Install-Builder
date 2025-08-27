@@ -2015,7 +2015,7 @@ class GKInstallBuilder:
                 loading_dialog.destroy()
                 messagebox.showerror("Authentication Failed",
                     "Could not generate authentication token.\n\n"
-                    "💡 HINT: Please ensure all Security Configuration details are filled in first:\n\n"
+                    "💡 HINT: Please ensure all Security Configuration details are filled in first and that you can reach the Employee Hub itself.:\n\n"
                     "1. Basic Auth Password (launchpad_oauth2)\n"
                     "2. Form Password (eh_launchpad_password)\n"
                     "3. Base URL is correct\n"
