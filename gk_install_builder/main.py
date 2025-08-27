@@ -2014,11 +2014,13 @@ class GKInstallBuilder:
             if not bearer_token:
                 loading_dialog.destroy()
                 messagebox.showerror("Authentication Failed",
-                    "Could not generate authentication token. Please check:\n\n"
-                    "1. Basic Auth Password is configured\n"
-                    "2. Form Password is configured\n"
+                    "Could not generate authentication token.\n\n"
+                    "💡 HINT: Please ensure all Security Configuration details are filled in first:\n\n"
+                    "1. Basic Auth Password (launchpad_oauth2)\n"
+                    "2. Form Password (eh_launchpad_password)\n"
                     "3. Base URL is correct\n"
-                    "4. Network connectivity")
+                    "4. Network connectivity\n\n"
+                    "Go to the Security Configuration tab and complete all required fields.")
                 return
 
             # Update loading message
@@ -2083,16 +2085,21 @@ class GKInstallBuilder:
             else:
                 messagebox.showerror("API Test Failed",
                     f"HTTP {response.status_code}: {response.text}\n\n"
-                    f"URL: {api_url}")
+                    f"URL: {api_url}\n\n"
+                    f"💡 HINT: If you get authentication errors, please ensure all Security Configuration details are filled in first.")
 
         except requests.exceptions.RequestException as e:
             if 'loading_dialog' in locals():
                 loading_dialog.destroy()
-            messagebox.showerror("API Test Failed", f"Network error: {str(e)}")
+            messagebox.showerror("API Test Failed",
+                f"Network error: {str(e)}\n\n"
+                f"💡 HINT: Please check your network connection and ensure all Security Configuration details are filled in first.")
         except Exception as e:
             if 'loading_dialog' in locals():
                 loading_dialog.destroy()
-            messagebox.showerror("API Test Failed", f"Error: {str(e)}")
+            messagebox.showerror("API Test Failed",
+                f"Error: {str(e)}\n\n"
+                f"💡 HINT: Please ensure all Security Configuration details are filled in first.")
 
     def _generate_api_token(self, base_url, loading_label, loading_dialog):
         """Generate API token using credentials from config"""
