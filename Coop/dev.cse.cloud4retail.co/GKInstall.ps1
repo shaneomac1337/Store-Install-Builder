@@ -2,7 +2,7 @@ param(
     [switch]$offline,
     [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
     [string]$ComponentType = 'POS',
-    [string]$base_url = "test.cse.cloud4retail.co",
+    [string]$base_url = "dev.cse.cloud4retail.co",
     [string]$storeId,  # Will be determined by hostname detection or user input
     [bool]$UseDefaultVersions = $true
 )
@@ -180,9 +180,6 @@ function Get-DefaultVersions {
 
         $bearerToken = $bearerToken.Trim()
 
-        # Construct the API URL
-        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
-
         # Prepare headers (including Referer as in working example)
         $headers = @{
             "authorization" = "Bearer $bearerToken"
@@ -190,24 +187,111 @@ function Get-DefaultVersions {
             "Referer" = "https://$BaseUrl/employee-hub/app/index.html"
         }
 
-        # Make the API request (token should be fresh from onboarding)
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -Headers $headers -TimeoutSec 30
-
-        # Parse the response and extract version information
+        # Initialize versions tracking with source information
         $versions = @{}
-        foreach ($property in $response) {
-            switch ($property.propertyId) {
-                "POSClient_Version" { $versions["POS"] = $property.value }
-                "WDM_Version" { $versions["WDM"] = $property.value }
-                "FlowService_Version" { $versions["FLOW-SERVICE"] = $property.value }
-                "LPA_Version" { $versions["LPA-SERVICE"] = $property.value }
-                "StoreHub_Version" { $versions["STOREHUB-SERVICE"] = $property.value }
+        $versionSources = @{}
+
+        Write-Host "Fetching component versions using FP-first, FPD-fallback strategy..."
+
+        # Step 1: Try FP scope first (modified/customized versions)
+        Write-Host "Step 1: Checking FP scope for modified/customized versions..."
+        $fpApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+        try {
+            $fpResponse = Invoke-RestMethod -Uri $fpApiUrl -Method Get -Headers $headers -TimeoutSec 30
+
+            # Parse FP scope results
+            foreach ($property in $fpResponse) {
+                if ($property.value) {
+                    switch ($property.propertyId) {
+                        "POSClient_Version" {
+                            $versions["POS"] = $property.value
+                            $versionSources["POS"] = "FP (Modified)"
+                        }
+                        "WDM_Version" {
+                            $versions["WDM"] = $property.value
+                            $versionSources["WDM"] = "FP (Modified)"
+                        }
+                        "FlowService_Version" {
+                            $versions["FLOW-SERVICE"] = $property.value
+                            $versionSources["FLOW-SERVICE"] = "FP (Modified)"
+                        }
+                        "LPA_Version" {
+                            $versions["LPA-SERVICE"] = $property.value
+                            $versionSources["LPA-SERVICE"] = "FP (Modified)"
+                        }
+                        "StoreHub_Version" {
+                            $versions["STOREHUB-SERVICE"] = $property.value
+                            $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
+                        }
+                    }
+                }
+            }
+
+            Write-Host "Found $($versions.Count) components in FP scope"
+        } catch {
+            Write-Host "Warning: FP scope request failed: $($_.Exception.Message)"
+        }
+
+        # Step 2: For components not found in FP, try FPD scope (default versions)
+        $allComponents = @("POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE")
+        $missingComponents = $allComponents | Where-Object { -not $versions.ContainsKey($_) }
+
+        if ($missingComponents.Count -gt 0) {
+            Write-Host "Step 2: Checking FPD scope for $($missingComponents.Count) missing components..."
+            $fpdApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+            try {
+                $fpdResponse = Invoke-RestMethod -Uri $fpdApiUrl -Method Get -Headers $headers -TimeoutSec 30
+
+                # Parse FPD scope results for missing components only
+                foreach ($property in $fpdResponse) {
+                    if ($property.value) {
+                        switch ($property.propertyId) {
+                            "POSClient_Version" {
+                                if (-not $versions.ContainsKey("POS")) {
+                                    $versions["POS"] = $property.value
+                                    $versionSources["POS"] = "FPD (Default)"
+                                }
+                            }
+                            "WDM_Version" {
+                                if (-not $versions.ContainsKey("WDM")) {
+                                    $versions["WDM"] = $property.value
+                                    $versionSources["WDM"] = "FPD (Default)"
+                                }
+                            }
+                            "FlowService_Version" {
+                                if (-not $versions.ContainsKey("FLOW-SERVICE")) {
+                                    $versions["FLOW-SERVICE"] = $property.value
+                                    $versionSources["FLOW-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "LPA_Version" {
+                                if (-not $versions.ContainsKey("LPA-SERVICE")) {
+                                    $versions["LPA-SERVICE"] = $property.value
+                                    $versionSources["LPA-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "StoreHub_Version" {
+                                if (-not $versions.ContainsKey("STOREHUB-SERVICE")) {
+                                    $versions["STOREHUB-SERVICE"] = $property.value
+                                    $versionSources["STOREHUB-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Write-Host "Found additional $($versions.Count - ($allComponents.Count - $missingComponents.Count)) components in FPD scope"
+            } catch {
+                Write-Host "Warning: FPD scope request failed: $($_.Exception.Message)"
             }
         }
 
-        Write-Host "Successfully fetched default versions:"
+        Write-Host "Successfully fetched component versions:"
         foreach ($key in $versions.Keys) {
-            Write-Host "  $key`: $($versions[$key])"
+            $source = if ($versionSources.ContainsKey($key)) { $versionSources[$key] } else { "Unknown" }
+            Write-Host "  $key`: $($versions[$key]) ($source)"
         }
 
         return $versions
@@ -224,7 +308,7 @@ $server = $base_url
 $dsg_server = $base_url
 
 # Basic configuration
-$version = "v1.1.0"
+$version = "v1.3.0"
 $base_install_dir = "C:\\gkretail"
 
 # Set component-specific configurations
@@ -305,11 +389,11 @@ if ($UseDefaultVersions) {
         Write-Host "Warning: Could not get version for $ComponentType from API, falling back to hardcoded version"
         # Fall back to hardcoded versions
         $component_version = switch ($systemType) {
-            "CSE-OPOS-CLOUD" { "v1.1.0" }
-            "CSE-wdm" { "v1.1.0" }
-            "GKR-FLOWSERVICE-CLOUD" { "v1.1.0" }
-            "CSE-lps-lpa" { "v1.1.0" }
-            "CSE-sh-cloud" { "v1.1.0" }
+            "CSE-OPOS-CLOUD" { "v1.3.0" }
+            "CSE-wdm" { "v1.3.0" }
+            "GKR-FLOWSERVICE-CLOUD" { "v1.3.0" }
+            "CSE-lps-lpa" { "v1.3.0" }
+            "CSE-sh-cloud" { "v1.3.0" }
             default { "" }
         }
     }
@@ -317,11 +401,11 @@ if ($UseDefaultVersions) {
     Write-Host "Using hardcoded versions from configuration..."
     # Set component-specific version if available
     $component_version = switch ($systemType) {
-        "CSE-OPOS-CLOUD" { "v1.1.0" }
-        "CSE-wdm" { "v1.1.0" }
-        "GKR-FLOWSERVICE-CLOUD" { "v1.1.0" }
-        "CSE-lps-lpa" { "v1.1.0" }
-        "CSE-sh-cloud" { "v1.1.0" }
+        "CSE-OPOS-CLOUD" { "v1.3.0" }
+        "CSE-wdm" { "v1.3.0" }
+        "GKR-FLOWSERVICE-CLOUD" { "v1.3.0" }
+        "CSE-lps-lpa" { "v1.3.0" }
+        "CSE-sh-cloud" { "v1.3.0" }
         default { "" }
     }
 }
@@ -827,7 +911,7 @@ if ($useBaseDirectory -eq "true") {
         "LPA-SERVICE" = "";
         "STOREHUB-SERVICE" = ""
     }
-    
+
     # Get the appropriate station file path for the current component
     $stationFilePath = $customPaths[$componentType]
     if (-not $stationFilePath) {
@@ -943,8 +1027,28 @@ if (-not $isUpdate) {
                     Write-Host "Warning: get_store.json not found at: $getStoreJsonPath"
                 }
 
-                # Pass the values collected from hostname or user input
-                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId
+                # Update StoreHub configuration with dynamic version if this is a StoreHub installation
+                if ($ComponentType -eq "STOREHUB-SERVICE") {
+                    $storehubConfigPath = Join-Path $PSScriptRoot "helper\init\storehub\update_config.json"
+                    if (Test-Path $storehubConfigPath) {
+                        Write-Host "Updating StoreHub configuration with dynamic version: $component_version"
+                        # Create a backup of the original
+                        $backupPath = "$storehubConfigPath.backup"
+                        Copy-Item -Path $storehubConfigPath -Destination $backupPath -Force
+                        # Create a processed copy with the dynamic version
+                        $processedStorehubConfigPath = Join-Path $PSScriptRoot "helper\init\storehub\update_config_processed.json"
+                        $storehubConfig = Get-Content -Path $storehubConfigPath -Raw
+                        # Replace the version placeholder with the dynamic version
+                        $processedStorehubConfig = $storehubConfig -replace '@SYSTEM_VERSION@', $component_version
+                        Set-Content -Path $processedStorehubConfigPath -Value $processedStorehubConfig
+                        Write-Host "StoreHub configuration updated with version: $component_version"
+                    } else {
+                        Write-Host "Warning: StoreHub config not found at: $storehubConfigPath"
+                    }
+                }
+
+                # Pass the values collected from hostname or user input with the dynamic version
+                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId -Version $component_version
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "Store initialization completed successfully"
                 } else {

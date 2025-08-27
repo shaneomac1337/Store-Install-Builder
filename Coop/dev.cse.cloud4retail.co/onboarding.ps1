@@ -1,6 +1,6 @@
 param (
     [string]$ComponentType = "POS",
-    [string]$base_url = "test.cse.cloud4retail.co",  # Add this parameter
+    [string]$base_url = "dev.cse.cloud4retail.co",  # Add this parameter
     [string]$tenant_id = "001"  # Add this parameter
 )
 

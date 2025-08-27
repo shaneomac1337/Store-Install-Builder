@@ -2005,9 +2005,6 @@ class GKInstallBuilder:
                 print(f"Warning: Could not grab window focus: {e}")
                 # Continue without grab - dialog will still work
 
-            # Construct API URL
-            api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
-
             # Try to generate token using credentials from config
             bearer_token = self._generate_api_token(base_url, loading_label, loading_dialog)
 
@@ -2024,69 +2021,103 @@ class GKInstallBuilder:
                 return
 
             # Update loading message
-            loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching component versions...\nPlease wait...")
+            loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching component versions (FP scope)...\nPlease wait...")
             loading_dialog.update()
 
-            # Make API request
+            # Prepare headers for API requests
             headers = {
                 "authorization": f"Bearer {bearer_token}",
                 "gk-tenant-id": "001",
                 "Referer": f"https://{base_url}/employee-hub/app/index.html"
             }
 
-            response = requests.get(api_url, headers=headers, timeout=30, verify=False)
+            # Initialize versions tracking
+            versions = {
+                "POS": {"value": None, "source": None},
+                "WDM": {"value": None, "source": None},
+                "FLOW-SERVICE": {"value": None, "source": None},
+                "LPA-SERVICE": {"value": None, "source": None},
+                "STOREHUB-SERVICE": {"value": None, "source": None}
+            }
+
+            # Step 1: Try FP scope first (modified/customized versions)
+            fp_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+            try:
+                fp_response = requests.get(fp_api_url, headers=headers, timeout=30, verify=False)
+                if fp_response.status_code == 200:
+                    fp_data = fp_response.json()
+
+                    # Parse FP scope results
+                    for property_item in fp_data:
+                        prop_id = property_item.get("propertyId", "")
+                        value = property_item.get("value", "")
+
+                        if prop_id == "POSClient_Version" and value:
+                            versions["POS"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "WDM_Version" and value:
+                            versions["WDM"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "FlowService_Version" and value:
+                            versions["FLOW-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "LPA_Version" and value:
+                            versions["LPA-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "StoreHub_Version" and value:
+                            versions["STOREHUB-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+            except Exception as e:
+                print(f"Warning: FP scope request failed: {e}")
+
+            # Step 2: For components not found in FP, try FPD scope (default versions)
+            missing_components = [comp for comp, data in versions.items() if data["value"] is None]
+
+            if missing_components:
+                loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching missing components (FPD scope)...\nPlease wait...")
+                loading_dialog.update()
+
+                fpd_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+                try:
+                    fpd_response = requests.get(fpd_api_url, headers=headers, timeout=30, verify=False)
+                    if fpd_response.status_code == 200:
+                        fpd_data = fpd_response.json()
+
+                        # Parse FPD scope results for missing components only
+                        for property_item in fpd_data:
+                            prop_id = property_item.get("propertyId", "")
+                            value = property_item.get("value", "")
+
+                            if prop_id == "POSClient_Version" and value and versions["POS"]["value"] is None:
+                                versions["POS"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "WDM_Version" and value and versions["WDM"]["value"] is None:
+                                versions["WDM"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "FlowService_Version" and value and versions["FLOW-SERVICE"]["value"] is None:
+                                versions["FLOW-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "LPA_Version" and value and versions["LPA-SERVICE"]["value"] is None:
+                                versions["LPA-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "StoreHub_Version" and value and versions["STOREHUB-SERVICE"]["value"] is None:
+                                versions["STOREHUB-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                except Exception as e:
+                    print(f"Warning: FPD scope request failed: {e}")
+
             loading_dialog.destroy()
 
-            if response.status_code == 200:
-                data = response.json()
+            # Show results with status and source for each component
+            result_text = "✅ API Test Successful!\n\nComponent Version Status:\n\n"
 
-                # Parse versions - initialize all components as "Not Found"
-                versions = {
-                    "POS": None,
-                    "WDM": None,
-                    "FLOW-SERVICE": None,
-                    "LPA-SERVICE": None,
-                    "STOREHUB-SERVICE": None
-                }
+            found_count = 0
+            for component, data in versions.items():
+                if data["value"]:
+                    result_text += f"✅ {component}: {data['value']} ({data['source']})\n"
+                    found_count += 1
+                else:
+                    result_text += f"❌ {component}: Not Found\n"
 
-                for property_item in data:
-                    prop_id = property_item.get("propertyId", "")
-                    value = property_item.get("value", "")
+            result_text += f"\n📊 Summary: {found_count}/5 components found"
+            result_text += f"\n🔍 Search Strategy: FP scope first, FPD scope for missing components"
 
-                    if prop_id == "POSClient_Version":
-                        versions["POS"] = value
-                    elif prop_id == "WDM_Version":
-                        versions["WDM"] = value
-                    elif prop_id == "FlowService_Version":
-                        versions["FLOW-SERVICE"] = value
-                    elif prop_id == "LPA_Version":
-                        versions["LPA-SERVICE"] = value
-                    elif prop_id == "StoreHub_Version":
-                        versions["STOREHUB-SERVICE"] = value
+            if found_count == 0:
+                result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
 
-                # Show results with status for each component
-                result_text = "✅ API Test Successful!\n\nComponent Version Status:\n\n"
-
-                found_count = 0
-                for component, version in versions.items():
-                    if version:
-                        result_text += f"✅ {component}: {version}\n"
-                        found_count += 1
-                    else:
-                        result_text += f"❌ {component}: Not Found\n"
-
-                result_text += f"\n📊 Summary: {found_count}/5 components found in API response"
-
-                if found_count == 0:
-                    result_text += "\n\n⚠️ No component versions found in API response"
-
-                messagebox.showinfo("API Test Results", result_text)
-
-            else:
-                messagebox.showerror("API Test Failed",
-                    f"HTTP {response.status_code}: {response.text}\n\n"
-                    f"URL: {api_url}\n\n"
-                    f"💡 HINT: If you get authentication errors, please ensure all Security Configuration details are filled in first.")
+            messagebox.showinfo("API Test Results", result_text)
 
         except requests.exceptions.RequestException as e:
             if 'loading_dialog' in locals():

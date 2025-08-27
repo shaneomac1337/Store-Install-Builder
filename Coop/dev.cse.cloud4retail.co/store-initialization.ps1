@@ -6,7 +6,9 @@ param (
     [Parameter(Mandatory=$true)]
     [string]$StoreId,
     [Parameter(Mandatory=$true)]
-    [string]$WorkstationId
+    [string]$WorkstationId,
+    [Parameter(Mandatory=$false)]
+    [string]$Version
 )
 
 # Initialize StoreHub wait tracking variable
@@ -317,12 +319,23 @@ try {
                 # Now update the configuration using update_config.json from the storehub directory
                 $storehubDir = Join-Path $initPath "storehub"
                 $updateConfigPath = Join-Path $storehubDir "update_config.json"
-                
-                if (Test-Path $updateConfigPath) {
+                $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
+
+                # Check if GKInstall already created a processed version with dynamic version
+                if (Test-Path $processedUpdateConfigPath) {
+                    Write-Host "Using processed StoreHub configuration with dynamic version from GKInstall..."
+                    Write-Host "Processed config found at: $processedUpdateConfigPath"
+                    # Read the already processed config
+                    $updateConfigJson = Get-Content -Path $processedUpdateConfigPath -Raw
+                } elseif (Test-Path $updateConfigPath) {
                     Write-Host "Updating StoreHub configuration using update_config.json..."
-                    
+
                     # Read the update_config.json template
                     $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
+                } else {
+                    Write-Host "Warning: StoreHub update_config.json not found at: $updateConfigPath"
+                    return
+                }
                     
                     # Get hostname
                     $hostname = $env:COMPUTERNAME
@@ -330,14 +343,23 @@ try {
                         $hostname = "localhost"
                     }
                     
-                    # Get version from config
-                    $version = "v1.1.0"  # Will be replaced with actual version
+                    # Get version from parameter or fallback to config
+                    if (-Not [string]::IsNullOrEmpty($Version)) {
+                        $version = $Version
+                        Write-Host "Using dynamic version from parameter: $version"
+                    } else {
+                        $version = "v1.3.0"  # Will be replaced with actual version
+                        Write-Host "Using fallback version from config: $version"
+                    }
                     
-                    # Create a processed copy for making replacements
-                    $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
-                    $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
-                    Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
-                    
+                    # Create or update the processed copy for making replacements
+                    if (-Not (Test-Path $processedUpdateConfigPath)) {
+                        $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                        Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
+                    } else {
+                        Write-Host "Using existing processed copy at: $processedUpdateConfigPath"
+                    }
+
                     # Replace placeholders in the processed copy
                     $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw
                     $processedContent = $processedContent -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
@@ -421,9 +443,6 @@ try {
                         }
                         # Continue execution even if this call fails
                     }
-                } else {
-                    Write-Host "Warning: StoreHub update_config.json not found at: $updateConfigPath"
-                }
             } else {
                 Write-Host "Skipping configuration update - not a StoreHub component"
             }

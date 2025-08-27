@@ -204,46 +204,96 @@ get_default_versions() {
     return 1
   fi
 
-  # Construct the API URL
-  local api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+  echo "Fetching component version using FP-first, FPD-fallback strategy for $COMPONENT_TYPE..." >&2
 
-  # Make the API request using curl (including Referer as in working example)
-  local response=$(curl -s -k \
+  local result_version=""
+  local version_source=""
+
+  # Step 1: Try FP scope first (modified/customized versions)
+  echo "Step 1: Checking FP scope for modified/customized version..." >&2
+  local fp_api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+  local fp_response=$(curl -s -k \
     -H "authorization: Bearer $bearer_token" \
     -H "gk-tenant-id: $tenant_id" \
     -H "Referer: https://$base_url/employee-hub/app/index.html" \
-    "$api_url")
+    "$fp_api_url")
 
-  if [ $? -eq 0 ] && [ -n "$response" ]; then
-    echo "Successfully fetched default versions from API" >&2
-
-    # Parse JSON response and extract versions
-    # Using grep and sed to extract version values (avoiding dependency on jq)
-    local pos_version=$(echo "$response" | grep -o '"propertyId":"POSClient_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
-    local wdm_version=$(echo "$response" | grep -o '"propertyId":"WDM_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
-    local flow_version=$(echo "$response" | grep -o '"propertyId":"FlowService_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
-    local lpa_version=$(echo "$response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
-    local storehub_version=$(echo "$response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
-
-    # Set the result version based on component type
+  if [ $? -eq 0 ] && [ -n "$fp_response" ]; then
+    # Parse JSON response and extract version for the requested component
     case "$COMPONENT_TYPE" in
-      "POS") result_version="$pos_version" ;;
-      "WDM") result_version="$wdm_version" ;;
-      "FLOW-SERVICE") result_version="$flow_version" ;;
-      "LPA-SERVICE") result_version="$lpa_version" ;;
-      "STOREHUB-SERVICE") result_version="$storehub_version" ;;
+      "POS")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"POSClient_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "WDM")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"WDM_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "FLOW-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"FlowService_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "LPA-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "STOREHUB-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
     esac
 
-    # Only output the version if it's not empty
     if [ -n "$result_version" ]; then
-      echo "$result_version"
-      return 0
-    else
-      echo "Warning: No version found for component type $COMPONENT_TYPE" >&2
-      return 1
+      version_source="FP (Modified)"
+      echo "Found $COMPONENT_TYPE version in FP scope: $result_version" >&2
     fi
   else
-    echo "Warning: Failed to fetch default versions from API after retries" >&2
+    echo "Warning: FP scope request failed" >&2
+  fi
+
+  # Step 2: If not found in FP, try FPD scope (default versions)
+  if [ -z "$result_version" ]; then
+    echo "Step 2: Checking FPD scope for default version..." >&2
+    local fpd_api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+    local fpd_response=$(curl -s -k \
+      -H "authorization: Bearer $bearer_token" \
+      -H "gk-tenant-id: $tenant_id" \
+      -H "Referer: https://$base_url/employee-hub/app/index.html" \
+      "$fpd_api_url")
+
+    if [ $? -eq 0 ] && [ -n "$fpd_response" ]; then
+      # Parse JSON response and extract version for the requested component
+      case "$COMPONENT_TYPE" in
+        "POS")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"POSClient_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "WDM")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"WDM_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "FLOW-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"FlowService_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "LPA-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "STOREHUB-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+      esac
+
+      if [ -n "$result_version" ]; then
+        version_source="FPD (Default)"
+        echo "Found $COMPONENT_TYPE version in FPD scope: $result_version" >&2
+      fi
+    else
+      echo "Warning: FPD scope request failed" >&2
+    fi
+  fi
+
+  # Return the result
+  if [ -n "$result_version" ]; then
+    echo "Successfully fetched $COMPONENT_TYPE version: $result_version ($version_source)" >&2
+    echo "$result_version"
+    return 0
+  else
+    echo "Warning: No version found for component type $COMPONENT_TYPE in either FP or FPD scope" >&2
     return 1
   fi
 }

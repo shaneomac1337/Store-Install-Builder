@@ -180,9 +180,6 @@ function Get-DefaultVersions {
 
         $bearerToken = $bearerToken.Trim()
 
-        # Construct the API URL
-        $apiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
-
         # Prepare headers (including Referer as in working example)
         $headers = @{
             "authorization" = "Bearer $bearerToken"
@@ -190,24 +187,111 @@ function Get-DefaultVersions {
             "Referer" = "https://$BaseUrl/employee-hub/app/index.html"
         }
 
-        # Make the API request (token should be fresh from onboarding)
-        $response = Invoke-RestMethod -Uri $apiUrl -Method Get -Headers $headers -TimeoutSec 30
-
-        # Parse the response and extract version information
+        # Initialize versions tracking with source information
         $versions = @{}
-        foreach ($property in $response) {
-            switch ($property.propertyId) {
-                "POSClient_Version" { $versions["POS"] = $property.value }
-                "WDM_Version" { $versions["WDM"] = $property.value }
-                "FlowService_Version" { $versions["FLOW-SERVICE"] = $property.value }
-                "LPA_Version" { $versions["LPA-SERVICE"] = $property.value }
-                "StoreHub_Version" { $versions["STOREHUB-SERVICE"] = $property.value }
+        $versionSources = @{}
+
+        Write-Host "Fetching component versions using FP-first, FPD-fallback strategy..."
+
+        # Step 1: Try FP scope first (modified/customized versions)
+        Write-Host "Step 1: Checking FP scope for modified/customized versions..."
+        $fpApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+        try {
+            $fpResponse = Invoke-RestMethod -Uri $fpApiUrl -Method Get -Headers $headers -TimeoutSec 30
+
+            # Parse FP scope results
+            foreach ($property in $fpResponse) {
+                if ($property.value) {
+                    switch ($property.propertyId) {
+                        "POSClient_Version" {
+                            $versions["POS"] = $property.value
+                            $versionSources["POS"] = "FP (Modified)"
+                        }
+                        "WDM_Version" {
+                            $versions["WDM"] = $property.value
+                            $versionSources["WDM"] = "FP (Modified)"
+                        }
+                        "FlowService_Version" {
+                            $versions["FLOW-SERVICE"] = $property.value
+                            $versionSources["FLOW-SERVICE"] = "FP (Modified)"
+                        }
+                        "LPA_Version" {
+                            $versions["LPA-SERVICE"] = $property.value
+                            $versionSources["LPA-SERVICE"] = "FP (Modified)"
+                        }
+                        "StoreHub_Version" {
+                            $versions["STOREHUB-SERVICE"] = $property.value
+                            $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
+                        }
+                    }
+                }
+            }
+
+            Write-Host "Found $($versions.Count) components in FP scope"
+        } catch {
+            Write-Host "Warning: FP scope request failed: $($_.Exception.Message)"
+        }
+
+        # Step 2: For components not found in FP, try FPD scope (default versions)
+        $allComponents = @("POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE")
+        $missingComponents = $allComponents | Where-Object { -not $versions.ContainsKey($_) }
+
+        if ($missingComponents.Count -gt 0) {
+            Write-Host "Step 2: Checking FPD scope for $($missingComponents.Count) missing components..."
+            $fpdApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+            try {
+                $fpdResponse = Invoke-RestMethod -Uri $fpdApiUrl -Method Get -Headers $headers -TimeoutSec 30
+
+                # Parse FPD scope results for missing components only
+                foreach ($property in $fpdResponse) {
+                    if ($property.value) {
+                        switch ($property.propertyId) {
+                            "POSClient_Version" {
+                                if (-not $versions.ContainsKey("POS")) {
+                                    $versions["POS"] = $property.value
+                                    $versionSources["POS"] = "FPD (Default)"
+                                }
+                            }
+                            "WDM_Version" {
+                                if (-not $versions.ContainsKey("WDM")) {
+                                    $versions["WDM"] = $property.value
+                                    $versionSources["WDM"] = "FPD (Default)"
+                                }
+                            }
+                            "FlowService_Version" {
+                                if (-not $versions.ContainsKey("FLOW-SERVICE")) {
+                                    $versions["FLOW-SERVICE"] = $property.value
+                                    $versionSources["FLOW-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "LPA_Version" {
+                                if (-not $versions.ContainsKey("LPA-SERVICE")) {
+                                    $versions["LPA-SERVICE"] = $property.value
+                                    $versionSources["LPA-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "StoreHub_Version" {
+                                if (-not $versions.ContainsKey("STOREHUB-SERVICE")) {
+                                    $versions["STOREHUB-SERVICE"] = $property.value
+                                    $versionSources["STOREHUB-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Write-Host "Found additional $($versions.Count - ($allComponents.Count - $missingComponents.Count)) components in FPD scope"
+            } catch {
+                Write-Host "Warning: FPD scope request failed: $($_.Exception.Message)"
             }
         }
 
-        Write-Host "Successfully fetched default versions:"
+        Write-Host "Successfully fetched component versions:"
         foreach ($key in $versions.Keys) {
-            Write-Host "  $key`: $($versions[$key])"
+            $source = if ($versionSources.ContainsKey($key)) { $versionSources[$key] } else { "Unknown" }
+            Write-Host "  $key`: $($versions[$key]) ($source)"
         }
 
         return $versions
