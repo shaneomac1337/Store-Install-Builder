@@ -2630,7 +2630,7 @@ class GKInstallBuilder:
                     status_var.set(f"Retrieving environments for {project['name']}...")
                     dialog.update_idletasks()  # Force UI update
                     folder_id = project_id
-                    folder_contents = client.get_folder(folder_id)
+                    folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
                     subfolders = self.get_subfolders(folder_contents)
                     
                     # Update environment dropdown with actual values from the project
@@ -2739,7 +2739,7 @@ class GKInstallBuilder:
                 status_var.set("Processing...")
                 dialog.update()  # Force complete UI update
                 
-                folder_contents = client.get_folder(folder_id)
+                folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
                 subfolders = self.get_subfolders(folder_contents)
                 
                 # Update environment dropdown with actual values from the project
@@ -2836,7 +2836,7 @@ class GKInstallBuilder:
                     if env_folder:
                         # Get full environment folder structure
                         env_id = env_folder['id'] if isinstance(env_folder, dict) else env_folder
-                        env_structure = client.get_folder(env_id)
+                        env_structure = client.get_folder_by_id(env_id, recurse_level=2)
                         
                         # Find the credential in this environment based on password type
                         if password_type == "basic_auth":
@@ -2888,7 +2888,7 @@ class GKInstallBuilder:
                         return
                     
                     # Get project folder structure
-                    project_folder = client.get_folder(project_folder_id)
+                    project_folder = client.get_folder_by_id(project_folder_id, recurse_level=2)
                     
                     # Find environment folder
                     env_folder_id = self.find_folder_id_by_name(project_folder, environment)
@@ -2898,7 +2898,7 @@ class GKInstallBuilder:
                         return
                     
                     # Get environment folder structure
-                    env_folder = client.get_folder(env_folder_id)
+                    env_folder = client.get_folder_by_id(env_folder_id, recurse_level=2)
                     
                     # Find the credential in this environment based on password type
                     if password_type == "basic_auth":
@@ -3293,11 +3293,34 @@ class GKInstallBuilder:
         folders = []
         if isinstance(folder_structure, dict):
             children = folder_structure.get('Children', [])
+
+            # Check if we have wrapper folders (like DEV-OPOS-01, PRD-OPOS-01)
+            # If so, flatten by looking at their children instead
+            has_wrapper_folders = False
             for child in children:
-                folders.append({
-                    'name': child.get('Name'),
-                    'id': child.get('Id')
-                })
+                child_name = child.get('Name', '')
+                # Detect wrapper patterns: contains OPOS or similar patterns
+                if '-OPOS-' in child_name or child_name.endswith('-01') or child_name.endswith('-02'):
+                    has_wrapper_folders = True
+                    break
+
+            if has_wrapper_folders:
+                # Flatten: get children of wrapper folders
+                for wrapper in children:
+                    wrapper_children = wrapper.get('Children', [])
+                    for child in wrapper_children:
+                        folders.append({
+                            'name': child.get('Name'),
+                            'id': child.get('Id'),
+                            'parent_wrapper': wrapper.get('Name')  # Keep track of which wrapper this came from
+                        })
+            else:
+                # Normal behavior: direct children
+                for child in children:
+                    folders.append({
+                        'name': child.get('Name'),
+                        'id': child.get('Id')
+                    })
         return sorted(folders, key=lambda x: x['name'])
 
     def print_all_credentials(self, folder_structure, path=""):
