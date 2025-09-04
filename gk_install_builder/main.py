@@ -709,6 +709,15 @@ class GKInstallBuilder:
             
             # Register entry with config manager
             self.config_manager.register_entry(config_key, entry)
+
+            # Special handling for main project version field
+            if config_key == "version":
+                # Bind to auto-update component versions on multiple events
+                entry.bind("<KeyRelease>", lambda event: self.on_project_version_change())
+                entry.bind("<FocusOut>", lambda event: self.on_project_version_change())
+                entry.bind("<Return>", lambda event: self.on_project_version_change())
+                # Also bind to paste events
+                entry.bind("<Control-v>", lambda event: self.root.after(10, self.on_project_version_change))
         
         # Add Platform Selection
         platform_frame = ctk.CTkFrame(form_frame)
@@ -1719,69 +1728,100 @@ class GKInstallBuilder:
         # Version override checkbox
         self.version_override_var = ctk.BooleanVar(value=self.config_manager.config.get("use_version_override", False))
         override_checkbox = ctk.CTkCheckBox(
-            grid_frame, 
-            text="Enable Version Override", 
+            grid_frame,
+            text="Enable Version Override",
             variable=self.version_override_var,
             command=self.toggle_version_override
         )
         override_checkbox.grid(row=0, column=0, columnspan=2, padx=10, pady=5, sticky="w")
         self.create_tooltip(override_checkbox, "Enable to specify custom versions for each component type")
+
+        # Use Default Versions checkbox
+        self.use_default_versions_var = ctk.BooleanVar(value=self.config_manager.config.get("use_default_versions", False))
+        default_versions_checkbox = ctk.CTkCheckBox(
+            grid_frame,
+            text="Use Default Versions (fetch from Employee Hub Function Pack)",
+            variable=self.use_default_versions_var,
+            command=self.toggle_default_versions
+        )
+        default_versions_checkbox.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Function Pack API instead of using hardcoded versions")
+
+        # Test API button next to the checkbox
+        test_api_button = ctk.CTkButton(
+            grid_frame,
+            text="Test API",
+            command=self.test_default_versions_api,
+            width=80,
+            height=28
+        )
+        test_api_button.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.create_tooltip(test_api_button, "Test the Employee Hub Function Pack API to verify it can fetch default component versions")
         
         # Get project version from config
         project_version = self.config_manager.config.get("version", "")
         
+        # Store version field references for show/hide functionality
+        self.version_fields = []
+
         # POS Version
         pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
-        pos_label.grid(row=1, column=0, padx=10, pady=5, sticky="w")
+        pos_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
         self.pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.pos_version_entry.grid(row=1, column=1, padx=10, pady=5, sticky="w")
+        self.pos_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
         self.pos_version_entry.insert(0, self.config_manager.config.get("pos_version", project_version))
         self.config_manager.register_entry("pos_version", self.pos_version_entry)
         self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
         self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
-        
+        self.version_fields.extend([pos_label, self.pos_version_entry])
+
         # WDM Version
         wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
-        wdm_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        wdm_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
         self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.wdm_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
         self.wdm_version_entry.insert(0, self.config_manager.config.get("wdm_version", project_version))
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
         self.create_tooltip(self.wdm_version_entry, "Example: v1.0.0")
-        
+        self.version_fields.extend([wdm_label, self.wdm_version_entry])
+
         # Flow Service Version
         flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
-        flow_service_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        flow_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.flow_service_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry.insert(0, self.config_manager.config.get("flow_service_version", project_version))
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
         self.create_tooltip(self.flow_service_version_entry, "Example: v1.0.0")
-        
+        self.version_fields.extend([flow_service_label, self.flow_service_version_entry])
+
         # LPA Service Version
         lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
-        lpa_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        lpa_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.lpa_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry.insert(0, self.config_manager.config.get("lpa_service_version", project_version))
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
         self.create_tooltip(self.lpa_service_version_entry, "Example: v1.0.0")
-        
+        self.version_fields.extend([lpa_service_label, self.lpa_service_version_entry])
+
         # StoreHub Service Version
         storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
-        storehub_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        storehub_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.storehub_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
+        self.version_fields.extend([storehub_service_label, self.storehub_service_version_entry])
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
         self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
         self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
-        
-        # Register the override checkbox with config manager
+
+        # Register the checkboxes with config manager
         self.config_manager.register_entry("use_version_override", self.version_override_var)
+        self.config_manager.register_entry("use_default_versions", self.use_default_versions_var)
         
         # Initialize state based on config
         self.toggle_version_override()
@@ -1790,7 +1830,13 @@ class GKInstallBuilder:
         """Toggle the enabled state of version fields based on checkbox"""
         enabled = self.version_override_var.get()
         state = "normal" if enabled else "disabled"
-        
+
+        # Mutual exclusion: disable default versions when version override is enabled
+        if enabled and self.use_default_versions_var.get():
+            self.use_default_versions_var.set(False)
+            self.config_manager.config["use_default_versions"] = False
+            print("Default versions disabled: Version override takes precedence")
+
         # Get project version
         project_version = self.config_manager.config.get("version", "")
         
@@ -1820,7 +1866,351 @@ class GKInstallBuilder:
         # Update config
         self.config_manager.config["use_version_override"] = enabled
         self.config_manager.save_config_silent()
-    
+
+        # Update version fields visibility
+        self.update_version_fields_visibility()
+
+        # If version override was just enabled, sync component versions with project version
+        if enabled:
+            self.force_project_version_update()
+
+    def toggle_default_versions(self):
+        """Toggle the use default versions setting"""
+        enabled = self.use_default_versions_var.get()
+
+        # Mutual exclusion: disable version override when default versions is enabled
+        if enabled and self.version_override_var.get():
+            self.version_override_var.set(False)
+            self.config_manager.config["use_version_override"] = False
+            # Also disable the version entry fields
+            self.toggle_version_override()
+            print("Version override disabled: Default versions take precedence")
+
+        # Update config
+        self.config_manager.config["use_default_versions"] = enabled
+        self.config_manager.save_config_silent()
+
+        # Show informational message about what this does
+        if enabled:
+            print("Default versions enabled: Installation script will fetch component versions from Employee Hub Function Pack API")
+        else:
+            print("Default versions disabled: Installation script will use hardcoded versions from GUI configuration")
+
+        # Update version fields visibility
+        self.update_version_fields_visibility()
+
+    def on_project_version_change(self):
+        """Handle changes to the main project version field"""
+        try:
+            # Get the new project version
+            version_entry = self.config_manager.get_entry("version")
+            if not version_entry:
+                return
+
+            new_version = version_entry.get().strip()
+            if not new_version:
+                return
+
+            # Only update component versions if version override is enabled
+            # and the component version fields exist
+            if (hasattr(self, 'version_override_var') and
+                self.version_override_var.get() and
+                hasattr(self, 'pos_version_entry')):
+
+                print(f"Project version changed to: {new_version}")
+                print("Auto-updating component versions...")
+
+                # List of component version entries to update
+                component_entries = [
+                    (self.pos_version_entry, "pos_version"),
+                    (self.wdm_version_entry, "wdm_version"),
+                    (self.flow_service_version_entry, "flow_service_version"),
+                    (self.lpa_service_version_entry, "lpa_service_version"),
+                    (self.storehub_service_version_entry, "storehub_service_version")
+                ]
+
+                # Update each component version field
+                for entry, config_key in component_entries:
+                    if entry:
+                        # Get current value to avoid unnecessary updates
+                        current_value = entry.get().strip()
+                        if current_value != new_version:
+                            # Clear and update the field
+                            entry.delete(0, 'end')
+                            entry.insert(0, new_version)
+                            # Update the config
+                            self.config_manager.config[config_key] = new_version
+
+                # Save the config
+                self.config_manager.save_config_silent()
+                print("Component versions updated successfully!")
+        except Exception as e:
+            print(f"Error updating component versions: {e}")
+
+    def force_project_version_update(self):
+        """Force an update of component versions from project version"""
+        self.on_project_version_change()
+
+    def update_version_fields_visibility(self):
+        """Update visibility of version input fields based on current settings"""
+        # Version fields should only be visible when:
+        # 1. Version override is enabled AND
+        # 2. Default versions is disabled
+        show_version_fields = (self.version_override_var.get() and not self.use_default_versions_var.get())
+
+        if hasattr(self, 'version_fields'):
+            for field in self.version_fields:
+                if show_version_fields:
+                    field.grid()  # Show the field
+                else:
+                    field.grid_remove()  # Hide the field but keep its grid position
+
+    def test_default_versions_api(self):
+        """Test the Employee Hub Function Pack API to fetch default versions"""
+        try:
+            # Force save current GUI values to config before testing
+            print("Forcing config update from GUI fields...")
+            self.config_manager.update_config_from_entries()
+            self.config_manager.save_config_silent()
+
+            # Get base URL from config
+            base_url = self.config_manager.config.get("base_url", "")
+            if not base_url:
+                messagebox.showerror("Error", "Please configure the Base URL first")
+                return
+
+            # Show loading message
+            loading_dialog = ctk.CTkToplevel(self.root)
+            loading_dialog.title("Testing API")
+            loading_dialog.geometry("400x250")
+            loading_dialog.transient(self.root)
+
+            # Center the dialog
+            loading_dialog.update_idletasks()
+            x = (loading_dialog.winfo_screenwidth() // 2) - (400 // 2)
+            y = (loading_dialog.winfo_screenheight() // 2) - (250 // 2)
+            loading_dialog.geometry(f"400x250+{x}+{y}")
+
+            loading_label = ctk.CTkLabel(loading_dialog, text="Testing Employee Hub Function Pack API...\nGenerating authentication token...\nPlease wait...")
+            loading_label.pack(expand=True)
+
+            # Update the dialog and ensure it's visible before grabbing
+            loading_dialog.update()
+            loading_dialog.deiconify()  # Ensure window is visible
+
+            # Try to grab focus with error handling for Linux compatibility
+            try:
+                loading_dialog.grab_set()
+            except Exception as e:
+                print(f"Warning: Could not grab window focus: {e}")
+                # Continue without grab - dialog will still work
+
+            # Try to generate token using credentials from config
+            bearer_token = self._generate_api_token(base_url, loading_label, loading_dialog)
+
+            if not bearer_token:
+                loading_dialog.destroy()
+                messagebox.showerror("Authentication Failed",
+                    "Could not generate authentication token.\n\n"
+                    "💡 HINT: Please ensure all Security Configuration details are filled in first and that you can reach the Employee Hub itself.\n\n"
+                    "1. Basic Auth Password (launchpad_oauth2)\n"
+                    "2. Form Password (eh_launchpad_password)\n"
+                    "3. Base URL is correct\n"
+                    "4. Network connectivity\n\n"
+                    "Go to the Security Configuration tab and complete all required fields.")
+                return
+
+            # Update loading message
+            loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching component versions (FP scope)...\nPlease wait...")
+            loading_dialog.update()
+
+            # Prepare headers for API requests
+            headers = {
+                "authorization": f"Bearer {bearer_token}",
+                "gk-tenant-id": "001",
+                "Referer": f"https://{base_url}/employee-hub/app/index.html"
+            }
+
+            # Initialize versions tracking
+            versions = {
+                "POS": {"value": None, "source": None},
+                "WDM": {"value": None, "source": None},
+                "FLOW-SERVICE": {"value": None, "source": None},
+                "LPA-SERVICE": {"value": None, "source": None},
+                "STOREHUB-SERVICE": {"value": None, "source": None}
+            }
+
+            # Step 1: Try FP scope first (modified/customized versions)
+            fp_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+            try:
+                fp_response = requests.get(fp_api_url, headers=headers, timeout=30, verify=False)
+                if fp_response.status_code == 200:
+                    fp_data = fp_response.json()
+
+                    # Parse FP scope results
+                    for property_item in fp_data:
+                        prop_id = property_item.get("propertyId", "")
+                        value = property_item.get("value", "")
+
+                        if prop_id == "POSClient_Version" and value:
+                            versions["POS"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "WDM_Version" and value:
+                            versions["WDM"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "FlowService_Version" and value:
+                            versions["FLOW-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "LPA_Version" and value:
+                            versions["LPA-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                        elif prop_id == "StoreHub_Version" and value:
+                            versions["STOREHUB-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+            except Exception as e:
+                print(f"Warning: FP scope request failed: {e}")
+
+            # Step 2: For components not found in FP, try FPD scope (default versions)
+            missing_components = [comp for comp, data in versions.items() if data["value"] is None]
+
+            if missing_components:
+                loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching missing components (FPD scope)...\nPlease wait...")
+                loading_dialog.update()
+
+                fpd_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+                try:
+                    fpd_response = requests.get(fpd_api_url, headers=headers, timeout=30, verify=False)
+                    if fpd_response.status_code == 200:
+                        fpd_data = fpd_response.json()
+
+                        # Parse FPD scope results for missing components only
+                        for property_item in fpd_data:
+                            prop_id = property_item.get("propertyId", "")
+                            value = property_item.get("value", "")
+
+                            if prop_id == "POSClient_Version" and value and versions["POS"]["value"] is None:
+                                versions["POS"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "WDM_Version" and value and versions["WDM"]["value"] is None:
+                                versions["WDM"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "FlowService_Version" and value and versions["FLOW-SERVICE"]["value"] is None:
+                                versions["FLOW-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "LPA_Version" and value and versions["LPA-SERVICE"]["value"] is None:
+                                versions["LPA-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                            elif prop_id == "StoreHub_Version" and value and versions["STOREHUB-SERVICE"]["value"] is None:
+                                versions["STOREHUB-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                except Exception as e:
+                    print(f"Warning: FPD scope request failed: {e}")
+
+            loading_dialog.destroy()
+
+            # Show results with status and source for each component
+            result_text = "✅ API Test Successful!\n\nComponent Version Status:\n\n"
+
+            found_count = 0
+            for component, data in versions.items():
+                if data["value"]:
+                    result_text += f"✅ {component}: {data['value']} ({data['source']})\n"
+                    found_count += 1
+                else:
+                    result_text += f"❌ {component}: Not Found\n"
+
+            result_text += f"\n📊 Summary: {found_count}/5 components found"
+            result_text += f"\n🔍 Search Strategy: FP scope first, FPD scope for missing components"
+
+            if found_count == 0:
+                result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
+
+            messagebox.showinfo("API Test Results", result_text)
+
+        except requests.exceptions.RequestException as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed",
+                f"Network error: {str(e)}\n\n"
+                f"💡 HINT: Please check your network connection and ensure all Security Configuration details are filled in first.")
+        except Exception as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed",
+                f"Error: {str(e)}\n\n"
+                f"💡 HINT: Please ensure all Security Configuration details are filled in first.")
+
+    def _generate_api_token(self, base_url, loading_label, loading_dialog):
+        """Generate API token using credentials from config"""
+        try:
+            # Update loading message
+            loading_label.configure(text="Generating authentication token...\nUsing credentials from configuration...")
+            loading_dialog.update()
+
+            # Get the correct credentials from config
+            basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")
+            form_password = self.config_manager.config.get("eh_launchpad_password", "")
+
+            if not basic_auth_password or not form_password:
+                return None
+
+            # Handle both base64 encoded and plain text passwords
+            import base64
+            try:
+                # Try to decode as base64 first
+                basic_auth_password_decoded = base64.b64decode(basic_auth_password).decode('utf-8')
+                form_password_decoded = base64.b64decode(form_password).decode('utf-8')
+                basic_auth_password = basic_auth_password_decoded
+                form_password = form_password_decoded
+            except Exception:
+                # Use the passwords as-is (they're already plain text)
+                pass
+
+            # Create Basic Auth header
+            username = "launchpad"
+            auth_string = f"{username}:{basic_auth_password}"
+            auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+
+            # Prepare form data
+            import urllib.parse
+            form_data_dict = {
+                'username': '1001',
+                'password': form_password,
+                'grant_type': 'password'
+            }
+
+            # URL encode form data
+            encoded_pairs = []
+            for key, value in form_data_dict.items():
+                encoded_key = urllib.parse.quote_plus(str(key))
+                encoded_value = urllib.parse.quote_plus(str(value))
+                encoded_pairs.append(f"{encoded_key}={encoded_value}")
+
+            form_data = '&'.join(encoded_pairs)
+
+            # Make OAuth token request
+            token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
+            headers = {
+                'Authorization': f'Basic {auth_b64}',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+
+            # Update loading message
+            loading_label.configure(text="Requesting OAuth token...\nPlease wait...")
+            loading_dialog.update()
+
+            # Disable SSL warnings for this request
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            response = requests.post(token_url, headers=headers, data=form_data, timeout=30, verify=False)
+
+            if response.status_code == 200:
+                try:
+                    token_data = response.json()
+                    access_token = token_data.get('access_token')
+                    if access_token:
+                        return access_token
+                except Exception:
+                    pass
+
+            return None
+
+        except Exception:
+            return None
+
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
         frame.pack(fill="x", padx=10, pady=(0, 20))

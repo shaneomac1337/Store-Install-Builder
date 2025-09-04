@@ -46,11 +46,11 @@ $headers = @{
 
 # Map ComponentType to systemName for matching in the API response
 $systemNameMap = @{
-    'POS' = '${pos_system_type}'
-    'WDM' = '${wdm_system_type}'
-    'FLOW-SERVICE' = '${flow_service_system_type}'
-    'LPA-SERVICE' = '${lpa_service_system_type}'
-    'STOREHUB-SERVICE' = '${storehub_service_system_type}'
+    'POS' = 'CSE-OPOS-CLOUD'
+    'WDM' = 'CSE-wdm'
+    'FLOW-SERVICE' = 'GKR-FLOWSERVICE-CLOUD'
+    'LPA-SERVICE' = 'CSE-lps-lpa'
+    'STOREHUB-SERVICE' = 'CSE-sh-cloud'
 }
 
 # Get the systemName for the current component (used for creation if workstation doesn't exist)
@@ -227,10 +227,10 @@ try {
                         }
                         
                         # Get tenant ID from environment or use default
-                        $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "${tenant_id}" }
+                        $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "001" }
                         
                         # Get user ID from environment or use default
-                        $userId = if ($env:user_id) { $env:user_id } else { "${user_id}" }
+                        $userId = if ($env:user_id) { $env:user_id } else { "1001" }
                         
                         # Read the content of the processed file
                         $processedContent = Get-Content -Path $processedCreateStructurePath -Raw
@@ -348,7 +348,7 @@ try {
                         $version = $Version
                         Write-Host "Using dynamic version from parameter: $version"
                     } else {
-                        $version = "@VERSION@"  # Will be replaced with actual version
+                        $version = "v1.3.0"  # Will be replaced with actual version
                         Write-Host "Using fallback version from config: $version"
                     }
                     
@@ -460,7 +460,7 @@ try {
     }
 
     # First API call - Get Business Unit
-    $buUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units/$StoreId"
+    $buUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/business-units/$StoreId"
     $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
     Write-Host "Successfully retrieved business unit information"
     
@@ -477,7 +477,7 @@ try {
     Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
 
     # Second API call - Try to Get Workstation first
-    $wsUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    $wsUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
     try {
         $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
         Write-Host "Successfully retrieved existing workstation information"
@@ -497,7 +497,7 @@ try {
             }
 
             # Create workstation payload
-            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations"
+            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/001/services/rest/master-data/v1/workstations"
             $wsPayload = @{
                 workstation = @{
                     key = @{

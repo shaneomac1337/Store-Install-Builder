@@ -5,6 +5,7 @@ offline=false
 COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 storeId=""  # Will be determined by hostname detection or user input
+use_default_versions=@USE_DEFAULT_VERSIONS@
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -25,9 +26,13 @@ while [ $# -gt 0 ]; do
       storeId="$2"
       shift 2
       ;;
+    --UseDefaultVersions)
+      use_default_versions=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>] [--UseDefaultVersions]"
       exit 1
       ;;
   esac
@@ -176,6 +181,123 @@ get_tomcat_version() {
   get_package_version "$tomcat_zip" "tomcat"
 }
 
+# Function to fetch default versions from Employee Hub Service API
+get_default_versions() {
+  local base_url="$1"
+  local tenant_id="${2:-001}"
+  local result_version=""
+
+  echo "Fetching default versions from Employee Hub Service API..." >&2
+
+  # Get bearer token from access_token.txt (should be fresh from onboarding)
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local token_file="$script_dir/helper/tokens/access_token.txt"
+
+  if [ ! -f "$token_file" ]; then
+    echo "Warning: Bearer token file not found at $token_file" >&2
+    return 1
+  fi
+
+  local bearer_token=$(cat "$token_file" | tr -d '\n\r ')
+  if [ -z "$bearer_token" ]; then
+    echo "Warning: Bearer token is empty" >&2
+    return 1
+  fi
+
+  echo "Fetching component version using FP-first, FPD-fallback strategy for $COMPONENT_TYPE..." >&2
+
+  local result_version=""
+  local version_source=""
+
+  # Step 1: Try FP scope first (modified/customized versions)
+  echo "Step 1: Checking FP scope for modified/customized version..." >&2
+  local fp_api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+
+  local fp_response=$(curl -s -k \
+    -H "authorization: Bearer $bearer_token" \
+    -H "gk-tenant-id: $tenant_id" \
+    -H "Referer: https://$base_url/employee-hub/app/index.html" \
+    "$fp_api_url")
+
+  if [ $? -eq 0 ] && [ -n "$fp_response" ]; then
+    # Parse JSON response and extract version for the requested component
+    case "$COMPONENT_TYPE" in
+      "POS")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"POSClient_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "WDM")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"WDM_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "FLOW-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"FlowService_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "LPA-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+      "STOREHUB-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        ;;
+    esac
+
+    if [ -n "$result_version" ]; then
+      version_source="FP (Modified)"
+      echo "Found $COMPONENT_TYPE version in FP scope: $result_version" >&2
+    fi
+  else
+    echo "Warning: FP scope request failed" >&2
+  fi
+
+  # Step 2: If not found in FP, try FPD scope (default versions)
+  if [ -z "$result_version" ]; then
+    echo "Step 2: Checking FPD scope for default version..." >&2
+    local fpd_api_url="https://$base_url/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+
+    local fpd_response=$(curl -s -k \
+      -H "authorization: Bearer $bearer_token" \
+      -H "gk-tenant-id: $tenant_id" \
+      -H "Referer: https://$base_url/employee-hub/app/index.html" \
+      "$fpd_api_url")
+
+    if [ $? -eq 0 ] && [ -n "$fpd_response" ]; then
+      # Parse JSON response and extract version for the requested component
+      case "$COMPONENT_TYPE" in
+        "POS")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"POSClient_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "WDM")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"WDM_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "FLOW-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"FlowService_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "LPA-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"LPA_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+        "STOREHUB-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          ;;
+      esac
+
+      if [ -n "$result_version" ]; then
+        version_source="FPD (Default)"
+        echo "Found $COMPONENT_TYPE version in FPD scope: $result_version" >&2
+      fi
+    else
+      echo "Warning: FPD scope request failed" >&2
+    fi
+  fi
+
+  # Return the result
+  if [ -n "$result_version" ]; then
+    echo "Successfully fetched $COMPONENT_TYPE version: $result_version ($version_source)" >&2
+    echo "$result_version"
+    return 0
+  else
+    echo "Warning: No version found for component type $COMPONENT_TYPE in either FP or FPD scope" >&2
+    return 1
+  fi
+}
+
 # Update these lines to use the base_url
 server="$base_url"
 dsg_server="$base_url"
@@ -212,31 +334,147 @@ case "$COMPONENT_TYPE" in
     ;;
 esac
 
-# Set component-specific version if available
-case "$systemType" in
-  "CSE-OPOS-CLOUD")
-    component_version="@POS_VERSION@"
-    ;;
-  "CSE-wdm")
-    component_version="@WDM_VERSION@"
-    ;;
-  "CSE-FLOWSERVICE-CLOUD")
-    component_version="@FLOW_SERVICE_VERSION@"
-    ;;
-  "CSE-lps-lpa")
-    component_version="@LPA_SERVICE_VERSION@"
-    ;;
-  "CSE-sh-cloud")
-    component_version="@STOREHUB_SERVICE_VERSION@"
-    ;;
-  *)
-    component_version=""
-    ;;
-esac
+# Determine component version based on use_default_versions flag
+if [ "$use_default_versions" = true ]; then
+  echo "UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API..."
 
-# If component version is empty, use default version
+  # Extract tenant ID from base_url or use default
+  tenant_id="001"  # Default tenant ID, could be made configurable
+
+  # First, ensure we have a fresh OAuth token (just the token, not full onboarding)
+  echo "Getting fresh OAuth token for version API call..."
+
+  # Get script directory
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  tokens_path="$script_dir/helper/tokens"
+  basic_auth_path="$tokens_path/basic_auth_password.txt"
+  form_password_path="$tokens_path/form_password.txt"
+
+  # Check if credential files exist and get OAuth token
+  if [ -f "$basic_auth_path" ] && [ -f "$form_password_path" ]; then
+    # Function to Base64 decode (same as onboarding.sh)
+    decode_base64() {
+      echo "$1" | base64 --decode
+    }
+
+    # Read and decode credentials (same as onboarding.sh)
+    username="launchpad"
+    basic_auth_password=$(decode_base64 "$(cat "$basic_auth_path")")
+    form_password=$(decode_base64 "$(cat "$form_password_path")")
+
+    if [ -n "$basic_auth_password" ] && [ -n "$form_password" ]; then
+      # Create Basic Auth header (same as onboarding.sh)
+      auth_string=$(echo -n "$username:$basic_auth_password" | base64 | tr -d '\n')
+
+      # URL encoding function (same as onboarding.sh)
+      urlencode() {
+        local string="$1"
+        local encoded=""
+        local i char
+        for (( i=0; i<${#string}; i++ )); do
+          char="${string:$i:1}"
+          case "$char" in
+            [a-zA-Z0-9.~_-]) encoded+="$char" ;;
+            *) printf -v char '%%%02X' "'$char"; encoded+="$char" ;;
+          esac
+        done
+        echo "$encoded"
+      }
+
+      # Form data with URL encoding (same as onboarding.sh)
+      form_username="1001"
+      username_encoded=$(urlencode "$form_username")
+      password_encoded=$(urlencode "$form_password")
+      form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"
+
+      # Get OAuth token (same URL as onboarding.sh)
+      token_url="https://$base_url/auth-service/tenants/$tenant_id/oauth/token"
+      response=$(curl -s -X POST "$token_url" \
+        -H "Authorization: Basic $auth_string" \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "$form_data")
+
+      if [ $? -eq 0 ] && [ -n "$response" ]; then
+        # Extract access token from JSON response
+        access_token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"\([^"]*\)"/\1/')
+
+        if [ -n "$access_token" ]; then
+          # Save the access token (same as onboarding.sh)
+          token_file="$tokens_path/access_token.txt"
+          echo -n "$access_token" > "$token_file"
+          echo "OAuth token obtained and saved successfully"
+        else
+          echo "Warning: Could not extract access token from response, proceeding with existing token..."
+        fi
+      else
+        echo "Warning: Failed to get OAuth token, proceeding with existing token..."
+      fi
+    else
+      echo "Warning: Credentials are empty, proceeding with existing token..."
+    fi
+  else
+    echo "Warning: Required credential files not found, proceeding with existing token..."
+  fi
+
+  # Fetch default version from API
+  if api_version=$(get_default_versions "$base_url" "$tenant_id") && [ -n "$api_version" ]; then
+    component_version="$api_version"
+    echo "Using API version for $COMPONENT_TYPE: $component_version"
+  else
+    echo "Warning: Could not get version for $COMPONENT_TYPE from API, falling back to hardcoded version"
+    # Fall back to hardcoded versions
+    case "$systemType" in
+      "CSE-OPOS-CLOUD")
+        component_version="@POS_VERSION@"
+        ;;
+      "CSE-wdm")
+        component_version="@WDM_VERSION@"
+        ;;
+      "CSE-FLOWSERVICE-CLOUD")
+        component_version="@FLOW_SERVICE_VERSION@"
+        ;;
+      "CSE-lps-lpa")
+        component_version="@LPA_SERVICE_VERSION@"
+        ;;
+      "CSE-sh-cloud")
+        component_version="@STOREHUB_SERVICE_VERSION@"
+        ;;
+      *)
+        component_version=""
+        ;;
+    esac
+  fi
+else
+  echo "Using hardcoded versions from configuration..."
+  # Set component-specific version if available
+  case "$systemType" in
+    "CSE-OPOS-CLOUD")
+      component_version="@POS_VERSION@"
+      ;;
+    "CSE-wdm")
+      component_version="@WDM_VERSION@"
+      ;;
+    "CSE-FLOWSERVICE-CLOUD")
+      component_version="@FLOW_SERVICE_VERSION@"
+      ;;
+    "CSE-lps-lpa")
+      component_version="@LPA_SERVICE_VERSION@"
+      ;;
+    "CSE-sh-cloud")
+      component_version="@STOREHUB_SERVICE_VERSION@"
+      ;;
+    *)
+      component_version=""
+      ;;
+  esac
+fi
+
+# If component version is still empty, use default version
 if [ -z "$component_version" ]; then
   component_version="$version"
+  echo "No specific version found, using default version: $component_version"
+else
+  echo "Using component version: $component_version"
 fi
 
 # Initialize offline variables
@@ -768,8 +1006,26 @@ if [ "$isUpdate" = false ]; then
               echo "Warning: get_store.json not found at: $get_store_json_path"
             fi
 
-            # Call the store initialization script
-            if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId"; then
+            # Update StoreHub configuration with dynamic version if this is a StoreHub installation
+            if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+              storehub_config_path="$PWD/helper/init/storehub/update_config.json"
+              if [ -f "$storehub_config_path" ]; then
+                echo "Updating StoreHub configuration with dynamic version: $component_version"
+                # Create a backup of the original
+                cp "$storehub_config_path" "$storehub_config_path.backup"
+                # Create a processed copy with the dynamic version
+                processed_storehub_config_path="$PWD/helper/init/storehub/update_config_processed.json"
+                cp "$storehub_config_path" "$processed_storehub_config_path"
+                # Replace the version placeholder with the dynamic version
+                sed -i "s/@SYSTEM_VERSION@/$component_version/g" "$processed_storehub_config_path"
+                echo "StoreHub configuration updated with version: $component_version"
+              else
+                echo "Warning: StoreHub config not found at: $storehub_config_path"
+              fi
+            fi
+
+            # Call the store initialization script with the dynamic version
+            if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version"; then
               echo "Error during store initialization"
               exit 1
             fi

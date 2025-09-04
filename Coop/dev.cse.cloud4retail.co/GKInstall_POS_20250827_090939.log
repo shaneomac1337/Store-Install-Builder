@@ -1,0 +1,72 @@
+﻿**********************
+Windows PowerShell transcript start
+Start time: 20250827090939
+Username: GK-DOMAIN\mpenkava
+RunAs User: GK-DOMAIN\mpenkava
+Configuration Name: 
+Machine: NB-ES-0635 (Microsoft Windows NT 10.0.22631.0)
+Host Application: C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+Process ID: 20324
+PSVersion: 5.1.22621.5697
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.22621.5697
+BuildVersion: 10.0.22621.5697
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Transcript started, output file is GKInstall_POS_20250827_090939.log
+Console output is being saved to GKInstall_POS_20250827_090939.log
+UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API...
+Getting fresh OAuth token for version API call...
+OAuth token obtained and saved successfully
+Fetching default versions from Employee Hub Service API...
+Fetching component versions using FP-first, FPD-fallback strategy...
+Step 1: Checking FP scope for modified/customized versions...
+Found 4 components in FP scope
+Step 2: Checking FPD scope for 1 missing components...
+Found additional 0 components in FPD scope
+Successfully fetched component versions:
+  POS: v1.3.0 (FP (Modified))
+  STOREHUB-SERVICE: v1.3.0 (FP (Modified))
+  FLOW-SERVICE: v5.25.0 (FP (Modified))
+  LPA-SERVICE: v1.3.0 (FP (Modified))
+Using API version for POS: v1.3.0
+Using component version: v1.3.0
+No default Jaybird driver path set - will detect during installation if available
+Found existing installation at C:\\gkretail\pos-full with log folder at C:\\gkretail\pos-full\log
+No recent activity found in logs. Performing full installation.
+-------------------
+Hostname  : NB-ES-0635
+===================
+Successfully detected values from hostname:
+Store Number: ES
+Workstation ID: 0635
+-------------------
+StoreNr   : ES
+WorkstationId: 0635
+-------------------
+Starting onboarding process for POS
+Access token successfully saved
+POS onboarding token successfully saved to onboarding.token
+POS onboarding completed successfully
+Starting store initialization...
+Creating processed copy of get_store.json with Store ID: ES
+get_store_processed.json created successfully
+Template systemName: CSE-OPOS-CLOUD for component: POS
+Note: Will search by workstation ID (unique per store) and use actual system name if found
+Making API call to get store information...
+Created processed copy of get_store.json at: C:\Users\mpenkava\Desktop\Store-Install-Builder-1\Coop\dev.cse.cloud4retail.co\helper\init\get_store_processed.json
+Updated @RETAIL_STORE_ID@ placeholder with: ES in processed file
+PS>TerminatingError(Invoke-RestMethod): "The remote server returned an error: (400) Bad Request."
+Error retrieving store information: The remote server returned an error: (400) Bad Request.
+Response body: {"message":"Invalid station definition in the request or station can not be identified. Request: \nStationLocator (extends ExtensibleEntity (), , tenantId: 001, retailStoreId: ES, systemName: GKR-Store)","timestamp":"2025-08-27T07:09:42.174+0000","status":400,"errorCode":"GKR-CORE-000001"}
+PS>TerminatingError(Invoke-RestMethod): "The remote server returned an error: (404) Not Found."
+Error occurred: The remote server returned an error: (404) Not Found.
+Response body: {"message":"BusinessUnit with businessUnitId: ES not found!","timestamp":"2025-08-27T07:09:42.366+0000","status":404,"url":"https://dev.cse.cloud4retail.co/sdc/tenants/001/services/rest/master-data/v1/business-units/ES","errorCode":"GKR-CORE-000004"}
+Warning: Store initialization failed with exit code 1
+**********************
+Windows PowerShell transcript end
+End time: 20250827090942
+**********************

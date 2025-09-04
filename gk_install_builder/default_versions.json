@@ -1,0 +1,378 @@
+[
+    {
+        "propertyId": "Download_File_Types",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "properties",
+        "description": "Allowed files types for download in Software Package Upload"
+    },
+    {
+        "propertyId": "DriveService_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan DriveService Update"
+    },
+    {
+        "propertyId": "DriveService_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "DriveService",
+        "description": "Default node name for DriveService in SM"
+    },
+    {
+        "propertyId": "DriveService_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of DriveService to same version"
+    },
+    {
+        "propertyId": "DriveService_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.0",
+        "description": "Version for DriveService Update"
+    },
+    {
+        "propertyId": "DriveService_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.0",
+        "description": "Version of DriveService for installation"
+    },
+    {
+        "propertyId": "FlowService_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan FlowService Update"
+    },
+    {
+        "propertyId": "FlowService_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "FlowService",
+        "description": "Default node name for FlowService in SM"
+    },
+    {
+        "propertyId": "FlowService_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of FlowService to same version"
+    },
+    {
+        "propertyId": "FlowService_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.0",
+        "description": "Version for FlowService Update"
+    },
+    {
+        "propertyId": "FlowService_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.0",
+        "description": "Version of FlowService for installation"
+    },
+    {
+        "propertyId": "GA_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan GateAdapter Update"
+    },
+    {
+        "propertyId": "GA_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of GateAdapter to same version"
+    },
+    {
+        "propertyId": "GA_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.1.9",
+        "description": "Version for GateAdapter Update"
+    },
+    {
+        "propertyId": "GateAdapter_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "Gate Adapter",
+        "description": "Default node name for Gate Adapter in SM"
+    },
+    {
+        "propertyId": "GateAdapter_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.5.16",
+        "description": "Version of Gate Adapter for installation"
+    },
+    {
+        "propertyId": "LPA_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan LPA Update"
+    },
+    {
+        "propertyId": "LPA_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "Label Print Adapter",
+        "description": "Default node name for Label Print Adapter in SM"
+    },
+    {
+        "propertyId": "LPA_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of Label Print Adapter to same version"
+    },
+    {
+        "propertyId": "LPA_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version for Label Print Adapter Update"
+    },
+    {
+        "propertyId": "LPA_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version of Label Print Adapter for installation"
+    },
+    {
+        "propertyId": "MobilePOS_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.0",
+        "description": "Version of Mobile POS for installation"
+    },
+    {
+        "propertyId": "OneX_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan OneX Update"
+    },
+    {
+        "propertyId": "OneX_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "One X Client",
+        "description": "Default node name for OneX in SM"
+    },
+    {
+        "propertyId": "OneX_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of OneX to same version"
+    },
+    {
+        "propertyId": "OneX_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version for OneX Update"
+    },
+    {
+        "propertyId": "OneX_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version of OneX for installation"
+    },
+    {
+        "propertyId": "POSClient_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan POS Client Update"
+    },
+    {
+        "propertyId": "POSClient_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "POS Client",
+        "description": "Default node name for POS Client node in SM"
+    },
+    {
+        "propertyId": "POSClient_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of POS Client to same version"
+    },
+    {
+        "propertyId": "POSClient_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version for POS Client Update"
+    },
+    {
+        "propertyId": "POSClient_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version of POS Client for installation"
+    },
+    {
+        "propertyId": "RCS_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan Resource Cache Service Update"
+    },
+    {
+        "propertyId": "RCS_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "Resource Cache Service",
+        "description": "Default node name for Resource Cache Service in SM"
+    },
+    {
+        "propertyId": "RCS_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of Resource Cache Service to same version"
+    },
+    {
+        "propertyId": "RCS_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v2.0.3",
+        "description": "Version for Resource Cache Service Update"
+    },
+    {
+        "propertyId": "RCS_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v2.0.5",
+        "description": "Version of Resource Cache Service for installation"
+    },
+    {
+        "propertyId": "Receipt_Image_Extensions",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "jpg,png,bmp",
+        "description": "Allowed Extensions for Receipt Image Upload"
+    },
+    {
+        "propertyId": "SH_Max_Future_Update_Date",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "7",
+        "description": "Max Number of days in future to plan StoreHub Update"
+    },
+    {
+        "propertyId": "SH_Update_Same_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "true",
+        "description": "Allow update of StoreHub to same version"
+    },
+    {
+        "propertyId": "SH_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version for StoreHub Update"
+    },
+    {
+        "propertyId": "SIM_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "UI5 Mobile Device Client",
+        "description": "Default node name for SIM Mobile Client in SM"
+    },
+    {
+        "propertyId": "SIM_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v5.25.1",
+        "description": "Version of SIM Mobile Client for installation"
+    },
+    {
+        "propertyId": "Software_Package_Extensions",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "zip,jar,exe,properties,run,apk,crt,ipa,plist,md5,pfx",
+        "description": "Allowed Extensions for Software Package Upload"
+    },
+    {
+        "propertyId": "Station_Key_DSG_Url",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "",
+        "description": "DSG URL override for installation key"
+    },
+    {
+        "propertyId": "StoreHub_Node_Name",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "StoreHub",
+        "description": "Default node name for Store Hub in SM"
+    },
+    {
+        "propertyId": "StoreHub_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.3.0",
+        "description": "Version of Store Hub for installation"
+    }
+]
