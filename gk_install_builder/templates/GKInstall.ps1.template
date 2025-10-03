@@ -49,6 +49,9 @@ $null = Register-EngineEvent -SourceIdentifier Console_CancelKeyPress -Action {
     exit 1
 }
 
+# Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # Set certificate validation to always return true (bypass SSL validation)
 [System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
 
