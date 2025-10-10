@@ -2260,522 +2260,142 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 
                 return result
             
-            # Helper function to download dependencies for a component
-            def download_dependencies_for_component(component_type, component_dir):
-                dependency_files = []
+            # Helper function to process platform dependencies (Java, Tomcat, Jaybird)
+            def process_platform_dependency(dep_name, dep_key, webdav_path, file_extension, file_filter=None):
+                """Process a platform dependency download.
                 
-                # Get parent directory (one level up from component_dir)
-                parent_dir = os.path.dirname(component_dir)
+                Args:
+                    dep_name: Display name (e.g., 'Java', 'Tomcat')
+                    dep_key: Config key (e.g., 'JAVA', 'TOMCAT')
+                    webdav_path: WebDAV path (e.g., '/SoftwarePackage/Java')
+                    file_extension: File extension to check (e.g., 'zip', 'jar')
+                    file_filter: Optional filter function for files
+                """
+                if not platform_dependencies.get(dep_key, False):
+                    return
                 
-                # Process Java
-                java_path = "/SoftwarePackage/Java"
-                print(f"\nChecking Java directory for {component_type}: {java_path}")
-                
-                try:
-                    # Create Java directory at the same level as component directories
-                    java_dir = os.path.join(parent_dir, "Java")
-                    os.makedirs(java_dir, exist_ok=True)
-                    
-                    # Check if Java files already exist
-                    existing_java_files = [f for f in os.listdir(java_dir) if f.endswith('.zip')]
-                    download_java = True
-                    
-                    if existing_java_files:
-                        # Ask user if they want to download Java again
-                        download_java = self._ask_download_again(f"{component_type} Java", existing_java_files, dialog_parent)
-                        if not download_java:
-                            print(f"Skipping Java download for {component_type} as files already exist")
-                    
-                    if download_java:
-                        java_files = self.webdav_browser.list_directories(java_path)
-                        print(f"Found Java files: {java_files}")
-                        
-                        # Prompt user to select Java version
-                        selected_java_files = prompt_for_file_selection(
-                            java_files, 
-                            f"{component_type} Java", 
-                            f"Select Java Version for {component_type}", 
-                            f"Please select which Java version to download for {component_type}:",
-                            "zip",
-                            config
-                        )
-                        
-                        # Add selected files to dependency files list
-                        for file in selected_java_files:
-                            file_name = file['name']
-                            remote_path = f"{java_path}/{file_name}"
-                            local_path = os.path.join(java_dir, file_name)
-                            dependency_files.append((remote_path, local_path, file_name, f"{component_type} Java"))
-                
-                except Exception as e:
-                    print(f"Error accessing Java directory: {e}")
-                    download_errors.append(f"Failed to access Java directory for {component_type}: {str(e)}")
-                
-                # Process Tomcat
-                tomcat_path = "/SoftwarePackage/Tomcat"
-                print(f"\nChecking Tomcat directory for {component_type}: {tomcat_path}")
+                print(f"\nProcessing {dep_name} platform dependency...")
+                dep_dir = os.path.join(output_dir, dep_name)
+                os.makedirs(dep_dir, exist_ok=True)
+                print(f"Checking {dep_name} directory: {webdav_path}")
                 
                 try:
-                    # Create Tomcat directory at the same level as component directories
-                    tomcat_dir = os.path.join(parent_dir, "Tomcat")
-                    os.makedirs(tomcat_dir, exist_ok=True)
+                    # Check if files already exist
+                    existing_files = [f for f in os.listdir(dep_dir) if f.endswith(f'.{file_extension}')]
+                    if existing_files:
+                        download = self._ask_download_again(dep_name, existing_files, dialog_parent)
+                        if not download:
+                            print(f"Skipping {dep_name} download as files already exist")
+                            return
                     
-                    # Check if Tomcat files already exist
-                    existing_tomcat_files = [f for f in os.listdir(tomcat_dir) if f.endswith('.zip')]
-                    download_tomcat = True
+                    # List files from WebDAV
+                    files = self.webdav_browser.list_directories(webdav_path)
+                    print(f"Found {dep_name} files: {files}")
                     
-                    if existing_tomcat_files:
-                        # Ask user if they want to download Tomcat again
-                        download_tomcat = self._ask_download_again(f"{component_type} Tomcat", existing_tomcat_files, dialog_parent)
-                        if not download_tomcat:
-                            print(f"Skipping Tomcat download for {component_type} as files already exist")
+                    # Apply filter if provided
+                    if file_filter:
+                        files = file_filter(files)
+                        if not files:
+                            print(f"No matching {dep_name} files found after filtering")
+                            download_errors.append(f"No matching {dep_name} files found")
+                            return
                     
-                    if download_tomcat:
-                        tomcat_files = self.webdav_browser.list_directories(tomcat_path)
-                        print(f"Found Tomcat files: {tomcat_files}")
-                        
-                        # Prompt user to select Tomcat version
-                        selected_tomcat_files = prompt_for_file_selection(
-                            tomcat_files, 
-                            f"{component_type} Tomcat", 
-                            f"Select Tomcat Version for {component_type}", 
-                            f"Please select which Tomcat version to download for {component_type}:",
-                            "zip",
-                            config
-                        )
-                        
-                        # Add selected files to dependency files list
-                        for file in selected_tomcat_files:
-                            file_name = file['name']
-                            remote_path = f"{tomcat_path}/{file_name}"
-                            local_path = os.path.join(tomcat_dir, file_name)
-                            dependency_files.append((remote_path, local_path, file_name, f"{component_type} Tomcat"))
+                    # Prompt user to select files
+                    selected_files = prompt_for_file_selection(
+                        files,
+                        dep_name,
+                        f"Select {dep_name} Version",
+                        f"Please select which {dep_name} {'driver' if dep_key == 'JAYBIRD' else 'version'} to download:",
+                        file_extension,
+                        config
+                    )
+                    
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{webdav_path}/{file_name}"
+                        local_path = os.path.join(dep_dir, file_name)
+                        files_to_download.append((remote_path, local_path, file_name, dep_name))
                 
                 except Exception as e:
-                    print(f"Error accessing Tomcat directory: {e}")
-                    download_errors.append(f"Failed to access Tomcat directory for {component_type}: {str(e)}")
+                    print(f"Error accessing {dep_name} directory: {e}")
+                    download_errors.append(f"Failed to access {dep_name} directory: {str(e)}")
+            
+            # Helper function to process application components
+            def process_component(component_name, component_key, config_key, default_system_type, display_name=None):
+                """Process an application component download.
                 
-                # Process Jaybird if selected
-                if platform_dependencies.get("JAYBIRD", False):
-                    print(f"\nProcessing Jaybird platform dependency...")
-                    jaybird_dir = os.path.join(parent_dir, "Jaybird")
-                    os.makedirs(jaybird_dir, exist_ok=True)
+                Args:
+                    component_name: Component identifier (e.g., 'POS', 'WDM')
+                    component_key: Key in selected_components list
+                    config_key: Config key prefix (e.g., 'pos', 'wdm')
+                    default_system_type: Default system type if not in config
+                    display_name: Optional display name (defaults to component_name)
+                """
+                if component_key not in selected_components:
+                    return
+                
+                display_name = display_name or component_name
+                component_dir = os.path.join(output_dir, f"offline_package_{component_name}")
+                print(f"\nProcessing {display_name} component...")
+                print(f"Output directory: {component_dir}")
+                os.makedirs(component_dir, exist_ok=True)
+                
+                # Determine system type and version
+                system_type = config.get(f"{config_key}_system_type", default_system_type)
+                version_to_use = self.get_component_version(system_type, config)
+                
+                print(f"Using system type: {system_type}")
+                print(f"Using version: {version_to_use}")
+                
+                # Navigate to version directory
+                version_path = f"/SoftwarePackage/{system_type}/{version_to_use}"
+                print(f"Checking version directory: {version_path}")
+                
+                try:
+                    files = self.webdav_browser.list_directories(version_path)
+                    print(f"Found files: {files}")
                     
-                    jaybird_path = "/SoftwarePackage/Drivers"
-                    print(f"Checking Jaybird directory: {jaybird_path}")
+                    # Prompt user to select files
+                    selected_files = prompt_for_file_selection(files, display_name, config=config)
                     
-                    try:
-                        # Check if Jaybird files already exist
-                        existing_jaybird_files = [f for f in os.listdir(jaybird_dir) if f.endswith('.jar')]
-                        download_jaybird = True
+                    # Add selected files to download list
+                    for file in selected_files:
+                        file_name = file['name']
+                        remote_path = f"{version_path}/{file_name}"
+                        local_path = os.path.join(component_dir, file_name)
                         
-                        if existing_jaybird_files:
-                            # Ask user if they want to download Jaybird again
-                            download_jaybird = self._ask_download_again("Jaybird", existing_jaybird_files, dialog_parent)
-                            if not download_jaybird:
-                                print(f"Skipping Jaybird download as files already exist")
+                        # Make launcher names more specific
+                        file_display_name = file_name
+                        if file_name.startswith("Launcher."):
+                            file_display_name = f"{display_name} {file_name}"
                         
-                        if download_jaybird:
-                            jaybird_files = self.webdav_browser.list_directories(jaybird_path)
-                            print(f"Found Jaybird files: {jaybird_files}")
-                            
-                            # Filter for .jar files only
-                            jaybird_files = [f for f in jaybird_files if f.get('name', '').endswith('.jar')]
-                            
-                            if jaybird_files:
-                                # Prompt user to select Jaybird version
-                                selected_jaybird_files = prompt_for_file_selection(
-                                    jaybird_files, 
-                                    "Jaybird", 
-                                    "Select Jaybird Version", 
-                                    "Please select which Jaybird driver to download:",
-                                    "jar",
-                                    config
-                                )
-                                
-                                # Add selected files to download list
-                                for file in selected_jaybird_files:
-                                    file_name = file['name']
-                                    remote_path = f"{jaybird_path}/{file_name}"
-                                    local_path = os.path.join(jaybird_dir, file_name)
-                                    dependency_files.append((remote_path, local_path, file_name, "Jaybird"))
-                            else:
-                                print("No Jaybird .jar files found in the Drivers directory")
-                                download_errors.append("No Jaybird .jar files found in the Drivers directory")
-                    
-                    except Exception as e:
-                        print(f"Error accessing Jaybird directory: {e}")
-                        download_errors.append(f"Failed to access Jaybird directory: {str(e)}")
-                        
-                return dependency_files
+                        files_to_download.append((remote_path, local_path, file_display_name, display_name))
+                
+                except Exception as e:
+                    print(f"Error accessing {display_name} version directory: {e}")
+                    raise
             
             # Collect all files to download first
             files_to_download = []
             
-            # Process Java if selected
-            if platform_dependencies.get("JAVA", False):
-                print(f"\nProcessing Java platform dependency...")
-                java_dir = os.path.join(output_dir, "Java")
-                os.makedirs(java_dir, exist_ok=True)
-                
-                java_path = "/SoftwarePackage/Java"
-                print(f"Checking Java directory: {java_path}")
-                
-                try:
-                    # Check if Java files already exist
-                    existing_java_files = [f for f in os.listdir(java_dir) if f.endswith('.zip')]
-                    download_java = True
-                    
-                    if existing_java_files:
-                        # Ask user if they want to download Java again
-                        download_java = self._ask_download_again("Java", existing_java_files, dialog_parent)
-                        if not download_java:
-                            print(f"Skipping Java download as files already exist")
-                    
-                    if download_java:
-                        java_files = self.webdav_browser.list_directories(java_path)
-                        print(f"Found Java files: {java_files}")
-                        
-                        # Prompt user to select Java version
-                        selected_java_files = prompt_for_file_selection(
-                            java_files, 
-                            "Java", 
-                            "Select Java Version", 
-                            "Please select which Java version to download:",
-                            "zip",
-                            config
-                        )
-                        
-                        # Add selected files to download list
-                        for file in selected_java_files:
-                            file_name = file['name']
-                            remote_path = f"{java_path}/{file_name}"
-                            local_path = os.path.join(java_dir, file_name)
-                            files_to_download.append((remote_path, local_path, file_name, "Java"))
-                
-                except Exception as e:
-                    print(f"Error accessing Java directory: {e}")
-                    download_errors.append(f"Failed to access Java directory: {str(e)}")
+            # Process platform dependencies
+            process_platform_dependency("Java", "JAVA", "/SoftwarePackage/Java", "zip")
+            process_platform_dependency("Tomcat", "TOMCAT", "/SoftwarePackage/Tomcat", "zip")
+            process_platform_dependency(
+                "Jaybird",
+                "JAYBIRD",
+                "/SoftwarePackage/Drivers",
+                "jar",
+                file_filter=lambda files: [f for f in files if f.get('name', '').endswith('.jar')]
+            )
             
-            # Process Tomcat if selected
-            if platform_dependencies.get("TOMCAT", False):
-                print(f"\nProcessing Tomcat platform dependency...")
-                tomcat_dir = os.path.join(output_dir, "Tomcat")
-                os.makedirs(tomcat_dir, exist_ok=True)
-                
-                tomcat_path = "/SoftwarePackage/Tomcat"
-                print(f"Checking Tomcat directory: {tomcat_path}")
-                
-                try:
-                    # Check if Tomcat files already exist
-                    existing_tomcat_files = [f for f in os.listdir(tomcat_dir) if f.endswith('.zip')]
-                    download_tomcat = True
-                    
-                    if existing_tomcat_files:
-                        # Ask user if they want to download Tomcat again
-                        download_tomcat = self._ask_download_again("Tomcat", existing_tomcat_files, dialog_parent)
-                        if not download_tomcat:
-                            print(f"Skipping Tomcat download as files already exist")
-                    
-                    if download_tomcat:
-                        tomcat_files = self.webdav_browser.list_directories(tomcat_path)
-                        print(f"Found Tomcat files: {tomcat_files}")
-                        
-                        # Prompt user to select Tomcat version
-                        selected_tomcat_files = prompt_for_file_selection(
-                            tomcat_files, 
-                            "Tomcat", 
-                            "Select Tomcat Version", 
-                            "Please select which Tomcat version to download:",
-                            "zip",
-                            config
-                        )
-                        
-                        # Add selected files to download list
-                        for file in selected_tomcat_files:
-                            file_name = file['name']
-                            remote_path = f"{tomcat_path}/{file_name}"
-                            local_path = os.path.join(tomcat_dir, file_name)
-                            files_to_download.append((remote_path, local_path, file_name, "Tomcat"))
-                
-                except Exception as e:
-                    print(f"Error accessing Tomcat directory: {e}")
-                    download_errors.append(f"Failed to access Tomcat directory: {str(e)}")
-            
-            # Process Jaybird if selected
-            if platform_dependencies.get("JAYBIRD", False):
-                print(f"\nProcessing Jaybird platform dependency...")
-                jaybird_dir = os.path.join(output_dir, "Jaybird")
-                os.makedirs(jaybird_dir, exist_ok=True)
-                
-                jaybird_path = "/SoftwarePackage/Drivers"
-                print(f"Checking Jaybird directory: {jaybird_path}")
-                
-                try:
-                    # Check if Jaybird files already exist
-                    existing_jaybird_files = [f for f in os.listdir(jaybird_dir) if f.endswith('.jar')]
-                    download_jaybird = True
-                    
-                    if existing_jaybird_files:
-                        # Ask user if they want to download Jaybird again
-                        download_jaybird = self._ask_download_again("Jaybird", existing_jaybird_files, dialog_parent)
-                        if not download_jaybird:
-                            print(f"Skipping Jaybird download as files already exist")
-                    
-                    if download_jaybird:
-                        jaybird_files = self.webdav_browser.list_directories(jaybird_path)
-                        print(f"Found Jaybird files: {jaybird_files}")
-                        
-                        # Filter for .jar files only
-                        jaybird_files = [f for f in jaybird_files if f.get('name', '').endswith('.jar')]
-                        
-                        if jaybird_files:
-                            # Prompt user to select Jaybird version
-                            selected_jaybird_files = prompt_for_file_selection(
-                                jaybird_files, 
-                                "Jaybird", 
-                                "Select Jaybird Version", 
-                                "Please select which Jaybird driver to download:",
-                                "jar",
-                                config
-                            )
-                            
-                            # Add selected files to download list
-                            for file in selected_jaybird_files:
-                                file_name = file['name']
-                                remote_path = f"{jaybird_path}/{file_name}"
-                                local_path = os.path.join(jaybird_dir, file_name)
-                                files_to_download.append((remote_path, local_path, file_name, "Jaybird"))
-                        else:
-                            print("No Jaybird .jar files found in the Drivers directory")
-                            download_errors.append("No Jaybird .jar files found in the Drivers directory")
-                
-                except Exception as e:
-                    print(f"Error accessing Jaybird directory: {e}")
-                    download_errors.append(f"Failed to access Jaybird directory: {str(e)}")
-                        
-            # Process all selected components
-            if "POS" in selected_components:
-                pos_dir = os.path.join(output_dir, "offline_package_POS")
-                print(f"\nProcessing POS component...")
-                print(f"Output directory: {pos_dir}")
-                os.makedirs(pos_dir, exist_ok=True)
-                
-                # Determine system type and version first
-                pos_system_type = config.get("pos_system_type", "CSE-OPOS-CLOUD")
-                version_to_use = self.get_component_version(pos_system_type, config)
-                
-                print(f"Using system type: {pos_system_type}")
-                print(f"Using version: {version_to_use}")
-                
-                # Navigate to version directory with correct system type and version
-                pos_version_path = f"/SoftwarePackage/{pos_system_type}/{version_to_use}"
-                print(f"Checking version directory: {pos_version_path}")
-                
-                try:
-                    files = self.webdav_browser.list_directories(pos_version_path)
-                    print(f"Found files: {files}")
-                    
-                    # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "POS", config=config)
-                    
-                    # Add selected files to download list
-                    for file in selected_files:
-                        file_name = file['name']
-                        remote_path = f"{pos_version_path}/{file_name}"
-                        local_path = os.path.join(pos_dir, file_name)
-                        
-                        # Make launcher names more specific by adding component name
-                        display_name = file_name
-                        if file_name.startswith("Launcher."):
-                            display_name = f"POS {file_name}"
-                        
-                        files_to_download.append((remote_path, local_path, display_name, "POS"))
-                    
-                    # We don't download Java and Tomcat as dependencies here anymore
-                    # They should be downloaded once as standalone components if needed
-                
-                except Exception as e:
-                    print(f"Error accessing POS version directory: {e}")
-                    raise
-                
-                # We're removing the launcher template copying code
-            
-            # Process WDM component
-            if "WDM" in selected_components:
-                wdm_dir = os.path.join(output_dir, "offline_package_WDM")
-                print(f"\nProcessing WDM component...")
-                print(f"Output directory: {wdm_dir}")
-                os.makedirs(wdm_dir, exist_ok=True)
-                
-                # Determine system type and version first
-                wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
-                version_to_use = self.get_component_version(wdm_system_type, config)
-                
-                print(f"Using system type: {wdm_system_type}")
-                print(f"Using version: {version_to_use}")
-                
-                # Navigate to version directory with correct system type and version
-                wdm_version_path = f"/SoftwarePackage/{wdm_system_type}/{version_to_use}"
-                print(f"Checking version directory: {wdm_version_path}")
-                
-                try:
-                    files = self.webdav_browser.list_directories(wdm_version_path)
-                    print(f"Found files: {files}")
-                    
-                    # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "WDM", config=config)
-                    
-                    # Add selected files to download list
-                    for file in selected_files:
-                        file_name = file['name']
-                        remote_path = f"{wdm_version_path}/{file_name}"
-                        local_path = os.path.join(wdm_dir, file_name)
-                        
-                        # Make launcher names more specific by adding component name
-                        display_name = file_name
-                        if file_name.startswith("Launcher."):
-                            display_name = f"WDM {file_name}"
-                        
-                        files_to_download.append((remote_path, local_path, display_name, "WDM"))
-                    
-                except Exception as e:
-                    print(f"Error accessing WDM version directory: {e}")
-                    raise
-                
-                # We're removing the launcher template copying code
-            
-            # Process Flow Service component
-            if "FLOW-SERVICE" in selected_components:
-                flow_service_dir = os.path.join(output_dir, "offline_package_FLOW-SERVICE")
-                print(f"\nProcessing Flow Service component...")
-                print(f"Output directory: {flow_service_dir}")
-                os.makedirs(flow_service_dir, exist_ok=True)
-                
-                # Determine system type and version first
-                flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
-                version_to_use = self.get_component_version(flow_service_system_type, config)
-                
-                print(f"Using system type: {flow_service_system_type}")
-                print(f"Using version: {version_to_use}")
-                
-                # Navigate to version directory with correct system type and version
-                flow_service_version_path = f"/SoftwarePackage/{flow_service_system_type}/{version_to_use}"
-                print(f"Checking version directory: {flow_service_version_path}")
-                
-                try:
-                    files = self.webdav_browser.list_directories(flow_service_version_path)
-                    print(f"Found files: {files}")
-                    
-                    # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "Flow Service", config=config)
-                    
-                    # Add selected files to download list
-                    for file in selected_files:
-                        file_name = file['name']
-                        remote_path = f"{flow_service_version_path}/{file_name}"
-                        local_path = os.path.join(flow_service_dir, file_name)
-                        
-                        # Make launcher names more specific by adding component name
-                        display_name = file_name
-                        if file_name.startswith("Launcher."):
-                            display_name = f"Flow Service {file_name}"
-                        
-                        files_to_download.append((remote_path, local_path, display_name, "Flow Service"))
-                    
-                except Exception as e:
-                    print(f"Error accessing Flow Service version directory: {e}")
-                    raise
-                
-                # We're removing the launcher template copying code
-            
-            # Process LPA Service component
-            if "LPA-SERVICE" in selected_components:
-                lpa_service_dir = os.path.join(output_dir, "offline_package_LPA")
-                print(f"\nProcessing LPA Service component...")
-                print(f"Output directory: {lpa_service_dir}")
-                os.makedirs(lpa_service_dir, exist_ok=True)
-                
-                # Determine system type and version first
-                lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
-                version_to_use = self.get_component_version(lpa_service_system_type, config)
-                
-                print(f"Using system type: {lpa_service_system_type}")
-                print(f"Using version: {version_to_use}")
-                
-                # Navigate to version directory with correct system type and version
-                lpa_service_version_path = f"/SoftwarePackage/{lpa_service_system_type}/{version_to_use}"
-                print(f"Checking version directory: {lpa_service_version_path}")
-                
-                try:
-                    files = self.webdav_browser.list_directories(lpa_service_version_path)
-                    print(f"Found files: {files}")
-                    
-                    # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "LPA Service", config=config)
-                    
-                    # Add selected files to download list
-                    for file in selected_files:
-                        file_name = file['name']
-                        remote_path = f"{lpa_service_version_path}/{file_name}"
-                        local_path = os.path.join(lpa_service_dir, file_name)
-                        
-                        # Make launcher names more specific by adding component name
-                        display_name = file_name
-                        if file_name.startswith("Launcher."):
-                            display_name = f"LPA Service {file_name}"
-                        
-                        files_to_download.append((remote_path, local_path, display_name, "LPA Service"))
-                    
-                except Exception as e:
-                    print(f"Error accessing LPA Service version directory: {e}")
-                    raise
-                
-                # We're removing the launcher template copying code
-            
-            # Process StoreHub Service component
-            if "STOREHUB-SERVICE" in selected_components:
-                storehub_service_dir = os.path.join(output_dir, "offline_package_SH")
-                print(f"\nProcessing StoreHub Service component...")
-                print(f"Output directory: {storehub_service_dir}")
-                os.makedirs(storehub_service_dir, exist_ok=True)
-                
-                # Determine system type and version first
-                storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
-                version_to_use = self.get_component_version(storehub_service_system_type, config)
-                
-                print(f"Using system type: {storehub_service_system_type}")
-                print(f"Using version: {version_to_use}")
-                
-                # Navigate to version directory with correct system type and version
-                storehub_service_version_path = f"/SoftwarePackage/{storehub_service_system_type}/{version_to_use}"
-                print(f"Checking version directory: {storehub_service_version_path}")
-                
-                try:
-                    files = self.webdav_browser.list_directories(storehub_service_version_path)
-                    print(f"Found files: {files}")
-                    
-                    # Prompt user to select files if multiple JAR/EXE files are found
-                    selected_files = prompt_for_file_selection(files, "StoreHub Service", config=config)
-                    
-                    # Add selected files to download list
-                    for file in selected_files:
-                        file_name = file['name']
-                        remote_path = f"{storehub_service_version_path}/{file_name}"
-                        local_path = os.path.join(storehub_service_dir, file_name)
-                        
-                        # Make launcher names more specific by adding component name
-                        display_name = file_name
-                        if file_name.startswith("Launcher."):
-                            display_name = f"StoreHub Service {file_name}"
-                        
-                        files_to_download.append((remote_path, local_path, display_name, "StoreHub Service"))
-                    
-                except Exception as e:
-                    print(f"Error accessing StoreHub Service version directory: {e}")
-                    raise
-                
-                # We're removing the launcher template copying code
+            # Process application components
+            process_component("POS", "POS", "pos", "CSE-OPOS-CLOUD")
+            process_component("WDM", "WDM", "wdm", "CSE-wdm")
+            process_component("FLOW-SERVICE", "FLOW-SERVICE", "flow_service", "GKR-FLOWSERVICE-CLOUD", "Flow Service")
+            process_component("LPA", "LPA-SERVICE", "lpa_service", "CSE-lps-lpa", "LPA Service")
+            process_component("SH", "STOREHUB-SERVICE", "storehub_service", "CSE-sh-cloud", "StoreHub Service")
             
             # If no files to download, return
             if not files_to_download:
