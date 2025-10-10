@@ -4777,8 +4777,8 @@ class OfflinePackageCreator:
         # Apply mousewheel binding for Linux scrolling
         bind_mousewheel_to_frame(self.main_frame)
         
-        # Create WebDAV browser
-        self.create_webdav_browser()
+        # Create DSG API browser
+        self.create_dsg_api_browser_ui()
         
         # Create offline package section
         self.create_offline_package_section()
@@ -4831,7 +4831,7 @@ class OfflinePackageCreator:
             font=("Helvetica", 16, "bold")
         ).pack(pady=(10, 5), padx=10)
         
-        # WebDAV connection prompt
+        # API connection prompt
         connection_frame = ctk.CTkFrame(self.offline_package_frame, fg_color="transparent")
         connection_frame.pack(pady=(0, 5), padx=10, fill="x")
         
@@ -4844,7 +4844,7 @@ class OfflinePackageCreator:
         
         self.connection_prompt = ctk.CTkLabel(
             connection_frame,
-            text="Connect to WebDAV first to download components",
+            text="Connect to DSG API first to download components",
             font=("Helvetica", 12, "italic"),
             text_color="#8C8C8C"
         )
@@ -5078,7 +5078,7 @@ class OfflinePackageCreator:
         # Status label
         self.status_label = ctk.CTkLabel(
             self.offline_package_frame,
-            text="Please connect to WebDAV before creating packages",
+            text="Please connect to DSG API before creating packages",
             font=("Helvetica", 12),
             text_color="#FF9E3D"  # Orange for warning
         )
@@ -5451,14 +5451,14 @@ class OfflinePackageCreator:
         self.window.update_idletasks()  # Update the UI to show the connecting message
         
         # Create DSG REST API browser instance
-        self.webdav = self.project_generator.create_webdav_browser(
+        self.webdav = self.project_generator.create_dsg_api_browser(
             base_url,
             username,
             password,
             bearer_token
         )
         
-        # Connect to WebDAV server
+        # Connect to DSG REST API
         success, message = self.webdav.connect()
         
         if success:
@@ -5481,7 +5481,7 @@ class OfflinePackageCreator:
             # Clear the connection prompt and update status label
             if hasattr(self, 'connection_prompt'):
                 self.connection_prompt.configure(
-                    text="WebDAV connected successfully",
+                    text="DSG API connected successfully",
                     text_color="#53D86A"  # Green for success
                 )
             
@@ -5499,14 +5499,14 @@ class OfflinePackageCreator:
             
             # Show specific error in a tooltip or status label
             error_msg = message if len(message) < 50 else message[:47] + "..."
-            self.status_label.configure(text=f"WebDAV: {error_msg}", text_color="#FF6B6B")
+            self.status_label.configure(text=f"DSG API: {error_msg}", text_color="#FF6B6B")
     
     def create_offline_package(self):
         """Create offline package with selected components"""
         try:
-            # Check if WebDAV is connected
+            # Check if DSG API is connected
             if not hasattr(self, 'webdav') or not getattr(self.webdav, 'connected', False):
-                self.show_error("WebDAV Connection Required", "Please Connect first to WebDAV before proceeding.")
+                self.show_error("DSG API Connection Required", "Please connect to DSG API first before proceeding.")
                 # Highlight the connect button with a pulsing effect
                 self.webdav_status.configure(text="Not Connected", text_color="#FF6B6B")
                 self.webdav_status.update()
