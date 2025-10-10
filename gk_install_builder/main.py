@@ -5411,10 +5411,37 @@ class OfflinePackageCreator:
         password = self.webdav_password.get()
         bearer_token = self.bearer_token.get() if hasattr(self, 'bearer_token') else None
         
-        # Allow connection with either password OR bearer token
-        if not base_url or not (bearer_token or (username and password)):
+        # If no bearer token provided, try to generate one automatically
+        if not bearer_token:
+            # Show generating token status
+            self.webdav_status.configure(text="Generating token...", text_color="#FFD700")
+            self.window.update_idletasks()
+            
+            # Generate token using the same method as PPD/PPF
+            bearer_token = self._generate_api_token_for_dsg(base_url)
+            
+            if not bearer_token:
+                self.webdav_status.configure(
+                    text="Token generation failed",
+                    text_color="#FF6B6B"
+                )
+                messagebox.showerror("Authentication Failed",
+                    "Could not generate authentication token.\n\n"
+                    "💡 HINT: Please ensure Security Configuration is complete:\n\n"
+                    "1. Basic Auth Password (launchpad_oauth2)\n"
+                    "2. Form Password (eh_launchpad_password)\n"
+                    "3. Base URL is correct\n\n"
+                    "Or manually paste a Bearer token in the Token field.")
+                return
+            
+            # Update the token field with the generated token
+            if hasattr(self, 'bearer_token'):
+                self.bearer_token.delete(0, 'end')
+                self.bearer_token.insert(0, bearer_token)
+        
+        if not base_url:
             self.webdav_status.configure(
-                text="Missing credentials",
+                text="Missing base URL",
                 text_color="#FF6B6B"
             )
             return
@@ -5547,6 +5574,83 @@ class OfflinePackageCreator:
     def show_info(self, title, message):
         """Show info dialog"""
         messagebox.showinfo(title, message)
+
+    def _generate_api_token_for_dsg(self, base_url):
+        """Generate API bearer token for DSG REST API (same method as PPD/PPF)"""
+        try:
+            import base64
+            import urllib.parse
+            import requests
+            import urllib3
+            
+            # Disable SSL warnings
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            # Get credentials from config (same as PPD/PPF)
+            basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")
+            form_password = self.config_manager.config.get("eh_launchpad_password", "")
+            
+            if not basic_auth_password or not form_password:
+                print("Missing credentials for token generation")
+                return None
+            
+            # Handle both base64 encoded and plain text passwords
+            try:
+                # Try to decode as base64 first
+                basic_auth_password = base64.b64decode(basic_auth_password).decode('utf-8')
+                form_password = base64.b64decode(form_password).decode('utf-8')
+            except Exception:
+                # Use the passwords as-is (they're already plain text)
+                pass
+            
+            # Create Basic Auth header
+            username = "launchpad"
+            auth_string = f"{username}:{basic_auth_password}"
+            auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
+            
+            # Prepare form data
+            form_data_dict = {
+                'username': '1001',
+                'password': form_password,
+                'grant_type': 'password'
+            }
+            
+            # URL encode form data
+            encoded_pairs = []
+            for key, value in form_data_dict.items():
+                encoded_key = urllib.parse.quote_plus(str(key))
+                encoded_value = urllib.parse.quote_plus(str(value))
+                encoded_pairs.append(f"{encoded_key}={encoded_value}")
+            
+            form_data = '&'.join(encoded_pairs)
+            
+            # Make OAuth token request
+            token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
+            headers = {
+                'Authorization': f'Basic {auth_b64}',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            print(f"Requesting OAuth token from: {token_url}")
+            response = requests.post(token_url, headers=headers, data=form_data, timeout=30, verify=False)
+            
+            if response.status_code == 200:
+                token_data = response.json()
+                access_token = token_data.get('access_token')
+                if access_token:
+                    print("Bearer token generated successfully")
+                    return access_token
+            else:
+                print(f"Token generation failed with status: {response.status_code}")
+                print(f"Response: {response.text}")
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error generating bearer token: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
 
     def get_basic_auth_password_from_keepass(self, target_entry=None, password_type="basic_auth"):
         """Delegate to the parent app's get_basic_auth_password_from_keepass method"""
