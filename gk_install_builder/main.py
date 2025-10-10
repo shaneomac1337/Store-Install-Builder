@@ -5334,6 +5334,7 @@ class OfflinePackageCreator:
         self.context_menu.add_separator()
         self.context_menu.add_command(label="📋 Copy Path", command=self._context_copy_path)
         self.context_menu.add_command(label="📝 Copy Name", command=self._context_copy_name)
+        self.context_menu.add_command(label="🔗 Copy Download URL", command=self._context_copy_download_url)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="⟳ Refresh", command=self._refresh_current_directory)
         self.context_menu.add_command(label="ℹ Properties", command=self._context_properties)
@@ -5532,9 +5533,13 @@ class OfflinePackageCreator:
             if item.get('is_directory'):
                 self.context_menu.entryconfig(0, state="normal", label="📂 Open Folder")
                 self.context_menu.entryconfig(1, state="disabled")
+                # Enable Copy Download URL for folders (API browse URL)
+                self.context_menu.entryconfig(4, state="normal", label="🔗 Copy API URL")
             else:
                 self.context_menu.entryconfig(0, state="disabled")
                 self.context_menu.entryconfig(1, state="normal", label="⬇ Download File")
+                # Enable Copy Download URL for files
+                self.context_menu.entryconfig(4, state="normal", label="🔗 Copy Download URL")
             
             # Show the menu
             try:
@@ -5585,6 +5590,34 @@ class OfflinePackageCreator:
                 self.window.clipboard_append(item['name'])
                 print(f"Copied to clipboard: {item['name']}")
     
+    def _context_copy_download_url(self):
+        """Context menu: Copy download URL to clipboard"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                
+                if item.get('is_directory'):
+                    # For folders, copy the API browse URL
+                    full_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
+                    download_url = f"{self.webdav.base_url}/api/digital-content/services/rest/media/v1/files{full_path}"
+                else:
+                    # For files, get the actual download URL
+                    remote_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
+                    download_url = self.webdav.get_file_url(remote_path)
+                
+                self.window.clipboard_clear()
+                self.window.clipboard_append(download_url)
+                print(f"Copied download URL to clipboard: {download_url}")
+                
+                # Show success message
+                from tkinter import messagebox
+                messagebox.showinfo(
+                    "URL Copied",
+                    f"Download URL copied to clipboard!\n\n{download_url}"
+                )
+    
     def _context_properties(self):
         """Context menu: Show item properties"""
         selection = self.file_listbox.curselection()
@@ -5606,8 +5639,13 @@ class OfflinePackageCreator:
                 ]
                 
                 if item.get('size'):
-                    size_mb = item['size'] / (1024 * 1024)
-                    props.append(f"Size: {size_mb:.2f} MB ({item['size']:,} bytes)")
+                    try:
+                        # Convert to int if it's a string
+                        size = int(item['size']) if isinstance(item['size'], str) else item['size']
+                        size_mb = size / (1024 * 1024)
+                        props.append(f"Size: {size_mb:.2f} MB ({size:,} bytes)")
+                    except (ValueError, TypeError):
+                        props.append(f"Size: {item['size']}")
                 
                 if item.get('mimeType'):
                     props.append(f"MIME Type: {item['mimeType']}")
