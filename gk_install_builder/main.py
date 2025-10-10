@@ -5259,7 +5259,7 @@ class OfflinePackageCreator:
         self.webdav_status.pack(side="left", padx=5)
         
         # Navigation section with better styling
-        nav_frame = ctk.CTkFrame(webdav_frame)
+        nav_frame = ctk.CTkFrame(api_frame)
         nav_frame.pack(fill="x", padx=5, pady=5)
         
         # Button group with consistent styling
@@ -5293,7 +5293,7 @@ class OfflinePackageCreator:
         refresh_btn.pack(side="left", padx=5)
         
         # Directory listing - enhanced with styled Listbox and custom Frame
-        dir_listing_frame = ctk.CTkFrame(webdav_frame, fg_color="#202837", corner_radius=8)
+        dir_listing_frame = ctk.CTkFrame(api_frame, fg_color="#202837", corner_radius=8)
         dir_listing_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Add a header
@@ -5471,12 +5471,13 @@ class OfflinePackageCreator:
                 self.config_manager.config["bearer_token"] = bearer_token
             self.config_manager.save_config_silent()
             
-            # Enable create offline package button with visual indicator
-            self.create_button.configure(
-                state="normal",
-                fg_color="#2B5BA0",  # Normal blue color
-                hover_color="#3A6AB0"  # Hover blue color
-            )
+            # Enable create offline package button with visual indicator (if it exists)
+            if hasattr(self, 'create_button'):
+                self.create_button.configure(
+                    state="normal",
+                    fg_color="#2B5BA0",  # Normal blue color
+                    hover_color="#3A6AB0"  # Hover blue color
+                )
             
             # Clear the connection prompt and update status label
             if hasattr(self, 'connection_prompt'):
