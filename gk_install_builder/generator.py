@@ -173,10 +173,14 @@ class DSGRestBrowser:
         return self.list_directories(path)
 
     def get_file_url(self, file_path):
-        """Get the download URL for a file"""
-        # Remove leading slash
+        """Get the download URL for a file using /dsg/content/cep/ path"""
+        # Remove leading slash and 'SoftwarePackage/' prefix if present
         file_path = file_path.lstrip('/')
-        return f"{self.api_base}/{file_path}"
+        if file_path.startswith('SoftwarePackage/'):
+            file_path = file_path[len('SoftwarePackage/'):]
+        
+        # Use /dsg/content/cep/ path for actual file downloads
+        return f"{self.base_url}/dsg/content/cep/SoftwarePackage/{file_path}"
 
 # Keep WebDAVBrowser as an alias for backwards compatibility during transition
 WebDAVBrowser = DSGRestBrowser
