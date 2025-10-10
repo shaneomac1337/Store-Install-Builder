@@ -72,17 +72,22 @@ class DSGRestBrowser:
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401 and retry_on_401 and self.token_refresh_callback:
                 print("\n=== Token Expired (401) - Refreshing ===")
+                print(f"Old token (last 10 chars): ...{self.bearer_token[-10:] if self.bearer_token else 'None'}")
+                
                 # Try to refresh the token
                 new_token = self.token_refresh_callback()
                 if new_token:
                     self.bearer_token = new_token
-                    print("Token refreshed successfully, retrying request...")
-                    # Retry the request once with new token
+                    print(f"New token (last 10 chars): ...{self.bearer_token[-10:]}")
+                    print("Token updated successfully, retrying request with new token...")
+                    
+                    # Retry the request once with new token (headers will be regenerated)
                     response = request_func()
                     response.raise_for_status()
+                    print("Request succeeded with new token!")
                     return response
                 else:
-                    print("Token refresh failed")
+                    print("Token refresh failed - no new token returned")
             raise
     
     def list_directories(self, path="/SoftwarePackage"):
