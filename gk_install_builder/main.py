@@ -5224,299 +5224,381 @@ class OfflinePackageCreator:
         )
         self.webdav_status.pack(expand=True)
         
-        # Modern navigation bar
-        nav_bar = ctk.CTkFrame(api_frame, fg_color="transparent")
-        nav_bar.pack(fill="x", padx=0, pady=(0, 10))
+        # Navigation and file browser container
+        browser_main = ctk.CTkFrame(api_frame, fg_color="#1E293B", corner_radius=10)
+        browser_main.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Up button
-        up_btn = ctk.CTkButton(
-            nav_bar,
-            text="← Back",
-            width=90,
+        # Navigation toolbar
+        toolbar = ctk.CTkFrame(browser_main, fg_color="#0F172A", corner_radius=0, height=55)
+        toolbar.pack(fill="x", padx=0, pady=0)
+        toolbar.pack_propagate(False)
+        
+        # Navigation buttons container
+        nav_buttons = ctk.CTkFrame(toolbar, fg_color="transparent")
+        nav_buttons.pack(side="left", padx=12, pady=8)
+        
+        # Back button
+        self.back_btn = ctk.CTkButton(
+            nav_buttons,
+            text="◄ Back",
+            width=85,
             height=38,
-            corner_radius=8,
-            fg_color="#2D3748",
-            hover_color="#3D4758",
-            font=("Helvetica", 12, "bold"),
-            command=self.navigate_up
+            corner_radius=6,
+            fg_color="#334155",
+            hover_color="#475569",
+            font=("Segoe UI", 11, "bold"),
+            command=self._navigate_back,
+            state="disabled"
         )
-        up_btn.pack(side="left", padx=(0, 8))
+        self.back_btn.pack(side="left", padx=(0, 6))
         
         # Refresh button
-        refresh_btn = ctk.CTkButton(
-            nav_bar,
-            text="🔄 Refresh",
-            width=110,
+        self.refresh_btn = ctk.CTkButton(
+            nav_buttons,
+            text="⟳ Refresh",
+            width=95,
             height=38,
-            corner_radius=8,
-            fg_color="#2D3748",
-            hover_color="#3D4758",
-            font=("Helvetica", 12, "bold"),
-            command=self.refresh_listing
+            corner_radius=6,
+            fg_color="#334155",
+            hover_color="#475569",
+            font=("Segoe UI", 11, "bold"),
+            command=self._refresh_current_directory
         )
-        refresh_btn.pack(side="left")
+        self.refresh_btn.pack(side="left")
         
-        # Modern file browser with customtkinter table-like design
-        browser_container = ctk.CTkFrame(api_frame, fg_color="transparent", corner_radius=0)
-        browser_container.pack(fill="both", expand=True, padx=0, pady=0)
+        # Path breadcrumb display
+        breadcrumb_container = ctk.CTkFrame(toolbar, fg_color="#1E293B", corner_radius=6, height=38)
+        breadcrumb_container.pack(side="left", fill="x", expand=True, padx=12, pady=8)
         
-        # Header with title and current path
-        header_frame = ctk.CTkFrame(browser_container, fg_color="#1E293B", corner_radius=8, height=50)
-        header_frame.pack(fill="x", padx=0, pady=(0, 8))
-        header_frame.pack_propagate(False)
-        
-        ctk.CTkLabel(
-            header_frame,
-            text="📁 Files & Folders",
-            font=("Segoe UI", 14, "bold"),
-            text_color="#F1F5F9",
-            anchor="w"
-        ).pack(side="left", padx=15)
-        
-        # Current path display
-        path_container = ctk.CTkFrame(header_frame, fg_color="#334155", corner_radius=6, height=32)
-        path_container.pack(side="right", padx=15, pady=9)
-        
-        ctk.CTkLabel(
-            path_container,
-            text="📂",
-            font=("Segoe UI", 12)
-        ).pack(side="left", padx=(8, 4))
-        
-        self.path_label = ctk.CTkLabel(
-            path_container,
-            text="/",
+        self.breadcrumb_label = ctk.CTkLabel(
+            breadcrumb_container,
+            text="/SoftwarePackage",
             font=("Consolas", 11),
-            text_color="#94A3B8"
+            text_color="#94A3B8",
+            anchor="w"
         )
-        self.path_label.pack(side="left", padx=(0, 8))
+        self.breadcrumb_label.pack(fill="x", padx=12, pady=8)
         
-        # Scrollable frame for file items with better scrolling
-        self.files_scroll = ctk.CTkScrollableFrame(
-            browser_container,
-            fg_color="#1E293B",
-            corner_radius=8,
-            scrollbar_button_color="#475569",
-            scrollbar_button_hover_color="#64748B"
+        # File list container with proper scrolling
+        list_container = ctk.CTkFrame(browser_main, fg_color="#0F172A", corner_radius=0)
+        list_container.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Scrollable frame for file items
+        self.files_scrollable = ctk.CTkScrollableFrame(
+            list_container,
+            fg_color="#0F172A",
+            corner_radius=0,
+            scrollbar_button_color="#334155",
+            scrollbar_button_hover_color="#475569"
         )
-        self.files_scroll.pack(fill="both", expand=True, padx=0, pady=0)
+        self.files_scrollable.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Store for tracking current items
-        self.current_items = []
-        self.file_item_widgets = []
+        # Initialize browser state
+        self._browser_state = {
+            'current_path': '/SoftwarePackage',
+            'loading': False,
+            'connected': False,
+            'items': []
+        }
     
-    def refresh_listing(self):
-        """Refresh directory listing with customtkinter integrated design"""
-        # Check if connected
-        if not hasattr(self, 'webdav') or not self.webdav:
+    def _clear_file_list(self):
+        """Clear all file list widgets"""
+        for widget in self.files_scrollable.winfo_children():
+            widget.destroy()
+    
+    def _show_loading(self):
+        """Show loading indicator"""
+        self._clear_file_list()
+        self._browser_state['loading'] = True
+        
+        loading_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
+        loading_frame.pack(expand=True, pady=80)
+        
+        ctk.CTkLabel(
+            loading_frame,
+            text="⟳",
+            font=("Segoe UI", 64),
+            text_color="#475569"
+        ).pack()
+        
+        ctk.CTkLabel(
+            loading_frame,
+            text="Loading...",
+            font=("Segoe UI", 13),
+            text_color="#64748B"
+        ).pack(pady=(10, 0))
+        
+        self.window.update_idletasks()
+    
+    def _show_empty_state(self):
+        """Show empty directory state"""
+        self._clear_file_list()
+        
+        empty_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
+        empty_frame.pack(expand=True, pady=80)
+        
+        ctk.CTkLabel(
+            empty_frame,
+            text="📂",
+            font=("Segoe UI", 64)
+        ).pack()
+        
+        ctk.CTkLabel(
+            empty_frame,
+            text="Empty Directory",
+            font=("Segoe UI", 15, "bold"),
+            text_color="#64748B"
+        ).pack(pady=(10, 5))
+        
+        ctk.CTkLabel(
+            empty_frame,
+            text="This folder doesn't contain any items",
+            font=("Segoe UI", 11),
+            text_color="#475569"
+        ).pack()
+    
+    def _show_error(self, error_message):
+        """Show error state"""
+        self._clear_file_list()
+        
+        error_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
+        error_frame.pack(expand=True, pady=80)
+        
+        ctk.CTkLabel(
+            error_frame,
+            text="⚠",
+            font=("Segoe UI", 64),
+            text_color="#EF4444"
+        ).pack()
+        
+        ctk.CTkLabel(
+            error_frame,
+            text="Error Loading Directory",
+            font=("Segoe UI", 15, "bold"),
+            text_color="#EF4444"
+        ).pack(pady=(10, 5))
+        
+        # Truncate long error messages
+        display_msg = error_message if len(error_message) <= 100 else error_message[:97] + "..."
+        ctk.CTkLabel(
+            error_frame,
+            text=display_msg,
+            font=("Segoe UI", 11),
+            text_color="#F87171",
+            wraplength=500
+        ).pack()
+    
+    def _normalize_path(self, path):
+        """Normalize path to use forward slashes and remove trailing slashes"""
+        normalized = path.replace('\\', '/').rstrip('/')
+        return normalized if normalized else '/SoftwarePackage'
+    
+    def _update_breadcrumb(self, path):
+        """Update breadcrumb display"""
+        self.breadcrumb_label.configure(text=path)
+        self.path_label.configure(text=path)
+        
+        # Enable/disable back button
+        if path in ['/', '/SoftwarePackage']:
+            self.back_btn.configure(state="disabled", fg_color="#1E293B")
+        else:
+            self.back_btn.configure(state="normal", fg_color="#334155")
+    
+    def _load_directory(self, path):
+        """Load and display directory contents"""
+        if not hasattr(self, 'webdav') or not self.webdav or not self._browser_state['connected']:
+            self._show_error("Not connected to DSG API")
             return
         
-        # Show loading state
-        for widget in self.file_item_widgets:
-            widget.destroy()
-        self.file_item_widgets.clear()
+        # Normalize path
+        path = self._normalize_path(path)
+        self._browser_state['current_path'] = path
         
-        loading_label = ctk.CTkLabel(
-            self.files_scroll,
-            text="🔄 Loading...",
-            font=("Segoe UI", 13),
-            text_color="#94A3B8"
-        )
-        loading_label.pack(pady=40)
-        self.file_item_widgets.append(loading_label)
-        self.window.update_idletasks()
-        
-        # Clear loading indicator
-        for widget in self.file_item_widgets:
-            widget.destroy()
-        self.file_item_widgets.clear()
+        # Update UI
+        self._update_breadcrumb(path)
+        self._show_loading()
         
         try:
-            # Normalize the path (ensure forward slashes)
-            normalized_path = self.webdav.current_path.replace('\\', '/')
-            self.webdav.current_path = normalized_path
+            # Fetch directory contents
+            print(f"\n=== Loading Directory ===")
+            print(f"Path: {path}")
             
-            print(f"\n=== Refreshing listing ===")
-            print(f"Current path: {self.webdav.current_path}")
+            items = self.webdav.list_directories(path)
             
-            # Get all items
-            items = self.webdav.list_directories(self.webdav.current_path)
+            print(f"Found: {len(items)} items")
             
-            print(f"Retrieved {len(items)} items")
+            # Update state
+            self._browser_state['items'] = items
+            self._browser_state['loading'] = False
             
-            # Update path label
-            self.path_label.configure(text=self.webdav.current_path)
+            # Clear loading and show items
+            self._clear_file_list()
             
-            # Sort items - directories first, then files
+            if not items:
+                self._show_empty_state()
+                return
+            
+            # Sort: directories first, then files alphabetically
             items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
             
-            # Store items
-            self.current_items = items
-            
-            # Create items in a clean list format
+            # Create file list items
             for idx, item in enumerate(items):
-                # Choose icon and styling based on type
-                if item['is_directory']:
-                    icon = "📁"
-                    name_color = "#60A5FA"  # Blue for folders
-                    type_text = "Folder"
-                    type_color = "#3B82F6"
-                elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
-                    icon = "📦"
-                    name_color = "#A78BFA"  # Purple for archives
-                    type_text = "Archive"
-                    type_color = "#8B5CF6"
-                elif item['name'].lower().endswith(('.exe', '.msi')):
-                    icon = "⚙️"
-                    name_color = "#34D399"  # Green for executables
-                    type_text = "Executable"
-                    type_color = "#10B981"
-                elif item['name'].lower().endswith(('.jar', '.war')):
-                    icon = "☕"
-                    name_color = "#FB923C"  # Orange for Java
-                    type_text = "Java Package"
-                    type_color = "#F97316"
-                else:
-                    icon = "📄"
-                    name_color = "#94A3B8"  # Gray for other files
-                    type_text = "File"
-                    type_color = "#64748B"
-                
-                # Create row frame for better control
-                row_frame = ctk.CTkFrame(
-                    self.files_scroll,
-                    fg_color="#0F172A" if idx % 2 == 0 else "#1E293B",
-                    corner_radius=6,
-                    height=48,
-                    cursor="hand2"
-                )
-                row_frame.pack(fill="x", padx=4, pady=2)
-                row_frame.pack_propagate(False)
-                
-                # Make entire row clickable
-                row_frame.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
-                
-                # Hover effect
-                def on_enter(e, frame=row_frame):
-                    frame.configure(fg_color="#334155")
-                
-                def on_leave(e, frame=row_frame):
-                    base_color = "#0F172A" if idx % 2 == 0 else "#1E293B"
-                    frame.configure(fg_color=base_color)
-                
-                row_frame.bind("<Enter>", on_enter)
-                row_frame.bind("<Leave>", on_leave)
-                
-                # Icon with fixed width
-                icon_label = ctk.CTkLabel(
-                    row_frame,
-                    text=icon,
-                    font=("Segoe UI", 18),
-                    width=50
-                )
-                icon_label.pack(side="left", padx=(12, 0))
-                icon_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
-                
-                # Name label
-                name_label = ctk.CTkLabel(
-                    row_frame,
-                    text=item['name'],
-                    font=("Segoe UI", 12),
-                    text_color=name_color,
-                    anchor="w"
-                )
-                name_label.pack(side="left", fill="x", expand=True, padx=(8, 12))
-                name_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
-                
-                # Type badge
-                type_badge = ctk.CTkFrame(
-                    row_frame,
-                    fg_color=type_color,
-                    corner_radius=4,
-                    height=24
-                )
-                type_badge.pack(side="right", padx=(0, 12))
-                type_badge.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
-                
-                badge_label = ctk.CTkLabel(
-                    type_badge,
-                    text=type_text,
-                    font=("Segoe UI", 10, "bold"),
-                    text_color="#FFFFFF"
-                )
-                badge_label.pack(padx=8, pady=2)
-                badge_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
-                
-                self.file_item_widgets.append(row_frame)
-            
-            # If no items, show message
-            if not items:
-                empty_frame = ctk.CTkFrame(
-                    self.files_scroll,
-                    fg_color="transparent"
-                )
-                empty_frame.pack(expand=True, fill="both", pady=60)
-                
-                ctk.CTkLabel(
-                    empty_frame,
-                    text="📂",
-                    font=("Segoe UI", 48)
-                ).pack(pady=(0, 10))
-                
-                ctk.CTkLabel(
-                    empty_frame,
-                    text="Empty Directory",
-                    font=("Segoe UI", 14, "bold"),
-                    text_color="#64748B"
-                ).pack()
-                
-                ctk.CTkLabel(
-                    empty_frame,
-                    text="This folder doesn't contain any items",
-                    font=("Segoe UI", 11),
-                    text_color="#475569"
-                ).pack(pady=(4, 0))
-                
-                self.file_item_widgets.append(empty_frame)
-                    
+                self._create_file_item(item, idx)
+        
         except Exception as e:
-            self.webdav_status.configure(text="⚫ Disconnected")
-            self.status_badge.configure(fg_color="#FF6B6B")
+            print(f"Error loading directory: {e}")
+            import traceback
+            traceback.print_exc()
             
-            error_frame = ctk.CTkFrame(
-                self.files_scroll,
-                fg_color="transparent"
-            )
-            error_frame.pack(expand=True, fill="both", pady=60)
+            self._browser_state['loading'] = False
+            self._show_error(str(e))
             
-            ctk.CTkLabel(
-                error_frame,
-                text="❌",
-                font=("Segoe UI", 48)
-            ).pack(pady=(0, 10))
-            
-            ctk.CTkLabel(
-                error_frame,
-                text="Connection Error",
-                font=("Segoe UI", 14, "bold"),
-                text_color="#EF4444"
-            ).pack()
-            
-            error_msg = str(e)[:80] + "..." if len(str(e)) > 80 else str(e)
-            ctk.CTkLabel(
-                error_frame,
-                text=error_msg,
-                font=("Segoe UI", 11),
-                text_color="#F87171",
-                wraplength=400
-            ).pack(pady=(4, 0))
-            
-            self.file_item_widgets.append(error_frame)
+            # Update connection status
+            if hasattr(self, 'webdav_status'):
+                self.webdav_status.configure(text="⚠ Error")
+                self.status_badge.configure(fg_color="#F59E0B")
+    
+    def _create_file_item(self, item, index):
+        """Create a single file/folder item widget"""
+        # Determine icon and colors
+        if item['is_directory']:
+            icon = "📁"
+            name_color = "#60A5FA"
+            type_text = "Folder"
+            type_bg = "#3B82F6"
+        elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
+            icon = "📦"
+            name_color = "#A78BFA"
+            type_text = "Archive"
+            type_bg = "#8B5CF6"
+        elif item['name'].lower().endswith(('.exe', '.msi')):
+            icon = "⚙️"
+            name_color = "#34D399"
+            type_text = "Executable"
+            type_bg = "#10B981"
+        elif item['name'].lower().endswith(('.jar', '.war')):
+            icon = "☕"
+            name_color = "#FB923C"
+            type_text = "Java"
+            type_bg = "#F97316"
+        else:
+            icon = "📄"
+            name_color = "#94A3B8"
+            type_text = "File"
+            type_bg = "#64748B"
+        
+        # Row colors
+        row_bg = "#1E293B" if index % 2 == 0 else "#0F172A"
+        hover_bg = "#334155"
+        
+        # Create row container
+        row = ctk.CTkFrame(
+            self.files_scrollable,
+            fg_color=row_bg,
+            corner_radius=4,
+            height=52
+        )
+        row.pack(fill="x", padx=8, pady=3)
+        row.pack_propagate(False)
+        
+        # Store original color for hover effect
+        row._original_bg = row_bg
+        row._hover_bg = hover_bg
+        
+        # Icon
+        icon_lbl = ctk.CTkLabel(
+            row,
+            text=icon,
+            font=("Segoe UI", 20),
+            width=45
+        )
+        icon_lbl.pack(side="left", padx=(15, 5))
+        
+        # Name
+        name_lbl = ctk.CTkLabel(
+            row,
+            text=item['name'],
+            font=("Segoe UI", 12),
+            text_color=name_color,
+            anchor="w"
+        )
+        name_lbl.pack(side="left", fill="x", expand=True, padx=(5, 10))
+        
+        # Type badge
+        badge = ctk.CTkFrame(
+            row,
+            fg_color=type_bg,
+            corner_radius=4,
+            height=26
+        )
+        badge.pack(side="right", padx=(0, 15))
+        
+        ctk.CTkLabel(
+            badge,
+            text=type_text,
+            font=("Segoe UI", 10, "bold"),
+            text_color="#FFFFFF"
+        ).pack(padx=10, pady=3)
+        
+        # Bind click events
+        def on_click(event=None):
+            if item['is_directory']:
+                self._navigate_into(item['name'])
+        
+        # Hover effects
+        def on_enter(event=None):
+            row.configure(fg_color=hover_bg)
+        
+        def on_leave(event=None):
+            row.configure(fg_color=row._original_bg)
+        
+        # Bind to all widgets
+        for widget in [row, icon_lbl, name_lbl, badge]:
+            widget.bind("<Button-1>", on_click)
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+    
+    def _navigate_into(self, dirname):
+        """Navigate into a subdirectory"""
+        current = self._browser_state['current_path'].rstrip('/')
+        new_path = f"{current}/{dirname}"
+        
+        print(f"Navigating: {current} -> {new_path}")
+        
+        self._load_directory(new_path)
+    
+    def _navigate_back(self):
+        """Navigate to parent directory"""
+        current = self._browser_state['current_path'].rstrip('/')
+        
+        if current in ['/', '/SoftwarePackage']:
+            return
+        
+        # Get parent path
+        parts = current.split('/')
+        parent = '/'.join(parts[:-1]) if len(parts) > 1 else '/SoftwarePackage'
+        
+        if not parent or parent == '':
+            parent = '/SoftwarePackage'
+        
+        print(f"Navigating back: {current} -> {parent}")
+        
+        self._load_directory(parent)
+    
+    def _refresh_current_directory(self):
+        """Refresh the current directory"""
+        current_path = self._browser_state.get('current_path', '/SoftwarePackage')
+        print(f"Refreshing: {current_path}")
+        self._load_directory(current_path)
+    
+    def refresh_listing(self):
+        """Legacy method - redirects to new implementation"""
+        self._refresh_current_directory()
     
     def on_item_click(self, item):
-        """Handle click on file/folder item"""
-        if item['is_directory']:
-            self.enter_directory(item['name'])
+        """Legacy method - redirects to new implementation"""
+        if item.get('is_directory'):
+            self._navigate_into(item['name'])
     
     def connect_webdav(self):
         """Handle REST API connection with improved feedback"""
@@ -5601,12 +5683,13 @@ class OfflinePackageCreator:
                 text_color="#53D86A"  # Green for success
             )
             
-            # Navigate to SoftwarePackage directory
-            self.webdav.current_path = "/SoftwarePackage"
-            self.refresh_listing()
+            # Update browser state and load initial directory
+            self._browser_state['connected'] = True
+            self._load_directory('/SoftwarePackage')
         else:
             self.webdav_status.configure(text="❌ Failed")
             self.status_badge.configure(fg_color="#FF6B6B")
+            self._browser_state['connected'] = False
             
             # Show specific error in status label
             error_msg = message if len(message) < 50 else message[:47] + "..."
@@ -5832,33 +5915,12 @@ class OfflinePackageCreator:
                 self.enter_directory(item['name'])
     
     def enter_directory(self, dirname):
-        """Enter a directory"""
-        # Use forward slashes for REST API compatibility
-        current = self.webdav.current_path.rstrip('/')
-        new_path = f"{current}/{dirname}"
-        
-        print(f"\n=== Entering directory ===")
-        print(f"From: {self.webdav.current_path}")
-        print(f"To: {new_path}")
-        
-        self.webdav.current_path = new_path
-        self.refresh_listing()
+        """Legacy method - redirects to new implementation"""
+        self._navigate_into(dirname)
     
     def navigate_up(self):
-        """Navigate to parent directory"""
-        if self.webdav.current_path not in ["/", "/SoftwarePackage"]:
-            # Use forward slash path manipulation for REST API
-            current = self.webdav.current_path.rstrip('/')
-            parent = '/'.join(current.split('/')[:-1])
-            if not parent:
-                parent = "/SoftwarePackage"
-            
-            print(f"\n=== Navigating up ===")
-            print(f"From: {self.webdav.current_path}")
-            print(f"To: {parent}")
-            
-            self.webdav.current_path = parent
-            self.refresh_listing()
+        """Legacy method - redirects to new implementation"""
+        self._navigate_back()
     
     def handle_item_click(self, name, is_directory):
         """Handle clicking on an item in the directory listing"""
