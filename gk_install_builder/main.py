@@ -5084,13 +5084,13 @@ class OfflinePackageCreator:
         )
         self.status_label.pack(pady=5, padx=10)
     
-    def create_webdav_browser(self):
-        # Create WebDAV browser frame with a subtle gradient background
-        webdav_frame = ctk.CTkFrame(self.main_frame)
-        webdav_frame.pack(fill="x", padx=10, pady=(0, 10))
+    def create_dsg_api_browser_ui(self):
+        # Create DSG API browser frame with a subtle gradient background
+        api_frame = ctk.CTkFrame(self.main_frame)
+        api_frame.pack(fill="x", padx=10, pady=(0, 10))
         
         # Header section with modern design
-        header_frame = ctk.CTkFrame(webdav_frame, fg_color="#1E2433")
+        header_frame = ctk.CTkFrame(api_frame, fg_color="#1E2433")
         header_frame.pack(fill="x", padx=5, pady=5)
         
         # Title with icon
@@ -5134,7 +5134,7 @@ class OfflinePackageCreator:
         self.path_label.pack(side="right", padx=(0, 10))
         
         # Authentication section with better styling
-        auth_frame = ctk.CTkFrame(webdav_frame)
+        auth_frame = ctk.CTkFrame(api_frame)
         auth_frame.pack(fill="x", padx=5, pady=5)
         
         # Username with icon

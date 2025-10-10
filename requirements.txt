@@ -1,7 +1,6 @@
 # Store Install Builder Requirements
 requests
 customtkinter
-webdavclient3
 urllib3
 # Additional dependencies
 setuptools

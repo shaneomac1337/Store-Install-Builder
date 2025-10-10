@@ -216,17 +216,17 @@ class ProjectGenerator:
                 }
             ]
         }
-        self.webdav_browser = None
+        self.dsg_api_browser = None
         self.parent_window = parent_window  # Rename to parent_window for consistency
         self.detection_manager = DetectionManager()
         
         # Enable file detection by default
         self.detection_manager.enable_file_detection(True)
 
-    def create_webdav_browser(self, base_url, username=None, password=None, bearer_token=None):
-        """Create a new DSG REST API browser instance (formerly WebDAV)"""
-        self.webdav_browser = DSGRestBrowser(base_url, username, password, bearer_token)
-        return self.webdav_browser
+    def create_dsg_api_browser(self, base_url, username=None, password=None, bearer_token=None):
+        """Create a new DSG REST API browser instance"""
+        self.dsg_api_browser = DSGRestBrowser(base_url, username, password, bearer_token)
+        return self.dsg_api_browser
 
     def generate(self, config):
         """Generate project from configuration"""
@@ -1830,15 +1830,15 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"Platform dependencies: {platform_dependencies}")
             
             # Initialize DSG REST API browser if not already initialized
-            if not self.webdav_browser:
+            if not self.dsg_api_browser:
                 print("\nInitializing DSG REST API browser...")
-                self.webdav_browser = self.create_webdav_browser(
+                self.dsg_api_browser = self.create_dsg_api_browser(
                     config["base_url"],
-                    config.get("webdav_username"),
-                    config.get("webdav_password"),
+                    config.get("dsg_api_username"),
+                    config.get("dsg_api_password"),
                     config.get("bearer_token")  # Add bearer token support
                 )
-                success, message = self.webdav_browser.connect()
+                success, message = self.dsg_api_browser.connect()
                 if not success:
                     raise Exception(f"Failed to connect to DSG REST API: {message}")
                 print("DSG REST API connection successful")
@@ -1852,10 +1852,10 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             def download_file_thread(remote_path, local_path, file_name, component_type):
                 try:
                     # Get the full URL for the file using REST API
-                    file_url = self.webdav_browser.get_file_url(remote_path)
+                    file_url = self.dsg_api_browser.get_file_url(remote_path)
                     
                     # Prepare headers with bearer token if available
-                    headers = self.webdav_browser._get_headers()
+                    headers = self.dsg_api_browser._get_headers()
                     
                     print(f"Downloading from REST API: {file_url}")
                     
@@ -2334,13 +2334,13 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 return result
             
             # Helper function to process platform dependencies (Java, Tomcat, Jaybird)
-            def process_platform_dependency(dep_name, dep_key, webdav_path, file_extension, file_filter=None):
+            def process_platform_dependency(dep_name, dep_key, api_path, file_extension, file_filter=None):
                 """Process a platform dependency download.
                 
                 Args:
                     dep_name: Display name (e.g., 'Java', 'Tomcat')
                     dep_key: Config key (e.g., 'JAVA', 'TOMCAT')
-                    webdav_path: WebDAV path (e.g., '/SoftwarePackage/Java')
+                    api_path: API path (e.g., '/SoftwarePackage/Java')
                     file_extension: File extension to check (e.g., 'zip', 'jar')
                     file_filter: Optional filter function for files
                 """
@@ -2350,7 +2350,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 print(f"\nProcessing {dep_name} platform dependency...")
                 dep_dir = os.path.join(output_dir, dep_name)
                 os.makedirs(dep_dir, exist_ok=True)
-                print(f"Checking {dep_name} directory: {webdav_path}")
+                print(f"Checking {dep_name} directory: {api_path}")
                 
                 try:
                     # Check if files already exist
@@ -2361,8 +2361,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                             print(f"Skipping {dep_name} download as files already exist")
                             return
                     
-                    # List files from WebDAV
-                    files = self.webdav_browser.list_directories(webdav_path)
+                    # List files from REST API
+                    files = self.dsg_api_browser.list_directories(api_path)
                     print(f"Found {dep_name} files: {files}")
                     
                     # Apply filter if provided
@@ -2386,7 +2386,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     # Add selected files to download list
                     for file in selected_files:
                         file_name = file['name']
-                        remote_path = f"{webdav_path}/{file_name}"
+                        remote_path = f"{api_path}/{file_name}"
                         local_path = os.path.join(dep_dir, file_name)
                         files_to_download.append((remote_path, local_path, file_name, dep_name))
                 
@@ -2426,7 +2426,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                 print(f"Checking version directory: {version_path}")
                 
                 try:
-                    files = self.webdav_browser.list_directories(version_path)
+                    files = self.dsg_api_browser.list_directories(version_path)
                     print(f"Found files: {files}")
                     
                     # Prompt user to select files
@@ -2611,6 +2611,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         elif status == "complete":
                             file_name, component_type = data
                             completed_files += 1
+                            print(f"File completed: {file_name} (Total: {completed_files}/{len(files_to_download)})")
                             
                             # Update file progress widget to show completion
                             if file_name in file_progress_widgets:
@@ -2627,6 +2628,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                         
                         elif status == "error":
                             file_name, component_type, error_message = data
+                            completed_files += 1  # Count errors as completed to allow dialog to close
+                            print(f"File error: {file_name} (Total: {completed_files}/{len(files_to_download)})")
                             
                             # Update file progress widget
                             if file_name in file_progress_widgets:
