@@ -5530,16 +5530,17 @@ class OfflinePackageCreator:
             item = self._browser_state['items'][index]
             
             # Enable/disable menu items based on item type
+            # Menu indices: 0=Open, 1=Download, 2=sep, 3=Copy Path, 4=Copy Name, 5=Copy URL, 6=sep, 7=Refresh, 8=Properties
             if item.get('is_directory'):
                 self.context_menu.entryconfig(0, state="normal", label="📂 Open Folder")
                 self.context_menu.entryconfig(1, state="disabled")
-                # Enable Copy Download URL for folders (API browse URL)
-                self.context_menu.entryconfig(4, state="normal", label="🔗 Copy API URL")
+                # Enable Copy Download URL for folders (API browse URL) - index 5
+                self.context_menu.entryconfig(5, state="normal", label="🔗 Copy API URL")
             else:
                 self.context_menu.entryconfig(0, state="disabled")
                 self.context_menu.entryconfig(1, state="normal", label="⬇ Download File")
-                # Enable Copy Download URL for files
-                self.context_menu.entryconfig(4, state="normal", label="🔗 Copy Download URL")
+                # Enable Copy Download URL for files - index 5
+                self.context_menu.entryconfig(5, state="normal", label="🔗 Copy Download URL")
             
             # Show the menu
             try:
