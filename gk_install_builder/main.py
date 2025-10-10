@@ -5311,9 +5311,24 @@ class OfflinePackageCreator:
         self.file_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.file_listbox.yview)
         
-        # Bind double-click and single click events
+        # Bind double-click, enter key, and right-click events
         self.file_listbox.bind("<Double-Button-1>", self._on_listbox_double_click)
         self.file_listbox.bind("<Return>", self._on_listbox_double_click)
+        self.file_listbox.bind("<Button-3>", self._show_context_menu)  # Right-click
+        
+        # Create context menu
+        import tkinter as tk
+        self.context_menu = tk.Menu(self.file_listbox, tearoff=0, bg="#1E293B", fg="#F1F5F9", 
+                                     activebackground="#334155", activeforeground="#FFFFFF",
+                                     borderwidth=1, relief="solid")
+        self.context_menu.add_command(label="📂 Open Folder", command=self._context_open)
+        self.context_menu.add_command(label="⬇ Download File", command=self._context_download)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="📋 Copy Path", command=self._context_copy_path)
+        self.context_menu.add_command(label="📝 Copy Name", command=self._context_copy_name)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="⟳ Refresh", command=self._refresh_current_directory)
+        self.context_menu.add_command(label="ℹ Properties", command=self._context_properties)
         
         # Store message label for loading/error states
         self.message_label = ctk.CTkLabel(
@@ -5478,7 +5493,7 @@ class OfflinePackageCreator:
                 self.status_badge.configure(fg_color="#F59E0B")
     
     def _on_listbox_double_click(self, event=None):
-        """Handle double-click on listbox item"""
+        """Handle double-click on listbox item - open folders or download files"""
         selection = self.file_listbox.curselection()
         if not selection:
             return
@@ -5487,7 +5502,189 @@ class OfflinePackageCreator:
         if index < len(self._browser_state['items']):
             item = self._browser_state['items'][index]
             if item.get('is_directory'):
+                # Navigate into folder
                 self._navigate_into(item['name'])
+            else:
+                # Download file to project root
+                self._download_file_to_root(item)
+    
+    def _show_context_menu(self, event):
+        """Show context menu on right-click"""
+        # Select the item under cursor
+        index = self.file_listbox.nearest(event.y)
+        self.file_listbox.selection_clear(0, 'end')
+        self.file_listbox.selection_set(index)
+        self.file_listbox.activate(index)
+        
+        # Get the selected item
+        if index < len(self._browser_state['items']):
+            item = self._browser_state['items'][index]
+            
+            # Enable/disable menu items based on item type
+            if item.get('is_directory'):
+                self.context_menu.entryconfig(0, state="normal", label="📂 Open Folder")
+                self.context_menu.entryconfig(1, state="disabled")
+            else:
+                self.context_menu.entryconfig(0, state="disabled")
+                self.context_menu.entryconfig(1, state="normal", label="⬇ Download File")
+            
+            # Show the menu
+            try:
+                self.context_menu.tk_popup(event.x_root, event.y_root)
+            finally:
+                self.context_menu.grab_release()
+    
+    def _context_open(self):
+        """Context menu: Open folder"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                if item.get('is_directory'):
+                    self._navigate_into(item['name'])
+    
+    def _context_download(self):
+        """Context menu: Download file"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                if not item.get('is_directory'):
+                    self._download_file_to_root(item)
+    
+    def _context_copy_path(self):
+        """Context menu: Copy full path to clipboard"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                full_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
+                self.window.clipboard_clear()
+                self.window.clipboard_append(full_path)
+                print(f"Copied to clipboard: {full_path}")
+    
+    def _context_copy_name(self):
+        """Context menu: Copy name to clipboard"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                self.window.clipboard_clear()
+                self.window.clipboard_append(item['name'])
+                print(f"Copied to clipboard: {item['name']}")
+    
+    def _context_properties(self):
+        """Context menu: Show item properties"""
+        selection = self.file_listbox.curselection()
+        if selection:
+            index = selection[0]
+            if index < len(self._browser_state['items']):
+                item = self._browser_state['items'][index]
+                
+                # Create properties dialog
+                from tkinter import messagebox
+                
+                item_type = "Folder" if item.get('is_directory') else "File"
+                full_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
+                
+                props = [
+                    f"Name: {item['name']}",
+                    f"Type: {item_type}",
+                    f"Path: {full_path}"
+                ]
+                
+                if item.get('size'):
+                    size_mb = item['size'] / (1024 * 1024)
+                    props.append(f"Size: {size_mb:.2f} MB ({item['size']:,} bytes)")
+                
+                if item.get('mimeType'):
+                    props.append(f"MIME Type: {item['mimeType']}")
+                
+                if item.get('lastModification'):
+                    props.append(f"Last Modified: {item['lastModification']}")
+                
+                messagebox.showinfo("Properties", "\n".join(props))
+    
+    def _download_file_to_root(self, item):
+        """Download a file to the project root directory"""
+        import os
+        import requests
+        from tkinter import messagebox
+        
+        try:
+            # Get project root (parent of gk_install_builder)
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            # Build full remote path
+            remote_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
+            
+            # Local file path in project root
+            local_path = os.path.join(project_root, item['name'])
+            
+            print(f"\n=== Downloading File ===")
+            print(f"Remote: {remote_path}")
+            print(f"Local: {local_path}")
+            
+            # Get download URL
+            file_url = self.webdav.get_file_url(remote_path)
+            headers = self.webdav._get_headers()
+            
+            # Show progress in status
+            self.status_label.configure(text=f"Downloading {item['name']}...", text_color="#FFA500")
+            self.window.update_idletasks()
+            
+            # Download the file
+            response = requests.get(file_url, headers=headers, stream=True, verify=False)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        # Update progress
+                        if total_size > 0:
+                            progress = (downloaded / total_size) * 100
+                            self.status_label.configure(
+                                text=f"Downloading {item['name']}... {progress:.1f}%",
+                                text_color="#FFA500"
+                            )
+                            self.window.update_idletasks()
+            
+            # Success
+            self.status_label.configure(
+                text=f"Downloaded {item['name']} to project root",
+                text_color="#53D86A"
+            )
+            print(f"Download complete: {local_path}")
+            
+            messagebox.showinfo(
+                "Download Complete",
+                f"File downloaded successfully!\n\nSaved to:\n{local_path}"
+            )
+            
+        except Exception as e:
+            print(f"Download error: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            self.status_label.configure(
+                text=f"Download failed: {str(e)[:50]}",
+                text_color="#FF6B6B"
+            )
+            
+            messagebox.showerror(
+                "Download Failed",
+                f"Failed to download file:\n\n{str(e)}"
+            )
     
     def _navigate_into(self, dirname):
         """Navigate into a subdirectory"""
