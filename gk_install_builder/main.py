@@ -5354,60 +5354,72 @@ class OfflinePackageCreator:
                     type_text = "File"
                     type_color = "#64748B"
                 
-                # Create row as a CTkButton for better interaction
-                row_btn = ctk.CTkButton(
+                # Create row frame for better control
+                row_frame = ctk.CTkFrame(
                     self.files_scroll,
-                    text="",
-                    height=48,
-                    corner_radius=6,
                     fg_color="#0F172A" if idx % 2 == 0 else "#1E293B",
-                    hover_color="#334155",
-                    border_width=0,
-                    anchor="w",
-                    command=lambda it=item: self.on_item_click(it)
+                    corner_radius=6,
+                    height=48,
+                    cursor="hand2"
                 )
-                row_btn.pack(fill="x", padx=4, pady=2)
+                row_frame.pack(fill="x", padx=4, pady=2)
+                row_frame.pack_propagate(False)
                 
-                # Content frame inside button
-                content_frame = ctk.CTkFrame(row_btn, fg_color="transparent")
-                content_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
+                # Make entire row clickable
+                row_frame.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
+                
+                # Hover effect
+                def on_enter(e, frame=row_frame):
+                    frame.configure(fg_color="#334155")
+                
+                def on_leave(e, frame=row_frame):
+                    base_color = "#0F172A" if idx % 2 == 0 else "#1E293B"
+                    frame.configure(fg_color=base_color)
+                
+                row_frame.bind("<Enter>", on_enter)
+                row_frame.bind("<Leave>", on_leave)
                 
                 # Icon with fixed width
                 icon_label = ctk.CTkLabel(
-                    content_frame,
+                    row_frame,
                     text=icon,
                     font=("Segoe UI", 18),
                     width=50
                 )
                 icon_label.pack(side="left", padx=(12, 0))
+                icon_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
                 
                 # Name label
                 name_label = ctk.CTkLabel(
-                    content_frame,
+                    row_frame,
                     text=item['name'],
                     font=("Segoe UI", 12),
                     text_color=name_color,
                     anchor="w"
                 )
                 name_label.pack(side="left", fill="x", expand=True, padx=(8, 12))
+                name_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
                 
                 # Type badge
                 type_badge = ctk.CTkFrame(
-                    content_frame,
+                    row_frame,
                     fg_color=type_color,
                     corner_radius=4,
                     height=24
                 )
                 type_badge.pack(side="right", padx=(0, 12))
+                type_badge.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
                 
-                ctk.CTkLabel(
+                badge_label = ctk.CTkLabel(
                     type_badge,
                     text=type_text,
                     font=("Segoe UI", 10, "bold"),
                     text_color="#FFFFFF"
-                ).pack(padx=8, pady=2)
+                )
+                badge_label.pack(padx=8, pady=2)
+                badge_label.bind("<Button-1>", lambda e, it=item: self.on_item_click(it))
                 
-                self.file_item_widgets.append(row_btn)
+                self.file_item_widgets.append(row_frame)
             
             # If no items, show message
             if not items:
