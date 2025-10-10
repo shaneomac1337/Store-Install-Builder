@@ -5085,143 +5085,104 @@ class OfflinePackageCreator:
         self.status_label.pack(pady=5, padx=10)
     
     def create_dsg_api_browser_ui(self):
-        # Create DSG API browser frame with a subtle gradient background
-        api_frame = ctk.CTkFrame(self.main_frame)
-        api_frame.pack(fill="x", padx=10, pady=(0, 10))
+        # Create DSG API browser frame with modern design
+        api_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        api_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
-        # Header section with modern design
-        header_frame = ctk.CTkFrame(api_frame, fg_color="#1E2433")
-        header_frame.pack(fill="x", padx=5, pady=5)
+        # Header section with modern gradient design
+        header_frame = ctk.CTkFrame(api_frame, fg_color="#1A1F2E", corner_radius=10)
+        header_frame.pack(fill="x", padx=0, pady=(0, 10))
         
-        # Title with icon
-        title_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
-        title_frame.pack(side="left", padx=10, fill="y")
+        # Title section
+        title_container = ctk.CTkFrame(header_frame, fg_color="transparent")
+        title_container.pack(fill="x", padx=15, pady=12)
         
-        # WebDAV icon label
+        # Left side - Title with modern icon
+        title_left = ctk.CTkFrame(title_container, fg_color="transparent")
+        title_left.pack(side="left")
+        
         icon_label = ctk.CTkLabel(
-            title_frame,
-            text="🌐",
-            font=("Helvetica", 18)
+            title_left,
+            text="🚀",
+            font=("Helvetica", 20)
         )
-        icon_label.pack(side="left", padx=(0, 5))
+        icon_label.pack(side="left", padx=(0, 8))
         
-        # Title
         title_label = ctk.CTkLabel(
-            title_frame,
-            text="DSG Content Browser (REST API)",
-            font=("Helvetica", 16, "bold"),
-            text_color="#4D90FE"  # Professional blue color
+            title_left,
+            text="DSG Content API",
+            font=("Helvetica", 18, "bold"),
+            text_color="#5B9BFF"
         )
-        title_label.pack(side="left", padx=5)
+        title_label.pack(side="left")
         
-        # Current path with a modern look
-        path_frame = ctk.CTkFrame(header_frame, fg_color="#2A3343", corner_radius=6)
-        path_frame.pack(side="right", padx=10, pady=5, fill="y")
+        # Right side - Current path breadcrumb
+        path_container = ctk.CTkFrame(title_container, fg_color="#252B3D", corner_radius=8)
+        path_container.pack(side="right")
         
-        folder_icon = ctk.CTkLabel(
-            path_frame,
-            text="📂",
+        ctk.CTkLabel(
+            path_container,
+            text="📁",
             font=("Helvetica", 14)
-        )
-        folder_icon.pack(side="left", padx=(5, 0))
+        ).pack(side="left", padx=(10, 5))
         
         self.path_label = ctk.CTkLabel(
-            path_frame,
+            path_container,
             text="/SoftwarePackage",
             font=("Helvetica", 12),
+            text_color="#B8C5D6"
+        )
+        self.path_label.pack(side="left", padx=(0, 10), pady=8)
+        
+        # Modern connection card
+        connection_card = ctk.CTkFrame(api_frame, fg_color="#1E2433", corner_radius=10)
+        connection_card.pack(fill="x", padx=0, pady=(0, 10))
+        
+        # Info section
+        info_frame = ctk.CTkFrame(connection_card, fg_color="transparent")
+        info_frame.pack(fill="x", padx=15, pady=(12, 8))
+        
+        ctk.CTkLabel(
+            info_frame,
+            text="ℹ️  Token auto-generated from Security Config (OAuth2)",
+            font=("Helvetica", 11),
+            text_color="#8A9FB8"
+        ).pack(side="left")
+        
+        # Token section
+        token_container = ctk.CTkFrame(connection_card, fg_color="transparent")
+        token_container.pack(fill="x", padx=15, pady=(0, 12))
+        
+        # Token label
+        token_label_frame = ctk.CTkFrame(token_container, fg_color="transparent")
+        token_label_frame.pack(side="left", padx=(0, 10))
+        
+        ctk.CTkLabel(
+            token_label_frame,
+            text="🔐",
+            font=("Helvetica", 16)
+        ).pack(side="left", padx=(0, 8))
+        
+        ctk.CTkLabel(
+            token_label_frame,
+            text="Bearer Token:",
+            font=("Helvetica", 13, "bold"),
             text_color="#E0E0E0"
+        ).pack(side="left")
+        
+        # Token entry (read-only, auto-filled)
+        self.bearer_token = ctk.CTkEntry(
+            token_container,
+            width=350,
+            height=36,
+            show="•",
+            corner_radius=8,
+            border_width=2,
+            border_color="#3D5B94",
+            fg_color="#252B3D",
+            font=("Courier", 11)
         )
-        self.path_label.pack(side="right", padx=(0, 10))
-        
-        # Authentication section with better styling
-        auth_frame = ctk.CTkFrame(api_frame)
-        auth_frame.pack(fill="x", padx=5, pady=5)
-        
-        # Username with icon
-        username_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
-        username_frame.pack(side="left", padx=5)
-        
-        username_icon = ctk.CTkLabel(username_frame, text="👤", width=25)
-        username_icon.pack(side="left", padx=(0, 2))
-        
-        username_label = ctk.CTkLabel(username_frame, text="Username:", width=75)
-        username_label.pack(side="left", padx=2)
-        
-        self.webdav_username = ctk.CTkEntry(auth_frame, width=120, corner_radius=6)
-        self.webdav_username.pack(side="left", padx=5)
-        
-        # Load saved username
-        if self.config_manager.config.get("webdav_username"):
-            self.webdav_username.insert(0, self.config_manager.config["webdav_username"])
-        
-        # Register WebDAV username with config manager
-        self.config_manager.register_entry("webdav_username", self.webdav_username)
-        
-        # Password with icon
-        password_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
-        password_frame.pack(side="left", padx=5)
-        
-        password_icon = ctk.CTkLabel(password_frame, text="🔒", width=25)
-        password_icon.pack(side="left", padx=(0, 2))
-        
-        password_label = ctk.CTkLabel(password_frame, text="Password:", width=75)
-        password_label.pack(side="left", padx=2)
-        
-        # Create a flag to track password visibility state
-        self.password_visible = False
-        
-        # Password entry
-        self.webdav_password = ctk.CTkEntry(auth_frame, width=120, show="•", corner_radius=6)
-        self.webdav_password.pack(side="left", padx=5)
-        
-        # Load saved password
-        if self.config_manager.config.get("webdav_password"):
-            self.webdav_password.insert(0, self.config_manager.config["webdav_password"])
-        
-        # Add show/hide password button
-        self.password_toggle_btn = ctk.CTkButton(
-            auth_frame,
-            text="👁️",
-            width=35,
-            height=28,
-            corner_radius=6,
-            fg_color="#3D4D65",
-            hover_color="#4D5D75",
-            command=self.toggle_password_visibility
-        )
-        self.password_toggle_btn.pack(side="left", padx=(0, 5))
-        
-        # KeePass button with improved styling
-        keepass_btn = ctk.CTkButton(
-            auth_frame,
-            text="🔑",
-            width=35,
-            height=28,
-            corner_radius=6,
-            fg_color="#3D4D65",
-            hover_color="#4D5D75",
-            command=lambda: self.get_basic_auth_password_from_keepass(
-                target_entry=self.webdav_password, 
-                password_type="webdav_admin"
-            )
-        )
-        keepass_btn.pack(side="left", padx=5)
-        
-        # Register WebDAV password with config manager
-        self.config_manager.register_entry("webdav_password", self.webdav_password)
-        
-        # Bearer Token field (optional - for direct token authentication)
-        token_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
-        token_frame.pack(side="left", padx=5)
-        
-        token_icon = ctk.CTkLabel(token_frame, text="🎫", width=25)
-        token_icon.pack(side="left", padx=(0, 2))
-        
-        token_label = ctk.CTkLabel(token_frame, text="Token:", width=50)
-        token_label.pack(side="left", padx=2)
-        
-        self.bearer_token = ctk.CTkEntry(auth_frame, width=150, show="•", corner_radius=6)
-        self.bearer_token.pack(side="left", padx=5)
+        self.bearer_token.pack(side="left", padx=(0, 10))
         
         # Load saved bearer token if available
         if self.config_manager.config.get("bearer_token"):
@@ -5232,127 +5193,124 @@ class OfflinePackageCreator:
         
         # Connect button with modern styling
         connect_btn = ctk.CTkButton(
-            auth_frame,
-            text="Connect",
-            width=85,
-            height=28,
-            corner_radius=6,
-            fg_color="#2B5BA0",
-            hover_color="#3A6AB0",
+            token_container,
+            text="⚡ Connect",
+            width=110,
+            height=36,
+            corner_radius=8,
+            fg_color="#4A90E2",
+            hover_color="#5BA3F5",
+            font=("Helvetica", 13, "bold"),
             command=self.connect_webdav
         )
-        connect_btn.pack(side="left", padx=10)
+        connect_btn.pack(side="left", padx=(0, 10))
         
-        # Status with badge style
-        status_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
-        status_frame.pack(side="left", padx=10)
-        
-        status_label = ctk.CTkLabel(status_frame, text="Status:", width=50)
-        status_label.pack(side="left", padx=2)
+        # Status badge
+        self.status_badge = ctk.CTkFrame(
+            token_container,
+            fg_color="#FF6B6B",
+            corner_radius=8,
+            width=120,
+            height=36
+        )
+        self.status_badge.pack(side="left")
+        self.status_badge.pack_propagate(False)
         
         self.webdav_status = ctk.CTkLabel(
-            status_frame,
-            text="Not Connected",
-            text_color="#FF6B6B",
-            font=("Helvetica", 12, "bold")
+            self.status_badge,
+            text="⚫ Disconnected",
+            font=("Helvetica", 11, "bold"),
+            text_color="#FFFFFF"
         )
-        self.webdav_status.pack(side="left", padx=5)
+        self.webdav_status.pack(expand=True)
         
-        # Navigation section with better styling
-        nav_frame = ctk.CTkFrame(api_frame)
-        nav_frame.pack(fill="x", padx=5, pady=5)
-        
-        # Button group with consistent styling
-        button_frame = ctk.CTkFrame(nav_frame, fg_color="transparent")
-        button_frame.pack(side="left", padx=5)
+        # Modern navigation bar
+        nav_bar = ctk.CTkFrame(api_frame, fg_color="transparent")
+        nav_bar.pack(fill="x", padx=0, pady=(0, 10))
         
         # Up button
         up_btn = ctk.CTkButton(
-            button_frame,
-            text="⬆️ Up",
-            width=60,
-            height=28,
-            corner_radius=6,
-            fg_color="#3D4D65",
-            hover_color="#4D5D75",
+            nav_bar,
+            text="← Back",
+            width=90,
+            height=38,
+            corner_radius=8,
+            fg_color="#2D3748",
+            hover_color="#3D4758",
+            font=("Helvetica", 12, "bold"),
             command=self.navigate_up
         )
-        up_btn.pack(side="left", padx=(0, 5))
+        up_btn.pack(side="left", padx=(0, 8))
         
         # Refresh button
         refresh_btn = ctk.CTkButton(
-            button_frame,
+            nav_bar,
             text="🔄 Refresh",
-            width=85,
-            height=28,
-            corner_radius=6,
-            fg_color="#3D4D65",
-            hover_color="#4D5D75",
+            width=110,
+            height=38,
+            corner_radius=8,
+            fg_color="#2D3748",
+            hover_color="#3D4758",
+            font=("Helvetica", 12, "bold"),
             command=self.refresh_listing
         )
-        refresh_btn.pack(side="left", padx=5)
+        refresh_btn.pack(side="left")
         
-        # Directory listing - enhanced with styled Listbox and custom Frame
-        dir_listing_frame = ctk.CTkFrame(api_frame, fg_color="#202837", corner_radius=8)
-        dir_listing_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        # Modern file browser with customtkinter table-like design
+        browser_container = ctk.CTkFrame(api_frame, fg_color="transparent", corner_radius=0)
+        browser_container.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Add a header
-        list_header_frame = ctk.CTkFrame(dir_listing_frame, fg_color="#272E3F", corner_radius=0)
-        list_header_frame.pack(fill="x", padx=0, pady=0)
+        # Header with title and current path
+        header_frame = ctk.CTkFrame(browser_container, fg_color="#1E293B", corner_radius=8, height=50)
+        header_frame.pack(fill="x", padx=0, pady=(0, 8))
+        header_frame.pack_propagate(False)
         
         ctk.CTkLabel(
-            list_header_frame,
-            text="Name",
-            font=("Helvetica", 12, "bold"),
-            text_color="#CCCCCC",
-        ).pack(side="left", padx=10, pady=8)
+            header_frame,
+            text="📁 Files & Folders",
+            font=("Segoe UI", 14, "bold"),
+            text_color="#F1F5F9",
+            anchor="w"
+        ).pack(side="left", padx=15)
         
-        # Use tkinter Listbox with enhanced styling
-        import tkinter as tk
-        from tkinter import ttk
+        # Current path display
+        path_container = ctk.CTkFrame(header_frame, fg_color="#334155", corner_radius=6, height=32)
+        path_container.pack(side="right", padx=15, pady=9)
         
-        # Create style for the scrollbar
-        style = ttk.Style()
-        style.configure("Vertical.TScrollbar", 
-                        background="#3D4D65", 
-                        troughcolor="#202837", 
-                        arrowcolor="#FFFFFF")
+        ctk.CTkLabel(
+            path_container,
+            text="📂",
+            font=("Segoe UI", 12)
+        ).pack(side="left", padx=(8, 4))
         
-        # Create a Frame for the Listbox and scrollbar
-        listbox_frame = ctk.CTkFrame(dir_listing_frame, fg_color="transparent")
-        listbox_frame.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        
-        # Create a scrollbar with custom styling
-        scrollbar = ttk.Scrollbar(listbox_frame, style="Vertical.TScrollbar")
-        scrollbar.pack(side="right", fill="y")
-        
-        # Create the Listbox with enhanced styling
-        self.dir_list = tk.Listbox(
-            listbox_frame,
-            yscrollcommand=scrollbar.set,
-            bg="#1A2332",  # Darker blue background
-            fg="#E0E0E0",  # Light gray text
-            selectbackground="#3D5B94",  # Highlight blue
-            selectforeground="#FFFFFF",  # White text for selection
-            font=("Segoe UI", 11),  # Modern font
-            height=15,
-            borderwidth=0,
-            highlightthickness=0,
-            activestyle="none"  # Remove dotted line around selected item
+        self.path_label = ctk.CTkLabel(
+            path_container,
+            text="/",
+            font=("Consolas", 11),
+            text_color="#94A3B8"
         )
-        self.dir_list.pack(side="left", fill="both", expand=True)
+        self.path_label.pack(side="left", padx=(0, 8))
         
-        # Configure the scrollbar
-        scrollbar.config(command=self.dir_list.yview)
+        # Scrollable frame for file items with better scrolling
+        self.files_scroll = ctk.CTkScrollableFrame(
+            browser_container,
+            fg_color="#1E293B",
+            corner_radius=8,
+            scrollbar_button_color="#475569",
+            scrollbar_button_hover_color="#64748B"
+        )
+        self.files_scroll.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Bind events for better interaction
-        self.dir_list.bind("<Double-1>", self.on_item_double_click)
-        self.dir_list.bind("<Return>", self.on_item_double_click)  # Also allow Enter key
+        # Store for tracking current items
+        self.current_items = []
+        self.file_item_widgets = []
     
     def refresh_listing(self):
-        """Refresh directory listing with enhanced styling"""
-        # Clear the listbox
-        self.dir_list.delete(0, "end")
+        """Refresh directory listing with customtkinter integrated design"""
+        # Clear existing widgets
+        for widget in self.file_item_widgets:
+            widget.destroy()
+        self.file_item_widgets.clear()
         
         try:
             # Get all items
@@ -5364,67 +5322,180 @@ class OfflinePackageCreator:
             # Sort items - directories first, then files
             items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
             
-            # Store items for reference when clicking
+            # Store items
             self.current_items = items
             
-            # Add items to listbox with different icons for different file types
-            for item in items:
-                # Choose appropriate icon based on type
+            # Create items in a clean list format
+            for idx, item in enumerate(items):
+                # Choose icon and styling based on type
                 if item['is_directory']:
                     icon = "📁"
-                elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar')):
+                    name_color = "#60A5FA"  # Blue for folders
+                    type_text = "Folder"
+                    type_color = "#3B82F6"
+                elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
                     icon = "📦"
-                elif item['name'].lower().endswith(('.exe', '.msi', '.bat', '.sh')):
+                    name_color = "#A78BFA"  # Purple for archives
+                    type_text = "Archive"
+                    type_color = "#8B5CF6"
+                elif item['name'].lower().endswith(('.exe', '.msi')):
                     icon = "⚙️"
-                elif item['name'].lower().endswith(('.xml', '.json', '.yaml', '.yml')):
-                    icon = "📄"
+                    name_color = "#34D399"  # Green for executables
+                    type_text = "Executable"
+                    type_color = "#10B981"
                 elif item['name'].lower().endswith(('.jar', '.war')):
                     icon = "☕"
+                    name_color = "#FB923C"  # Orange for Java
+                    type_text = "Java Package"
+                    type_color = "#F97316"
                 else:
                     icon = "📄"
+                    name_color = "#94A3B8"  # Gray for other files
+                    type_text = "File"
+                    type_color = "#64748B"
                 
-                self.dir_list.insert("end", f"{icon}  {item['name']}")
+                # Create row as a CTkButton for better interaction
+                row_btn = ctk.CTkButton(
+                    self.files_scroll,
+                    text="",
+                    height=48,
+                    corner_radius=6,
+                    fg_color="#0F172A" if idx % 2 == 0 else "#1E293B",
+                    hover_color="#334155",
+                    border_width=0,
+                    anchor="w",
+                    command=lambda it=item: self.on_item_click(it)
+                )
+                row_btn.pack(fill="x", padx=4, pady=2)
                 
-            # Set different colors for directories and files
-            for i, item in enumerate(items):
-                if item['is_directory']:
-                    self.dir_list.itemconfig(i, {'fg': '#4D90FE'})  # Bright blue for directories
-                elif item['name'].lower().endswith(('.jar', '.war')):
-                    self.dir_list.itemconfig(i, {'fg': '#FF9E3D'})  # Orange for Java files
-                elif item['name'].lower().endswith(('.exe', '.msi', '.bat', '.sh')):
-                    self.dir_list.itemconfig(i, {'fg': '#53D86A'})  # Green for executables
+                # Content frame inside button
+                content_frame = ctk.CTkFrame(row_btn, fg_color="transparent")
+                content_frame.place(relx=0, rely=0, relwidth=1, relheight=1)
                 
-            # If no items found, display a message
+                # Icon with fixed width
+                icon_label = ctk.CTkLabel(
+                    content_frame,
+                    text=icon,
+                    font=("Segoe UI", 18),
+                    width=50
+                )
+                icon_label.pack(side="left", padx=(12, 0))
+                
+                # Name label
+                name_label = ctk.CTkLabel(
+                    content_frame,
+                    text=item['name'],
+                    font=("Segoe UI", 12),
+                    text_color=name_color,
+                    anchor="w"
+                )
+                name_label.pack(side="left", fill="x", expand=True, padx=(8, 12))
+                
+                # Type badge
+                type_badge = ctk.CTkFrame(
+                    content_frame,
+                    fg_color=type_color,
+                    corner_radius=4,
+                    height=24
+                )
+                type_badge.pack(side="right", padx=(0, 12))
+                
+                ctk.CTkLabel(
+                    type_badge,
+                    text=type_text,
+                    font=("Segoe UI", 10, "bold"),
+                    text_color="#FFFFFF"
+                ).pack(padx=8, pady=2)
+                
+                self.file_item_widgets.append(row_btn)
+            
+            # If no items, show message
             if not items:
-                self.dir_list.insert("end", "  (Empty directory)")
-                self.dir_list.itemconfig(0, {'fg': '#8C8C8C'})  # Gray for empty message
+                empty_frame = ctk.CTkFrame(
+                    self.files_scroll,
+                    fg_color="transparent"
+                )
+                empty_frame.pack(expand=True, fill="both", pady=60)
+                
+                ctk.CTkLabel(
+                    empty_frame,
+                    text="📂",
+                    font=("Segoe UI", 48)
+                ).pack(pady=(0, 10))
+                
+                ctk.CTkLabel(
+                    empty_frame,
+                    text="Empty Directory",
+                    font=("Segoe UI", 14, "bold"),
+                    text_color="#64748B"
+                ).pack()
+                
+                ctk.CTkLabel(
+                    empty_frame,
+                    text="This folder doesn't contain any items",
+                    font=("Segoe UI", 11),
+                    text_color="#475569"
+                ).pack(pady=(4, 0))
+                
+                self.file_item_widgets.append(empty_frame)
                     
         except Exception as e:
-            self.webdav_status.configure(text=f"Error: {str(e)}", text_color="#FF6B6B")
-            self.dir_list.insert("end", "  Error: Could not retrieve directory listing")
-            self.dir_list.itemconfig(0, {'fg': '#FF6B6B'})  # Red for error message
+            self.webdav_status.configure(text="⚫ Disconnected")
+            self.status_badge.configure(fg_color="#FF6B6B")
+            
+            error_frame = ctk.CTkFrame(
+                self.files_scroll,
+                fg_color="transparent"
+            )
+            error_frame.pack(expand=True, fill="both", pady=60)
+            
+            ctk.CTkLabel(
+                error_frame,
+                text="❌",
+                font=("Segoe UI", 48)
+            ).pack(pady=(0, 10))
+            
+            ctk.CTkLabel(
+                error_frame,
+                text="Connection Error",
+                font=("Segoe UI", 14, "bold"),
+                text_color="#EF4444"
+            ).pack()
+            
+            error_msg = str(e)[:80] + "..." if len(str(e)) > 80 else str(e)
+            ctk.CTkLabel(
+                error_frame,
+                text=error_msg,
+                font=("Segoe UI", 11),
+                text_color="#F87171",
+                wraplength=400
+            ).pack(pady=(4, 0))
+            
+            self.file_item_widgets.append(error_frame)
+    
+    def on_item_click(self, item):
+        """Handle click on file/folder item"""
+        if item['is_directory']:
+            self.enter_directory(item['name'])
     
     def connect_webdav(self):
         """Handle REST API connection with improved feedback"""
         base_url = self.config_manager.config["base_url"]
-        username = self.webdav_username.get()
-        password = self.webdav_password.get()
         bearer_token = self.bearer_token.get() if hasattr(self, 'bearer_token') else None
         
         # If no bearer token provided, try to generate one automatically
         if not bearer_token:
             # Show generating token status
-            self.webdav_status.configure(text="Generating token...", text_color="#FFD700")
+            self.webdav_status.configure(text="🔄 Generating...")
+            self.status_badge.configure(fg_color="#FFA500")
             self.window.update_idletasks()
             
             # Generate token using the same method as PPD/PPF
             bearer_token = self._generate_api_token_for_dsg(base_url)
             
             if not bearer_token:
-                self.webdav_status.configure(
-                    text="Token generation failed",
-                    text_color="#FF6B6B"
-                )
+                self.webdav_status.configure(text="❌ Failed")
+                self.status_badge.configure(fg_color="#FF6B6B")
                 messagebox.showerror("Authentication Failed",
                     "Could not generate authentication token.\n\n"
                     "💡 HINT: Please ensure Security Configuration is complete:\n\n"
@@ -5440,21 +5511,20 @@ class OfflinePackageCreator:
                 self.bearer_token.insert(0, bearer_token)
         
         if not base_url:
-            self.webdav_status.configure(
-                text="Missing base URL",
-                text_color="#FF6B6B"
-            )
+            self.webdav_status.configure(text="⚠️ No URL")
+            self.status_badge.configure(fg_color="#FF6B6B")
             return
         
         # Show connecting status
-        self.webdav_status.configure(text="Connecting...", text_color="#FFD700")
-        self.window.update_idletasks()  # Update the UI to show the connecting message
+        self.webdav_status.configure(text="🔌 Connecting...")
+        self.status_badge.configure(fg_color="#FFA500")
+        self.window.update_idletasks()
         
         # Create DSG REST API browser instance
         self.webdav = self.project_generator.create_dsg_api_browser(
             base_url,
-            username,
-            password,
+            None,  # username not needed
+            None,  # password not needed
             bearer_token
         )
         
@@ -5462,11 +5532,10 @@ class OfflinePackageCreator:
         success, message = self.webdav.connect()
         
         if success:
-            self.webdav_status.configure(text="Connected", text_color="#53D86A")  # Green for success
+            self.webdav_status.configure(text="✅ Connected")
+            self.status_badge.configure(fg_color="#2ECC71")
             
-            # Save credentials to config
-            self.config_manager.config["webdav_username"] = username
-            self.config_manager.config["webdav_password"] = password
+            # Save token to config
             if bearer_token:
                 self.config_manager.config["bearer_token"] = bearer_token
             self.config_manager.save_config_silent()
@@ -5496,9 +5565,10 @@ class OfflinePackageCreator:
             self.webdav.current_path = "/SoftwarePackage"
             self.refresh_listing()
         else:
-            self.webdav_status.configure(text=f"Connection failed", text_color="#FF6B6B")  # Red for error
+            self.webdav_status.configure(text="❌ Failed")
+            self.status_badge.configure(fg_color="#FF6B6B")
             
-            # Show specific error in a tooltip or status label
+            # Show specific error in status label
             error_msg = message if len(message) < 50 else message[:47] + "..."
             self.status_label.configure(text=f"DSG API: {error_msg}", text_color="#FF6B6B")
     
