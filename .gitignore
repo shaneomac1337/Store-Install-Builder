@@ -2,6 +2,10 @@ My GK Project/
 gk_install_config.json
 # HAR files contain sensitive tokens
 *.har
+# Downloaded packages from DSG API
+downloaded_packages/
+Launcher.exe
+*.jar
 GKInstall_POS_20250417_214344.log
 GKInstall_POS_20250417_224031.log
 GKInstall_POS_20250417_224044.log
