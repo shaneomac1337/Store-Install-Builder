@@ -5339,10 +5339,14 @@ class OfflinePackageCreator:
     
     def _show_message(self, icon, text, color="#64748B"):
         """Show a message overlay"""
-        self.file_listbox.pack_forget()
-        self.message_label.configure(text=f"{icon}  {text}", text_color=color)
-        self.message_label.pack(expand=True, pady=80)
-        self._browser_state['display_mode'] = 'message'
+        if self._browser_state.get('display_mode') != 'message':
+            self.file_listbox.pack_forget()
+            self.message_label.configure(text=f"{icon}  {text}", text_color=color)
+            self.message_label.pack(expand=True, pady=80)
+            self._browser_state['display_mode'] = 'message'
+        else:
+            # Just update the text without re-packing
+            self.message_label.configure(text=f"{icon}  {text}", text_color=color)
     
     def _hide_message(self):
         """Hide message and show listbox"""
@@ -5353,10 +5357,11 @@ class OfflinePackageCreator:
     
     def _show_loading(self):
         """Show loading indicator"""
-        self._clear_file_list()
-        self._browser_state['loading'] = True
-        self._show_message("⟳", "Loading...", "#64748B")
-        self.window.update_idletasks()
+        if not self._browser_state['loading']:
+            self._clear_file_list()
+            self._browser_state['loading'] = True
+            self._show_message("⟳", "Loading...", "#64748B")
+            self.window.update_idletasks()
     
     def _show_empty_state(self):
         """Show empty directory state"""
@@ -5392,9 +5397,14 @@ class OfflinePackageCreator:
         
         # Normalize path
         path = self._normalize_path(path)
+        
+        # Check if already loading to prevent multiple requests
+        if self._browser_state.get('loading'):
+            return
+        
         self._browser_state['current_path'] = path
         
-        # Update UI
+        # Update UI - do breadcrumb first to avoid flicker
         self._update_breadcrumb(path)
         self._show_loading()
         
@@ -5411,8 +5421,8 @@ class OfflinePackageCreator:
             self._browser_state['items'] = items
             self._browser_state['loading'] = False
             
-            # Clear loading and show items
-            self._clear_file_list()
+            # Clear loading and show items (minimize operations)
+            self.file_listbox.delete(0, 'end')  # Clear directly without extra calls
             
             if not items:
                 self._show_empty_state()
@@ -5421,23 +5431,38 @@ class OfflinePackageCreator:
             # Sort: directories first, then files alphabetically
             items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
             
-            # Populate listbox
+            # Populate listbox with color coding (batch update to reduce flicker)
             self._hide_message()
-            for item in items:
-                # Create display text with icon
+            
+            # Disable updates during batch insert
+            self.file_listbox.config(state='normal')
+            
+            for idx, item in enumerate(items):
+                # Create display text with icon and determine color
                 if item['is_directory']:
                     icon = "📁"
+                    fg_color = "#60A5FA"  # Blue for folders
                 elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
                     icon = "📦"
+                    fg_color = "#A78BFA"  # Purple for archives
                 elif item['name'].lower().endswith(('.exe', '.msi')):
                     icon = "⚙️"
+                    fg_color = "#34D399"  # Green for executables - IMPORTANT
                 elif item['name'].lower().endswith(('.jar', '.war')):
                     icon = "☕"
+                    fg_color = "#FB923C"  # Orange for Java
                 else:
                     icon = "📄"
+                    fg_color = "#94A3B8"  # Gray for other files
                 
                 display_text = f"{icon}  {item['name']}"
                 self.file_listbox.insert('end', display_text)
+                
+                # Apply color to this specific item
+                self.file_listbox.itemconfig(idx, fg=fg_color)
+            
+            # Re-enable updates
+            self.file_listbox.config(state='normal')
         
         except Exception as e:
             print(f"Error loading directory: {e}")
