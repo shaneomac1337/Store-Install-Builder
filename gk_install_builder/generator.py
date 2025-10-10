@@ -5,7 +5,6 @@ import shutil
 import customtkinter as ctk
 import base64
 import platform
-from webdav3.client import Client
 from urllib3.exceptions import InsecureRequestWarning
 import urllib3
 import time
@@ -13,7 +12,6 @@ import threading
 import queue
 from detection import DetectionManager
 import re
-from webdav3.exceptions import WebDavException
 from datetime import datetime
 from urllib.parse import unquote
 import requests
@@ -23,99 +21,165 @@ from string import Template
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
 
-class WebDAVBrowser:
-    def __init__(self, base_url, username=None, password=None):
+class DSGRestBrowser:
+    """Browser for DSG REST API (replaces WebDAV)"""
+    def __init__(self, base_url, username=None, password=None, bearer_token=None):
         if not base_url.startswith('http'):
             base_url = f'https://{base_url}'
         self.base_url = base_url.rstrip('/')
         self.username = username
         self.password = password
+        self.bearer_token = bearer_token
         self.connected = False
+        self.current_path = "/SoftwarePackage"
         
-        self.options = {
-            'webdav_hostname': f"{self.base_url}/dsg/webdav",
-            'webdav_login': username,
-            'webdav_password': password,
-            'disable_check': True,
-            'verbose': True,
-            'verify': False
-        }
+        # REST API endpoint
+        self.api_base = f"{self.base_url}/api/digital-content/services/rest/media/v1/files"
         
-        print("\nWebDAV Client Options:")
-        print(f"Hostname: {self.options['webdav_hostname']}")
-        print(f"Username: {self.options['webdav_login']}")
-        
-        self.client = Client(self.options)
-        self.current_path = "/"
+        print("\nDSG REST API Client:")
+        print(f"Base URL: {self.base_url}")
+        print(f"API Endpoint: {self.api_base}")
+        print(f"Username: {self.username}")
 
     def _normalize_path(self, path):
-        """Normalize WebDAV path"""
-        # Simple path normalization without any special cases
+        """Normalize path for REST API"""
         path = path.replace('\\', '/')
         path = path.strip('/')
         return '/' + path if path else '/'
 
-    def list_directories(self, path="/"):
-        """List files and directories in the current path"""
+    def _get_headers(self):
+        """Get headers for REST API requests"""
+        headers = {
+            'Accept': 'application/json; variant=Plain; charset=UTF-8',
+            'Content-Type': 'application/json; variant=Plain; charset=UTF-8',
+            'GK-Accept-Redirect': '308'
+        }
+        
+        if self.bearer_token:
+            headers['Authorization'] = f'Bearer {self.bearer_token}'
+        
+        return headers
+
+    def list_directories(self, path="/SoftwarePackage"):
+        """List files and directories using REST API"""
         try:
             # Check if connected
             if not self.connected:
-                print("Warning: Not connected to WebDAV")
+                print("Warning: Not connected to REST API")
                 return []
                 
-            # Normalize and store the path
+            # Normalize path
             path = self._normalize_path(path)
-            print(f"Listing directory: {path}")  # Debug print
+            print(f"Listing directory via REST API: {path}")
             
-            # Get directory listing
-            files = self.client.list(path)
+            # Build API URL - remove leading slash for API path
+            api_path = path.lstrip('/')
+            url = f"{self.api_base}/{api_path}"
+            
+            # Add query parameters
+            params = {
+                'metadata': 'true',
+                'offset': 0,
+                'limit': 1000  # Get more items than the default 25
+            }
+            
+            print(f"Request URL: {url}")
+            print(f"Request params: {params}")
+            
+            # Make GET request
+            response = requests.get(
+                url,
+                headers=self._get_headers(),
+                params=params,
+                verify=False
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            print(f"Response status: {response.status_code}")
+            print(f"Found {len(data.get('resources', []))} resources")
+            
             items = []
-            
-            # Process each item
-            for file_path in files:
-                # Skip special directories
-                if file_path in ['./', '../']:
-                    continue
+            for resource in data.get('resources', []):
+                name = resource.get('name', '')
+                resource_type = resource.get('type', '')
                 
-                # Clean up the name without any special handling
-                name = os.path.basename(file_path.rstrip('/'))
-                if not name:
-                    continue
+                # type="collection" means directory, type="resource" means file
+                is_directory = resource_type == 'collection'
                 
-                # Simple directory check
-                is_directory = file_path.endswith('/')
-                
-                # Add to results without any conditions
-                items.append({
+                item = {
                     'name': name,
-                    'is_directory': is_directory
-                })
+                    'is_directory': is_directory,
+                    'path': resource.get('path', ''),
+                    'size': resource.get('size'),
+                    'mimeType': resource.get('mimeType'),
+                    'lastModification': resource.get('lastModification')
+                }
+                items.append(item)
             
             return items
             
+        except requests.exceptions.RequestException as e:
+            print(f"Error listing directory via REST API: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response body: {e.response.text}")
+            return []
         except Exception as e:
-            print(f"Error listing directory: {str(e)}")
+            print(f"Unexpected error listing directory: {str(e)}")
             return []
 
     def connect(self):
-        """Test WebDAV connection"""
+        """Test REST API connection"""
         try:
-            print("Testing WebDAV connection with:")
-            print(f"URL: {self.options['webdav_hostname']}")
+            print("Testing REST API connection with:")
+            print(f"URL: {self.api_base}")
             print(f"Username: {self.username}")
             
-            files = self.client.list()
-            print(f"Connection successful. Found {len(files)} items")
+            # Try to list the root SoftwarePackage directory
+            url = f"{self.api_base}/SoftwarePackage"
+            params = {'metadata': 'true', 'offset': 0, 'limit': 1}
+            
+            response = requests.get(
+                url,
+                headers=self._get_headers(),
+                params=params,
+                verify=False
+            )
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            print(f"Connection successful. Found {len(data.get('resources', []))} items")
             self.connected = True
             return True, "Connected successfully"
-        except Exception as e:
-            print(f"Connection failed: {str(e)}")
+            
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Connection failed: {str(e)}"
+            if hasattr(e, 'response') and e.response is not None:
+                error_msg += f" (Status: {e.response.status_code})"
+            print(error_msg)
             self.connected = False
-            return False, f"Connection failed: {str(e)}"
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"Connection failed: {str(e)}"
+            print(error_msg)
+            self.connected = False
+            return False, error_msg
 
-    def list_directory(self, path="/"):
+    def list_directory(self, path="/SoftwarePackage"):
         """Alias for list_directories"""
         return self.list_directories(path)
+
+    def get_file_url(self, file_path):
+        """Get the download URL for a file"""
+        # Remove leading slash
+        file_path = file_path.lstrip('/')
+        return f"{self.api_base}/{file_path}"
+
+# Keep WebDAVBrowser as an alias for backwards compatibility during transition
+WebDAVBrowser = DSGRestBrowser
 
 class ProjectGenerator:
     def __init__(self, parent_window=None):
@@ -155,9 +219,9 @@ class ProjectGenerator:
         # Enable file detection by default
         self.detection_manager.enable_file_detection(True)
 
-    def create_webdav_browser(self, base_url, username=None, password=None):
-        """Create a new WebDAV browser instance"""
-        self.webdav_browser = WebDAVBrowser(base_url, username, password)
+    def create_webdav_browser(self, base_url, username=None, password=None, bearer_token=None):
+        """Create a new DSG REST API browser instance (formerly WebDAV)"""
+        self.webdav_browser = DSGRestBrowser(base_url, username, password, bearer_token)
         return self.webdav_browser
 
     def generate(self, config):
@@ -1761,18 +1825,19 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"Selected components: {selected_components}")
             print(f"Platform dependencies: {platform_dependencies}")
             
-            # Initialize WebDAV browser if not already initialized
+            # Initialize DSG REST API browser if not already initialized
             if not self.webdav_browser:
-                print("\nInitializing WebDAV browser...")
+                print("\nInitializing DSG REST API browser...")
                 self.webdav_browser = self.create_webdav_browser(
                     config["base_url"],
                     config.get("webdav_username"),
-                    config.get("webdav_password")
+                    config.get("webdav_password"),
+                    config.get("bearer_token")  # Add bearer token support
                 )
                 success, message = self.webdav_browser.connect()
                 if not success:
-                    raise Exception(f"Failed to connect to WebDAV: {message}")
-                print("WebDAV connection successful")
+                    raise Exception(f"Failed to connect to DSG REST API: {message}")
+                print("DSG REST API connection successful")
             
             # Create a queue for download results
             download_queue = queue.Queue()
@@ -1782,12 +1847,16 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Helper function to download a file in a separate thread
             def download_file_thread(remote_path, local_path, file_name, component_type):
                 try:
-                    # Get the full URL for the file
-                    webdav_url = f"{self.webdav_browser.options['webdav_hostname']}{remote_path}"
-                    auth = (self.webdav_browser.username, self.webdav_browser.password)
+                    # Get the full URL for the file using REST API
+                    file_url = self.webdav_browser.get_file_url(remote_path)
+                    
+                    # Prepare headers with bearer token if available
+                    headers = self.webdav_browser._get_headers()
+                    
+                    print(f"Downloading from REST API: {file_url}")
                     
                     # Use requests with streaming to track progress
-                    with requests.get(webdav_url, auth=auth, stream=True, verify=False) as response:
+                    with requests.get(file_url, headers=headers, stream=True, verify=False) as response:
                         response.raise_for_status()
                         
                         # Get total file size if available
