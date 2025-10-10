@@ -5108,7 +5108,7 @@ class OfflinePackageCreator:
         # Title
         title_label = ctk.CTkLabel(
             title_frame,
-            text="DSG WebDAV Browser",
+            text="DSG Content Browser (REST API)",
             font=("Helvetica", 16, "bold"),
             text_color="#4D90FE"  # Professional blue color
         )
@@ -5209,6 +5209,26 @@ class OfflinePackageCreator:
         
         # Register WebDAV password with config manager
         self.config_manager.register_entry("webdav_password", self.webdav_password)
+        
+        # Bearer Token field (optional - for direct token authentication)
+        token_frame = ctk.CTkFrame(auth_frame, fg_color="transparent")
+        token_frame.pack(side="left", padx=5)
+        
+        token_icon = ctk.CTkLabel(token_frame, text="🎫", width=25)
+        token_icon.pack(side="left", padx=(0, 2))
+        
+        token_label = ctk.CTkLabel(token_frame, text="Token:", width=50)
+        token_label.pack(side="left", padx=2)
+        
+        self.bearer_token = ctk.CTkEntry(auth_frame, width=150, show="•", corner_radius=6)
+        self.bearer_token.pack(side="left", padx=5)
+        
+        # Load saved bearer token if available
+        if self.config_manager.config.get("bearer_token"):
+            self.bearer_token.insert(0, self.config_manager.config["bearer_token"])
+        
+        # Register bearer token with config manager
+        self.config_manager.register_entry("bearer_token", self.bearer_token)
         
         # Connect button with modern styling
         connect_btn = ctk.CTkButton(
@@ -5385,12 +5405,14 @@ class OfflinePackageCreator:
             self.dir_list.itemconfig(0, {'fg': '#FF6B6B'})  # Red for error message
     
     def connect_webdav(self):
-        """Handle WebDAV connection with improved feedback"""
+        """Handle REST API connection with improved feedback"""
         base_url = self.config_manager.config["base_url"]
         username = self.webdav_username.get()
         password = self.webdav_password.get()
+        bearer_token = self.bearer_token.get() if hasattr(self, 'bearer_token') else None
         
-        if not all([base_url, username, password]):
+        # Allow connection with either password OR bearer token
+        if not base_url or not (bearer_token or (username and password)):
             self.webdav_status.configure(
                 text="Missing credentials",
                 text_color="#FF6B6B"
@@ -5401,11 +5423,12 @@ class OfflinePackageCreator:
         self.webdav_status.configure(text="Connecting...", text_color="#FFD700")
         self.window.update_idletasks()  # Update the UI to show the connecting message
         
-        # Create WebDAV browser instance
+        # Create DSG REST API browser instance
         self.webdav = self.project_generator.create_webdav_browser(
             base_url,
             username,
-            password
+            password,
+            bearer_token
         )
         
         # Connect to WebDAV server
@@ -5417,6 +5440,8 @@ class OfflinePackageCreator:
             # Save credentials to config
             self.config_manager.config["webdav_username"] = username
             self.config_manager.config["webdav_password"] = password
+            if bearer_token:
+                self.config_manager.config["bearer_token"] = bearer_token
             self.config_manager.save_config_silent()
             
             # Enable create offline package button with visual indicator
