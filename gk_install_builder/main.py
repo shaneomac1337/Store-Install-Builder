@@ -5610,20 +5610,25 @@ class OfflinePackageCreator:
                 messagebox.showinfo("Properties", "\n".join(props))
     
     def _download_file_to_root(self, item):
-        """Download a file to the project root directory"""
+        """Download a file to the downloaded_packages directory with progress dialog"""
         import os
         import requests
         from tkinter import messagebox
+        import customtkinter as ctk
         
         try:
             # Get project root (parent of gk_install_builder)
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
+            # Create downloaded_packages directory if it doesn't exist
+            download_dir = os.path.join(project_root, "downloaded_packages")
+            os.makedirs(download_dir, exist_ok=True)
+            
             # Build full remote path
             remote_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
             
-            # Local file path in project root
-            local_path = os.path.join(project_root, item['name'])
+            # Local file path in downloaded_packages
+            local_path = os.path.join(download_dir, item['name'])
             
             print(f"\n=== Downloading File ===")
             print(f"Remote: {remote_path}")
@@ -5633,9 +5638,57 @@ class OfflinePackageCreator:
             file_url = self.webdav.get_file_url(remote_path)
             headers = self.webdav._get_headers()
             
-            # Show progress in status
-            self.status_label.configure(text=f"Downloading {item['name']}...", text_color="#FFA500")
-            self.window.update_idletasks()
+            # Create progress dialog
+            progress_dialog = ctk.CTkToplevel(self.window)
+            progress_dialog.title("Downloading File")
+            progress_dialog.geometry("500x250")
+            progress_dialog.transient(self.window)
+            progress_dialog.grab_set()
+            
+            # Center the dialog
+            x = self.window.winfo_x() + (self.window.winfo_width() // 2) - 250
+            y = self.window.winfo_y() + (self.window.winfo_height() // 2) - 125
+            progress_dialog.geometry(f"+{x}+{y}")
+            
+            # Title
+            ctk.CTkLabel(
+                progress_dialog,
+                text="⬇ Downloading File",
+                font=("Segoe UI", 18, "bold")
+            ).pack(pady=(20, 10))
+            
+            # Filename label
+            filename_label = ctk.CTkLabel(
+                progress_dialog,
+                text=item['name'],
+                font=("Segoe UI", 12),
+                wraplength=450
+            )
+            filename_label.pack(pady=(0, 20))
+            
+            # Progress bar
+            progress_bar = ctk.CTkProgressBar(progress_dialog, width=450)
+            progress_bar.pack(pady=10)
+            progress_bar.set(0)
+            
+            # Status label
+            status_label = ctk.CTkLabel(
+                progress_dialog,
+                text="Starting download...",
+                font=("Segoe UI", 11)
+            )
+            status_label.pack(pady=5)
+            
+            # Size label
+            size_label = ctk.CTkLabel(
+                progress_dialog,
+                text="0 MB / 0 MB",
+                font=("Segoe UI", 10),
+                text_color="#94A3B8"
+            )
+            size_label.pack(pady=5)
+            
+            progress_dialog.update()
             
             # Download the file
             response = requests.get(file_url, headers=headers, stream=True, verify=False)
@@ -5652,16 +5705,22 @@ class OfflinePackageCreator:
                         
                         # Update progress
                         if total_size > 0:
-                            progress = (downloaded / total_size) * 100
-                            self.status_label.configure(
-                                text=f"Downloading {item['name']}... {progress:.1f}%",
-                                text_color="#FFA500"
-                            )
-                            self.window.update_idletasks()
+                            progress = downloaded / total_size
+                            progress_bar.set(progress)
+                            
+                            downloaded_mb = downloaded / (1024 * 1024)
+                            total_mb = total_size / (1024 * 1024)
+                            
+                            status_label.configure(text=f"Downloading... {progress * 100:.1f}%")
+                            size_label.configure(text=f"{downloaded_mb:.2f} MB / {total_mb:.2f} MB")
+                            progress_dialog.update()
+            
+            # Close progress dialog
+            progress_dialog.destroy()
             
             # Success
             self.status_label.configure(
-                text=f"Downloaded {item['name']} to project root",
+                text=f"Downloaded {item['name']} to downloaded_packages",
                 text_color="#53D86A"
             )
             print(f"Download complete: {local_path}")
@@ -5672,6 +5731,13 @@ class OfflinePackageCreator:
             )
             
         except Exception as e:
+            # Close progress dialog if it exists
+            if 'progress_dialog' in locals():
+                try:
+                    progress_dialog.destroy()
+                except:
+                    pass
+            
             print(f"Download error: {e}")
             import traceback
             traceback.print_exc()
