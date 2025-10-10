@@ -5138,16 +5138,24 @@ class OfflinePackageCreator:
         connection_card = ctk.CTkFrame(api_frame, fg_color="#1E2433", corner_radius=10)
         connection_card.pack(fill="x", padx=0, pady=(0, 10))
         
-        # Info section
+        # Info section with auto-generate checkbox
         info_frame = ctk.CTkFrame(connection_card, fg_color="transparent")
         info_frame.pack(fill="x", padx=15, pady=(12, 8))
         
-        ctk.CTkLabel(
+        # Auto-generate token checkbox
+        self.auto_generate_token = ctk.BooleanVar(value=True)
+        auto_gen_checkbox = ctk.CTkCheckBox(
             info_frame,
-            text="ℹ️  Token auto-generated from Security Config (OAuth2)",
-            font=("Helvetica", 11),
-            text_color="#8A9FB8"
-        ).pack(side="left")
+            text="🔄 Auto-generate token from Security Config",
+            variable=self.auto_generate_token,
+            font=("Helvetica", 11, "bold"),
+            text_color="#8A9FB8",
+            fg_color="#4A90E2",
+            hover_color="#5BA3F5",
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        auto_gen_checkbox.pack(side="left")
         
         # Token section
         token_container = ctk.CTkFrame(connection_card, fg_color="transparent")
@@ -5882,39 +5890,55 @@ class OfflinePackageCreator:
         base_url = self.config_manager.config["base_url"]
         bearer_token = self.bearer_token.get().strip() if hasattr(self, 'bearer_token') else None
         
-        # Always regenerate token on connect to avoid using expired tokens
-        # This ensures we start with a fresh 1-hour token
         print("\n=== Connecting to DSG API ===")
-        if bearer_token:
-            print(f"Existing token found (last 10 chars): ...{bearer_token[-10:]}")
-            print("Will regenerate token to ensure it's not expired")
         
-        # Show generating token status
-        self.webdav_status.configure(text="🔄 Generating token...")
-        self.status_badge.configure(fg_color="#FFA500")
-        self.window.update_idletasks()
+        # Check if auto-generate is enabled
+        auto_generate = self.auto_generate_token.get() if hasattr(self, 'auto_generate_token') else True
         
-        # Always generate a fresh token to avoid using expired ones
-        bearer_token = self._generate_api_token_for_dsg(base_url)
-        
-        if not bearer_token:
-            self.webdav_status.configure(text="❌ Failed")
-            self.status_badge.configure(fg_color="#FF6B6B")
-            messagebox.showerror("Authentication Failed",
-                "Could not generate authentication token.\n\n"
-                "💡 HINT: Please ensure Security Configuration is complete:\n\n"
-                "1. Basic Auth Password (launchpad_oauth2)\n"
-                "2. Form Password (eh_launchpad_password)\n"
-                "3. Base URL is correct\n\n"
-                "Or manually paste a Bearer token in the Token field.")
-            return
-        
-        print(f"New token generated (last 10 chars): ...{bearer_token[-10:]}")
-        
-        # Update the token field with the generated token
-        if hasattr(self, 'bearer_token'):
-            self.bearer_token.delete(0, 'end')
-            self.bearer_token.insert(0, bearer_token)
+        if auto_generate:
+            # Auto-generate mode: Always create fresh token
+            print("Auto-generate enabled - generating fresh token")
+            if bearer_token:
+                print(f"Existing token in field (last 10 chars): ...{bearer_token[-10:]}")
+            
+            # Show generating token status
+            self.webdav_status.configure(text="🔄 Generating token...")
+            self.status_badge.configure(fg_color="#FFA500")
+            self.window.update_idletasks()
+            
+            # Generate a fresh token
+            bearer_token = self._generate_api_token_for_dsg(base_url)
+            
+            if not bearer_token:
+                self.webdav_status.configure(text="❌ Failed")
+                self.status_badge.configure(fg_color="#FF6B6B")
+                messagebox.showerror("Authentication Failed",
+                    "Could not generate authentication token.\n\n"
+                    "💡 HINT: Please ensure Security Configuration is complete:\n\n"
+                    "1. Basic Auth Password (launchpad_oauth2)\n"
+                    "2. Form Password (eh_launchpad_password)\n"
+                    "3. Base URL is correct\n\n"
+                    "Or uncheck auto-generate and manually paste a Bearer token.")
+                return
+            
+            print(f"New token generated (last 10 chars): ...{bearer_token[-10:]}")
+            
+            # Update the token field with the generated token
+            if hasattr(self, 'bearer_token'):
+                self.bearer_token.delete(0, 'end')
+                self.bearer_token.insert(0, bearer_token)
+        else:
+            # Manual mode: Use token from field
+            print("Auto-generate disabled - using manual token")
+            if not bearer_token:
+                self.webdav_status.configure(text="⚠️ No Token")
+                self.status_badge.configure(fg_color="#FF6B6B")
+                messagebox.showerror("No Token",
+                    "Please enter a Bearer token in the token field.\n\n"
+                    "Or enable 'Auto-generate token' to generate one automatically.")
+                return
+            
+            print(f"Using manual token (last 10 chars): ...{bearer_token[-10:]}")
         
         if not base_url:
             self.webdav_status.configure(text="⚠️ No URL")
@@ -5981,6 +6005,25 @@ class OfflinePackageCreator:
             # Show specific error in status label
             error_msg = message if len(message) < 50 else message[:47] + "..."
             self.status_label.configure(text=f"DSG API: {error_msg}", text_color="#FF6B6B")
+            
+            # If manual token mode and connection failed, offer to auto-generate
+            if not auto_generate and bearer_token:
+                # Check if it's a 401/authentication error
+                if "401" in message or "Unauthorized" in message or "authentication" in message.lower():
+                    response = messagebox.askyesno(
+                        "Invalid or Expired Token",
+                        "The provided Bearer token appears to be invalid or expired.\n\n"
+                        "Would you like me to generate a new token automatically?\n\n"
+                        "This will use your Security Configuration (OAuth2) to create a fresh token.",
+                        icon='warning'
+                    )
+                    
+                    if response:  # User clicked Yes
+                        print("User requested auto-generation after failed manual token")
+                        # Enable auto-generate and retry connection
+                        self.auto_generate_token.set(True)
+                        self.connect_webdav()
+                        return
     
     def create_offline_package(self):
         """Create offline package with selected components"""
