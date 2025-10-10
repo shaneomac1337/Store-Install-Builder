@@ -5690,9 +5690,11 @@ class OfflinePackageCreator:
             
             progress_dialog.update()
             
-            # Download the file
-            response = requests.get(file_url, headers=headers, stream=True, verify=False)
-            response.raise_for_status()
+            # Download the file with token refresh on 401
+            def make_download_request():
+                return requests.get(file_url, headers=self.webdav._get_headers(), stream=True, verify=False)
+            
+            response = self.webdav._handle_api_request(make_download_request)
             
             total_size = int(response.headers.get('content-length', 0))
             downloaded = 0
@@ -5751,6 +5753,87 @@ class OfflinePackageCreator:
                 "Download Failed",
                 f"Failed to download file:\n\n{str(e)}"
             )
+    
+    def _refresh_bearer_token(self):
+        """Refresh the bearer token when it expires (called by DSGRestBrowser on 401)"""
+        print("\n=== Refreshing Bearer Token ===")
+        
+        try:
+            # Show token refresh in UI
+            self.status_label.configure(
+                text="🔄 Token expired - regenerating...",
+                text_color="#FFA500"
+            )
+            self.webdav_status.configure(text="🔄 Refreshing...")
+            self.status_badge.configure(fg_color="#FFA500")
+            self.window.update_idletasks()
+            
+            # Generate new token using existing method
+            base_url = self.config_manager.config["base_url"]
+            new_token = self._generate_api_token_for_dsg(base_url)
+            
+            if new_token:
+                # Update token in config and UI
+                self.config_manager.config["bearer_token"] = new_token
+                self.config_manager.save_config_silent()
+                
+                # Update token field if it exists
+                if hasattr(self, 'bearer_token'):
+                    self.bearer_token.delete(0, 'end')
+                    self.bearer_token.insert(0, new_token)
+                
+                # Update status
+                self.status_label.configure(
+                    text="✅ Token refreshed automatically",
+                    text_color="#53D86A"
+                )
+                self.webdav_status.configure(text="✅ Connected")
+                self.status_badge.configure(fg_color="#2ECC71")
+                
+                # Show notification to user
+                from tkinter import messagebox
+                messagebox.showinfo(
+                    "Token Refreshed",
+                    "Your access token has expired and was automatically refreshed.\n\n"
+                    "You can continue using the file browser normally."
+                )
+                
+                print(f"Token refreshed successfully")
+                return new_token
+            else:
+                # Token refresh failed
+                self.status_label.configure(
+                    text="❌ Token refresh failed",
+                    text_color="#FF6B6B"
+                )
+                self.webdav_status.configure(text="❌ Failed")
+                self.status_badge.configure(fg_color="#FF6B6B")
+                self._browser_state['connected'] = False
+                
+                from tkinter import messagebox
+                messagebox.showerror(
+                    "Token Refresh Failed",
+                    "Your access token has expired and could not be refreshed automatically.\n\n"
+                    "Please check your Security Configuration and try connecting again."
+                )
+                
+                print("Token refresh failed")
+                return None
+                
+        except Exception as e:
+            print(f"Error refreshing token: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            self.status_label.configure(
+                text="❌ Token refresh error",
+                text_color="#FF6B6B"
+            )
+            self.webdav_status.configure(text="❌ Error")
+            self.status_badge.configure(fg_color="#FF6B6B")
+            self._browser_state['connected'] = False
+            
+            return None
     
     def _navigate_into(self, dirname):
         """Navigate into a subdirectory"""
@@ -5843,6 +5926,9 @@ class OfflinePackageCreator:
             None,  # password not needed
             bearer_token
         )
+        
+        # Set up token refresh callback for automatic token renewal
+        self.webdav.token_refresh_callback = self._refresh_bearer_token
         
         # Connect to DSG REST API
         success, message = self.webdav.connect()

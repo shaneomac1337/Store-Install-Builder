@@ -33,6 +33,9 @@ class DSGRestBrowser:
         self.connected = False
         self.current_path = "/SoftwarePackage"
         
+        # Token refresh callback - set by parent to handle token regeneration
+        self.token_refresh_callback = None
+        
         # REST API endpoint
         self.api_base = f"{self.base_url}/api/digital-content/services/rest/media/v1/files"
         
@@ -60,8 +63,30 @@ class DSGRestBrowser:
         
         return headers
 
+    def _handle_api_request(self, request_func, retry_on_401=True):
+        """Handle API requests with automatic token refresh on 401"""
+        try:
+            response = request_func()
+            response.raise_for_status()
+            return response
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401 and retry_on_401 and self.token_refresh_callback:
+                print("\n=== Token Expired (401) - Refreshing ===")
+                # Try to refresh the token
+                new_token = self.token_refresh_callback()
+                if new_token:
+                    self.bearer_token = new_token
+                    print("Token refreshed successfully, retrying request...")
+                    # Retry the request once with new token
+                    response = request_func()
+                    response.raise_for_status()
+                    return response
+                else:
+                    print("Token refresh failed")
+            raise
+    
     def list_directories(self, path="/SoftwarePackage"):
-        """List files and directories using REST API"""
+        """List files and directories using REST API with auto token refresh"""
         try:
             # Check if connected
             if not self.connected:
@@ -86,15 +111,17 @@ class DSGRestBrowser:
             print(f"Request URL: {url}")
             print(f"Request params: {params}")
             
-            # Make GET request
-            response = requests.get(
-                url,
-                headers=self._get_headers(),
-                params=params,
-                verify=False
-            )
+            # Define the request function for retry logic
+            def make_request():
+                return requests.get(
+                    url,
+                    headers=self._get_headers(),
+                    params=params,
+                    verify=False
+                )
             
-            response.raise_for_status()
+            # Make request with automatic token refresh on 401
+            response = self._handle_api_request(make_request)
             data = response.json()
             
             print(f"Response status: {response.status_code}")
