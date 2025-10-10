@@ -5880,34 +5880,41 @@ class OfflinePackageCreator:
     def connect_webdav(self):
         """Handle REST API connection with improved feedback"""
         base_url = self.config_manager.config["base_url"]
-        bearer_token = self.bearer_token.get() if hasattr(self, 'bearer_token') else None
+        bearer_token = self.bearer_token.get().strip() if hasattr(self, 'bearer_token') else None
         
-        # If no bearer token provided, try to generate one automatically
+        # Always regenerate token on connect to avoid using expired tokens
+        # This ensures we start with a fresh 1-hour token
+        print("\n=== Connecting to DSG API ===")
+        if bearer_token:
+            print(f"Existing token found (last 10 chars): ...{bearer_token[-10:]}")
+            print("Will regenerate token to ensure it's not expired")
+        
+        # Show generating token status
+        self.webdav_status.configure(text="🔄 Generating token...")
+        self.status_badge.configure(fg_color="#FFA500")
+        self.window.update_idletasks()
+        
+        # Always generate a fresh token to avoid using expired ones
+        bearer_token = self._generate_api_token_for_dsg(base_url)
+        
         if not bearer_token:
-            # Show generating token status
-            self.webdav_status.configure(text="🔄 Generating...")
-            self.status_badge.configure(fg_color="#FFA500")
-            self.window.update_idletasks()
-            
-            # Generate token using the same method as PPD/PPF
-            bearer_token = self._generate_api_token_for_dsg(base_url)
-            
-            if not bearer_token:
-                self.webdav_status.configure(text="❌ Failed")
-                self.status_badge.configure(fg_color="#FF6B6B")
-                messagebox.showerror("Authentication Failed",
-                    "Could not generate authentication token.\n\n"
-                    "💡 HINT: Please ensure Security Configuration is complete:\n\n"
-                    "1. Basic Auth Password (launchpad_oauth2)\n"
-                    "2. Form Password (eh_launchpad_password)\n"
-                    "3. Base URL is correct\n\n"
-                    "Or manually paste a Bearer token in the Token field.")
-                return
-            
-            # Update the token field with the generated token
-            if hasattr(self, 'bearer_token'):
-                self.bearer_token.delete(0, 'end')
-                self.bearer_token.insert(0, bearer_token)
+            self.webdav_status.configure(text="❌ Failed")
+            self.status_badge.configure(fg_color="#FF6B6B")
+            messagebox.showerror("Authentication Failed",
+                "Could not generate authentication token.\n\n"
+                "💡 HINT: Please ensure Security Configuration is complete:\n\n"
+                "1. Basic Auth Password (launchpad_oauth2)\n"
+                "2. Form Password (eh_launchpad_password)\n"
+                "3. Base URL is correct\n\n"
+                "Or manually paste a Bearer token in the Token field.")
+            return
+        
+        print(f"New token generated (last 10 chars): ...{bearer_token[-10:]}")
+        
+        # Update the token field with the generated token
+        if hasattr(self, 'bearer_token'):
+            self.bearer_token.delete(0, 'end')
+            self.bearer_token.insert(0, bearer_token)
         
         if not base_url:
             self.webdav_status.configure(text="⚠️ No URL")
