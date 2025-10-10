@@ -5307,14 +5307,42 @@ class OfflinePackageCreator:
     
     def refresh_listing(self):
         """Refresh directory listing with customtkinter integrated design"""
-        # Clear existing widgets
+        # Check if connected
+        if not hasattr(self, 'webdav') or not self.webdav:
+            return
+        
+        # Show loading state
+        for widget in self.file_item_widgets:
+            widget.destroy()
+        self.file_item_widgets.clear()
+        
+        loading_label = ctk.CTkLabel(
+            self.files_scroll,
+            text="🔄 Loading...",
+            font=("Segoe UI", 13),
+            text_color="#94A3B8"
+        )
+        loading_label.pack(pady=40)
+        self.file_item_widgets.append(loading_label)
+        self.window.update_idletasks()
+        
+        # Clear loading indicator
         for widget in self.file_item_widgets:
             widget.destroy()
         self.file_item_widgets.clear()
         
         try:
+            # Normalize the path (ensure forward slashes)
+            normalized_path = self.webdav.current_path.replace('\\', '/')
+            self.webdav.current_path = normalized_path
+            
+            print(f"\n=== Refreshing listing ===")
+            print(f"Current path: {self.webdav.current_path}")
+            
             # Get all items
             items = self.webdav.list_directories(self.webdav.current_path)
+            
+            print(f"Retrieved {len(items)} items")
             
             # Update path label
             self.path_label.configure(text=self.webdav.current_path)
@@ -5805,14 +5833,31 @@ class OfflinePackageCreator:
     
     def enter_directory(self, dirname):
         """Enter a directory"""
-        new_path = os.path.join(self.webdav.current_path, dirname)
+        # Use forward slashes for REST API compatibility
+        current = self.webdav.current_path.rstrip('/')
+        new_path = f"{current}/{dirname}"
+        
+        print(f"\n=== Entering directory ===")
+        print(f"From: {self.webdav.current_path}")
+        print(f"To: {new_path}")
+        
         self.webdav.current_path = new_path
         self.refresh_listing()
     
     def navigate_up(self):
         """Navigate to parent directory"""
-        if self.webdav.current_path != "/":
-            self.webdav.current_path = os.path.dirname(self.webdav.current_path.rstrip('/'))
+        if self.webdav.current_path not in ["/", "/SoftwarePackage"]:
+            # Use forward slash path manipulation for REST API
+            current = self.webdav.current_path.rstrip('/')
+            parent = '/'.join(current.split('/')[:-1])
+            if not parent:
+                parent = "/SoftwarePackage"
+            
+            print(f"\n=== Navigating up ===")
+            print(f"From: {self.webdav.current_path}")
+            print(f"To: {parent}")
+            
+            self.webdav.current_path = parent
             self.refresh_listing()
     
     def handle_item_click(self, name, is_directory):
