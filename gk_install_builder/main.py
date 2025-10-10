@@ -5283,110 +5283,90 @@ class OfflinePackageCreator:
         list_container = ctk.CTkFrame(browser_main, fg_color="#0F172A", corner_radius=0)
         list_container.pack(fill="both", expand=True, padx=0, pady=0)
         
-        # Scrollable frame for file items
-        self.files_scrollable = ctk.CTkScrollableFrame(
-            list_container,
-            fg_color="#0F172A",
-            corner_radius=0,
-            scrollbar_button_color="#334155",
-            scrollbar_button_hover_color="#475569"
+        # Use standard tkinter Listbox for better performance with many items
+        import tkinter as tk
+        
+        # Create frame for listbox and scrollbar
+        listbox_frame = tk.Frame(list_container, bg="#0F172A")
+        listbox_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        
+        # Scrollbar
+        scrollbar = tk.Scrollbar(listbox_frame, bg="#334155", activebackground="#475569", troughcolor="#1E293B")
+        scrollbar.pack(side="right", fill="y")
+        
+        # Listbox with custom styling
+        self.file_listbox = tk.Listbox(
+            listbox_frame,
+            bg="#0F172A",
+            fg="#94A3B8",
+            selectbackground="#334155",
+            selectforeground="#F1F5F9",
+            font=("Segoe UI", 11),
+            borderwidth=0,
+            highlightthickness=0,
+            activestyle="none",
+            yscrollcommand=scrollbar.set,
+            height=20
         )
-        self.files_scrollable.pack(fill="both", expand=True, padx=0, pady=0)
+        self.file_listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.config(command=self.file_listbox.yview)
+        
+        # Bind double-click and single click events
+        self.file_listbox.bind("<Double-Button-1>", self._on_listbox_double_click)
+        self.file_listbox.bind("<Return>", self._on_listbox_double_click)
+        
+        # Store message label for loading/error states
+        self.message_label = ctk.CTkLabel(
+            list_container,
+            text="",
+            font=("Segoe UI", 13),
+            text_color="#64748B"
+        )
         
         # Initialize browser state
         self._browser_state = {
             'current_path': '/SoftwarePackage',
             'loading': False,
             'connected': False,
-            'items': []
+            'items': [],
+            'display_mode': 'list'  # list or message
         }
     
     def _clear_file_list(self):
-        """Clear all file list widgets"""
-        for widget in self.files_scrollable.winfo_children():
-            widget.destroy()
+        """Clear the file list"""
+        self.file_listbox.delete(0, 'end')
+        self._hide_message()
+    
+    def _show_message(self, icon, text, color="#64748B"):
+        """Show a message overlay"""
+        self.file_listbox.pack_forget()
+        self.message_label.configure(text=f"{icon}  {text}", text_color=color)
+        self.message_label.pack(expand=True, pady=80)
+        self._browser_state['display_mode'] = 'message'
+    
+    def _hide_message(self):
+        """Hide message and show listbox"""
+        if self._browser_state.get('display_mode') == 'message':
+            self.message_label.pack_forget()
+            self.file_listbox.pack(side="left", fill="both", expand=True)
+            self._browser_state['display_mode'] = 'list'
     
     def _show_loading(self):
         """Show loading indicator"""
         self._clear_file_list()
         self._browser_state['loading'] = True
-        
-        loading_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
-        loading_frame.pack(expand=True, pady=80)
-        
-        ctk.CTkLabel(
-            loading_frame,
-            text="⟳",
-            font=("Segoe UI", 64),
-            text_color="#475569"
-        ).pack()
-        
-        ctk.CTkLabel(
-            loading_frame,
-            text="Loading...",
-            font=("Segoe UI", 13),
-            text_color="#64748B"
-        ).pack(pady=(10, 0))
-        
+        self._show_message("⟳", "Loading...", "#64748B")
         self.window.update_idletasks()
     
     def _show_empty_state(self):
         """Show empty directory state"""
-        self._clear_file_list()
-        
-        empty_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
-        empty_frame.pack(expand=True, pady=80)
-        
-        ctk.CTkLabel(
-            empty_frame,
-            text="📂",
-            font=("Segoe UI", 64)
-        ).pack()
-        
-        ctk.CTkLabel(
-            empty_frame,
-            text="Empty Directory",
-            font=("Segoe UI", 15, "bold"),
-            text_color="#64748B"
-        ).pack(pady=(10, 5))
-        
-        ctk.CTkLabel(
-            empty_frame,
-            text="This folder doesn't contain any items",
-            font=("Segoe UI", 11),
-            text_color="#475569"
-        ).pack()
+        self._show_message("📂", "Empty Directory", "#64748B")
     
     def _show_error(self, error_message):
         """Show error state"""
-        self._clear_file_list()
-        
-        error_frame = ctk.CTkFrame(self.files_scrollable, fg_color="transparent")
-        error_frame.pack(expand=True, pady=80)
-        
-        ctk.CTkLabel(
-            error_frame,
-            text="⚠",
-            font=("Segoe UI", 64),
-            text_color="#EF4444"
-        ).pack()
-        
-        ctk.CTkLabel(
-            error_frame,
-            text="Error Loading Directory",
-            font=("Segoe UI", 15, "bold"),
-            text_color="#EF4444"
-        ).pack(pady=(10, 5))
-        
         # Truncate long error messages
-        display_msg = error_message if len(error_message) <= 100 else error_message[:97] + "..."
-        ctk.CTkLabel(
-            error_frame,
-            text=display_msg,
-            font=("Segoe UI", 11),
-            text_color="#F87171",
-            wraplength=500
-        ).pack()
+        display_msg = error_message if len(error_message) <= 60 else error_message[:57] + "..."
+        self._show_message("⚠", f"Error: {display_msg}", "#EF4444")
     
     def _normalize_path(self, path):
         """Normalize path to use forward slashes and remove trailing slashes"""
@@ -5441,9 +5421,23 @@ class OfflinePackageCreator:
             # Sort: directories first, then files alphabetically
             items.sort(key=lambda x: (not x['is_directory'], x['name'].lower()))
             
-            # Create file list items
-            for idx, item in enumerate(items):
-                self._create_file_item(item, idx)
+            # Populate listbox
+            self._hide_message()
+            for item in items:
+                # Create display text with icon
+                if item['is_directory']:
+                    icon = "📁"
+                elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
+                    icon = "📦"
+                elif item['name'].lower().endswith(('.exe', '.msi')):
+                    icon = "⚙️"
+                elif item['name'].lower().endswith(('.jar', '.war')):
+                    icon = "☕"
+                else:
+                    icon = "📄"
+                
+                display_text = f"{icon}  {item['name']}"
+                self.file_listbox.insert('end', display_text)
         
         except Exception as e:
             print(f"Error loading directory: {e}")
@@ -5458,105 +5452,17 @@ class OfflinePackageCreator:
                 self.webdav_status.configure(text="⚠ Error")
                 self.status_badge.configure(fg_color="#F59E0B")
     
-    def _create_file_item(self, item, index):
-        """Create a single file/folder item widget"""
-        # Determine icon and colors
-        if item['is_directory']:
-            icon = "📁"
-            name_color = "#60A5FA"
-            type_text = "Folder"
-            type_bg = "#3B82F6"
-        elif item['name'].lower().endswith(('.zip', '.tar', '.gz', '.rar', '.7z')):
-            icon = "📦"
-            name_color = "#A78BFA"
-            type_text = "Archive"
-            type_bg = "#8B5CF6"
-        elif item['name'].lower().endswith(('.exe', '.msi')):
-            icon = "⚙️"
-            name_color = "#34D399"
-            type_text = "Executable"
-            type_bg = "#10B981"
-        elif item['name'].lower().endswith(('.jar', '.war')):
-            icon = "☕"
-            name_color = "#FB923C"
-            type_text = "Java"
-            type_bg = "#F97316"
-        else:
-            icon = "📄"
-            name_color = "#94A3B8"
-            type_text = "File"
-            type_bg = "#64748B"
+    def _on_listbox_double_click(self, event=None):
+        """Handle double-click on listbox item"""
+        selection = self.file_listbox.curselection()
+        if not selection:
+            return
         
-        # Row colors
-        row_bg = "#1E293B" if index % 2 == 0 else "#0F172A"
-        hover_bg = "#334155"
-        
-        # Create row container
-        row = ctk.CTkFrame(
-            self.files_scrollable,
-            fg_color=row_bg,
-            corner_radius=4,
-            height=52
-        )
-        row.pack(fill="x", padx=8, pady=3)
-        row.pack_propagate(False)
-        
-        # Store original color for hover effect
-        row._original_bg = row_bg
-        row._hover_bg = hover_bg
-        
-        # Icon
-        icon_lbl = ctk.CTkLabel(
-            row,
-            text=icon,
-            font=("Segoe UI", 20),
-            width=45
-        )
-        icon_lbl.pack(side="left", padx=(15, 5))
-        
-        # Name
-        name_lbl = ctk.CTkLabel(
-            row,
-            text=item['name'],
-            font=("Segoe UI", 12),
-            text_color=name_color,
-            anchor="w"
-        )
-        name_lbl.pack(side="left", fill="x", expand=True, padx=(5, 10))
-        
-        # Type badge
-        badge = ctk.CTkFrame(
-            row,
-            fg_color=type_bg,
-            corner_radius=4,
-            height=26
-        )
-        badge.pack(side="right", padx=(0, 15))
-        
-        ctk.CTkLabel(
-            badge,
-            text=type_text,
-            font=("Segoe UI", 10, "bold"),
-            text_color="#FFFFFF"
-        ).pack(padx=10, pady=3)
-        
-        # Bind click events
-        def on_click(event=None):
-            if item['is_directory']:
+        index = selection[0]
+        if index < len(self._browser_state['items']):
+            item = self._browser_state['items'][index]
+            if item.get('is_directory'):
                 self._navigate_into(item['name'])
-        
-        # Hover effects
-        def on_enter(event=None):
-            row.configure(fg_color=hover_bg)
-        
-        def on_leave(event=None):
-            row.configure(fg_color=row._original_bg)
-        
-        # Bind to all widgets
-        for widget in [row, icon_lbl, name_lbl, badge]:
-            widget.bind("<Button-1>", on_click)
-            widget.bind("<Enter>", on_enter)
-            widget.bind("<Leave>", on_leave)
     
     def _navigate_into(self, dirname):
         """Navigate into a subdirectory"""
