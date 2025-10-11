@@ -95,7 +95,7 @@ try {
         Write-Host "Updated @RETAIL_STORE_ID@ placeholder with: $StoreId in processed file"
         
         # Make the API call to get store information
-        $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+        $storeUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
         
         try {
             $storeResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body (Get-Content -Path $processedGetStorePath -Raw) -ContentType "application/json; variant=Plain; charset=UTF-8"
@@ -247,7 +247,7 @@ try {
                         $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
                         
                         # Make the API call to create the structure
-                        $structureCreateUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/create"
+                        $structureCreateUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/create"
                         
                         Write-Host "Creating workstation using API: $structureCreateUrl"
                         
@@ -258,7 +258,7 @@ try {
                             # Remove waiting time
                             Write-Host "Refreshing structure data..."
                             
-                            $storeUrl = "https://$base_url/config-service/services/rest/infrastructure/v1/structure/child-nodes/search"
+                            $storeUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
                             
                             try {
                                 $processedGetStoreContent = Get-Content -Path $processedGetStorePath -Raw
@@ -388,7 +388,7 @@ try {
                     Write-Host "Updated processed file with all required values"
                     
                     # Make the API call to update the configuration
-                    $configUrl = "https://$base_url/config-service/services/rest/config-management/v1/parameter-contents/plain"
+                    $configUrl = "https://$base_url/api/config/services/rest/config-management/v1/parameter-contents/plain"
                     
                     try {
                         # Verbose debug output
@@ -460,7 +460,7 @@ try {
     }
 
     # First API call - Get Business Unit
-    $buUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units/$StoreId"
+    $buUrl = "https://$base_url/api/business-unit/rest/v1/business-units/$StoreId"
     $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
     Write-Host "Successfully retrieved business unit information"
     
@@ -477,7 +477,7 @@ try {
     Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
 
     # Second API call - Try to Get Workstation first
-    $wsUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    $wsUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
     try {
         $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
         Write-Host "Successfully retrieved existing workstation information"
@@ -497,7 +497,7 @@ try {
             }
 
             # Create workstation payload
-            $wsCreateUrl = "https://$base_url/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations"
+            $wsCreateUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations"
             $wsPayload = @{
                 workstation = @{
                     key = @{
