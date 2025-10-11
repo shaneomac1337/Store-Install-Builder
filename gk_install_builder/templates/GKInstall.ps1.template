@@ -1016,15 +1016,15 @@ if (-not $isUpdate) {
 
 # Create configuration files
 $installationToken = @"
-configService.url=https://@Server@/config-service
-cims.url=https://@Server@/cims
+configService.url=https://@Server@/api/config
+cims.url=https://@Server@/api/iam/cim/rest
 station.tenantId=001
 station.storeId=@StoreNr@
 station.workstationId=@WorkstationId@
 station.applicationVersion=@Version@
 station.systemType=$systemType
 onboarding.token=$onboardingToken
-dsg.url=https://@DsgServer@/dsg/content/cep/SoftwarePackage
+dsg.url=https://@DsgServer@/api/digital-content/content/cep/SoftwarePackage
 "@
 
 $installationToken = $installationToken.Replace("@StoreNr@", $storeNumber)

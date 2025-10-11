@@ -140,7 +140,7 @@ echo -n "$access_token" > "$tokens_path/access_token.txt"
 echo "Access token successfully saved"
 
 # Second API call using the token
-onboarding_url="https://$base_url/cims/services/rest/cims/v1/onboarding/tokens"
+onboarding_url="https://$base_url/api/iam/cim/rest/v1/onboarding/tokens"
 
 # Determine JSON file based on ComponentType
 case "$COMPONENT_TYPE" in

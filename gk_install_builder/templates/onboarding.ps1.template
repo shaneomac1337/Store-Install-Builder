@@ -80,7 +80,7 @@ try {
     Write-Host "Access token successfully saved"
 
     # Second API call using the token
-    $onboardingUrl = "https://$base_url/cims/services/rest/cims/v1/onboarding/tokens"
+    $onboardingUrl = "https://$base_url/api/iam/cim/rest/v1/onboarding/tokens"
     $headers = @{
         "Authorization" = "Bearer $accessToken"
         "Content-Type" = "application/json"

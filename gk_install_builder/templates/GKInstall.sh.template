@@ -1057,15 +1057,15 @@ fi
 
 # Create configuration files
 cat > "installationtoken.txt" << EOF
-configService.url=https://$server/config-service
-cims.url=https://$server/cims
+configService.url=https://$server/api/config
+cims.url=https://$server/api/iam/cim/rest
 station.tenantId=001
 station.storeId=$storeNumber
 station.workstationId=$workstationId
 station.applicationVersion=$component_version
 station.systemType=$systemType
 onboarding.token=$onboardingToken
-dsg.url=https://$dsg_server/dsg/content/cep/SoftwarePackage
+dsg.url=https://$dsg_server/api/digital-content/content/cep/SoftwarePackage
 EOF
 
 # Create base64 token - ensure it's a single line without line breaks
@@ -1269,7 +1269,7 @@ echo "Launcher properties file created successfully. Launcher will use this for 
 
 # Download or use local Launcher
 if [ "$offline_mode" = false ]; then
-  download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
+    download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"
   echo "Attempting to download Launcher.run from: $download_url"
   
   # Try using curl with progress bar first
