@@ -5085,12 +5085,61 @@ class OfflinePackageCreator:
         self.status_label.pack(pady=5, padx=10)
     
     def create_dsg_api_browser_ui(self):
-        # Create DSG API browser frame with modern design
+        # Theme-aware color palette (light, dark)
+        # Derive colors from the active CustomTkinter theme to avoid custom blue scheme
+        theme = ctk.ThemeManager.theme
+        mode = ctk.get_appearance_mode()
+        pick = (lambda light, dark: light if mode == "Light" else dark)
+
+        base_bg = pick(*theme["CTkFrame"]["fg_color"]) if isinstance(theme.get("CTkFrame", {}).get("fg_color"), (list, tuple)) else theme.get("CTkFrame", {}).get("fg_color", "transparent")
+        label_fg = pick(*theme["CTkLabel"]["text_color"]) if isinstance(theme.get("CTkLabel", {}).get("text_color"), (list, tuple)) else theme.get("CTkLabel", {}).get("text_color", None)
+        btn_fg = pick(*theme["CTkButton"]["fg_color"]) if isinstance(theme.get("CTkButton", {}).get("fg_color"), (list, tuple)) else theme.get("CTkButton", {}).get("fg_color", None)
+        btn_hover = pick(*theme["CTkButton"]["hover_color"]) if isinstance(theme.get("CTkButton", {}).get("hover_color"), (list, tuple)) else theme.get("CTkButton", {}).get("hover_color", None)
+        entry_bg = pick(*theme["CTkEntry"]["fg_color"]) if isinstance(theme.get("CTkEntry", {}).get("fg_color"), (list, tuple)) else theme.get("CTkEntry", {}).get("fg_color", None)
+        entry_border = pick(*theme["CTkEntry"]["border_color"]) if isinstance(theme.get("CTkEntry", {}).get("border_color"), (list, tuple)) else theme.get("CTkEntry", {}).get("border_color", None)
+
+        # Store colors as instance variable for access in other methods
+        self._ui_colors = {
+            'header_bg': base_bg,
+            'path_bg': base_bg,
+            'title_accent': label_fg,
+            'muted_text': label_fg,
+            'card_bg': base_bg,
+            'primary': btn_fg,
+            'primary_hover': btn_hover,
+            'panel_bg': base_bg,
+            'toolbar_bg': base_bg,
+            'nav_btn': btn_fg,
+            'nav_btn_hover': btn_hover,
+            'nav_btn_disabled': ("#1E293B" if mode == "Dark" else "#D1D5DB"),
+            'breadcrumb_bg': ("#1E293B" if mode == "Dark" else "#F1F5F9"),
+            'breadcrumb_text': label_fg,
+            'list_bg': base_bg,
+            'list_fg': label_fg,
+            'list_sel_bg': ("#334155" if mode == "Dark" else "#E2E8F0"),
+            'list_sel_fg': label_fg,
+            'menu_bg': base_bg,
+            'menu_fg': label_fg,
+            'menu_active_bg': ("#334155" if mode == "Dark" else "#E2E8F0"),
+            'warning_text': ("#B45309", "#FF9E3D"),
+            'status_badge_disconnected': ("#EF4444", "#FF6B6B"),
+            'status_badge_warning': ("#F59E0B", "#F59E0B"),
+            'status_badge_ok': ("#10B981", "#2ECC71"),
+            'entry_bg': entry_bg,
+            'entry_border': entry_border,
+            'label_text': label_fg,
+            'secondary_text': label_fg,
+            'border_color': ("#334155" if mode == "Dark" else "#E2E8F0"),
+            'separator_color': ("#1E293B" if mode == "Dark" else "#F1F5F9"),
+        }
+        colors = self._ui_colors  # Keep local reference for convenience
+
+        # Create DSG API browser frame with theme defaults
         api_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         api_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
         
-        # Header section with modern gradient design
-        header_frame = ctk.CTkFrame(api_frame, fg_color="#1A1F2E", corner_radius=10)
+        # Header section with border
+        header_frame = ctk.CTkFrame(api_frame, fg_color=colors['header_bg'], corner_radius=10, border_width=2, border_color=colors['border_color'])
         header_frame.pack(fill="x", padx=0, pady=(0, 10))
         
         # Title section
@@ -5112,12 +5161,12 @@ class OfflinePackageCreator:
             title_left,
             text="DSG Content API",
             font=("Helvetica", 18, "bold"),
-            text_color="#5B9BFF"
+            text_color=colors['title_accent']
         )
         title_label.pack(side="left")
         
-        # Right side - Current path breadcrumb
-        path_container = ctk.CTkFrame(title_container, fg_color="#252B3D", corner_radius=8)
+        # Right side - Current path breadcrumb with border
+        path_container = ctk.CTkFrame(title_container, fg_color=colors['breadcrumb_bg'], corner_radius=8, border_width=1, border_color=colors['border_color'])
         path_container.pack(side="right")
         
         ctk.CTkLabel(
@@ -5130,12 +5179,12 @@ class OfflinePackageCreator:
             path_container,
             text="/SoftwarePackage",
             font=("Helvetica", 12),
-            text_color="#B8C5D6"
+            text_color=colors['muted_text']
         )
         self.path_label.pack(side="left", padx=(0, 10), pady=8)
         
-        # Modern connection card
-        connection_card = ctk.CTkFrame(api_frame, fg_color="#1E2433", corner_radius=10)
+        # Connection card with border
+        connection_card = ctk.CTkFrame(api_frame, fg_color=colors['card_bg'], corner_radius=10, border_width=2, border_color=colors['border_color'])
         connection_card.pack(fill="x", padx=0, pady=(0, 10))
         
         # Info section with auto-generate checkbox
@@ -5149,9 +5198,9 @@ class OfflinePackageCreator:
             text="🔄 Auto-generate token from Security Config",
             variable=self.auto_generate_token,
             font=("Helvetica", 11, "bold"),
-            text_color="#8A9FB8",
-            fg_color="#4A90E2",
-            hover_color="#5BA3F5",
+            text_color=colors['secondary_text'],
+            fg_color=colors['primary'],
+            hover_color=colors['primary_hover'],
             checkbox_width=20,
             checkbox_height=20
         )
@@ -5175,7 +5224,7 @@ class OfflinePackageCreator:
             token_label_frame,
             text="Bearer Token:",
             font=("Helvetica", 13, "bold"),
-            text_color="#E0E0E0"
+            text_color=colors['label_text']
         ).pack(side="left")
         
         # Token entry (read-only, auto-filled)
@@ -5186,8 +5235,8 @@ class OfflinePackageCreator:
             show="•",
             corner_radius=8,
             border_width=2,
-            border_color="#3D5B94",
-            fg_color="#252B3D",
+            border_color=colors['entry_border'],
+            fg_color=colors['entry_bg'],
             font=("Courier", 11)
         )
         self.bearer_token.pack(side="left", padx=(0, 10))
@@ -5199,15 +5248,15 @@ class OfflinePackageCreator:
         # Register bearer token with config manager
         self.config_manager.register_entry("bearer_token", self.bearer_token)
         
-        # Connect button with modern styling
+        # Connect button with theme styling
         connect_btn = ctk.CTkButton(
             token_container,
             text="⚡ Connect",
             width=110,
             height=36,
             corner_radius=8,
-            fg_color="#4A90E2",
-            hover_color="#5BA3F5",
+            fg_color=colors['primary'],
+            hover_color=colors['primary_hover'],
             font=("Helvetica", 13, "bold"),
             command=self.connect_webdav
         )
@@ -5216,7 +5265,7 @@ class OfflinePackageCreator:
         # Status badge
         self.status_badge = ctk.CTkFrame(
             token_container,
-            fg_color="#FF6B6B",
+            fg_color=colors['status_badge_disconnected'],
             corner_radius=8,
             width=120,
             height=36
@@ -5228,18 +5277,22 @@ class OfflinePackageCreator:
             self.status_badge,
             text="⚫ Disconnected",
             font=("Helvetica", 11, "bold"),
-            text_color="#FFFFFF"
+            text_color=("#000000", "#FFFFFF")
         )
         self.webdav_status.pack(expand=True)
         
-        # Navigation and file browser container
-        browser_main = ctk.CTkFrame(api_frame, fg_color="#1E293B", corner_radius=10)
+        # Navigation and file browser container with border
+        browser_main = ctk.CTkFrame(api_frame, fg_color=colors['panel_bg'], corner_radius=10, border_width=2, border_color=colors['border_color'])
         browser_main.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Navigation toolbar
-        toolbar = ctk.CTkFrame(browser_main, fg_color="#0F172A", corner_radius=0, height=55)
+        toolbar = ctk.CTkFrame(browser_main, fg_color=colors['toolbar_bg'], corner_radius=0, height=55)
         toolbar.pack(fill="x", padx=0, pady=0)
         toolbar.pack_propagate(False)
+        
+        # Separator line below toolbar
+        toolbar_separator = ctk.CTkFrame(browser_main, fg_color=colors['separator_color'], height=2)
+        toolbar_separator.pack(fill="x", padx=0, pady=0)
         
         # Navigation buttons container
         nav_buttons = ctk.CTkFrame(toolbar, fg_color="transparent")
@@ -5252,9 +5305,11 @@ class OfflinePackageCreator:
             width=85,
             height=38,
             corner_radius=6,
-            fg_color="#334155",
-            hover_color="#475569",
+            fg_color=colors['nav_btn'],
+            hover_color=colors['nav_btn_hover'],
             font=("Segoe UI", 11, "bold"),
+            border_width=1,
+            border_color=colors['border_color'],
             command=self._navigate_back,
             state="disabled"
         )
@@ -5267,54 +5322,57 @@ class OfflinePackageCreator:
             width=95,
             height=38,
             corner_radius=6,
-            fg_color="#334155",
-            hover_color="#475569",
+            fg_color=colors['nav_btn'],
+            hover_color=colors['nav_btn_hover'],
             font=("Segoe UI", 11, "bold"),
+            border_width=1,
+            border_color=colors['border_color'],
             command=self._refresh_current_directory
         )
         self.refresh_btn.pack(side="left")
         
-        # Path breadcrumb display
-        breadcrumb_container = ctk.CTkFrame(toolbar, fg_color="#1E293B", corner_radius=6, height=38)
+        # Path breadcrumb display with subtle border
+        breadcrumb_container = ctk.CTkFrame(toolbar, fg_color=colors['breadcrumb_bg'], corner_radius=6, height=38, border_width=1, border_color=colors['border_color'])
         breadcrumb_container.pack(side="left", fill="x", expand=True, padx=12, pady=8)
         
         self.breadcrumb_label = ctk.CTkLabel(
             breadcrumb_container,
             text="/SoftwarePackage",
             font=("Consolas", 11),
-            text_color="#94A3B8",
+            text_color=colors['breadcrumb_text'],
             anchor="w"
         )
         self.breadcrumb_label.pack(fill="x", padx=12, pady=8)
         
-        # File list container with proper scrolling
-        list_container = ctk.CTkFrame(browser_main, fg_color="#0F172A", corner_radius=0)
+        # File list container with proper scrolling and padding
+        list_container = ctk.CTkFrame(browser_main, fg_color=colors['panel_bg'], corner_radius=0)
         list_container.pack(fill="both", expand=True, padx=0, pady=0)
         
         # Use standard tkinter Listbox for better performance with many items
         import tkinter as tk
         
-        # Create frame for listbox and scrollbar
-        listbox_frame = tk.Frame(list_container, bg="#0F172A")
-        listbox_frame.pack(fill="both", expand=True, padx=0, pady=0)
+        # Create frame for listbox and scrollbar with border and padding
+        listbox_frame = tk.Frame(list_container, bg=colors['list_bg'], highlightbackground=colors['border_color'], highlightthickness=1, highlightcolor=colors['border_color'])
+        listbox_frame.pack(fill="both", expand=True, padx=12, pady=12)
         
         # Scrollbar
-        scrollbar = tk.Scrollbar(listbox_frame, bg="#334155", activebackground="#475569", troughcolor="#1E293B")
+        scrollbar = tk.Scrollbar(listbox_frame, bg=colors['nav_btn'], activebackground=colors['nav_btn_hover'], troughcolor=colors['panel_bg'])
         scrollbar.pack(side="right", fill="y")
         
-        # Listbox with custom styling
+        # Listbox with theme-aware styling and subtle borders
         self.file_listbox = tk.Listbox(
             listbox_frame,
-            bg="#0F172A",
-            fg="#94A3B8",
-            selectbackground="#334155",
-            selectforeground="#F1F5F9",
+            bg=colors['list_bg'],
+            fg=colors['list_fg'],
+            selectbackground=colors['list_sel_bg'],
+            selectforeground=colors['list_sel_fg'],
             font=("Segoe UI", 11),
             borderwidth=0,
             highlightthickness=0,
             activestyle="none",
             yscrollcommand=scrollbar.set,
-            height=20
+            height=20,
+            relief="flat"
         )
         self.file_listbox.pack(side="left", fill="both", expand=True)
         scrollbar.config(command=self.file_listbox.yview)
@@ -5326,8 +5384,8 @@ class OfflinePackageCreator:
         
         # Create context menu
         import tkinter as tk
-        self.context_menu = tk.Menu(self.file_listbox, tearoff=0, bg="#1E293B", fg="#F1F5F9", 
-                                     activebackground="#334155", activeforeground="#FFFFFF",
+        self.context_menu = tk.Menu(self.file_listbox, tearoff=0, bg=colors['menu_bg'], fg=colors['menu_fg'], 
+                                     activebackground=colors['menu_active_bg'], activeforeground=pick("#000000", "#FFFFFF"),
                                      borderwidth=1, relief="solid")
         self.context_menu.add_command(label="📂 Open Folder", command=self._context_open)
         self.context_menu.add_command(label="⬇ Download File", command=self._context_download)
@@ -5344,7 +5402,7 @@ class OfflinePackageCreator:
             list_container,
             text="",
             font=("Segoe UI", 13),
-            text_color="#64748B"
+            text_color=colors['warning_text']
         )
         
         # Initialize browser state
@@ -5407,11 +5465,11 @@ class OfflinePackageCreator:
         self.breadcrumb_label.configure(text=path)
         self.path_label.configure(text=path)
         
-        # Enable/disable back button
+        # Enable/disable back button with theme-aware colors
         if path in ['/', '/SoftwarePackage']:
-            self.back_btn.configure(state="disabled", fg_color="#1E293B")
+            self.back_btn.configure(state="disabled", fg_color=self._ui_colors['nav_btn_disabled'])
         else:
-            self.back_btn.configure(state="normal", fg_color="#334155")
+            self.back_btn.configure(state="normal", fg_color=self._ui_colors['nav_btn'])
     
     def _load_directory(self, path):
         """Load and display directory contents"""
@@ -5662,6 +5720,11 @@ class OfflinePackageCreator:
         import requests
         from tkinter import messagebox
         import customtkinter as ctk
+        import urllib3
+        import threading
+        
+        # Suppress SSL warnings for faster downloads
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         try:
             # Get project root (parent of gk_install_builder)
@@ -5697,6 +5760,19 @@ class OfflinePackageCreator:
             y = self.window.winfo_y() + (self.window.winfo_height() // 2) - 125
             progress_dialog.geometry(f"+{x}+{y}")
             
+            # Track download cancellation
+            download_cancelled = {'value': False}
+            
+            def on_dialog_close():
+                """Handle dialog close - cancel download"""
+                download_cancelled['value'] = True
+                try:
+                    progress_dialog.destroy()
+                except:
+                    pass
+            
+            progress_dialog.protocol("WM_DELETE_WINDOW", on_dialog_close)
+            
             # Title
             ctk.CTkLabel(
                 progress_dialog,
@@ -5705,9 +5781,20 @@ class OfflinePackageCreator:
             ).pack(pady=(20, 10))
             
             # Filename label
+            filename_text = item['name']
+            if item.get('size'):
+                try:
+                    size_mb = int(item['size']) / (1024 * 1024)
+                    if size_mb < 1:
+                        filename_text += f" ({int(item['size']) / 1024:.1f} KB)"
+                    else:
+                        filename_text += f" ({size_mb:.1f} MB)"
+                except:
+                    pass
+            
             filename_label = ctk.CTkLabel(
                 progress_dialog,
-                text=item['name'],
+                text=filename_text,
                 font=("Segoe UI", 12),
                 wraplength=450
             )
@@ -5721,7 +5808,7 @@ class OfflinePackageCreator:
             # Status label
             status_label = ctk.CTkLabel(
                 progress_dialog,
-                text="Starting download...",
+                text="Connecting to server...",
                 font=("Segoe UI", 11)
             )
             status_label.pack(pady=5)
@@ -5735,39 +5822,194 @@ class OfflinePackageCreator:
             )
             size_label.pack(pady=5)
             
+            # Info label for large files
+            info_label = ctk.CTkLabel(
+                progress_dialog,
+                text="ℹ Large files may take longer to prepare on server",
+                font=("Segoe UI", 9),
+                text_color="#64748B"
+            )
+            info_label.pack(pady=(5, 0))
+            
             progress_dialog.update()
             
-            # Download the file with token refresh on 401
-            def make_download_request():
-                return requests.get(file_url, headers=self.webdav._get_headers(), stream=True, verify=False)
+            # Store download state
+            download_state = {
+                'error': None,
+                'completed': False
+            }
             
-            response = self.webdav._handle_api_request(make_download_request)
-            
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded = 0
-            
-            with open(local_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        
-                        # Update progress
-                        if total_size > 0:
-                            progress = downloaded / total_size
-                            progress_bar.set(progress)
+            # Background download function
+            def download_thread():
+                import time
+                try:
+                    # Update status safely with elapsed time
+                    start_time = time.time()
+                    timer_running = {'value': True}  # Flag to stop timer
+                    
+                    def update_wait_time():
+                        if download_cancelled['value'] or not timer_running['value']:
+                            return
+                        elapsed = int(time.time() - start_time)
+                        try:
+                            if progress_dialog.winfo_exists():
+                                status_label.configure(text=f"Requesting file from server... ({elapsed}s)")
+                                progress_dialog.after(1000, update_wait_time)
+                        except:
+                            pass
+                    
+                    # Start timer updates
+                    progress_dialog.after(0, lambda: (
+                        status_label.configure(text="Requesting file from server... (0s)"),
+                        progress_dialog.after(1000, update_wait_time)
+                    ))
+                    
+                    # Download the file with token refresh on 401 and timeout
+                    def make_download_request():
+                        return requests.get(
+                            file_url, 
+                            headers=self.webdav._get_headers(), 
+                            stream=True, 
+                            verify=False,
+                            timeout=(30, 60)  # 30s connection, 60s read - increased for large files
+                        )
+                    
+                    response = self.webdav._handle_api_request(make_download_request)
+                    
+                    # Stop timer - download is starting
+                    timer_running['value'] = False
+                    
+                    # Check if cancelled during request
+                    if download_cancelled['value']:
+                        return
+                    
+                    progress_dialog.after(0, lambda: status_label.configure(text="Starting download..."))
+                    
+                    total_size = int(response.headers.get('content-length', 0))
+                    downloaded = [0]  # Use list for mutable reference
+                    
+                    with open(local_path, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            # Check if download was cancelled
+                            if download_cancelled['value']:
+                                print("Download cancelled by user")
+                                return
                             
-                            downloaded_mb = downloaded / (1024 * 1024)
-                            total_mb = total_size / (1024 * 1024)
-                            
-                            status_label.configure(text=f"Downloading... {progress * 100:.1f}%")
-                            size_label.configure(text=f"{downloaded_mb:.2f} MB / {total_mb:.2f} MB")
-                            progress_dialog.update()
+                            if chunk:
+                                f.write(chunk)
+                                downloaded[0] += len(chunk)
+                                
+                                # Update progress (throttle updates for performance)
+                                if total_size > 0 and downloaded[0] % (8192 * 10) < 8192:
+                                    progress = downloaded[0] / total_size
+                                    downloaded_mb = downloaded[0] / (1024 * 1024)
+                                    total_mb = total_size / (1024 * 1024)
+                                    
+                                    # Schedule GUI update on main thread
+                                    try:
+                                        progress_dialog.after(0, lambda p=progress, d=downloaded_mb, t=total_mb: (
+                                            progress_bar.set(p),
+                                            status_label.configure(text=f"Downloading... {p * 100:.1f}%"),
+                                            size_label.configure(text=f"{d:.2f} MB / {t:.2f} MB")
+                                        ))
+                                    except:
+                                        pass
+                    
+                    # Mark as completed
+                    download_state['completed'] = True
+                    
+                except Exception as e:
+                    download_state['error'] = e
+                    import traceback
+                    traceback.print_exc()
+                finally:
+                    # Close dialog on main thread
+                    try:
+                        progress_dialog.after(0, lambda: self._finish_download(
+                            progress_dialog, download_state, download_cancelled, 
+                            local_path, item, messagebox
+                        ))
+                    except:
+                        pass
             
-            # Close progress dialog
-            progress_dialog.destroy()
+            # Start download in background thread
+            thread = threading.Thread(target=download_thread, daemon=True)
+            thread.start()
             
-            # Success
+        except Exception as e:
+            # Error creating dialog or starting download
+            print(f"Download initialization error: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            self.status_label.configure(
+                text=f"Download failed to start: {str(e)[:50]}",
+                text_color="#FF6B6B"
+            )
+            
+            messagebox.showerror(
+                "Download Failed",
+                f"Failed to start download:\n\n{str(e)}"
+            )
+    
+    def _finish_download(self, progress_dialog, download_state, download_cancelled, local_path, item, messagebox):
+        """Complete the download process - called from background thread via after()"""
+        import os
+        
+        # Close progress dialog
+        try:
+            if progress_dialog.winfo_exists():
+                progress_dialog.destroy()
+        except:
+            pass
+        
+        # Check if download was cancelled
+        if download_cancelled['value']:
+            # Delete partial file
+            try:
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+                    print(f"Deleted partial file: {local_path}")
+            except Exception as e:
+                print(f"Could not delete partial file: {e}")
+            
+            # Update status
+            self.status_label.configure(
+                text=f"Download cancelled: {item['name']}",
+                text_color="#FFA500"
+            )
+            print("Download cancelled by user")
+            
+            messagebox.showinfo(
+                "Download Cancelled",
+                f"Download was cancelled.\n\nPartial file has been removed."
+            )
+            return
+        
+        # Check for errors
+        if download_state['error']:
+            # Clean up partial file
+            try:
+                if os.path.exists(local_path):
+                    os.remove(local_path)
+                    print(f"Deleted partial file after error: {local_path}")
+            except Exception as cleanup_err:
+                print(f"Could not delete partial file: {cleanup_err}")
+            
+            # Show error
+            self.status_label.configure(
+                text=f"Download failed: {str(download_state['error'])[:50]}",
+                text_color="#FF6B6B"
+            )
+            
+            messagebox.showerror(
+                "Download Failed",
+                f"Failed to download file:\n\n{str(download_state['error'])}"
+            )
+            return
+        
+        # Success
+        if download_state['completed']:
             self.status_label.configure(
                 text=f"Downloaded {item['name']} to downloaded_packages",
                 text_color="#53D86A"
@@ -5777,28 +6019,6 @@ class OfflinePackageCreator:
             messagebox.showinfo(
                 "Download Complete",
                 f"File downloaded successfully!\n\nSaved to:\n{local_path}"
-            )
-            
-        except Exception as e:
-            # Close progress dialog if it exists
-            if 'progress_dialog' in locals():
-                try:
-                    progress_dialog.destroy()
-                except:
-                    pass
-            
-            print(f"Download error: {e}")
-            import traceback
-            traceback.print_exc()
-            
-            self.status_label.configure(
-                text=f"Download failed: {str(e)[:50]}",
-                text_color="#FF6B6B"
-            )
-            
-            messagebox.showerror(
-                "Download Failed",
-                f"Failed to download file:\n\n{str(e)}"
             )
     
     def _refresh_bearer_token(self):

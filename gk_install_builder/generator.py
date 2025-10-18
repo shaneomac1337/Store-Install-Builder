@@ -17,6 +17,9 @@ from urllib.parse import unquote
 import requests
 import logging
 from string import Template
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from concurrent.futures import ThreadPoolExecutor
 
 # Disable insecure request warnings
 urllib3.disable_warnings(InsecureRequestWarning)
@@ -55,7 +58,8 @@ class DSGRestBrowser:
         headers = {
             'Accept': 'application/json; variant=Plain; charset=UTF-8',
             'Content-Type': 'application/json; variant=Plain; charset=UTF-8',
-            'GK-Accept-Redirect': '308'
+            'GK-Accept-Redirect': '308',
+            'Connection': 'keep-alive'
         }
         
         if self.bearer_token:
@@ -255,10 +259,34 @@ class ProjectGenerator:
         # Enable file detection by default
         self.detection_manager.enable_file_detection(True)
 
+        # Download concurrency and networking tuning
+        self.max_download_workers = 4
+        self.download_chunk_size = 1024 * 1024  # 1 MiB
+        self._session_local = threading.local()
+        self._http_adapter = HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=Retry(
+                total=3,
+                backoff_factor=0.5,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=frozenset(["GET"]) 
+            ),
+        )
+
     def create_dsg_api_browser(self, base_url, username=None, password=None, bearer_token=None):
         """Create a new DSG REST API browser instance"""
         self.dsg_api_browser = DSGRestBrowser(base_url, username, password, bearer_token)
         return self.dsg_api_browser
+
+    def _get_session(self):
+        """Get a per-thread requests Session with tuned connection pool and retries."""
+        if not hasattr(self._session_local, 'session'):
+            s = requests.Session()
+            s.mount('https://', self._http_adapter)
+            s.mount('http://', self._http_adapter)
+            self._session_local.session = s
+        return self._session_local.session
 
     def generate(self, config):
         """Generate project from configuration"""
@@ -1860,6 +1888,18 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             print(f"StoreHub Service version: {storehub_service_version}")
             print(f"Selected components: {selected_components}")
             print(f"Platform dependencies: {platform_dependencies}")
+
+            # Allow config to tune concurrency and chunk size
+            try:
+                self.max_download_workers = int(config.get("download_workers", self.max_download_workers))
+            except Exception:
+                pass
+            try:
+                self.download_chunk_size = int(config.get("download_chunk_size", self.download_chunk_size))
+            except Exception:
+                pass
+            print(f"Download workers: {self.max_download_workers}")
+            print(f"Download chunk size: {self.download_chunk_size} bytes")
             
             # Initialize DSG REST API browser if not already initialized
             if not self.dsg_api_browser:
@@ -1883,46 +1923,54 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             # Helper function to download a file in a separate thread
             def download_file_thread(remote_path, local_path, file_name, component_type):
                 try:
-                    # Get the full URL for the file using REST API
-                    file_url = self.dsg_api_browser.get_file_url(remote_path)
-                    
-                    # Prepare headers with bearer token if available
-                    headers = self.dsg_api_browser._get_headers()
-                    
-                    print(f"Downloading from REST API: {file_url}")
-                    
-                    # Use requests with streaming to track progress
-                    with requests.get(file_url, headers=headers, stream=True, verify=False) as response:
-                        response.raise_for_status()
+                    with concurrency_limiter:
+                        # Get the full URL for the file using REST API
+                        file_url = self.dsg_api_browser.get_file_url(remote_path)
                         
-                        # Get total file size if available
-                        total_size = int(response.headers.get('content-length', 0))
+                        # Prepare headers with bearer token if available
+                        headers = self.dsg_api_browser._get_headers()
                         
-                        # Initial progress update
-                        download_queue.put(("progress", (file_name, component_type, 0, total_size)))
+                        print(f"Downloading from REST API: {file_url}")
                         
-                        # Open local file for writing
-                        with open(local_path, 'wb') as f:
-                            downloaded = 0
-                            last_update_time = time.time()
+                        session = self._get_session()
+                        # Use requests session with streaming to track progress
+                        with session.get(
+                            file_url,
+                            headers=headers,
+                            stream=True,
+                            verify=False,
+                            timeout=(5, 180)
+                        ) as response:
+                            response.raise_for_status()
                             
-                            # Download in chunks and update progress
-                            for chunk in response.iter_content(chunk_size=8192):
-                                if chunk:
-                                    f.write(chunk)
-                                    downloaded += len(chunk)
-                                    
-                                    # Update progress every 0.1 seconds to avoid flooding the queue
-                                    current_time = time.time()
-                                    if current_time - last_update_time > 0.1:
-                                        download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
-                                        last_update_time = current_time
+                            # Get total file size if available
+                            total_size = int(response.headers.get('content-length', 0))
                             
-                            # Final progress update
-                            download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
-                    
-                    # Successfully downloaded
-                    download_queue.put(("complete", (file_name, component_type)))
+                            # Initial progress update
+                            download_queue.put(("progress", (file_name, component_type, 0, total_size)))
+                            
+                            # Open local file for writing with larger buffer
+                            with open(local_path, 'wb', buffering=self.download_chunk_size) as f:
+                                downloaded = 0
+                                last_update_time = time.time()
+                                
+                                # Download in chunks and update progress
+                                for chunk in response.iter_content(chunk_size=self.download_chunk_size):
+                                    if chunk:
+                                        f.write(chunk)
+                                        downloaded += len(chunk)
+                                        
+                                        # Update progress every ~100ms to avoid flooding the queue
+                                        current_time = time.time()
+                                        if current_time - last_update_time > 0.1:
+                                            download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
+                                            last_update_time = current_time
+                                
+                                # Final progress update
+                                download_queue.put(("progress", (file_name, component_type, downloaded, total_size)))
+                        
+                        # Successfully downloaded
+                        download_queue.put(("complete", (file_name, component_type)))
                 except Exception as e:
                     print(f"Error downloading {file_name}: {e}")
                     download_queue.put(("error", (file_name, component_type, str(e))))
@@ -2511,6 +2559,9 @@ tomcat_package_local=@TOMCAT_PACKAGE@
             if parent:
                 progress_dialog, progress_bar, files_label, files_frame, file_progress_widgets, _ = create_progress_dialog(parent, len(files_to_download))
             
+            # Concurrency limiter to cap simultaneous downloads
+            concurrency_limiter = threading.BoundedSemaphore(self.max_download_workers)
+
             # Start download threads
             download_threads = []
             for remote_path, local_path, file_name, component_type in files_to_download:
