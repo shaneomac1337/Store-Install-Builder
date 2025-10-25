@@ -1234,8 +1234,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     f'$username = "{username}"'
                 )
                 content = content.replace(
-                    'username = "1001"',
-                    f'username = "{form_username}"'
+                    '@FORM_USERNAME@',
+                    form_username
                 )
                 content = content.replace(
                     '[string]$tenant_id = "001"',
@@ -1256,8 +1256,8 @@ tomcat_package_local=@TOMCAT_PACKAGE@
                     f'username="{username}"'
                 )
                 content = content.replace(
-                    'form_username="1001"',
-                    f'form_username="{form_username}"'
+                    '@FORM_USERNAME@',
+                    form_username
                 )
             
             # Write the modified content
