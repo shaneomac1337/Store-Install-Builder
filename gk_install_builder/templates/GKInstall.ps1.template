@@ -268,7 +268,8 @@ function Get-PackageVersion {
     }
     
     # Pattern 3: prefix_1_2_3 (underscore format)
-    if ($filename -match "^$ComponentPrefix[_-](\d+)[_\.](\d+)[_\.](\d+)") {
+    $pattern3 = "^$ComponentPrefix" + "[_-](\d+)[_\.](\d+)[_\.](\d+)"
+    if ($filename -match $pattern3) {
         return "$($matches[1]).$($matches[2]).$($matches[3])"
     }
     
@@ -376,7 +377,7 @@ function Get-DefaultVersions {
 
         # Step 1: Try FP scope first (modified/customized versions)
         Write-Host "Step 1: Checking FP scope for modified/customized versions..."
-        $fpApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+        $fpApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FP`&referenceId=platform"
 
         try {
             $fpResponse = Invoke-RestMethod -Uri $fpApiUrl -Method Get -Headers $headers -TimeoutSec 30
@@ -420,7 +421,7 @@ function Get-DefaultVersions {
 
         if ($missingComponents.Count -gt 0) {
             Write-Host "Step 2: Checking FPD scope for $($missingComponents.Count) missing components..."
-            $fpdApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+            $fpdApiUrl = "https://$BaseUrl/employee-hub-service/services/rest/v1/properties?scope=FPD`&referenceId=platform"
 
             try {
                 $fpdResponse = Invoke-RestMethod -Uri $fpdApiUrl -Method Get -Headers $headers -TimeoutSec 30
@@ -1195,11 +1196,11 @@ if ($isUpdate) {
         Write-Host "Falling back to manual input."
         
         # Prompt for Store Number
-        Write-Host "Please enter the Store Number in one of these formats (or any custom format):"
-        Write-Host "  - 4 digits (e.g., 1234)"
-        Write-Host "  - 1 letter + 3 digits (e.g., R005)"
-        Write-Host "  - 2 letters + 2 digits (e.g., CA45)"
-        Write-Host "  - Custom format (e.g., STORE-105)"
+        Write-Host "Please enter the Store Number in one of these formats `(or any custom format`):"
+        Write-Host "  - 4 digits `(e.g., 1234`)"
+        Write-Host "  - 1 letter + 3 digits `(e.g., R005`)"
+        Write-Host "  - 2 letters + 2 digits `(e.g., CA45`)"
+        Write-Host "  - Custom format `(e.g., STORE-105`)"
         $storeNumber = Read-Host "Store Number"
 
         # Validate that something was entered
