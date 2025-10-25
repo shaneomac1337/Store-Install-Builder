@@ -8,6 +8,10 @@ storeId=""  # Will be determined by hostname detection or user input
 use_default_versions=@USE_DEFAULT_VERSIONS@
 version_source="@VERSION_SOURCE@"  # FP or CONFIG
 
+# Multi-environment support parameters
+env_alias=""         # -e, --env, --environment
+list_environments=false  # --list-environments
+
 # Process command line options
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -31,9 +35,17 @@ while [ $# -gt 0 ]; do
       use_default_versions=true
       shift
       ;;
+    -e|--env|--environment)
+      env_alias="$2"
+      shift 2
+      ;;
+    --list-environments)
+      list_environments=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>] [--UseDefaultVersions]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
       exit 1
       ;;
   esac
@@ -78,6 +90,130 @@ handle_error() {
   exit 1
 }
 trap 'handle_error $LINENO' ERR
+
+# ============================================================================
+# MULTI-ENVIRONMENT SUPPORT FUNCTIONS
+# ============================================================================
+
+# Function to load environments.json
+load_environments() {
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local env_file="$script_dir/helper/environments/environments.json"
+  
+  if [ ! -f "$env_file" ]; then
+    echo "Warning: environments.json not found at $env_file" >&2
+    return 1
+  fi
+  
+  cat "$env_file"
+}
+
+# Function to list available environments
+show_environments() {
+  local environments=$(load_environments)
+  if [ $? -ne 0 ]; then
+    echo "No environments configured."
+    return 1
+  fi
+  
+  echo "Available Environments:"
+  echo "======================"
+  echo ""
+  
+  # Parse JSON and display environments
+  echo "$environments" | jq -r '.environments[] | "Alias: \(.alias)\nName: \(.name)\nBase URL: \(.base_url)\nTenant ID: \(.tenant_id)\n"'
+  
+  echo "Usage: $0 --env <alias>"
+}
+
+# Function to decode base64
+decode_base64() {
+  echo "$1" | base64 -d 2>/dev/null || echo "$1"
+}
+
+# Function to select environment
+select_environment() {
+  local environments="$1"
+  local cli_env_alias="$2"
+  
+  # Priority 1: CLI parameter
+  if [ -n "$cli_env_alias" ]; then
+    echo "Selecting environment from CLI parameter: $cli_env_alias" >&2
+    echo "$environments" | jq --arg alias "$cli_env_alias" '.environments[] | select(.alias == $alias)'
+    return 0
+  fi
+  
+  # Priority 2: File detection (gk_env.txt in script directory)
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local env_file="$script_dir/gk_env.txt"
+  
+  if [ -f "$env_file" ]; then
+    local file_env=$(cat "$env_file" | tr -d '\r\n' | xargs)
+    if [ -n "$file_env" ]; then
+      echo "Detected environment from gk_env.txt: $file_env" >&2
+      echo "$environments" | jq --arg alias "$file_env" '.environments[] | select(.alias == $alias)'
+      return 0
+    fi
+  fi
+  
+  # Priority 3: Interactive prompt
+  echo "Available environments:" >&2
+  local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"')
+  echo "$env_list" >&2
+  echo "" >&2
+  read -p "Enter environment alias (or press Enter to skip): " user_env
+  
+  if [ -n "$user_env" ]; then
+    echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)'
+    return 0
+  fi
+  
+  echo "" >&2
+  return 1
+}
+
+# Function to apply environment configuration
+apply_environment_config() {
+  local env_json="$1"
+  
+  # Extract and set variables
+  base_url=$(echo "$env_json" | jq -r '.base_url')
+  local tenant_id=$(echo "$env_json" | jq -r '.tenant_id // "001"')
+  
+  echo "Applying environment configuration:" >&2
+  echo "  Base URL: $base_url" >&2
+  echo "  Tenant ID: $tenant_id" >&2
+  
+  # Get script directory
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local tokens_dir="$script_dir/helper/tokens"
+  
+  # Update OAuth2 credentials if provided
+  local oauth2_username=$(echo "$env_json" | jq -r '.oauth2_username // empty')
+  local oauth2_password_b64=$(echo "$env_json" | jq -r '.oauth2_password // empty')
+  
+  if [ -n "$oauth2_username" ] && [ -n "$oauth2_password_b64" ]; then
+    local oauth2_password=$(decode_base64 "$oauth2_password_b64")
+    echo "$oauth2_password" > "$tokens_dir/basic_auth_password.txt"
+    echo "  Updated OAuth2 credentials" >&2
+  fi
+  
+  # Update Employee Hub credentials if provided
+  local eh_username=$(echo "$env_json" | jq -r '.employee_hub_username // empty')
+  local eh_password_b64=$(echo "$env_json" | jq -r '.employee_hub_password // empty')
+  
+  if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
+    local eh_password=$(decode_base64 "$eh_password_b64")
+    echo "$eh_password" > "$tokens_dir/form_password.txt"
+    echo "  Updated Employee Hub credentials" >&2
+  fi
+  
+  echo "Environment configuration applied successfully" >&2
+}
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
 
 # Function to extract version from any package filename
 get_package_version() {
@@ -353,6 +489,35 @@ get_default_versions_config_service() {
 
   return 1
 }
+
+# ============================================================================
+# MULTI-ENVIRONMENT SUPPORT - Load and Apply Environment Configuration
+# ============================================================================
+
+# Handle list-environments flag
+if [ "$list_environments" = true ]; then
+  show_environments
+  exit 0
+fi
+
+# Load environments configuration
+if environments=$(load_environments 2>/dev/null); then
+  # Select environment based on CLI parameter, file, or interactive prompt
+  if selected_env=$(select_environment "$environments" "$env_alias"); then
+    # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+    apply_environment_config "$selected_env"
+    env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+    echo "Environment '$env_alias_name' applied successfully"
+  else
+    echo "No environment selected, using script defaults"
+  fi
+else
+  echo "Warning: No environments.json found, using script defaults"
+fi
+
+# ============================================================================
+# SCRIPT CONFIGURATION (may be overridden by environment config above)
+# ============================================================================
 
 # Update these lines to use the base_url
 server="$base_url"
