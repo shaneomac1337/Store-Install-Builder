@@ -5,7 +5,11 @@ param(
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Will be determined by hostname detection or user input
     [bool]$UseDefaultVersions = @USE_DEFAULT_VERSIONS@,
-    [string]$VersionSource = "@VERSION_SOURCE@"  # FP or CONFIG
+    [string]$VersionSource = "@VERSION_SOURCE@",  # FP or CONFIG
+    [string]$Env,  # Environment alias for multi-environment support (e.g., P, DEV, Q-001)
+    [Alias('Environment')]
+    [string]$EnvironmentName,  # Alternative parameter name for -Environment
+    [switch]$ListEnvironments  # List available environments and exit
 )
 
 # Create a unique log filename based on timestamp
@@ -63,6 +67,156 @@ function Handle-Error {
     Write-Host "Error occurred at line $LineNumber"
     Stop-TranscriptSafely
     exit 1
+}
+
+# Function to load environments from environments.json
+function Load-Environments {
+    $envFile = Join-Path $PSScriptRoot "helper\environments\environments.json"
+    if (Test-Path $envFile) {
+        try {
+            $envData = Get-Content $envFile -Raw | ConvertFrom-Json
+            return $envData
+        } catch {
+            Write-Host "Warning: Failed to load environments.json: $_"
+            return @()
+        }
+    }
+    return @()
+}
+
+# Function to list available environments
+function Show-Environments {
+    $environments = Load-Environments
+    if ($environments.Count -eq 0) {
+        Write-Host "No environments configured."
+        return
+    }
+    
+    Write-Host "`n=== Available Environments ==="
+    Write-Host "Alias`t`tName`t`t`tBase URL"
+    Write-Host "-----`t`t----`t`t`t--------"
+    foreach ($env in $environments) {
+        Write-Host "$($env.alias)`t`t$($env.name)`t`t$($env.base_url)"
+    }
+    Write-Host "`nUse: .\GKInstall.ps1 -Env <alias> -ComponentType <type>"
+    Write-Host "Example: .\GKInstall.ps1 -Env P -ComponentType POS`n"
+}
+
+# Function to select environment based on priority: CLI > hostname > file > prompt
+function Select-Environment {
+    param(
+        [string]$EnvAlias,
+        [string]$EnvName
+    )
+    
+    $environments = Load-Environments
+    if ($environments.Count -eq 0) {
+        Write-Host "No multi-environment configuration found, using default settings."
+        return $null
+    }
+    
+    Write-Host "`n=== Multi-Environment Mode ==="
+    Write-Host "Found $($environments.Count) configured environment(s)"
+    
+    $selectedEnv = $null
+    
+    # Priority 1: CLI parameter
+    if (![string]::IsNullOrWhiteSpace($EnvAlias)) {
+        Write-Host "[1] CLI Parameter: Looking for environment '$EnvAlias'..."
+        $selectedEnv = $environments | Where-Object { $_.alias -eq $EnvAlias } | Select-Object -First 1
+        if ($selectedEnv) {
+            Write-Host "    ✓ Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
+            return $selectedEnv
+        } else {
+            Write-Host "    ✗ Environment '$EnvAlias' not found!"
+            Write-Host ""
+            Show-Environments
+            exit 1
+        }
+    }
+    
+    if (![string]::IsNullOrWhiteSpace($EnvName)) {
+        Write-Host "[1] CLI Parameter: Looking for environment named '$EnvName'..."
+        $selectedEnv = $environments | Where-Object { $_.name -like "*$EnvName*" } | Select-Object -First 1
+        if ($selectedEnv) {
+            Write-Host "    ✓ Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
+            return $selectedEnv
+        }
+    }
+    
+    # Priority 2: Environment file detection
+    Write-Host "[2] File Detection: Checking for environment indicator file..."
+    $envIndicatorFile = "C:\gkretail\environment.txt"
+    if (Test-Path $envIndicatorFile) {
+        $fileEnv = (Get-Content $envIndicatorFile -Raw).Trim()
+        Write-Host "    Found environment file with value: $fileEnv"
+        $selectedEnv = $environments | Where-Object { $_.alias -eq $fileEnv } | Select-Object -First 1
+        if ($selectedEnv) {
+            Write-Host "    ✓ Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
+            return $selectedEnv
+        }
+    } else {
+        Write-Host "    No environment file found at $envIndicatorFile"
+    }
+    
+    # Priority 3: Interactive prompt
+    Write-Host "[3] Interactive Selection: Please choose an environment"
+    Write-Host ""
+    for ($i = 0; $i -lt $environments.Count; $i++) {
+        $env = $environments[$i]
+        Write-Host "  [$($i+1)] $($env.alias) - $($env.name) ($($env.base_url))"
+    }
+    Write-Host ""
+    
+    do {
+        $selection = Read-Host "Enter number (1-$($environments.Count))"
+        $selectionNum = 0
+        if ([int]::TryParse($selection, [ref]$selectionNum)) {
+            if ($selectionNum -ge 1 -and $selectionNum -le $environments.Count) {
+                $selectedEnv = $environments[$selectionNum - 1]
+                Write-Host "    ✓ Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
+                return $selectedEnv
+            }
+        }
+        Write-Host "Invalid selection, please try again."
+    } while ($true)
+}
+
+# Function to apply environment configuration
+function Apply-EnvironmentConfig {
+    param($Environment)
+    
+    if ($null -eq $Environment) {
+        return
+    }
+    
+    Write-Host "`n=== Applying Environment Configuration ==="
+    Write-Host "Environment: $($Environment.name) ($($Environment.alias))"
+    Write-Host "Base URL: $($Environment.base_url)"
+    Write-Host "Tenant ID: $($Environment.tenant_id)"
+    
+    # Override script variables with environment settings
+    $script:base_url = $Environment.base_url
+    $script:tenantId = $Environment.tenant_id
+    
+    # Decode and set credentials
+    if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
+        $oauth2Password = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.launchpad_oauth2_b64))
+        # Store for later use in token generation
+        $script:env_oauth2_password = $oauth2Password
+    }
+    
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username)) {
+        $script:env_form_username = $Environment.eh_launchpad_username
+    }
+    
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
+        $ehPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.eh_launchpad_password_b64))
+        $script:env_form_password = $ehPassword
+    }
+    
+    Write-Host "✓ Environment configuration applied"
+    Write-Host "===================================`n"
 }
 
 # Function to extract version from any package filename
@@ -382,6 +536,37 @@ function Get-DefaultVersions-ConfigService {
         return $null
     }
 }
+
+# ============================================================================
+# MULTI-ENVIRONMENT SUPPORT - Load and Apply Environment Configuration
+# ============================================================================
+
+# Handle ListEnvironments flag
+if ($ListEnvironments) {
+    Show-Environments
+    exit 0
+}
+
+# Load environments configuration
+$environments = Load-Environments
+if ($null -eq $environments) {
+    Write-Host "Warning: No environments.json found, using script defaults"
+} else {
+    # Select environment based on CLI parameter, file, or interactive prompt
+    $selectedEnv = Select-Environment -Environments $environments -CliEnvAlias $Env -CliEnvName $EnvironmentName
+    
+    if ($null -ne $selectedEnv) {
+        # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+        Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
+        Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+    } else {
+        Write-Host "No environment selected, using script defaults"
+    }
+}
+
+# ============================================================================
+# SCRIPT CONFIGURATION (may be overridden by environment config above)
+# ============================================================================
 
 # Update these lines to use the base_url
 $server = $base_url
