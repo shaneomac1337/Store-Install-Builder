@@ -10,6 +10,7 @@ import os
 import requests
 import json
 from detection import DetectionManager
+from environment_manager import EnvironmentManager
 # Add parent directory to path to import PleasantPasswordClient
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pleasant_password_client import PleasantPasswordClient
@@ -595,6 +596,9 @@ class GKInstallBuilder:
         # Create launcher settings editor
         self.launcher_editor = LauncherSettingsEditor(self.root, self.config_manager, self.project_generator)
         
+        # Create environment manager
+        self.environment_manager = EnvironmentManager(self.root, self.config_manager)
+        
         # Create the GUI
         self.create_gui()
         
@@ -866,6 +870,34 @@ class GKInstallBuilder:
         base_url_entry = self.config_manager.get_entry("base_url")
         if base_url_entry:
             base_url_entry.bind("<FocusOut>", self.on_base_url_changed)
+        
+        # Add Environment Manager button
+        env_manager_frame = ctk.CTkFrame(form_frame)
+        env_manager_frame.pack(fill="x", padx=10, pady=10)
+        
+        env_manager_label = ctk.CTkLabel(
+            env_manager_frame,
+            text="Multi-Environment:",
+            width=150
+        )
+        env_manager_label.pack(side="left", padx=10)
+        
+        env_manager_btn = ctk.CTkButton(
+            env_manager_frame,
+            text="Manage Environments (Multi-Tenancy)",
+            width=300,
+            command=self.open_environment_manager,
+            fg_color="#2b5f8f",
+            hover_color="#1a4060"
+        )
+        env_manager_btn.pack(side="left", padx=10)
+        
+        self.create_tooltip(
+            env_manager_btn,
+            "Configure multiple environments with different credentials and settings.\n"
+            "Scripts will automatically detect the correct environment based on CLI parameter,\n"
+            "hostname detection, or file detection. Perfect for multi-tenant deployments!"
+        )
         
         # Only create other sections if not first run
         if not self.is_first_run:
@@ -4237,6 +4269,10 @@ class GKInstallBuilder:
     def open_launcher_editor(self):
         """Open the launcher settings editor"""
         self.launcher_editor.open_editor()
+    
+    def open_environment_manager(self):
+        """Open the environment manager dialog"""
+        self.environment_manager.open_manager()
         
     def generate_installation_files(self):
         """Generate installation files using the project generator"""
