@@ -383,9 +383,8 @@ class EnvironmentManager:
         entries["launchpad_oauth2"] = oauth_entry
         
         # Add KeeServer button if KeePass client is available
-        if hasattr(self.config_manager, 'parent') and hasattr(self.config_manager.parent, 'keepass_client'):
-            from gk_install_builder.main import GKInstallBuilder
-            if GKInstallBuilder.keepass_client:
+        from gk_install_builder.main import GKInstallBuilder
+        if GKInstallBuilder.keepass_client:
                 def obtain_from_keeserver():
                     try:
                         # Get base URL from the entry
