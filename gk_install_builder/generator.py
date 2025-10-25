@@ -646,6 +646,62 @@ class ProjectGenerator:
                 
                 # Replace the placeholder
                 template = template.replace("# HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER", store_workstation_code)
+            else:  # Linux
+                hostname_regex = self.detection_manager.get_hostname_regex("linux")
+                
+                if hostname_env_detection:
+                    # 3-group pattern: Extract store from group 2, workstation from group 3 (environment is group 1)
+                    store_workstation_code = f'''# Extract the last part (workstation ID)
+    if [[ "$hs" =~ {hostname_regex} ]]; then
+      # 3-group pattern: Environment (1), Store ID (2), Workstation ID (3)
+      storeNumber="${{BASH_REMATCH[2]}}"
+      workstationId="${{BASH_REMATCH[3]}}"
+      
+      # Validate extracted parts
+      # Accept any alphanumeric characters for store ID with at least 1 character
+      if echo "$storeNumber" | grep -qE '^[A-Za-z0-9_\\-\\.]+$'; then
+        if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+          hostnameDetected=true
+          echo "Successfully detected values from hostname:"
+          echo "Store Number: $storeNumber"
+          echo "Workstation ID: $workstationId"
+        fi
+      fi
+    fi'''
+                else:
+                    # 2-group pattern: Keep existing logic
+                    store_workstation_code = f'''# Extract the last part (workstation ID)
+    if [[ "$hs" =~ {hostname_regex} ]]; then
+      storeId="${{BASH_REMATCH[1]}}"
+      workstationId="${{BASH_REMATCH[2]}}"
+      
+      # If storeId contains a dash, it might be SOMENAME-1674-101 format
+      if [[ "$storeId" =~ .*-([0-9]{{4}})$ ]]; then
+        storeNumber="${{BASH_REMATCH[1]}}"
+      else
+        # Direct format like R005-101
+        storeNumber="$storeId"
+      fi
+      
+      # Validate extracted parts
+      # Accept any alphanumeric characters for store ID with at least 1 character
+      if echo "$storeNumber" | grep -qE '^[A-Za-z0-9_\\-\\.]+$'; then
+        if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+          hostnameDetected=true
+          echo "Successfully detected values from hostname:"
+          echo "Store Number: $storeNumber"
+          echo "Workstation ID: $workstationId"
+        fi
+      fi
+    fi'''
+                
+                # Replace the hardcoded detection logic in the bash template
+                # Find and replace the block between "# Try different patterns:" and "# If hostname detection failed"
+                import re
+                bash_detection_pattern = r'(# Try different patterns:.*?)(# Extract the last part \(workstation ID\).*?fi\s+fi\s+fi)'
+                template = re.sub(bash_detection_pattern, 
+                                  r'\1' + store_workstation_code,
+                                  template, flags=re.DOTALL)
             
             # Get version information
             default_version = config.get("version", "v1.0.0")
