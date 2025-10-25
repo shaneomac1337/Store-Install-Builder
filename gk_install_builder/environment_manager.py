@@ -53,49 +53,7 @@ class EnvironmentManager:
             font=("Helvetica", 11),
             text_color="gray"
         )
-        subtitle_label.pack(pady=(0, 10))
-        
-        # KeeServer connection button
-        keeserver_frame = ctk.CTkFrame(main_frame)
-        keeserver_frame.pack(fill="x", pady=(0, 15))
-        
-        from gk_install_builder.main import GKInstallBuilder
-        
-        def update_keeserver_button():
-            """Update KeeServer button state"""
-            if GKInstallBuilder.keepass_client:
-                keeserver_btn.configure(
-                    text="✓ KeeServer Connected",
-                    fg_color="#2d5f2d",
-                    hover_color="#1f4a1f"
-                )
-            else:
-                keeserver_btn.configure(
-                    text="Connect to KeeServer",
-                    fg_color="#1f538d",
-                    hover_color="#16415c"
-                )
-        
-        def open_keeserver_dialog():
-            """Open KeeServer connection dialog"""
-            # Use the app instance to call its method
-            if self.app_instance and hasattr(self.app_instance, 'open_keepass_dialog'):
-                self.app_instance.open_keepass_dialog()
-                # Update button after dialog closes
-                self.window.after(500, update_keeserver_button)
-            else:
-                messagebox.showerror("Error", "KeeServer connection not available from this window.")
-        
-        keeserver_btn = ctk.CTkButton(
-            keeserver_frame,
-            text="Connect to KeeServer",
-            width=200,
-            command=open_keeserver_dialog
-        )
-        keeserver_btn.pack(pady=5)
-        
-        # Initial button state
-        update_keeserver_button()
+        subtitle_label.pack(pady=(0, 15))
         
         # Content area - split into list and details
         content_frame = ctk.CTkFrame(main_frame)
@@ -425,94 +383,203 @@ class EnvironmentManager:
         oauth_entry.insert(0, env_data.get("launchpad_oauth2", ""))
         entries["launchpad_oauth2"] = oauth_entry
         
-        # Add KeeServer button if KeePass client is available
-        from gk_install_builder.main import GKInstallBuilder
-        print(f"DEBUG: GKInstallBuilder.keepass_client = {GKInstallBuilder.keepass_client}")
-        if GKInstallBuilder.keepass_client:
-                def obtain_from_keeserver():
-                    try:
-                        # Get base URL from the entry
-                        base_url = entries["base_url"].get().strip()
-                        if not base_url:
-                            messagebox.showerror("Error", "Please enter Base URL first.")
-                            return
-                        
-                        # Auto-detect project and environment from base URL
-                        project_name = "AZR-CSE"  # Default
-                        detected_env = "TEST"  # Default
-                        
-                        if "." in base_url:
-                            parts = base_url.split(".")
-                            if parts[0]:
-                                detected_env = parts[0].upper()
-                            if len(parts) >= 2 and parts[1]:
-                                detected_project = parts[1].upper()
-                                project_name = f"AZR-{detected_project}"
-                        
-                        client = GKInstallBuilder.keepass_client
-                        
-                        # Get project folder
-                        projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
-                        folder_structure = client.get_folder(projects_folder_id)
-                        
-                        # Find project folder
-                        from gk_install_builder.main import GKInstallBuilder as Builder
-                        instance = Builder(None)
-                        folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
-                        
-                        if not folder_id:
-                            messagebox.showerror("Error", f"Project '{project_name}' not found in KeeServer.")
-                            return
-                        
-                        # Get environment folder
-                        folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
-                        env_folder = None
-                        for folder in instance.get_subfolders(folder_contents):
-                            if isinstance(folder, dict) and folder.get('name') == detected_env:
-                                env_folder = folder
-                                break
-                        
-                        if not env_folder:
-                            messagebox.showerror("Error", f"Environment '{detected_env}' not found for project '{project_name}'.")
-                            return
-                        
-                        # Get full environment structure
-                        env_id = env_folder['id']
-                        env_structure = client.get_folder_by_id(env_id, recurse_level=2)
-                        
-                        # Find basic auth password entry
-                        entry = instance.find_basic_auth_password_entry(env_structure)
-                        
-                        if not entry:
-                            messagebox.showerror("Error", f"Basic auth password not found for {project_name}/{detected_env}.")
-                            return
-                        
-                        # Get the password
-                        if isinstance(entry, dict) and 'Id' in entry:
-                            password_url = f"credentials/{entry['Id']}/password"
-                            password = client._make_request('GET', password_url)
-                            
-                            # Set password in the entry field
-                            oauth_entry.delete(0, 'end')
-                            oauth_entry.insert(0, password)
-                            messagebox.showinfo("Success", f"OAuth2 password obtained from KeeServer for {project_name}/{detected_env}.")
-                        else:
-                            messagebox.showerror("Error", "Failed to retrieve password from KeeServer.")
+        # Add KeeServer key button (always visible)
+        def open_keepass_for_environment():
+            """Open full KeePass dialog to get OAuth2 password"""
+            from gk_install_builder.pleasant_password_client import PleasantPasswordClient
+            from gk_install_builder.main import GKInstallBuilder
+            import requests
+            import json
+            
+            # Create dialog
+            kp_dialog = ctk.CTkToplevel(dialog)
+            kp_dialog.title("KeePass Authentication")
+            kp_dialog.geometry("500x550")
+            kp_dialog.transient(dialog)
+            
+            kp_dialog.update_idletasks()
+            kp_dialog.deiconify()
+            kp_dialog.wait_visibility()
+            kp_dialog.lift()
+            kp_dialog.focus_force()
+            
+            # Center
+            x = dialog.winfo_x() + (dialog.winfo_width() // 2) - (500 // 2)
+            y = dialog.winfo_y() + (dialog.winfo_height() // 2) - (550 // 2)
+            kp_dialog.geometry(f"+{x}+{y}")
+            
+            kp_dialog.grab_set()
+            
+            def on_kp_dialog_close():
+                try:
+                    if hasattr(kp_dialog, 'client'):
+                        delattr(kp_dialog, 'client')
+                    if hasattr(kp_dialog, 'folder_contents'):
+                        delattr(kp_dialog, 'folder_contents')
+                except Exception:
+                    pass
+                finally:
+                    kp_dialog.destroy()
+            
+            kp_dialog.protocol("WM_DELETE_WINDOW", on_kp_dialog_close)
+            
+            # Username frame
+            username_frame = ctk.CTkFrame(kp_dialog)
+            username_frame.pack(pady=10, fill="x", padx=20)
+            
+            ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left")
+            username_var = tk.StringVar()
+            username_entry = ctk.CTkEntry(username_frame, width=200, textvariable=username_var)
+            username_entry.pack(side="left", padx=5)
+            
+            if GKInstallBuilder.keepass_username:
+                username_var.set(GKInstallBuilder.keepass_username)
+            
+            # Password frame
+            password_frame = ctk.CTkFrame(kp_dialog)
+            password_frame.pack(pady=10, fill="x", padx=20)
+            
+            ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left")
+            password_var = tk.StringVar()
+            password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
+            password_entry.pack(side="left", padx=5)
+            
+            if GKInstallBuilder.keepass_password:
+                password_var.set(GKInstallBuilder.keepass_password)
+            
+            # Remember checkbox
+            remember_var = tk.BooleanVar(value=True)
+            remember_checkbox = ctk.CTkCheckBox(
+                kp_dialog,
+                text="Remember credentials for this session",
+                variable=remember_var
+            )
+            remember_checkbox.pack(pady=5, padx=20, anchor="w")
+            
+            # Status label
+            status_var = tk.StringVar(value="Not connected")
+            status_label = ctk.CTkLabel(kp_dialog, textvariable=status_var)
+            status_label.pack(pady=5)
+            
+            # Connect and Get Password button
+            get_password_btn = ctk.CTkButton(
+                kp_dialog,
+                text="Connect and Get Password",
+                command=lambda: get_password_directly()
+            )
+            get_password_btn.pack(pady=10)
+            
+            def get_password_directly():
+                try:
+                    status_var.set("Connecting...")
+                    kp_dialog.update_idletasks()
                     
-                    except Exception as e:
-                        messagebox.showerror("Error", f"Failed to obtain from KeeServer: {str(e)}")
-                        import traceback
-                        traceback.print_exc()
+                    # Validate inputs
+                    if not username_var.get().strip():
+                        status_var.set("Error: Username cannot be empty")
+                        return
+                    
+                    if not password_var.get().strip():
+                        status_var.set("Error: Password cannot be empty")
+                        return
+                    
+                    # Get base URL
+                    base_url = entries["base_url"].get().strip()
+                    if not base_url:
+                        status_var.set("Error: Please enter Base URL first")
+                        return
+                    
+                    # Auto-detect project and environment
+                    project_name = "AZR-CSE"
+                    detected_env = "TEST"
+                    
+                    if "." in base_url:
+                        parts = base_url.split(".")
+                        if parts[0]:
+                            detected_env = parts[0].upper()
+                        if len(parts) >= 2 and parts[1]:
+                            detected_project = parts[1].upper()
+                            project_name = f"AZR-{detected_project}"
+                    
+                    status_var.set(f"Authenticating...")
+                    kp_dialog.update_idletasks()
+                    
+                    # Create client
+                    client = PleasantPasswordClient(
+                        base_url="https://keeserver.gk.gk-software.com/api/v5/rest/",
+                        username=username_var.get(),
+                        password=password_var.get()
+                    )
+                    
+                    # Save credentials if remember is checked
+                    if remember_var.get():
+                        GKInstallBuilder.keepass_client = client
+                        GKInstallBuilder.keepass_username = username_var.get()
+                        GKInstallBuilder.keepass_password = password_var.get()
+                    
+                    status_var.set(f"Searching {project_name}/{detected_env}...")
+                    kp_dialog.update_idletasks()
+                    
+                    # Get project folder
+                    projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
+                    folder_structure = client.get_folder(projects_folder_id)
+                    
+                    # Find project
+                    from gk_install_builder.main import GKInstallBuilder as Builder
+                    instance = Builder(None)
+                    folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
+                    
+                    if not folder_id:
+                        status_var.set(f"Error: Project '{project_name}' not found")
+                        return
+                    
+                    # Get environment
+                    folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
+                    env_folder = None
+                    for folder in instance.get_subfolders(folder_contents):
+                        if isinstance(folder, dict) and folder.get('name') == detected_env:
+                            env_folder = folder
+                            break
+                    
+                    if not env_folder:
+                        status_var.set(f"Error: Environment '{detected_env}' not found")
+                        return
+                    
+                    # Get password
+                    env_id = env_folder['id']
+                    env_structure = client.get_folder_by_id(env_id, recurse_level=2)
+                    
+                    entry = instance.find_basic_auth_password_entry(env_structure)
+                    
+                    if not entry:
+                        status_var.set("Error: Password not found")
+                        return
+                    
+                    if isinstance(entry, dict) and 'Id' in entry:
+                        password_url = f"credentials/{entry['Id']}/password"
+                        password = client._make_request('GET', password_url)
+                        
+                        # Set password
+                        oauth_entry.delete(0, 'end')
+                        oauth_entry.insert(0, password)
+                        status_var.set(f"Success! Password retrieved.")
+                        kp_dialog.after(1500, on_kp_dialog_close)
+                    else:
+                        status_var.set("Error: Failed to retrieve password")
                 
-                kee_btn = ctk.CTkButton(
-                    oauth_frame,
-                    text="Obtain from KeeServer",
-                    width=150,
-                    command=obtain_from_keeserver,
-                    fg_color="#2b5f8f",
-                    hover_color="#1a4060"
-                )
-                kee_btn.pack(side="left", padx=5)
+                except Exception as e:
+                    status_var.set(f"Error: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+        
+        # Add key button
+        kee_btn = ctk.CTkButton(
+            oauth_frame,
+            text="🔑",
+            width=40,
+            command=open_keepass_for_environment
+        )
+        kee_btn.pack(side="left", padx=5)
         
         # EH Username
         eh_user_frame = ctk.CTkFrame(main_frame)
