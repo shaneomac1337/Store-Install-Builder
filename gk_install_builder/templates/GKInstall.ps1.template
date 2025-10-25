@@ -268,7 +268,7 @@ function Get-PackageVersion {
     }
     
     # Pattern 3: prefix_1_2_3 (underscore format)
-    $pattern3 = "^$ComponentPrefix" + "[_-](\d+)[_\.](\d+)[_\.](\d+)"
+    $pattern3 = '^' + $ComponentPrefix + '[_-](\d+)[_\.](\d+)[_\.](\d+)'
     if ($filename -match $pattern3) {
         return "$($matches[1]).$($matches[2]).$($matches[3])"
     }
