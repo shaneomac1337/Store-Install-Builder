@@ -3964,12 +3964,22 @@ class GKInstallBuilder:
             font=("Helvetica", 12, "bold")
         ).pack(anchor="w", padx=10, pady=(10, 5))
         
-        priorities = [
-            ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
-            ("2️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
-            ("3️⃣ Hostname Detection", "Extracts from computer hostname", "Uses regex patterns to parse hostname (if implemented)"),
-            ("4️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
-        ]
+        # Check if hostname environment detection is enabled
+        hostname_env_enabled = self.detection_manager.get_hostname_env_detection()
+        
+        if hostname_env_enabled:
+            priorities = [
+                ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
+                ("2️⃣ Hostname Detection", "Extracts environment prefix from hostname", "Parses first character from hostname (e.g., 'P1234-101' → 'P')"),
+                ("3️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
+                ("4️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
+            ]
+        else:
+            priorities = [
+                ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
+                ("2️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
+                ("3️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
+            ]
         
         for priority, method, description in priorities:
             priority_item_frame = ctk.CTkFrame(priority_frame)
@@ -4161,6 +4171,106 @@ WorkstationID=101"""
             font=("Helvetica", 10),
             justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 5))
+        
+        # Environment detection from hostname
+        env_detection_frame = ctk.CTkFrame(tab_regex)
+        env_detection_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            env_detection_frame,
+            text="Environment Detection from Hostname",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+        
+        # Create a BooleanVar for environment detection
+        self.hostname_env_detection_var = ctk.BooleanVar(
+            value=self.detection_manager.get_hostname_env_detection()
+        )
+        
+        # Checkbox for environment detection
+        env_detect_checkbox = ctk.CTkCheckBox(
+            env_detection_frame,
+            text="Extract environment prefix from hostname (e.g., 'P', 'Q', 'T')",
+            variable=self.hostname_env_detection_var,
+            onvalue=True,
+            offvalue=False
+        )
+        env_detect_checkbox.pack(anchor="w", padx=10, pady=5)
+        
+        # Explanation label
+        ctk.CTkLabel(
+            env_detection_frame,
+            text="When enabled, your hostname regex MUST use 3 capture groups:",
+            text_color="gray70",
+            font=("Helvetica", 10, "bold"),
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 2))
+        
+        # Show 3-group requirement
+        groups_info = ctk.CTkFrame(env_detection_frame, fg_color="transparent")
+        groups_info.pack(fill="x", padx=20, pady=(0, 5))
+        
+        ctk.CTkLabel(
+            groups_info,
+            text="• Group 1: Environment prefix (e.g., 'P', 'Q', 'DEV')\n• Group 2: Store ID (e.g., '1234')\n• Group 3: Workstation ID (e.g., '101')",
+            text_color="gray70",
+            font=("Helvetica", 9),
+            justify="left",
+            anchor="w"
+        ).pack(anchor="w")
+        
+        # Example regex patterns
+        ctk.CTkLabel(
+            env_detection_frame,
+            text="Example patterns:",
+            text_color="#4a9eff",
+            font=("Helvetica", 10, "bold"),
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(5, 2))
+        
+        examples_frame = ctk.CTkFrame(env_detection_frame, fg_color="transparent")
+        examples_frame.pack(fill="x", padx=20, pady=(0, 5))
+        
+        ctk.CTkLabel(
+            examples_frame,
+            text="^([A-Z]+)([0-9]+)-([0-9]+)$  →  P1234-101\n^([A-Z]+)-([0-9]+)-([0-9]+)$  →  P-1234-101",
+            text_color="gray60",
+            font=("Courier", 9),
+            justify="left",
+            anchor="w"
+        ).pack(anchor="w")
+        
+        ctk.CTkLabel(
+            env_detection_frame,
+            text="⚠️ Important: When environment detection is enabled, the regex pattern must have exactly 3 capture groups. Use the test function below to verify your pattern extracts all three values correctly.",
+            text_color="#FF8C00",
+            font=("Helvetica", 10, "italic"),
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+        
+        # Quick fill button for 3-group pattern
+        quick_fill_frame = ctk.CTkFrame(env_detection_frame, fg_color="transparent")
+        quick_fill_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        ctk.CTkButton(
+            quick_fill_frame,
+            text="📝 Use Example 3-Group Pattern",
+            command=self.apply_3group_pattern,
+            width=220,
+            height=28,
+            fg_color="#2b5f8f",
+            hover_color="#1a4060"
+        ).pack(side="left", padx=0)
+        
+        ctk.CTkLabel(
+            quick_fill_frame,
+            text="  (Sets pattern to: ^([A-Z]+)([0-9]+)-([0-9]+)$ with test hostname P1234-101)",
+            text_color="gray60",
+            font=("Helvetica", 9)
+        ).pack(side="left", padx=5)
+        
         # --- Path configuration ---
         # Create a frame for path configuration options
         path_config_frame = ctk.CTkFrame(tab_file_detection)
@@ -4345,18 +4455,33 @@ WorkstationID=101"""
         note_frame = ctk.CTkFrame(regex_frame)
         note_frame.pack(fill="x", padx=10, pady=5)
         
-        ctk.CTkLabel(
-            note_frame,
-            text="Important: Your regex must include exactly two capture groups:",
-            font=("Helvetica", 11, "bold"),
-            text_color="#FF8C00"  # Orange
-        ).pack(anchor="w", padx=10, pady=(5, 0))
-        
-        ctk.CTkLabel(
-            note_frame,
-            text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (usually 3 digits but can be different)",
-            justify="left"
-        ).pack(anchor="w", padx=20, pady=(0, 5))
+        # Show different instructions based on environment detection setting
+        if self.hostname_env_detection_var.get():
+            ctk.CTkLabel(
+                note_frame,
+                text="Important: Your regex must include exactly THREE capture groups:",
+                font=("Helvetica", 11, "bold"),
+                text_color="#FF8C00"  # Orange
+            ).pack(anchor="w", padx=10, pady=(5, 0))
+            
+            ctk.CTkLabel(
+                note_frame,
+                text="1. First group captures the Environment (e.g., 'P', 'Q', 'DEV')\n2. Second group captures the Store ID/Number\n3. Third group captures the Workstation ID",
+                justify="left"
+            ).pack(anchor="w", padx=20, pady=(0, 5))
+        else:
+            ctk.CTkLabel(
+                note_frame,
+                text="Important: Your regex must include exactly TWO capture groups:",
+                font=("Helvetica", 11, "bold"),
+                text_color="#FF8C00"  # Orange
+            ).pack(anchor="w", padx=10, pady=(5, 0))
+            
+            ctk.CTkLabel(
+                note_frame,
+                text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (usually 3 digits but can be different)",
+                justify="left"
+            ).pack(anchor="w", padx=20, pady=(0, 5))
         
         # Create two sections: one for Windows and one for Linux
         self.create_regex_editor(regex_frame, "Windows")
@@ -4511,6 +4636,11 @@ WorkstationID=101"""
             if result["success"]:
                 # Success case
                 results_text.insert("1.0", f"✅ Match successful!\n\n")
+                
+                # Check if environment was extracted (3 groups)
+                if "environment" in result and result["environment"]:
+                    results_text.insert("end", f"🌎 Environment: {result['environment']}\n")
+                    results_text.insert("end", "(3-group regex detected)\n\n")
 
                 if platform == "windows":
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
@@ -4587,6 +4717,37 @@ WorkstationID=101"""
             self.base_dir_frame.pack_forget()
             self.custom_paths_frame.pack(fill="x", padx=10, pady=10)
     
+    def apply_3group_pattern(self):
+        """Apply example 3-group regex pattern to both Windows and Linux"""
+        three_group_pattern = "^([A-Z]+)([0-9]+)-([0-9]+)$"
+        test_hostname = "P1234-101"
+        
+        # Update Windows regex
+        if hasattr(self, 'windows_regex_entry'):
+            self.windows_regex_entry.delete(0, 'end')
+            self.windows_regex_entry.insert(0, three_group_pattern)
+        
+        # Update Linux regex  
+        if hasattr(self, 'linux_regex_entry'):
+            self.linux_regex_entry.delete(0, 'end')
+            self.linux_regex_entry.insert(0, three_group_pattern)
+        
+        # Update test hostnames
+        if hasattr(self, 'windows_test_entry'):
+            self.windows_test_entry.delete(0, 'end')
+            self.windows_test_entry.insert(0, test_hostname)
+        
+        if hasattr(self, 'linux_test_entry'):
+            self.linux_test_entry.delete(0, 'end')
+            self.linux_test_entry.insert(0, test_hostname)
+        
+        # Show success message
+        from tkinter import messagebox
+        messagebox.showinfo(
+            "Pattern Applied",
+            f"Applied 3-group pattern to both Windows and Linux:\n\nPattern: {three_group_pattern}\nTest Hostname: {test_hostname}\n\nClick 'Test Regex' to verify it extracts:\n• Environment: P\n• Store ID: 1234\n• Workstation ID: 101"
+        )
+    
     def browse_base_directory(self):
         """Browse for a base directory"""
         from tkinter import filedialog
@@ -4662,6 +4823,10 @@ WorkstationID=101"""
                 self.detection_manager.set_test_hostname(self.windows_test_entry.get())
         except Exception as e:
             print(f"Error saving regex settings: {e}")
+        
+        # Save hostname environment detection setting
+        if hasattr(self, 'hostname_env_detection_var'):
+            self.detection_manager.set_hostname_env_detection(self.hostname_env_detection_var.get())
         
         # Save to config
         self.config_manager.config["detection_config"] = self.detection_manager.get_config()

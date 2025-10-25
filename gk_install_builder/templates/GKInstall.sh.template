@@ -143,6 +143,8 @@ select_environment() {
     return 0
   fi
   
+  # HOSTNAME_ENV_DETECTION_PLACEHOLDER
+  
   # Priority 2: File detection from .station files
   echo "[2] File Detection: Checking for environment in .station file..." >&2
   

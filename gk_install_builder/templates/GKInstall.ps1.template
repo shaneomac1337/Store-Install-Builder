@@ -164,6 +164,8 @@ function Select-Environment {
         }
     }
     
+    # HOSTNAME_ENV_DETECTION_PLACEHOLDER
+    
     # Priority 2: Environment file detection from .station files
     Write-Host "[2] File Detection: Checking for environment in .station file..."
     
@@ -1173,30 +1175,7 @@ if ($isUpdate) {
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
         
-        if ($hs -match '([^-]+)-([0-9]+)$') {
-            # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
-            $storeId = $matches[1]
-            $workstationId = $matches[2]
-            
-            # If storeId contains a dash, it might be SOMENAME-1674-101 format
-            if ($storeId -match '.*-(\d{4})$') {
-                $storeNumber = $matches[1]
-            } else {
-                # Direct format like R005-101
-                $storeNumber = $storeId
-            }
-            
-            # Validate extracted parts
-            # Accept any alphanumeric characters for store ID with at least 1 character
-            if ($storeNumber -match '^[A-Za-z0-9_\-\.]+$') {
-                if ($workstationId -match '^\d+$') {
-                    $hostnameDetected = $true
-                    Write-Host "Successfully detected values from hostname:"
-                    Write-Host "Store Number: $storeNumber"
-                    Write-Host "Workstation ID: $workstationId"
-                }
-            }
-        }
+        # HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER
     }
 
     # If hostname detection failed, try file detection

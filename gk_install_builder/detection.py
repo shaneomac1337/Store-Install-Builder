@@ -26,7 +26,8 @@ class DetectionManager:
             "hostname_detection": {
                 "windows_regex": r"([^-]+)-([0-9]+)$",
                 "linux_regex": r"([^-]+)-([0-9]+)$",
-                "test_hostname": "STORE-1234-101"
+                "test_hostname": "STORE-1234-101",
+                "detect_environment": False  # Whether to extract environment prefix from hostname
             }
         }
     
@@ -161,6 +162,22 @@ class DetectionManager:
         """Set the test hostname for regex validation"""
         self.detection_config["hostname_detection"]["test_hostname"] = hostname
     
+    def enable_hostname_environment_detection(self, enabled=True):
+        """Enable or disable environment extraction from hostname"""
+        self.detection_config["hostname_detection"]["detect_environment"] = enabled
+    
+    def is_hostname_environment_detection_enabled(self):
+        """Check if hostname environment detection is enabled"""
+        return self.detection_config["hostname_detection"].get("detect_environment", False)
+    
+    def get_hostname_env_detection(self):
+        """Get hostname environment detection status (alias)"""
+        return self.is_hostname_environment_detection_enabled()
+    
+    def set_hostname_env_detection(self, enabled=True):
+        """Set hostname environment detection status (alias)"""
+        self.enable_hostname_environment_detection(enabled)
+    
     def test_hostname_regex(self, hostname, platform="linux"):
         """Test the hostname regex against a sample hostname"""
         import re
@@ -175,21 +192,33 @@ class DetectionManager:
             match = pattern.search(hostname)
             
             if match and len(match.groups()) >= 2:
-                store_id = match.group(1)
-                workstation_id = match.group(2)
+                # Check if this is a 3-group regex (with environment)
+                if len(match.groups()) >= 3:
+                    # 3-group format: Environment, Store ID, Workstation ID
+                    environment = match.group(1)
+                    store_id = match.group(2)
+                    workstation_id = match.group(3)
+                else:
+                    # 2-group format: Store ID, Workstation ID
+                    environment = None
+                    store_id = match.group(1)
+                    workstation_id = match.group(2)
                 
                 # Additional validation based on platform
                 if platform.lower() == "windows":
                     # Windows format: Validate store and workstation IDs similar to Linux
                     is_valid_store = re.match(r'^[A-Za-z0-9_\-.]+$', store_id)
                     is_valid_ws = re.match(r"^[0-9]+$", workstation_id)
-                    return {
+                    result = {
                         "success": bool(is_valid_store and is_valid_ws),
                         "store_id": store_id,
                         "workstation_id": workstation_id,
                         "is_valid_store": bool(is_valid_store),
                         "is_valid_ws": bool(is_valid_ws)
                     }
+                    if environment:
+                        result["environment"] = environment
+                    return result
                 else:
                     # Linux - Check if store_id contains a dash for compound format
                     store_number = store_id
@@ -205,7 +234,7 @@ class DetectionManager:
                     # Accept workstation IDs of any length as long as they contain only digits
                     is_valid_ws = re.match(r"^[0-9]+$", workstation_id)
                     
-                    return {
+                    result = {
                         "success": bool(is_valid_store and is_valid_ws),
                         "store_id": store_id,
                         "store_number": store_number,
@@ -213,6 +242,9 @@ class DetectionManager:
                         "is_valid_store": bool(is_valid_store),
                         "is_valid_ws": bool(is_valid_ws)
                     }
+                    if environment:
+                        result["environment"] = environment
+                    return result
             
             return {"success": False, "error": "Regex did not match or insufficient capture groups"}
             

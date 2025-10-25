@@ -505,6 +505,148 @@ class ProjectGenerator:
                         # Replace the hostname detection regex in Bash
                         template = self._replace_hostname_regex_bash(template, custom_regex)
             
+            # Handle hostname environment detection
+            hostname_env_detection = self.detection_manager.get_hostname_env_detection()
+            print(f"  Hostname environment detection: {hostname_env_detection}")
+            
+            # Only enable environment detection if both hostname detection is enabled AND env detection is enabled
+            if use_hostname_detection and hostname_env_detection:
+                # Insert hostname environment detection code
+                if platform == "Windows":
+                    # Get the configured regex pattern for hostname detection
+                    hostname_regex = self.detection_manager.get_hostname_regex("windows")
+                    
+                    hostname_env_code = f'''# Priority 2: Hostname environment detection
+    Write-Host "[2] Hostname Detection: Extracting environment from hostname..."
+    try {{
+        $hostname = $env:COMPUTERNAME
+        Write-Host "    Computer name: $hostname"
+        
+        # Use the configured hostname regex to extract environment (group 1), store (group 2), and workstation (group 3)
+        # Regex pattern: {hostname_regex}
+        if ($hostname -match '{hostname_regex}') {{
+            if ($matches.Count -ge 4) {{
+                # 3-group regex: Environment, Store, Workstation
+                $hostnameEnv = $matches[1]
+                Write-Host "    Extracted environment from hostname: $hostnameEnv"
+                $selectedEnv = $environments | Where-Object {{ $_.alias -eq $hostnameEnv }} | Select-Object -First 1
+                if ($selectedEnv) {{
+                    Write-Host "    [OK] Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
+                    return $selectedEnv
+                }} else {{
+                    Write-Host "    [X] Environment '$hostnameEnv' not found in configuration"
+                }}
+            }} else {{
+                Write-Host "    [X] Regex matched but does not have 3 capture groups (need: Environment, Store, Workstation)"
+            }}
+        }} else {{
+            Write-Host "    Hostname does not match the configured pattern"
+        }}
+    }} catch {{
+        Write-Host "    [X] Error during hostname detection: $_"
+    }}
+    
+    # Priority 3: Environment file detection from .station files
+    Write-Host "[3] File Detection: Checking for environment in .station file..."
+    '''
+                    # Replace the placeholder and update priority numbers
+                    template = template.replace("# HOSTNAME_ENV_DETECTION_PLACEHOLDER\n    \n    # Priority 2:", hostname_env_code + "\n    # Priority 3:")
+                    # Also update the interactive prompt priority to 4
+                    template = template.replace("# Priority 3: Interactive prompt\n    Write-Host \"[3] Interactive Selection:", "# Priority 4: Interactive prompt\n    Write-Host \"[4] Interactive Selection:")
+                else:  # Linux
+                    # Get the configured regex pattern for hostname detection
+                    hostname_regex = self.detection_manager.get_hostname_regex("linux")
+                    
+                    hostname_env_code = f'''# Priority 2: Hostname environment detection
+  echo "[2] Hostname Detection: Extracting environment from hostname..." >&2
+  
+  local hostname=$(hostname)
+  echo "    Computer name: $hostname" >&2
+  
+  # Use the configured hostname regex to extract environment (group 1), store (group 2), and workstation (group 3)
+  # Regex pattern: {hostname_regex}
+  if [[ "$hostname" =~ {hostname_regex} ]]; then
+    if [ ${{#BASH_REMATCH[@]}} -ge 4 ]; then
+      # 3-group regex: Environment, Store, Workstation
+      local hostname_env="${{BASH_REMATCH[1]}}"
+      echo "    Extracted environment from hostname: $hostname_env" >&2
+      local selected=$(echo "$environments" | jq --arg alias "$hostname_env" '.environments[] | select(.alias == $alias)')
+      if [ -n "$selected" ]; then
+        echo "    ✓ Matched environment" >&2
+        echo "$selected"
+        return 0
+      else
+        echo "    ✗ Environment '$hostname_env' not found in configuration" >&2
+      fi
+    else
+      echo "    ✗ Regex matched but does not have 3 capture groups (need: Environment, Store, Workstation)" >&2
+    fi
+  else
+    echo "    Hostname does not match the configured pattern" >&2
+  fi
+  
+  # Priority 3: File detection from .station files
+  echo "[3] File Detection: Checking for environment in .station file..." >&2
+  '''
+                    # Replace the placeholder and update priority numbers
+                    template = template.replace("# HOSTNAME_ENV_DETECTION_PLACEHOLDER\n  \n  # Priority 2:", hostname_env_code + "\n  # Priority 3:")
+                    # Also update the interactive prompt priority to 4
+                    template = template.replace("# Priority 3: Interactive prompt", "# Priority 4: Interactive prompt")
+            else:
+                # Remove the placeholder when disabled
+                template = template.replace("# HOSTNAME_ENV_DETECTION_PLACEHOLDER\n    \n    ", "")
+                template = template.replace("# HOSTNAME_ENV_DETECTION_PLACEHOLDER\n  \n  ", "")
+            
+            # Replace hostname Store/Workstation detection with appropriate code
+            if platform == "Windows":
+                hostname_regex = self.detection_manager.get_hostname_regex("windows")
+                
+                if hostname_env_detection:
+                    # 3-group pattern: Extract store from group 2, workstation from group 3 (environment is group 1)
+                    store_workstation_code = rf'''if ($hs -match '{hostname_regex}') {{
+            # 3-group pattern: Environment (1), Store ID (2), Workstation ID (3)
+            $storeId = $matches[2]
+            $workstationId = $matches[3]
+            $storeNumber = $storeId
+
+            # Validate extracted parts
+            if ($storeNumber -match '^[A-Za-z0-9_.-]+$') {{
+                if ($workstationId -match '^[0-9]+$') {{
+                    $hostnameDetected = $true
+                    Write-Host "Successfully detected values from hostname:"
+                    Write-Host "Store Number: $storeNumber"
+                    Write-Host "Workstation ID: $workstationId"
+                }}
+            }}
+        }}'''
+                else:
+                    # 2-group pattern: Extract store from group 1, workstation from group 2
+                    store_workstation_code = rf'''if ($hs -match '{hostname_regex}') {{
+            # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
+            $storeId = $matches[1]
+            $workstationId = $matches[2]
+
+            # If storeId contains a dash, it might be SOMENAME-1674-101 format
+            if ($storeId -match '.*-(\d{{4}})$') {{
+                $storeNumber = $matches[1]
+            }} else {{
+                # Direct format like R005-101
+                $storeNumber = $storeId
+            }}
+
+            # Validate extracted parts
+            if ($storeNumber -match '^[A-Za-z0-9_.-]+$') {{
+                if ($workstationId -match '^[0-9]+$') {{
+                    $hostnameDetected = $true
+                    Write-Host "Successfully detected values from hostname:"
+                    Write-Host "Store Number: $storeNumber"
+                    Write-Host "Workstation ID: $workstationId"
+                }}
+            }}'''
+                
+                # Replace the placeholder
+                template = template.replace("# HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER", store_workstation_code)
+            
             # Get version information
             default_version = config.get("version", "v1.0.0")
             use_version_override = config.get("use_version_override", False)
@@ -838,7 +980,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             }}
             
             # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\\d+$') {{
+            if ($storeNumber -and $workstationId -match '^[0-9]+$') {{
                 $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
                 Write-Host "Successfully detected values from file:"
                 Write-Host "Store Number: $storeNumber"
