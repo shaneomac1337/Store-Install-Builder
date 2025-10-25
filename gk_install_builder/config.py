@@ -150,7 +150,10 @@ class ConfigManager:
             
             # WebDAV Configuration
             "webdav_username": "admin",
-            "webdav_password": "Enter your WebDAV password"
+            "webdav_password": "Enter your WebDAV password",
+            
+            # Multi-Environment Configuration
+            "environments": []  # Array of environment objects
         }
 
     def save_config(self):
@@ -298,4 +301,59 @@ class ConfigManager:
                     self.unregister_entry(key)
                 except Exception:
                     pass
-        return self.config 
+        return self.config
+    
+    # Environment Management Methods
+    def get_environments(self):
+        """Get list of all environments"""
+        return self.config.get("environments", [])
+    
+    def add_environment(self, env_data):
+        """Add a new environment"""
+        if "environments" not in self.config:
+            self.config["environments"] = []
+        self.config["environments"].append(env_data)
+        self.save_config_silent()
+        return True
+    
+    def update_environment(self, index, env_data):
+        """Update an existing environment by index"""
+        if "environments" not in self.config:
+            return False
+        if 0 <= index < len(self.config["environments"]):
+            self.config["environments"][index] = env_data
+            self.save_config_silent()
+            return True
+        return False
+    
+    def delete_environment(self, index):
+        """Delete an environment by index"""
+        if "environments" not in self.config:
+            return False
+        if 0 <= index < len(self.config["environments"]):
+            self.config["environments"].pop(index)
+            self.save_config_silent()
+            return True
+        return False
+    
+    def clone_environment(self, index):
+        """Clone an existing environment (for multi-tenancy)"""
+        if "environments" not in self.config:
+            return False
+        if 0 <= index < len(self.config["environments"]):
+            original = self.config["environments"][index].copy()
+            # Modify alias and name for the clone
+            original["alias"] = original["alias"] + "-COPY"
+            original["name"] = original["name"] + " (Copy)"
+            # Try to increment tenant_id if it's numeric
+            try:
+                if original.get("use_default_tenant", False) == False:
+                    tenant_id = original.get("tenant_id", "001")
+                    if tenant_id.isdigit():
+                        original["tenant_id"] = str(int(tenant_id) + 1).zfill(len(tenant_id))
+            except:
+                pass
+            self.config["environments"].append(original)
+            self.save_config_silent()
+            return True
+        return False 
