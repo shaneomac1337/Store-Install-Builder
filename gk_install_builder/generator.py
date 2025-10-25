@@ -319,6 +319,9 @@ class ProjectGenerator:
             # Copy and modify helper files
             self._copy_helper_files(output_dir, config)
             
+            # Generate environments.json if environments are configured
+            self._generate_environments_json(output_dir, config)
+            
             self._show_success(f"Project generated in: {output_dir}")
         except Exception as e:
             self._show_error(f"Failed to generate project: {str(e)}")
@@ -347,6 +350,60 @@ class ProjectGenerator:
             print(f"Warning: Failed to copy certificate: {str(e)}")
         
         return False
+    
+    def _generate_environments_json(self, output_dir, config):
+        """Generate environments.json file for multi-environment support"""
+        try:
+            environments = config.get("environments", [])
+            
+            if not environments:
+                print("No environments configured, skipping environments.json generation")
+                return
+            
+            print(f"\nGenerating environments.json with {len(environments)} environment(s)...")
+            
+            # Create helper/environments directory
+            env_dir = os.path.join(output_dir, "helper", "environments")
+            os.makedirs(env_dir, exist_ok=True)
+            
+            # Prepare environments data with base64-encoded passwords
+            processed_envs = []
+            for env in environments:
+                processed_env = {
+                    "alias": env.get("alias", ""),
+                    "name": env.get("name", ""),
+                    "base_url": env.get("base_url", ""),
+                    "tenant_id": env.get("tenant_id", config.get("tenant_id", "001")) if not env.get("use_default_tenant", False) else config.get("tenant_id", "001"),
+                    "use_default_tenant": env.get("use_default_tenant", False)
+                }
+                
+                # Base64 encode passwords for basic security
+                oauth_password = env.get("launchpad_oauth2", "")
+                if oauth_password:
+                    processed_env["launchpad_oauth2_b64"] = base64.b64encode(oauth_password.encode()).decode()
+                
+                eh_username = env.get("eh_launchpad_username", "")
+                if eh_username:
+                    processed_env["eh_launchpad_username"] = eh_username
+                
+                eh_password = env.get("eh_launchpad_password", "")
+                if eh_password:
+                    processed_env["eh_launchpad_password_b64"] = base64.b64encode(eh_password.encode()).decode()
+                
+                processed_envs.append(processed_env)
+                print(f"  - {env.get('alias')}: {env.get('name')} ({env.get('base_url')})")
+            
+            # Write environments.json
+            env_json_path = os.path.join(env_dir, "environments.json")
+            with open(env_json_path, 'w') as f:
+                json.dump(processed_envs, f, indent=2)
+            
+            print(f"Generated environments.json at: {env_json_path}")
+            
+        except Exception as e:
+            print(f"Warning: Failed to generate environments.json: {str(e)}")
+            import traceback
+            print(f"Error details: {traceback.format_exc()}")
 
     def _generate_gk_install(self, output_dir, config):
         """Generate GKInstall script with replaced values based on platform"""
