@@ -143,17 +143,46 @@ select_environment() {
     return 0
   fi
   
-  # Priority 2: File detection (gk_env.txt in script directory)
-  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local env_file="$script_dir/gk_env.txt"
+  # Priority 2: File detection from .station files
+  echo "[2] File Detection: Checking for environment in .station file..." >&2
   
-  if [ -f "$env_file" ]; then
-    local file_env=$(cat "$env_file" | tr -d '\r\n' | xargs)
-    if [ -n "$file_env" ]; then
-      echo "Detected environment from gk_env.txt: $file_env" >&2
-      echo "$environments" | jq --arg alias "$file_env" '.environments[] | select(.alias == $alias)'
-      return 0
+  # Determine station filename based on component type
+  local station_filename=""
+  case "$COMPONENT_TYPE" in
+    'POS') station_filename="POS.station" ;;
+    'WDM') station_filename="WDM.station" ;;
+    'FLOW-SERVICE') station_filename="FLOW-SERVICE.station" ;;
+    'LPA-SERVICE') station_filename="LPA.station" ;;
+    'STOREHUB-SERVICE') station_filename="SH.station" ;;
+  esac
+  
+  if [ -n "$station_filename" ]; then
+    local stations_dir="/usr/local/gkretail/stations"
+    local station_file="$stations_dir/$station_filename"
+    
+    if [ -f "$station_file" ]; then
+      echo "    Checking station file: $station_file" >&2
+      
+      # Look for Environment= line in station file
+      if grep -q "^Environment=" "$station_file" 2>/dev/null; then
+        local file_env=$(grep "^Environment=" "$station_file" | cut -d'=' -f2 | tr -d '\r\n' | xargs)
+        if [ -n "$file_env" ]; then
+          echo "    Found Environment=$file_env in station file" >&2
+          local selected=$(echo "$environments" | jq --arg alias "$file_env" '.environments[] | select(.alias == $alias)')
+          if [ -n "$selected" ]; then
+            echo "    ✓ Matched environment" >&2
+            echo "$selected"
+            return 0
+          fi
+        fi
+      else
+        echo "    No Environment= line found in station file" >&2
+      fi
+    else
+      echo "    Station file not found: $station_file" >&2
     fi
+  else
+    echo "    ComponentType not yet determined, skipping station file check" >&2
   fi
   
   # Priority 3: Interactive prompt
