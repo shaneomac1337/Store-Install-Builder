@@ -618,27 +618,21 @@ class EnvironmentManager:
                     traceback.print_exc()
             
             def detect_projects():
-                """Show all available projects"""
+                """Show project selection dialog"""
                 try:
                     client = kp_dialog.client
-                    status_var.set("Retrieving project list...")
+                    status_var.set("Retrieving project list from KeePass...")
                     kp_dialog.update_idletasks()
                     
                     # Get projects
                     projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
                     folder_structure = client.get_folder(projects_folder_id)
                     
-                    print(f"DEBUG: Folder structure type: {type(folder_structure)}")
-                    if isinstance(folder_structure, dict):
-                        print(f"DEBUG: Folder keys: {list(folder_structure.keys())}")
-                        print(f"DEBUG: Folder name: {folder_structure.get('Name')}")
-                        children = folder_structure.get('Children', [])
-                        print(f"DEBUG: Number of direct children: {len(children)}")
-                        if children:
-                            print(f"DEBUG: First child names: {[c.get('Name') for c in children[:5]]}")
+                    status_var.set("Processing project folders...")
+                    kp_dialog.update_idletasks()
                     
-                    # Don't use get_subfolders for Projects folder - it has wrapper detection logic
-                    # that doesn't apply here. Just get direct children.
+                    # Get direct children
+                    children = folder_structure.get('Children', [])
                     projects = []
                     for child in children:
                         projects.append({
@@ -647,21 +641,111 @@ class EnvironmentManager:
                         })
                     projects = sorted(projects, key=lambda x: x['name'])
                     
-                    print(f"DEBUG: Projects found: {len(projects)}")
-                    if projects:
-                        print(f"DEBUG: First few projects: {[p.get('name') for p in projects[:5]]}")
-                    
                     if not projects:
                         status_var.set("No projects found!")
                         return
                     
-                    status_var.set(f"Found {len(projects)} projects")
+                    status_var.set(f"Found {len(projects)} projects. Preparing list...")
+                    kp_dialog.update_idletasks()
                     
-                    # Simple selection - just enable environment selection
-                    get_password_btn.configure(state="normal")
+                    # Create project selection dialog
+                    proj_dialog = ctk.CTkToplevel(kp_dialog)
+                    proj_dialog.title("Select Project")
+                    proj_dialog.geometry("400x600")
+                    proj_dialog.transient(kp_dialog)
+                    
+                    proj_dialog.update_idletasks()
+                    proj_dialog.deiconify()
+                    proj_dialog.wait_visibility()
+                    proj_dialog.lift()
+                    proj_dialog.focus_force()
+                    
+                    # Center
+                    x = kp_dialog.winfo_x() + (kp_dialog.winfo_width() // 2) - 200
+                    y = kp_dialog.winfo_y() + (kp_dialog.winfo_height() // 2) - 300
+                    proj_dialog.geometry(f"+{x}+{y}")
+                    proj_dialog.grab_set()
+                    
+                    proj_dialog.protocol("WM_DELETE_WINDOW", proj_dialog.destroy)
+                    
+                    # Label
+                    ctk.CTkLabel(proj_dialog, text="Available Projects:", font=("Helvetica", 14, "bold")).pack(padx=20, pady=(10, 5))
+                    
+                    # Filter
+                    filter_frame = ctk.CTkFrame(proj_dialog)
+                    filter_frame.pack(fill="x", padx=20, pady=5)
+                    
+                    ctk.CTkLabel(filter_frame, text="Filter:").pack(side="left", padx=(0, 5))
+                    filter_var = tk.StringVar()
+                    filter_entry = ctk.CTkEntry(filter_frame, textvariable=filter_var)
+                    filter_entry.pack(side="left", fill="x", expand=True)
+                    
+                    azr_only_var = tk.BooleanVar(value=True)
+                    azr_checkbox = ctk.CTkCheckBox(filter_frame, text="AZR only", variable=azr_only_var, command=lambda: update_list())
+                    azr_checkbox.pack(side="left", padx=5)
+                    
+                    # Projects frame
+                    proj_frame = ctk.CTkScrollableFrame(proj_dialog, height=300)
+                    proj_frame.pack(fill="both", expand=True, padx=20, pady=10)
+                    
+                    def update_list(*args):
+                        for widget in proj_frame.winfo_children():
+                            widget.destroy()
+                        
+                        filter_text = filter_var.get().lower()
+                        azr_only = azr_only_var.get()
+                        
+                        for project in projects:
+                            pname = project['name']
+                            if (filter_text in pname.lower()) and (not azr_only or pname.startswith("AZR-")):
+                                btn = ctk.CTkButton(proj_frame, text=pname, command=lambda p=project: select_proj(p))
+                                btn.pack(fill="x", pady=2)
+                    
+                    def select_proj(project):
+                        status_var.set(f"Loading {project['name']}...")
+                        kp_dialog.update_idletasks()
+                        
+                        try:
+                            folder_contents = client.get_folder_by_id(project['id'], recurse_level=2)
+                            
+                            from gk_install_builder.main import GKInstallBuilder as Builder
+                            instance = Builder(None)
+                            subfolders = instance.get_subfolders(folder_contents)
+                            
+                            env_values = [f['name'] for f in subfolders] if (subfolders and isinstance(subfolders[0], dict)) else subfolders
+                            filtered = [e for e in env_values if not e.startswith("INFRA-")]
+                            
+                            env_combo.configure(values=filtered, state="normal")
+                            
+                            # Auto-select environment
+                            base_url = entries["base_url"].get().strip()
+                            detected = "TEST"
+                            if base_url and "." in base_url:
+                                parts = base_url.split(".")
+                                if parts[0]:
+                                    detected = parts[0].upper()
+                            
+                            if detected in filtered:
+                                env_var.set(detected)
+                            elif filtered:
+                                env_var.set(filtered[0])
+                            
+                            kp_dialog.folder_contents = folder_contents
+                            kp_dialog.selected_project = project['name']
+                            
+                            get_password_btn.configure(state="normal")
+                            proj_dialog.destroy()
+                            status_var.set(f"Selected: {project['name']} ({len(filtered)} envs)")
+                        except Exception as e:
+                            status_var.set(f"Error: {str(e)}")
+                    
+                    filter_var.trace_add("write", update_list)
+                    update_list()
                     
                 except Exception as e:
                     status_var.set(f"Error: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
             
             def get_password():
                 """Get password from selected project/environment"""
