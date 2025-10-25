@@ -628,11 +628,20 @@ class EnvironmentManager:
                     projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
                     folder_structure = client.get_folder(projects_folder_id)
                     
+                    print(f"DEBUG: Folder structure type: {type(folder_structure)}")
+                    if isinstance(folder_structure, dict):
+                        print(f"DEBUG: Folder keys: {list(folder_structure.keys())}")
+                        print(f"DEBUG: Folder name: {folder_structure.get('Name')}")
+                        children = folder_structure.get('Children', [])
+                        print(f"DEBUG: Number of direct children: {len(children)}")
+                        if children:
+                            print(f"DEBUG: First child names: {[c.get('Name') for c in children[:5]]}")
+                    
                     from gk_install_builder.main import GKInstallBuilder as Builder
                     instance = Builder(None)
                     projects = instance.get_subfolders(folder_structure)
                     
-                    print(f"DEBUG: Projects found: {len(projects)}")
+                    print(f"DEBUG: Projects found by get_subfolders: {len(projects)}")
                     if projects:
                         print(f"DEBUG: First few projects: {[p.get('name') for p in projects[:5]]}")
                     
