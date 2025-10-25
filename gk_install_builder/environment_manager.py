@@ -637,20 +637,17 @@ class EnvironmentManager:
                         if children:
                             print(f"DEBUG: First child names: {[c.get('Name') for c in children[:5]]}")
                     
-                    from gk_install_builder.main import GKInstallBuilder as Builder
-                    instance = Builder(None)
+                    # Don't use get_subfolders for Projects folder - it has wrapper detection logic
+                    # that doesn't apply here. Just get direct children.
+                    projects = []
+                    for child in children:
+                        projects.append({
+                            'name': child.get('Name'),
+                            'id': child.get('Id')
+                        })
+                    projects = sorted(projects, key=lambda x: x['name'])
                     
-                    # Check if any children match wrapper patterns
-                    wrapper_matches = []
-                    for child in children[:10]:  # Check first 10
-                        name = child.get('Name', '')
-                        if '-OPOS-' in name or name.endswith('-01') or name.endswith('-02'):
-                            wrapper_matches.append(name)
-                    print(f"DEBUG: Children matching wrapper pattern: {wrapper_matches}")
-                    
-                    projects = instance.get_subfolders(folder_structure)
-                    
-                    print(f"DEBUG: Projects found by get_subfolders: {len(projects)}")
+                    print(f"DEBUG: Projects found: {len(projects)}")
                     if projects:
                         print(f"DEBUG: First few projects: {[p.get('name') for p in projects[:5]]}")
                     
