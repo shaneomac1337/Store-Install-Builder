@@ -3874,8 +3874,160 @@ class GKInstallBuilder:
         tabview.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Create tabs
+        tab_environment = tabview.add("Environment Detection")
         tab_file_detection = tabview.add("File Detection")
         tab_regex = tabview.add("Hostname Detection")
+        
+        # ----- ENVIRONMENT DETECTION TAB -----
+        
+        ctk.CTkLabel(
+            tab_environment,
+            text="Multi-Environment Auto-Detection",
+            font=("Helvetica", 14, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        ctk.CTkLabel(
+            tab_environment,
+            text="Installation scripts automatically detect the correct environment (P, DEV, Q-001, etc.) for multi-tenant deployments.",
+            wraplength=650
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+        
+        # Environment count
+        environments = self.config_manager.get_environments()
+        env_count = len(environments)
+        
+        count_frame = ctk.CTkFrame(tab_environment)
+        count_frame.pack(fill="x", padx=10, pady=10)
+        
+        env_count_label = ctk.CTkLabel(
+            count_frame,
+            text=f"Configured Environments: {env_count}",
+            font=("Helvetica", 12, "bold"),
+            text_color="#4a9eff" if env_count > 0 else "gray"
+        )
+        env_count_label.pack(anchor="w", padx=10, pady=5)
+        
+        if env_count > 0:
+            # Show configured environments
+            env_list_frame = ctk.CTkFrame(count_frame)
+            env_list_frame.pack(fill="x", padx=10, pady=5)
+            
+            ctk.CTkLabel(
+                env_list_frame,
+                text="Available Environments:",
+                font=("Helvetica", 11, "bold")
+            ).pack(anchor="w", padx=5, pady=(5, 2))
+            
+            for env in environments[:5]:  # Show first 5
+                env_text = f"  • {env.get('alias', 'N/A'):10} - {env.get('name', 'N/A'):25} ({env.get('base_url', 'N/A')})"
+                ctk.CTkLabel(
+                    env_list_frame,
+                    text=env_text,
+                    font=("Courier", 10),
+                    text_color="gray70",
+                    anchor="w"
+                ).pack(anchor="w", padx=5, pady=1)
+            
+            if env_count > 5:
+                ctk.CTkLabel(
+                    env_list_frame,
+                    text=f"  ... and {env_count - 5} more",
+                    font=("Courier", 10),
+                    text_color="gray50",
+                    anchor="w"
+                ).pack(anchor="w", padx=5, pady=1)
+            
+            # Link to environment manager
+            ctk.CTkButton(
+                count_frame,
+                text="Open Environment Manager",
+                command=self.open_environment_manager,
+                width=200,
+                fg_color="#2b5f8f",
+                hover_color="#1a4060"
+            ).pack(anchor="w", padx=10, pady=10)
+        else:
+            ctk.CTkLabel(
+                count_frame,
+                text="No environments configured. Configure environments in the Environment Manager.",
+                text_color="orange",
+                wraplength=600
+            ).pack(anchor="w", padx=10, pady=5)
+        
+        # Detection priority explanation
+        priority_frame = ctk.CTkFrame(tab_environment)
+        priority_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            priority_frame,
+            text="Environment Detection Priority (Highest to Lowest):",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+        
+        priorities = [
+            ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
+            ("2️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
+            ("3️⃣ Hostname Detection", "Extracts from computer hostname", "Uses regex patterns to parse hostname (if implemented)"),
+            ("4️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
+        ]
+        
+        for priority, method, description in priorities:
+            priority_item_frame = ctk.CTkFrame(priority_frame)
+            priority_item_frame.pack(fill="x", padx=10, pady=3)
+            
+            ctk.CTkLabel(
+                priority_item_frame,
+                text=priority,
+                font=("Helvetica", 11, "bold"),
+                width=150,
+                anchor="w"
+            ).pack(side="left", padx=5)
+            
+            detail_frame = ctk.CTkFrame(priority_item_frame, fg_color="transparent")
+            detail_frame.pack(side="left", fill="x", expand=True, padx=5)
+            
+            ctk.CTkLabel(
+                detail_frame,
+                text=method,
+                font=("Courier", 10),
+                text_color="#4a9eff",
+                anchor="w"
+            ).pack(anchor="w")
+            
+            ctk.CTkLabel(
+                detail_frame,
+                text=description,
+                font=("Helvetica", 9),
+                text_color="gray60",
+                anchor="w"
+            ).pack(anchor="w")
+        
+        # File format example for environment
+        env_format_frame = ctk.CTkFrame(tab_environment)
+        env_format_frame.pack(fill="x", padx=10, pady=10)
+        
+        ctk.CTkLabel(
+            env_format_frame,
+            text="Station File Format Example (with Environment):",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        env_example_text = """StoreID=1234
+WorkstationID=101
+Environment=P"""
+        
+        env_example_textbox = ctk.CTkTextbox(env_format_frame, height=70, width=650)
+        env_example_textbox.pack(fill="x", padx=10, pady=5)
+        env_example_textbox.insert("1.0", env_example_text)
+        env_example_textbox.configure(state="disabled")
+        
+        ctk.CTkLabel(
+            env_format_frame,
+            text="💡 Tip: Add 'Environment=<alias>' line to your station files for automatic environment detection!",
+            font=("Helvetica", 10),
+            text_color="#4a9eff",
+            wraplength=630
+        ).pack(anchor="w", padx=10, pady=(5, 10))
         
         # ----- FILE DETECTION TAB -----
         
