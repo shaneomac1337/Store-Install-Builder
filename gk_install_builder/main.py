@@ -597,7 +597,7 @@ class GKInstallBuilder:
         self.launcher_editor = LauncherSettingsEditor(self.root, self.config_manager, self.project_generator)
         
         # Create environment manager
-        self.environment_manager = EnvironmentManager(self.root, self.config_manager)
+        self.environment_manager = EnvironmentManager(self.root, self.config_manager, self)
         
         # Create the GUI
         self.create_gui()

@@ -5,9 +5,10 @@ import tkinter as tk
 class EnvironmentManager:
     """Manager for multi-environment configuration"""
     
-    def __init__(self, parent, config_manager):
+    def __init__(self, parent, config_manager, app_instance=None):
         self.parent = parent
         self.config_manager = config_manager
+        self.app_instance = app_instance
         self.window = None
         self.environments_listbox = None
         self.selected_index = None
@@ -77,9 +78,9 @@ class EnvironmentManager:
         
         def open_keeserver_dialog():
             """Open KeeServer connection dialog"""
-            # Import the main app instance to call its method
-            if hasattr(self.parent, 'open_keepass_dialog'):
-                self.parent.open_keepass_dialog()
+            # Use the app instance to call its method
+            if self.app_instance and hasattr(self.app_instance, 'open_keepass_dialog'):
+                self.app_instance.open_keepass_dialog()
                 # Update button after dialog closes
                 self.window.after(500, update_keeserver_button)
             else:
