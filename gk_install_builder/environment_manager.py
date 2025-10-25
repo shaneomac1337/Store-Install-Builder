@@ -500,9 +500,10 @@ class EnvironmentManager:
             get_password_btn.pack(pady=5)
             
             def connect_to_keepass():
-            
-            def get_password_directly():
+                """Connect to KeePass and auto-detect environment"""
                 try:
+                    status_var.set("Connecting to KeePass server...")
+                    kp_dialog.update_idletasks()
                     status_var.set("Connecting...")
                     kp_dialog.update_idletasks()
                     
@@ -543,13 +544,25 @@ class EnvironmentManager:
                         password=password_var.get()
                     )
                     
+                    status_var.set("Authentication successful! Saving settings...")
+                    kp_dialog.update_idletasks()
+                    
                     # Save credentials if remember is checked
                     if remember_var.get():
                         GKInstallBuilder.keepass_client = client
                         GKInstallBuilder.keepass_username = username_var.get()
                         GKInstallBuilder.keepass_password = password_var.get()
                     
-                    status_var.set(f"Searching {project_name}/{detected_env}...")
+                    # Store client
+                    kp_dialog.client = client
+                    
+                    status_var.set("Connected to KeePass! Auto-detecting environment...")
+                    kp_dialog.update_idletasks()
+                    
+                    # Auto-detect and enable buttons
+                    detect_projects_btn.configure(state="normal")
+                    
+                    status_var.set(f"Loading...")
                     kp_dialog.update_idletasks()
                     
                     # Get project folder
@@ -562,42 +575,129 @@ class EnvironmentManager:
                     folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
                     
                     if not folder_id:
-                        status_var.set(f"Error: Project '{project_name}' not found")
+                        status_var.set(f"Folder '{project_name}' not found! Click 'Detect Projects' to choose manually.")
                         return
                     
-                    # Get environment
+                    # Get environments
+                    status_var.set("Processing...")
+                    kp_dialog.update_idletasks()
+                    
                     folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
-                    env_folder = None
-                    for folder in instance.get_subfolders(folder_contents):
-                        if isinstance(folder, dict) and folder.get('name') == detected_env:
-                            env_folder = folder
-                            break
+                    subfolders = instance.get_subfolders(folder_contents)
                     
-                    if not env_folder:
-                        status_var.set(f"Error: Environment '{detected_env}' not found")
+                    # Update environment dropdown
+                    env_values = [folder['name'] for folder in subfolders] if isinstance(subfolders[0], dict) else subfolders
+                    filtered_env_values = [env for env in env_values if not env.startswith("INFRA-")]
+                    
+                    env_combo.configure(values=filtered_env_values)
+                    
+                    # Check if detected environment exists
+                    detected_env_exists = detected_env in filtered_env_values
+                    
+                    if filtered_env_values:
+                        if detected_env_exists:
+                            env_var.set(detected_env)
+                        else:
+                            env_var.set(filtered_env_values[0])
+                    
+                    # Store data
+                    kp_dialog.folder_contents = folder_contents
+                    kp_dialog.selected_project = project_name
+                    kp_dialog.folder_structure = folder_structure
+                    
+                    # Update status
+                    status_var.set(f"Environment Autodetected - {project_name} - {env_var.get()}")
+                    
+                    # Enable controls
+                    env_combo.configure(state="normal")
+                    get_password_btn.configure(state="normal")
+                
+                except Exception as e:
+                    status_var.set(f"Error: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+            
+            def detect_projects():
+                """Show all available projects"""
+                try:
+                    client = kp_dialog.client
+                    status_var.set("Retrieving project list...")
+                    kp_dialog.update_idletasks()
+                    
+                    # Get projects
+                    projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
+                    folder_structure = client.get_folder(projects_folder_id)
+                    
+                    from gk_install_builder.main import GKInstallBuilder as Builder
+                    instance = Builder(None)
+                    projects = instance.get_subfolders(folder_structure)
+                    
+                    if not projects:
+                        status_var.set("No projects found!")
                         return
                     
-                    # Get password
-                    env_id = env_folder['id']
-                    env_structure = client.get_folder_by_id(env_id, recurse_level=2)
+                    status_var.set(f"Found {len(projects)} projects")
                     
-                    entry = instance.find_basic_auth_password_entry(env_structure)
+                    # Simple selection - just enable environment selection
+                    get_password_btn.configure(state="normal")
                     
-                    if not entry:
-                        status_var.set("Error: Password not found")
+                except Exception as e:
+                    status_var.set(f"Error: {str(e)}")
+            
+            def get_password():
+                """Get password from selected project/environment"""
+                try:
+                    base_url = entries["base_url"].get().strip()
+                    if not base_url:
+                        status_var.set("Error: Please enter Base URL")
                         return
                     
-                    if isinstance(entry, dict) and 'Id' in entry:
-                        password_url = f"credentials/{entry['Id']}/password"
-                        password = client._make_request('GET', password_url)
+                    # Auto-detect project
+                    project_name = "AZR-CSE"
+                    if "." in base_url:
+                        parts = base_url.split(".")
+                        if len(parts) >= 2 and parts[1]:
+                            detected_project = parts[1].upper()
+                            project_name = f"AZR-{detected_project}"
+                    
+                    environment = env_var.get()
+                    
+                    status_var.set("Retrieving password...")
+                    kp_dialog.update_idletasks()
+                    
+                    oauth_entry.delete(0, 'end')
+                    
+                    client = kp_dialog.client
+                    
+                    if hasattr(kp_dialog, 'folder_contents'):
+                        folder_contents = kp_dialog.folder_contents
                         
-                        # Set password
-                        oauth_entry.delete(0, 'end')
-                        oauth_entry.insert(0, password)
-                        status_var.set(f"Success! Password retrieved.")
-                        kp_dialog.after(1500, on_kp_dialog_close)
-                    else:
-                        status_var.set("Error: Failed to retrieve password")
+                        from gk_install_builder.main import GKInstallBuilder as Builder
+                        instance = Builder(None)
+                        
+                        # Find environment
+                        env_folder = None
+                        for folder in instance.get_subfolders(folder_contents):
+                            if isinstance(folder, dict) and folder.get('name') == environment:
+                                env_folder = folder
+                                break
+                        
+                        if env_folder:
+                            env_id = env_folder['id'] if isinstance(env_folder, dict) else env_folder
+                            env_structure = client.get_folder_by_id(env_id, recurse_level=2)
+                            
+                            entry = instance.find_basic_auth_password_entry(env_structure)
+                            
+                            if entry and isinstance(entry, dict) and 'Id' in entry:
+                                password_url = f"credentials/{entry['Id']}/password"
+                                password = client._make_request('GET', password_url)
+                                
+                                oauth_entry.insert(0, password)
+                                status_var.set(f"Success! Password retrieved for {environment}")
+                                kp_dialog.after(1500, on_kp_dialog_close)
+                                return
+                    
+                    status_var.set("Error: Could not retrieve password")
                 
                 except Exception as e:
                     status_var.set(f"Error: {str(e)}")
