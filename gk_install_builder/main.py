@@ -4190,8 +4190,9 @@ WorkstationID=101"""
         # Checkbox for environment detection
         env_detect_checkbox = ctk.CTkCheckBox(
             env_detection_frame,
-            text="Extract environment prefix from hostname (e.g., 'P', 'Q', 'T')",
+            text="Enable Environment Detection from Hostname",
             variable=self.hostname_env_detection_var,
+            command=self.on_env_detection_toggle,
             onvalue=True,
             offvalue=False
         )
@@ -4200,7 +4201,16 @@ WorkstationID=101"""
         # Explanation label
         ctk.CTkLabel(
             env_detection_frame,
-            text="When enabled, your hostname regex MUST use 3 capture groups:",
+            text="Automatically extracts environment prefix (e.g., 'P', 'Q', 'DEV') from hostname like P1234-101",
+            text_color="gray70",
+            font=("Helvetica", 10),
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 5))
+        
+        ctk.CTkLabel(
+            env_detection_frame,
+            text="When enabled, hostname regex is automatically set to 3-group pattern:",
             text_color="gray70",
             font=("Helvetica", 10, "bold"),
             wraplength=650,
@@ -4243,33 +4253,12 @@ WorkstationID=101"""
         
         ctk.CTkLabel(
             env_detection_frame,
-            text="⚠️ Important: When environment detection is enabled, the regex pattern must have exactly 3 capture groups. Use the test function below to verify your pattern extracts all three values correctly.",
-            text_color="#FF8C00",
-            font=("Helvetica", 10, "italic"),
+            text="💡 Tip: Toggle the checkbox to automatically switch between 2-group and 3-group regex patterns",
+            text_color="#4a9eff",
+            font=("Helvetica", 10),
             wraplength=650,
             justify="left"
-        ).pack(anchor="w", padx=10, pady=(5, 5))
-        
-        # Quick fill button for 3-group pattern
-        quick_fill_frame = ctk.CTkFrame(env_detection_frame, fg_color="transparent")
-        quick_fill_frame.pack(fill="x", padx=10, pady=(0, 10))
-        
-        ctk.CTkButton(
-            quick_fill_frame,
-            text="📝 Use Example 3-Group Pattern",
-            command=self.apply_3group_pattern,
-            width=220,
-            height=28,
-            fg_color="#2b5f8f",
-            hover_color="#1a4060"
-        ).pack(side="left", padx=0)
-        
-        ctk.CTkLabel(
-            quick_fill_frame,
-            text="  (Sets pattern to: ^([A-Z]+)([0-9]+)-([0-9]+)$ with test hostname P1234-101)",
-            text_color="gray60",
-            font=("Helvetica", 9)
-        ).pack(side="left", padx=5)
+        ).pack(anchor="w", padx=10, pady=(5, 10))
         
         # --- Path configuration ---
         # Create a frame for path configuration options
@@ -4717,6 +4706,43 @@ WorkstationID=101"""
             self.base_dir_frame.pack_forget()
             self.custom_paths_frame.pack(fill="x", padx=10, pady=10)
     
+    def on_env_detection_toggle(self):
+        """Handle environment detection checkbox toggle"""
+        if self.hostname_env_detection_var.get():
+            # Environment detection enabled - check if current regex has 3 groups
+            import re
+            
+            # Get current patterns
+            windows_pattern = self.windows_regex_entry.get() if hasattr(self, 'windows_regex_entry') else ""
+            linux_pattern = self.linux_regex_entry.get() if hasattr(self, 'linux_regex_entry') else ""
+            
+            # Count capture groups in current patterns
+            def count_groups(pattern):
+                try:
+                    return re.compile(pattern).groups
+                except:
+                    return 0
+            
+            windows_groups = count_groups(windows_pattern)
+            linux_groups = count_groups(linux_pattern)
+            
+            # If either pattern doesn't have 3 groups, auto-apply 3-group pattern
+            if windows_groups != 3 or linux_groups != 3:
+                from tkinter import messagebox
+                response = messagebox.askyesno(
+                    "Update Regex Pattern?",
+                    "Environment detection requires a 3-group regex pattern.\n\n"
+                    "Current pattern doesn't have 3 groups.\n\n"
+                    "Would you like to automatically update to the example 3-group pattern?\n\n"
+                    "Pattern: ^([A-Z]+)([0-9]+)-([0-9]+)$\n"
+                    "Test Hostname: P1234-101"
+                )
+                if response:
+                    self.apply_3group_pattern()
+        else:
+            # Environment detection disabled - revert to classic 2-group pattern
+            self.apply_classic_2group_pattern()
+    
     def apply_3group_pattern(self):
         """Apply example 3-group regex pattern to both Windows and Linux"""
         three_group_pattern = "^([A-Z]+)([0-9]+)-([0-9]+)$"
@@ -4746,6 +4772,37 @@ WorkstationID=101"""
         messagebox.showinfo(
             "Pattern Applied",
             f"Applied 3-group pattern to both Windows and Linux:\n\nPattern: {three_group_pattern}\nTest Hostname: {test_hostname}\n\nClick 'Test Regex' to verify it extracts:\n• Environment: P\n• Store ID: 1234\n• Workstation ID: 101"
+        )
+    
+    def apply_classic_2group_pattern(self):
+        """Apply classic 2-group regex pattern to both Windows and Linux"""
+        two_group_pattern = "^([0-9]+)-([0-9]+)$"
+        test_hostname = "1234-101"
+        
+        # Update Windows regex
+        if hasattr(self, 'windows_regex_entry'):
+            self.windows_regex_entry.delete(0, 'end')
+            self.windows_regex_entry.insert(0, two_group_pattern)
+        
+        # Update Linux regex  
+        if hasattr(self, 'linux_regex_entry'):
+            self.linux_regex_entry.delete(0, 'end')
+            self.linux_regex_entry.insert(0, two_group_pattern)
+        
+        # Update test hostnames
+        if hasattr(self, 'windows_test_entry'):
+            self.windows_test_entry.delete(0, 'end')
+            self.windows_test_entry.insert(0, test_hostname)
+        
+        if hasattr(self, 'linux_test_entry'):
+            self.linux_test_entry.delete(0, 'end')
+            self.linux_test_entry.insert(0, test_hostname)
+        
+        # Show success message
+        from tkinter import messagebox
+        messagebox.showinfo(
+            "Pattern Reverted",
+            f"Reverted to classic 2-group pattern for both Windows and Linux:\n\nPattern: {two_group_pattern}\nTest Hostname: {test_hostname}\n\nClick 'Test Regex' to verify it extracts:\n• Store ID: 1234\n• Workstation ID: 101"
         )
     
     def browse_base_directory(self):
