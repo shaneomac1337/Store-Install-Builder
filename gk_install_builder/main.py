@@ -1162,13 +1162,22 @@ class GKInstallBuilder:
         if "." in base_url:
             parts = base_url.split(".")
             if len(parts) > 1:
-                # Extract the part after the first dot (index 1) and uppercase it for project code
-                project_code = parts[1].upper()
-                # Use this for prefix detection in system types
-                print(f"Detected project code from URL: {project_code}")
-                
-                # Also use it as the project name if not set
-                extracted_project_name = project_code
+                # Check if this is a product URL (e.g., dev.cloud4retail.co, qa.cloud4retail.co)
+                if parts[1].lower() == "cloud4retail":
+                    # Product URLs - use the first part as the project name and default to GKR
+                    extracted_project_name = parts[0].upper()
+                    project_code = "GKR"
+                    print(f"Detected product URL, using GKR prefix for system types")
+                    print(f"Project name from product URL: {extracted_project_name}")
+                else:
+                    # Customer URLs like dev.cse.cloud4retail.co
+                    # Extract the part after the first dot (index 1) and uppercase it for project code
+                    project_code = parts[1].upper()
+                    # Use this for prefix detection in system types
+                    print(f"Detected project code from URL: {project_code}")
+                    
+                    # Also use it as the project name if not set
+                    extracted_project_name = project_code
         
         # Auto-fill system types based on the detected project code
         if project_code:
