@@ -26,7 +26,6 @@ class EnvironmentManager:
         
         # Make it modal
         self.window.transient(self.parent)
-        self.window.grab_set()
         
         # Center the window
         self.window.update_idletasks()
@@ -149,6 +148,10 @@ class EnvironmentManager:
             command=self.window.destroy
         )
         close_btn.pack(pady=(10, 0))
+        
+        # Set grab after window is fully constructed
+        self.window.update()
+        self.window.grab_set()
     
     def _refresh_environment_list(self):
         """Refresh the environments listbox"""
@@ -290,13 +293,16 @@ class EnvironmentManager:
         dialog.title("Add Environment" if mode == "add" else "Edit Environment")
         dialog.geometry("500x700")
         dialog.transient(self.window)
-        dialog.grab_set()
         
         # Center dialog
         dialog.update_idletasks()
         x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
         y = (dialog.winfo_screenheight() // 2) - (700 // 2)
         dialog.geometry(f"+{x}+{y}")
+        
+        # Wait for window to be visible before grabbing focus
+        dialog.wait_visibility()
+        dialog.grab_set()
         
         # Get existing data if editing
         env_data = {}

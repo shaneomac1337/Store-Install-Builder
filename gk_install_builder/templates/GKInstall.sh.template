@@ -300,14 +300,27 @@ select_environment() {
   fi
   
   # Priority 3: Interactive prompt
+  # Check if environments data is valid before trying to list
+  if [ -z "$environments" ]; then
+    echo "No environments configured, skipping environment selection" >&2
+    return 1
+  fi
+  
   echo "Available environments:" >&2
   if [ "$JQ_AVAILABLE" = true ]; then
-    local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"')
-    echo "$env_list" >&2
+    local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"' 2>/dev/null)
+    if [ -n "$env_list" ]; then
+      echo "$env_list" >&2
+    else
+      echo "No valid environments found" >&2
+      return 1
+    fi
   else
     # Simple fallback list
+    local found_envs=false
     while IFS= read -r line; do
       if [[ "$line" =~ \"alias\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+        found_envs=true
         local alias="${BASH_REMATCH[1]}"
         # Try to find name on next few lines
         local block="$line"
@@ -322,6 +335,11 @@ select_environment() {
         done
       fi
     done <<< "$environments"
+    
+    if [ "$found_envs" = false ]; then
+      echo "No valid environments found" >&2
+      return 1
+    fi
   fi
   echo "" >&2
   read -p "Enter environment alias (or press Enter to skip): " user_env
@@ -1718,7 +1736,7 @@ echo "Launcher properties file created successfully. Launcher will use this for 
 
 # Download or use local Launcher
 if [ "$offline_mode" = false ]; then
-    download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"
+    download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
   echo "Attempting to download Launcher.run from: $download_url"
   
   # Try using curl with progress bar first

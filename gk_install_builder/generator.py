@@ -362,10 +362,10 @@ class ProjectGenerator:
             
             if not environments:
                 print("No environments configured, generating empty environments.json")
-                # Write empty array
+                # Write empty array wrapped in object
                 env_json_path = os.path.join(env_dir, "environments.json")
                 with open(env_json_path, 'w') as f:
-                    json.dump([], f, indent=2)
+                    json.dump({"environments": []}, f, indent=2)
                 print(f"Generated empty environments.json at: {env_json_path}")
                 return
             
@@ -398,10 +398,10 @@ class ProjectGenerator:
                 processed_envs.append(processed_env)
                 print(f"  - {env.get('alias')}: {env.get('name')} ({env.get('base_url')})")
             
-            # Write environments.json
+            # Write environments.json wrapped in object
             env_json_path = os.path.join(env_dir, "environments.json")
             with open(env_json_path, 'w') as f:
-                json.dump(processed_envs, f, indent=2)
+                json.dump({"environments": processed_envs}, f, indent=2)
             
             print(f"Generated environments.json at: {env_json_path}")
             
