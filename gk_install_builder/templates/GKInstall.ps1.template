@@ -4,7 +4,8 @@ param(
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Will be determined by hostname detection or user input
-    [bool]$UseDefaultVersions = @USE_DEFAULT_VERSIONS@
+    [bool]$UseDefaultVersions = @USE_DEFAULT_VERSIONS@,
+    [string]$VersionSource = "@VERSION_SOURCE@"  # FP or CONFIG
 )
 
 # Create a unique log filename based on timestamp
@@ -303,6 +304,85 @@ function Get-DefaultVersions {
     }
 }
 
+# Function to fetch default versions from Config-Service API
+function Get-DefaultVersions-ConfigService {
+    param(
+        [string]$BaseUrl,
+        [string]$TenantId = "001",
+        [hashtable]$SystemTypes
+    )
+
+    try {
+        Write-Host "Fetching default versions from Config-Service API..."
+
+        # Get bearer token from access_token.txt
+        $tokenFile = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+        if (-not (Test-Path $tokenFile)) {
+            Write-Host "Warning: Bearer token file not found at $tokenFile"
+            return $null
+        }
+
+        $bearerToken = Get-Content $tokenFile -Raw
+        if ([string]::IsNullOrWhiteSpace($bearerToken)) {
+            Write-Host "Warning: Bearer token is empty"
+            return $null
+        }
+
+        $bearerToken = $bearerToken.Trim()
+
+        # Prepare headers
+        $headers = @{
+            "authorization" = "Bearer $bearerToken"
+            "content-type" = "application/json"
+        }
+
+        # Initialize versions tracking
+        $versions = @{}
+        $versionSources = @{}
+
+        # API URL
+        $apiUrl = "https://$BaseUrl/api/config/services/rest/infrastructure/v1/versions/search"
+        Write-Host "Using Config-Service API: $apiUrl"
+
+        # Fetch versions for each component
+        foreach ($component in $SystemTypes.Keys) {
+            $systemName = $SystemTypes[$component]
+            Write-Host "Fetching versions for $component (systemName: $systemName)..."
+
+            $body = @{ systemName = $systemName } | ConvertTo-Json
+
+            try {
+                $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -TimeoutSec 30
+
+                if ($response.versionNameList -and $response.versionNameList.Count -gt 0) {
+                    # Take the first version (latest)
+                    $latestVersion = $response.versionNameList[0]
+                    $versions[$component] = $latestVersion
+                    $versionSources[$component] = "Config-Service"
+                    Write-Host "  Found $component`: $latestVersion (available: $($response.versionNameList.Count) versions)"
+                } else {
+                    Write-Host "  No versions found for $component"
+                }
+            } catch {
+                Write-Host "  Warning: Failed to fetch $component`: $($_.Exception.Message)"
+            }
+        }
+
+        Write-Host "Successfully fetched component versions from Config-Service:"
+        foreach ($key in $versions.Keys) {
+            $source = if ($versionSources.ContainsKey($key)) { $versionSources[$key] } else { "Unknown" }
+            Write-Host "  $key`: $($versions[$key]) ($source)"
+        }
+
+        return $versions
+
+    } catch {
+        Write-Host "Warning: Failed to fetch default versions from Config-Service API: $($_.Exception.Message)"
+        Write-Host "Falling back to hardcoded versions..."
+        return $null
+    }
+}
+
 # Update these lines to use the base_url
 $server = $base_url
 $dsg_server = $base_url
@@ -353,7 +433,7 @@ if ($UseDefaultVersions) {
 
             # Form data (same as onboarding.ps1)
             $body = @{
-                username = "1001"
+                username = "@FORM_USERNAME@"
                 password = $formPassword
                 grant_type = "password"
             }
@@ -379,8 +459,28 @@ if ($UseDefaultVersions) {
         Write-Host "Proceeding with existing token..."
     }
 
-    # Fetch default versions from API
-    $defaultVersions = Get-DefaultVersions -BaseUrl $base_url -TenantId $tenantId
+    # Fetch default versions from API based on VersionSource
+    Write-Host "Using VersionSource: $VersionSource"
+    
+    if ($VersionSource -eq "CONFIG") {
+        # Use Config-Service API
+        Write-Host "Fetching versions from Config-Service..."
+        
+        # Prepare system types hashtable
+        $systemTypes = @{
+            "POS" = "@POS_SYSTEM_TYPE@"
+            "WDM" = "@WDM_SYSTEM_TYPE@"
+            "FLOW-SERVICE" = "@FLOW_SERVICE_SYSTEM_TYPE@"
+            "LPA-SERVICE" = "@LPA_SERVICE_SYSTEM_TYPE@"
+            "STOREHUB-SERVICE" = "@STOREHUB_SERVICE_SYSTEM_TYPE@"
+        }
+        
+        $defaultVersions = Get-DefaultVersions-ConfigService -BaseUrl $base_url -TenantId $tenantId -SystemTypes $systemTypes
+    } else {
+        # Use Function Pack (FP/FPD) API (default)
+        Write-Host "Fetching versions from Function Pack (FP/FPD)..."
+        $defaultVersions = Get-DefaultVersions -BaseUrl $base_url -TenantId $tenantId
+    }
 
     if ($defaultVersions -and $defaultVersions.ContainsKey($ComponentType)) {
         $component_version = $defaultVersions[$ComponentType]

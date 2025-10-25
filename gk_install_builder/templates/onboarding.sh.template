@@ -5,7 +5,7 @@ COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 tenant_id="001"
 username="launchpad"
-form_username="1001"
+form_username="@FORM_USERNAME@"
 
 # Process command line options
 while [ $# -gt 0 ]; do

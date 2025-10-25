@@ -479,6 +479,12 @@ class ProjectGenerator:
             # Get tenant ID from config
             tenant_id = config.get("tenant_id", "001")
             
+            # Get version source setting
+            version_source = config.get("default_version_source", "FP")
+            
+            # Get form username (eh_launchpad_username)
+            form_username = config.get("eh_launchpad_username", "1001")
+            
             if platform == "Windows":
                 # Windows-specific replacements
                 replacements = [
@@ -500,6 +506,13 @@ class ProjectGenerator:
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                     ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                     ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
+                    ("@VERSION_SOURCE@", version_source),
+                    ("@FORM_USERNAME@", form_username),
+                    ("@POS_SYSTEM_TYPE@", pos_system_type),
+                    ("@WDM_SYSTEM_TYPE@", wdm_system_type),
+                    ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
+                    ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
+                    ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
                     ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 
@@ -529,6 +542,13 @@ class ProjectGenerator:
                     ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                     ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                     ("@USE_DEFAULT_VERSIONS@", "true" if config.get("use_default_versions", False) else "false"),
+                    ("@VERSION_SOURCE@", version_source),
+                    ("@FORM_USERNAME@", form_username),
+                    ("@POS_SYSTEM_TYPE@", pos_system_type),
+                    ("@WDM_SYSTEM_TYPE@", wdm_system_type),
+                    ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
+                    ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
+                    ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
                     ("station.tenantId=001", f"station.tenantId={tenant_id}")
                 ]
                 

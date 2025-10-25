@@ -6,6 +6,7 @@ COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 storeId=""  # Will be determined by hostname detection or user input
 use_default_versions=@USE_DEFAULT_VERSIONS@
+version_source="@VERSION_SOURCE@"  # FP or CONFIG
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -298,6 +299,61 @@ get_default_versions() {
   fi
 }
 
+# Function to fetch default versions from Config-Service API
+get_default_versions_config_service() {
+  local base_url="$1"
+  local tenant_id="${2:-001}"
+  local system_name="$3"
+  local result_version=""
+
+  echo "Fetching default versions from Config-Service API..." >&2
+
+  # Get bearer token from access_token.txt
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local token_file="$script_dir/helper/tokens/access_token.txt"
+
+  if [ ! -f "$token_file" ]; then
+    echo "Warning: Bearer token file not found at $token_file" >&2
+    return 1
+  fi
+
+  local bearer_token=$(cat "$token_file" | tr -d '\n\r ')
+  if [ -z "$bearer_token" ]; then
+    echo "Warning: Bearer token is empty" >&2
+    return 1
+  fi
+
+  # API URL
+  local api_url="https://$base_url/api/config/services/rest/infrastructure/v1/versions/search"
+  echo "Using Config-Service API: $api_url" >&2
+  echo "Fetching versions for $COMPONENT_TYPE (systemName: $system_name)..." >&2
+
+  # Make POST request
+  local response=$(curl -s -k \
+    -X POST \
+    -H "authorization: Bearer $bearer_token" \
+    -H "content-type: application/json" \
+    -d "{\"systemName\":\"$system_name\"}" \
+    "$api_url")
+
+  if [ $? -eq 0 ] && [ -n "$response" ]; then
+    # Extract first version from versionNameList array
+    result_version=$(echo "$response" | grep -o '"versionNameList":\["[^"]*"' | sed 's/.*"versionNameList":\["\([^"]*\)".*/\1/')
+
+    if [ -n "$result_version" ]; then
+      echo "Found $COMPONENT_TYPE version: $result_version (Config-Service)" >&2
+      echo "$result_version"
+      return 0
+    else
+      echo "Warning: No versions found for $COMPONENT_TYPE" >&2
+    fi
+  else
+    echo "Warning: Config-Service API request failed" >&2
+  fi
+
+  return 1
+}
+
 # Update these lines to use the base_url
 server="$base_url"
 dsg_server="$base_url"
@@ -382,7 +438,7 @@ if [ "$use_default_versions" = true ]; then
       }
 
       # Form data with URL encoding (same as onboarding.sh)
-      form_username="1001"
+      form_username="@FORM_USERNAME@"
       username_encoded=$(urlencode "$form_username")
       password_encoded=$(urlencode "$form_password")
       form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"
@@ -416,8 +472,45 @@ if [ "$use_default_versions" = true ]; then
     echo "Warning: Required credential files not found, proceeding with existing token..."
   fi
 
-  # Fetch default version from API
-  if api_version=$(get_default_versions "$base_url" "$tenant_id") && [ -n "$api_version" ]; then
+  # Fetch default version from API based on version_source
+  echo "Using version_source: $version_source"
+  
+  if [ "$version_source" = "CONFIG" ]; then
+    # Use Config-Service API
+    echo "Fetching versions from Config-Service..."
+    
+    # Determine system name based on component type
+    case "$COMPONENT_TYPE" in
+      'POS')
+        system_name="@POS_SYSTEM_TYPE@"
+        ;;
+      'WDM')
+        system_name="@WDM_SYSTEM_TYPE@"
+        ;;
+      'FLOW-SERVICE')
+        system_name="@FLOW_SERVICE_SYSTEM_TYPE@"
+        ;;
+      'LPA-SERVICE')
+        system_name="@LPA_SERVICE_SYSTEM_TYPE@"
+        ;;
+      'STOREHUB-SERVICE')
+        system_name="@STOREHUB_SERVICE_SYSTEM_TYPE@"
+        ;;
+      *)
+        system_name=""
+        ;;
+    esac
+    
+    if [ -n "$system_name" ]; then
+      api_version=$(get_default_versions_config_service "$base_url" "$tenant_id" "$system_name")
+    fi
+  else
+    # Use Function Pack (FP/FPD) API (default)
+    echo "Fetching versions from Function Pack (FP/FPD)..."
+    api_version=$(get_default_versions "$base_url" "$tenant_id")
+  fi
+  
+  if [ -n "$api_version" ]; then
     component_version="$api_version"
     echo "Using API version for $COMPONENT_TYPE: $component_version"
   else

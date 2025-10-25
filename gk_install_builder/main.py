@@ -1740,23 +1740,40 @@ class GKInstallBuilder:
         self.use_default_versions_var = ctk.BooleanVar(value=self.config_manager.config.get("use_default_versions", False))
         default_versions_checkbox = ctk.CTkCheckBox(
             grid_frame,
-            text="Use Default Versions (fetch from Employee Hub Function Pack)",
+            text="Use Default Versions (fetch from API)",
             variable=self.use_default_versions_var,
             command=self.toggle_default_versions
         )
-        default_versions_checkbox.grid(row=1, column=0, padx=10, pady=5, sticky="w")
-        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the Employee Hub Function Pack API instead of using hardcoded versions")
+        default_versions_checkbox.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+        self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the selected API instead of using hardcoded versions")
+        
+        # Version source selection (FP/FPD vs Config-Service)
+        version_source_label = ctk.CTkLabel(grid_frame, text="API Source:")
+        version_source_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        
+        self.version_source_var = ctk.StringVar(value=self.config_manager.config.get("default_version_source", "FP"))
+        version_source_dropdown = ctk.CTkOptionMenu(
+            grid_frame,
+            variable=self.version_source_var,
+            values=["FP", "CONFIG"],
+            command=self.on_version_source_change,
+            width=200
+        )
+        version_source_dropdown.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.create_tooltip(version_source_label, "Choose which API to use for fetching default versions")
+        self.create_tooltip(version_source_dropdown, "FP = Function Pack (FP/FPD scope)\nCONFIG = Config-Service (versions/search)")
+        self.config_manager.register_entry("default_version_source", self.version_source_var)
 
-        # Test API button next to the checkbox
+        # Test API button
         test_api_button = ctk.CTkButton(
             grid_frame,
             text="Test API",
             command=self.test_default_versions_api,
-            width=80,
+            width=100,
             height=28
         )
-        test_api_button.grid(row=1, column=1, padx=10, pady=5, sticky="w")
-        self.create_tooltip(test_api_button, "Test the Employee Hub Function Pack API to verify it can fetch default component versions")
+        test_api_button.grid(row=2, column=2, padx=10, pady=5, sticky="w")
+        self.create_tooltip(test_api_button, "Test the selected API to verify it can fetch default component versions")
         
         # Get project version from config
         project_version = self.config_manager.config.get("version", "")
@@ -1766,9 +1783,9 @@ class GKInstallBuilder:
 
         # POS Version
         pos_label = ctk.CTkLabel(grid_frame, text="POS Version:")
-        pos_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
+        pos_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
         self.pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.pos_version_entry.grid(row=2, column=1, padx=10, pady=5, sticky="w")
+        self.pos_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
         self.pos_version_entry.insert(0, self.config_manager.config.get("pos_version", project_version))
         self.config_manager.register_entry("pos_version", self.pos_version_entry)
         self.create_tooltip(pos_label, "Version for POS components (applies to all POS system types)")
@@ -1777,9 +1794,9 @@ class GKInstallBuilder:
 
         # WDM Version
         wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
-        wdm_label.grid(row=3, column=0, padx=10, pady=5, sticky="w")
+        wdm_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
         self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.wdm_version_entry.grid(row=3, column=1, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
         self.wdm_version_entry.insert(0, self.config_manager.config.get("wdm_version", project_version))
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
@@ -1788,9 +1805,9 @@ class GKInstallBuilder:
 
         # Flow Service Version
         flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
-        flow_service_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        flow_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.flow_service_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry.insert(0, self.config_manager.config.get("flow_service_version", project_version))
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
@@ -1799,9 +1816,9 @@ class GKInstallBuilder:
 
         # LPA Service Version
         lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
-        lpa_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        lpa_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.lpa_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry.insert(0, self.config_manager.config.get("lpa_service_version", project_version))
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
@@ -1810,9 +1827,9 @@ class GKInstallBuilder:
 
         # StoreHub Service Version
         storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
-        storehub_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        storehub_service_label.grid(row=7, column=0, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.storehub_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry.grid(row=7, column=1, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
         self.version_fields.extend([storehub_service_label, self.storehub_service_version_entry])
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
@@ -1874,6 +1891,13 @@ class GKInstallBuilder:
         if enabled:
             self.force_project_version_update()
 
+    def on_version_source_change(self, choice):
+        """Handle version source dropdown changes"""
+        self.config_manager.config["default_version_source"] = choice
+        self.config_manager.save_config_silent()
+        source_name = "Function Pack (FP/FPD)" if choice == "FP" else "Config-Service"
+        print(f"Version source changed to: {source_name}")
+    
     def toggle_default_versions(self):
         """Toggle the use default versions setting"""
         enabled = self.use_default_versions_var.get()
@@ -1892,7 +1916,9 @@ class GKInstallBuilder:
 
         # Show informational message about what this does
         if enabled:
-            print("Default versions enabled: Installation script will fetch component versions from Employee Hub Function Pack API")
+            source = self.config_manager.config.get("default_version_source", "FP")
+            source_name = "Function Pack (FP/FPD)" if source == "FP" else "Config-Service"
+            print(f"Default versions enabled: Installation script will fetch component versions from {source_name} API")
         else:
             print("Default versions disabled: Installation script will use hardcoded versions from GUI configuration")
 
@@ -1966,33 +1992,109 @@ class GKInstallBuilder:
                     field.grid_remove()  # Hide the field but keep its grid position
 
     def test_default_versions_api(self):
-        """Test the Employee Hub Function Pack API to fetch default versions"""
+        """Test the API to fetch default versions - shows modal to choose method"""
         try:
             # Force save current GUI values to config before testing
-            print("Forcing config update from GUI fields...")
+            print("\n" + "="*80)
+            print("[TEST API] Starting API test...")
+            print("="*80)
+            print("[TEST API] Forcing config update from GUI fields...")
             self.config_manager.update_config_from_entries()
             self.config_manager.save_config_silent()
 
             # Get base URL from config
             base_url = self.config_manager.config.get("base_url", "")
+            print(f"[TEST API] Retrieved base URL: {base_url}")
             if not base_url:
+                print("[TEST API] ERROR: Base URL is empty!")
                 messagebox.showerror("Error", "Please configure the Base URL first")
                 return
+            
+            # Show modal dialog to choose API method
+            self._show_api_method_dialog(base_url)
 
+        except Exception as e:
+            print(f"[TEST API] Unexpected error: {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error", f"An unexpected error occurred: {str(e)}")
+    
+    def _show_api_method_dialog(self, base_url):
+        """Show modal dialog to choose between API methods"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Choose API Method")
+        dialog.geometry("500x250")
+        dialog.transient(self.root)
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (250)
+        y = (dialog.winfo_screenheight() // 2) - (125)
+        dialog.geometry(f"500x250+{x}+{y}")
+        
+        # Title label
+        title_label = ctk.CTkLabel(dialog, text="Select API Method", font=("Arial", 16, "bold"))
+        title_label.pack(pady=20)
+        
+        # Description
+        desc_label = ctk.CTkLabel(
+            dialog, 
+            text="Choose which API to use for fetching component versions:",
+            wraplength=450
+        )
+        desc_label.pack(pady=10)
+        
+        # Button frame
+        button_frame = ctk.CTkFrame(dialog)
+        button_frame.pack(pady=20, padx=20, fill="x")
+        
+        # Function Pack button
+        fp_button = ctk.CTkButton(
+            button_frame,
+            text="Old Way (Function Pack)\n\nUses Employee Hub Function Pack API\nto fetch versions from FP/FPD scope",
+            height=80,
+            command=lambda: [dialog.destroy(), self._test_function_pack_api(base_url)]
+        )
+        fp_button.pack(side="left", expand=True, padx=5)
+        
+        # Config Service button
+        cs_button = ctk.CTkButton(
+            button_frame,
+            text="New Way (Config-Service)\n\nUses Config-Service API to search\nversions by system name",
+            height=80,
+            command=lambda: [dialog.destroy(), self._test_config_service_api(base_url)]
+        )
+        cs_button.pack(side="left", expand=True, padx=5)
+        
+        # Update and grab
+        dialog.update()
+        try:
+            dialog.grab_set()
+        except Exception as e:
+            print(f"[API METHOD] Warning: Could not grab window focus: {e}")
+    
+    def _test_function_pack_api(self, base_url):
+        """Test the Employee Hub Function Pack API to fetch default versions"""
+        try:
             # Show loading message
+            print("[TEST API] Creating loading dialog...")
             loading_dialog = ctk.CTkToplevel(self.root)
-            loading_dialog.title("Testing API")
-            loading_dialog.geometry("400x250")
+            loading_dialog.title("Testing Function Pack API")
+            loading_dialog.geometry("500x300")
             loading_dialog.transient(self.root)
 
             # Center the dialog
             loading_dialog.update_idletasks()
-            x = (loading_dialog.winfo_screenwidth() // 2) - (400 // 2)
-            y = (loading_dialog.winfo_screenheight() // 2) - (250 // 2)
-            loading_dialog.geometry(f"400x250+{x}+{y}")
+            x = (loading_dialog.winfo_screenwidth() // 2) - (500 // 2)
+            y = (loading_dialog.winfo_screenheight() // 2) - (300 // 2)
+            loading_dialog.geometry(f"500x300+{x}+{y}")
 
-            loading_label = ctk.CTkLabel(loading_dialog, text="Testing Employee Hub Function Pack API...\nGenerating authentication token...\nPlease wait...")
-            loading_label.pack(expand=True)
+            loading_label = ctk.CTkLabel(loading_dialog, text="Testing Employee Hub Function Pack API...\nGenerating authentication token...\nPlease wait...", wraplength=450)
+            loading_label.pack(expand=True, padx=20, pady=20)
+
+            # Add a progress info label
+            progress_label = ctk.CTkLabel(loading_dialog, text="Step 1 of 3: Authenticating...", text_color="gray")
+            progress_label.pack(padx=20, pady=10)
 
             # Update the dialog and ensure it's visible before grabbing
             loading_dialog.update()
@@ -2002,13 +2104,15 @@ class GKInstallBuilder:
             try:
                 loading_dialog.grab_set()
             except Exception as e:
-                print(f"Warning: Could not grab window focus: {e}")
+                print(f"[TEST API] Warning: Could not grab window focus: {e}")
                 # Continue without grab - dialog will still work
 
             # Try to generate token using credentials from config
+            print("[TEST API] Step 1 of 3: Generating authentication token...")
             bearer_token = self._generate_api_token(base_url, loading_label, loading_dialog)
 
             if not bearer_token:
+                print("[TEST API] ERROR: Failed to generate bearer token!")
                 loading_dialog.destroy()
                 messagebox.showerror("Authentication Failed",
                     "Could not generate authentication token.\n\n"
@@ -2030,6 +2134,9 @@ class GKInstallBuilder:
                 "gk-tenant-id": "001",
                 "Referer": f"https://{base_url}/employee-hub/app/index.html"
             }
+            print(f"[TEST API] Headers prepared (token length: {len(bearer_token)})")
+            print(f"[TEST API] Authorization: Bearer {bearer_token[:50]}...")  # Log truncated for security
+            print(f"[TEST API] Referer: {headers['Referer']}")
 
             # Initialize versions tracking
             versions = {
@@ -2041,30 +2148,99 @@ class GKInstallBuilder:
             }
 
             # Step 1: Try FP scope first (modified/customized versions)
-            fp_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
-
-            try:
-                fp_response = requests.get(fp_api_url, headers=headers, timeout=30, verify=False)
-                if fp_response.status_code == 200:
+            # Try multiple URL patterns as fallback
+            fp_urls = [
+                f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform",
+                f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+            ]
+            
+            print(f"[TEST API] Step 2 of 3: Fetching FP scope...")
+            fp_response = None
+            fp_success = False
+            
+            for i, fp_api_url in enumerate(fp_urls):
+                print(f"[TEST API] Trying FP URL pattern {i+1}/{len(fp_urls)}: {fp_api_url}")
+                
+                try:
+                    print(f"[TEST API] Making FP scope request...")
+                    print(f"[TEST API] Request method: GET")
+                    if i == 0:  # Only print headers on first attempt to avoid spam
+                        print(f"[TEST API] Request headers:")
+                        for key, value in headers.items():
+                            if key == "authorization":
+                                print(f"[TEST API]   {key}: Bearer {value.replace('Bearer ', '')[:50]}...")
+                            else:
+                                print(f"[TEST API]   {key}: {value}")
+                    
+                    fp_response = requests.get(fp_api_url, headers=headers, timeout=30, verify=False)
+                    print(f"[TEST API] FP response status code: {fp_response.status_code}")
+                    
+                    if fp_response.status_code == 200:
+                        print(f"[TEST API] ✅ FP URL pattern {i+1} worked!")
+                        print(f"[TEST API] FP response headers: {dict(fp_response.headers)}")
+                        print(f"[TEST API] FP response length: {len(fp_response.text)} bytes")
+                        fp_success = True
+                        break
+                    else:
+                        print(f"[TEST API] ❌ FP URL pattern {i+1} returned {fp_response.status_code}")
+                        if i == len(fp_urls) - 1:  # Last attempt, show response
+                            print(f"[TEST API] Response text: {fp_response.text[:500]}")
+                        continue
+                        
+                except Exception as e:
+                    print(f"[TEST API] ❌ FP URL pattern {i+1} failed: {e}")
+                    if i == len(fp_urls) - 1:  # Last attempt failed
+                        print(f"[TEST API] All FP URL patterns failed")
+                    continue
+            
+            if fp_success:
+                try:
+                    print(f"[TEST API] Full response body:")
+                    print(f"[TEST API] {fp_response.text}")
+                    print(f"[TEST API] " + "-"*80)
+                    
                     fp_data = fp_response.json()
+                    print(f"[TEST API] FP response parsed successfully (items: {len(fp_data) if isinstance(fp_data, list) else 'N/A'})")
+                    print(f"[TEST API] FP response type: {type(fp_data)}")
+                    print(f"[TEST API] Raw FP data (first 500 chars): {str(fp_data)[:500]}")
 
                     # Parse FP scope results
-                    for property_item in fp_data:
-                        prop_id = property_item.get("propertyId", "")
-                        value = property_item.get("value", "")
+                    if isinstance(fp_data, list):
+                        for idx, property_item in enumerate(fp_data):
+                            prop_id = property_item.get("propertyId", "")
+                            value = property_item.get("value", "")
+                            print(f"[TEST API]   Item {idx}: propertyId='{prop_id}', value='{value}'")
 
-                        if prop_id == "POSClient_Version" and value:
-                            versions["POS"] = {"value": value, "source": "FP (Modified)"}
-                        elif prop_id == "WDM_Version" and value:
-                            versions["WDM"] = {"value": value, "source": "FP (Modified)"}
-                        elif prop_id == "FlowService_Version" and value:
-                            versions["FLOW-SERVICE"] = {"value": value, "source": "FP (Modified)"}
-                        elif prop_id == "LPA_Version" and value:
-                            versions["LPA-SERVICE"] = {"value": value, "source": "FP (Modified)"}
-                        elif prop_id == "StoreHub_Version" and value:
-                            versions["STOREHUB-SERVICE"] = {"value": value, "source": "FP (Modified)"}
-            except Exception as e:
-                print(f"Warning: FP scope request failed: {e}")
+                            # POS: try Update_Version first, fallback to Version
+                            if prop_id in ["POSClient_Update_Version", "POSClient_Version"] and value:
+                                if versions["POS"]["value"] is None or prop_id == "POSClient_Update_Version":
+                                    versions["POS"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched POS ({prop_id}): {value}")
+                            # WDM: try Version first, fallback to Update_Version
+                            elif prop_id in ["WDM_Version", "WDM_Update_Version"] and value:
+                                if versions["WDM"]["value"] is None or prop_id == "WDM_Version":
+                                    versions["WDM"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched WDM ({prop_id}): {value}")
+                            # FlowService: try Version first, fallback to Update_Version
+                            elif prop_id in ["FlowService_Version", "FlowService_Update_Version"] and value:
+                                if versions["FLOW-SERVICE"]["value"] is None or prop_id == "FlowService_Version":
+                                    versions["FLOW-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched FlowService ({prop_id}): {value}")
+                            # LPA: try Version first, fallback to Update_Version
+                            elif prop_id in ["LPA_Version", "LPA_Update_Version"] and value:
+                                if versions["LPA-SERVICE"]["value"] is None or prop_id == "LPA_Version":
+                                    versions["LPA-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched LPA ({prop_id}): {value}")
+                            # StoreHub: try Update_Version first, fallback to Version
+                            elif prop_id in ["SH_Update_Version", "StoreHub_Version"] and value:
+                                if versions["STOREHUB-SERVICE"]["value"] is None or prop_id == "SH_Update_Version":
+                                    versions["STOREHUB-SERVICE"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched StoreHub ({prop_id}): {value}")
+                    else:
+                        print(f"[TEST API] ERROR: FP response is not a list, it's a {type(fp_data)}")
+                except Exception as json_err:
+                    print(f"[TEST API] ERROR parsing FP JSON: {json_err}")
+                    print(f"[TEST API] Response text: {fp_response.text[:500]}")
 
             # Step 2: For components not found in FP, try FPD scope (default versions)
             missing_components = [comp for comp, data in versions.items() if data["value"] is None]
@@ -2073,11 +2249,35 @@ class GKInstallBuilder:
                 loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching missing components (FPD scope)...\nPlease wait...")
                 loading_dialog.update()
 
-                fpd_api_url = f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+                # Try multiple URL patterns for FPD as well
+                fpd_urls = [
+                    f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform",
+                    f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+                ]
+                
+                fpd_response = None
+                fpd_success = False
+                
+                for i, fpd_api_url in enumerate(fpd_urls):
+                    print(f"[TEST API] Trying FPD URL pattern {i+1}/{len(fpd_urls)}: {fpd_api_url}")
+                    
+                    try:
+                        fpd_response = requests.get(fpd_api_url, headers=headers, timeout=30, verify=False)
+                        print(f"[TEST API] FPD response status code: {fpd_response.status_code}")
+                        
+                        if fpd_response.status_code == 200:
+                            print(f"[TEST API] ✅ FPD URL pattern {i+1} worked!")
+                            fpd_success = True
+                            break
+                        else:
+                            print(f"[TEST API] ❌ FPD URL pattern {i+1} returned {fpd_response.status_code}")
+                            continue
+                    except Exception as e:
+                        print(f"[TEST API] ❌ FPD URL pattern {i+1} failed: {e}")
+                        continue
 
-                try:
-                    fpd_response = requests.get(fpd_api_url, headers=headers, timeout=30, verify=False)
-                    if fpd_response.status_code == 200:
+                if fpd_success:
+                    try:
                         fpd_data = fpd_response.json()
 
                         # Parse FPD scope results for missing components only
@@ -2085,22 +2285,33 @@ class GKInstallBuilder:
                             prop_id = property_item.get("propertyId", "")
                             value = property_item.get("value", "")
 
-                            if prop_id == "POSClient_Version" and value and versions["POS"]["value"] is None:
+                            # POS: try Update_Version first, fallback to Version
+                            if prop_id in ["POSClient_Update_Version", "POSClient_Version"] and value and versions["POS"]["value"] is None:
                                 versions["POS"] = {"value": value, "source": "FPD (Default)"}
-                            elif prop_id == "WDM_Version" and value and versions["WDM"]["value"] is None:
+                                print(f"[TEST API]     -> Matched POS ({prop_id}): {value}")
+                            # WDM: try Version first, fallback to Update_Version
+                            elif prop_id in ["WDM_Version", "WDM_Update_Version"] and value and versions["WDM"]["value"] is None:
                                 versions["WDM"] = {"value": value, "source": "FPD (Default)"}
-                            elif prop_id == "FlowService_Version" and value and versions["FLOW-SERVICE"]["value"] is None:
+                                print(f"[TEST API]     -> Matched WDM ({prop_id}): {value}")
+                            # FlowService: try Version first, fallback to Update_Version
+                            elif prop_id in ["FlowService_Version", "FlowService_Update_Version"] and value and versions["FLOW-SERVICE"]["value"] is None:
                                 versions["FLOW-SERVICE"] = {"value": value, "source": "FPD (Default)"}
-                            elif prop_id == "LPA_Version" and value and versions["LPA-SERVICE"]["value"] is None:
+                                print(f"[TEST API]     -> Matched FlowService ({prop_id}): {value}")
+                            # LPA: try Version first, fallback to Update_Version
+                            elif prop_id in ["LPA_Version", "LPA_Update_Version"] and value and versions["LPA-SERVICE"]["value"] is None:
                                 versions["LPA-SERVICE"] = {"value": value, "source": "FPD (Default)"}
-                            elif prop_id == "StoreHub_Version" and value and versions["STOREHUB-SERVICE"]["value"] is None:
+                                print(f"[TEST API]     -> Matched LPA ({prop_id}): {value}")
+                            # StoreHub: try Update_Version first, fallback to Version
+                            elif prop_id in ["SH_Update_Version", "StoreHub_Version"] and value and versions["STOREHUB-SERVICE"]["value"] is None:
                                 versions["STOREHUB-SERVICE"] = {"value": value, "source": "FPD (Default)"}
-                except Exception as e:
-                    print(f"Warning: FPD scope request failed: {e}")
+                                print(f"[TEST API]     -> Matched StoreHub ({prop_id}): {value}")
+                    except Exception as e:
+                        print(f"Warning: FPD scope request failed: {e}")
 
             loading_dialog.destroy()
 
             # Show results with status and source for each component
+            print(f"[TEST API] Test complete. Processing results...")
             result_text = "✅ API Test Successful!\n\nComponent Version Status:\n\n"
 
             found_count = 0
@@ -2108,8 +2319,10 @@ class GKInstallBuilder:
                 if data["value"]:
                     result_text += f"✅ {component}: {data['value']} ({data['source']})\n"
                     found_count += 1
+                    print(f"[TEST API] ✅ {component}: {data['value']} ({data['source']})")
                 else:
                     result_text += f"❌ {component}: Not Found\n"
+                    print(f"[TEST API] ❌ {component}: Not Found")
 
             result_text += f"\n📊 Summary: {found_count}/5 components found"
             result_text += f"\n🔍 Search Strategy: FP scope first, FPD scope for missing components"
@@ -2117,6 +2330,9 @@ class GKInstallBuilder:
             if found_count == 0:
                 result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
 
+            print(f"[TEST API] " + "="*80)
+            print(f"[TEST API] SUMMARY: {found_count}/5 components found")
+            print(f"[TEST API] " + "="*80)
             messagebox.showinfo("API Test Results", result_text)
 
         except requests.exceptions.RequestException as e:
@@ -2140,10 +2356,21 @@ class GKInstallBuilder:
             loading_dialog.update()
 
             # Get the correct credentials from config
-            basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")
-            form_password = self.config_manager.config.get("eh_launchpad_password", "")
+            # Note: These come from the Security Configuration section
+            basic_auth_password = self.config_manager.config.get("launchpad_oauth2", "")  # Basic Auth password (for launchpad:password)
+            form_username = self.config_manager.config.get("eh_launchpad_username", "")  # Form username (e.g., gk01ag)
+            form_password = self.config_manager.config.get("eh_launchpad_password", "")  # Form password (e.g., gk12345)
+            
+            print(f"[TOKEN GEN] basic_auth_password present: {bool(basic_auth_password)} (length: {len(basic_auth_password) if basic_auth_password else 0})")
+            print(f"[TOKEN GEN] form_username present: {bool(form_username)} (length: {len(form_username) if form_username else 0})")
+            print(f"[TOKEN GEN] form_password present: {bool(form_password)} (length: {len(form_password) if form_password else 0})")
+            print(f"[TOKEN GEN] Config keys: {list(self.config_manager.config.keys())}")
 
-            if not basic_auth_password or not form_password:
+            if not basic_auth_password or not form_username or not form_password:
+                print(f"[TOKEN GEN] ERROR: Missing credentials!")
+                print(f"[TOKEN GEN]   launchpad_oauth2: {bool(basic_auth_password)}")
+                print(f"[TOKEN GEN]   eh_launchpad_username: {bool(form_username)}")
+                print(f"[TOKEN GEN]   eh_launchpad_password: {bool(form_password)}")
                 return None
 
             # Handle both base64 encoded and plain text passwords
@@ -2166,7 +2393,7 @@ class GKInstallBuilder:
             # Prepare form data
             import urllib.parse
             form_data_dict = {
-                'username': '1001',
+                'username': form_username,  # Use the username from config (e.g., gk01ag)
                 'password': form_password,
                 'grant_type': 'password'
             }
@@ -2186,6 +2413,11 @@ class GKInstallBuilder:
                 'Authorization': f'Basic {auth_b64}',
                 'Content-Type': 'application/x-www-form-urlencoded'
             }
+            
+            print(f"[TOKEN GEN] Token URL: {token_url}")
+            print(f"[TOKEN GEN] Auth header: Basic {auth_b64[:50]}...")
+            print(f"[TOKEN GEN] Form data keys: {list(form_data_dict.keys())}")
+            print(f"[TOKEN GEN] Form data (encoded): {form_data[:100]}...")
 
             # Update loading message
             loading_label.configure(text="Requesting OAuth token...\nPlease wait...")
@@ -2195,21 +2427,183 @@ class GKInstallBuilder:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+            print(f"[TOKEN GEN] Sending POST request...")
             response = requests.post(token_url, headers=headers, data=form_data, timeout=30, verify=False)
+            
+            print(f"[TOKEN GEN] Token response status: {response.status_code}")
+            print(f"[TOKEN GEN] Token response text: {response.text[:500]}")
+            print(f"[TOKEN GEN] Token response headers: {dict(response.headers)}")
 
             if response.status_code == 200:
                 try:
                     token_data = response.json()
                     access_token = token_data.get('access_token')
                     if access_token:
+                        print(f"[TOKEN GEN] ✅ Token generated successfully (length: {len(access_token)})")
                         return access_token
-                except Exception:
+                    else:
+                        print(f"[TOKEN GEN] ERROR: No access_token in response")
+                except Exception as e:
+                    print(f"[TOKEN GEN] ERROR parsing token response: {e}")
                     pass
+            else:
+                print(f"[TOKEN GEN] ERROR: Non-200 status code: {response.status_code}")
 
+            print(f"[TOKEN GEN] Returning None - token generation failed")
             return None
 
-        except Exception:
+        except Exception as e:
+            print(f"[TOKEN GEN] EXCEPTION in _generate_api_token: {e}")
+            import traceback
+            print(f"[TOKEN GEN] Traceback: {traceback.format_exc()}")
             return None
+    
+    def _test_config_service_api(self, base_url):
+        """Test the Config-Service API to fetch versions by system name"""
+        try:
+            # Show loading message
+            print("[CONFIG API] Creating loading dialog...")
+            loading_dialog = ctk.CTkToplevel(self.root)
+            loading_dialog.title("Testing Config-Service API")
+            loading_dialog.geometry("500x300")
+            loading_dialog.transient(self.root)
+
+            # Center the dialog
+            loading_dialog.update_idletasks()
+            x = (loading_dialog.winfo_screenwidth() // 2) - (250)
+            y = (loading_dialog.winfo_screenheight() // 2) - (150)
+            loading_dialog.geometry(f"500x300+{x}+{y}")
+
+            loading_label = ctk.CTkLabel(loading_dialog, text="Testing Config-Service API...\nGenerating authentication token...\nPlease wait...", wraplength=450)
+            loading_label.pack(expand=True, padx=20, pady=20)
+
+            # Update the dialog and ensure it's visible
+            loading_dialog.update()
+            loading_dialog.deiconify()
+
+            # Try to grab focus
+            try:
+                loading_dialog.grab_set()
+            except Exception as e:
+                print(f"[CONFIG API] Warning: Could not grab window focus: {e}")
+
+            # Generate token
+            print("[CONFIG API] Step 1: Generating authentication token...")
+            bearer_token = self._generate_api_token(base_url, loading_label, loading_dialog)
+
+            if not bearer_token:
+                print("[CONFIG API] ERROR: Failed to generate bearer token!")
+                loading_dialog.destroy()
+                messagebox.showerror("Authentication Failed",
+                    "Could not generate authentication token.\n\n"
+                    "💡 HINT: Please ensure all Security Configuration details are filled in first.")
+                return
+
+            # Update loading message
+            loading_label.configure(text="Testing Config-Service API...\nFetching versions for all components...\nPlease wait...")
+            loading_dialog.update()
+
+            # Prepare headers
+            headers = {
+                "authorization": f"Bearer {bearer_token}",
+                "content-type": "application/json"
+            }
+            print(f"[CONFIG API] Headers prepared (token length: {len(bearer_token)})")
+
+            # Get system types from config
+            system_types = {
+                "POS": self.config_manager.config.get("pos_system_type", "GKR-OPOS-CLOUD"),
+                "WDM": self.config_manager.config.get("wdm_system_type", "CSE-wdm"),
+                "FLOW-SERVICE": self.config_manager.config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD"),
+                "LPA-SERVICE": self.config_manager.config.get("lpa_service_system_type", "CSE-lps-lpa"),
+                "STOREHUB-SERVICE": self.config_manager.config.get("storehub_service_system_type", "CSE-sh-cloud")
+            }
+
+            print(f"[CONFIG API] System types: {system_types}")
+
+            # Initialize versions tracking
+            versions = {}
+            
+            # Disable SSL warnings
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+            # API URL
+            api_url = f"https://{base_url}/api/config/services/rest/infrastructure/v1/versions/search"
+            print(f"[CONFIG API] API URL: {api_url}")
+
+            # Fetch versions for each component
+            for component, system_name in system_types.items():
+                print(f"[CONFIG API] Fetching versions for {component} (systemName: {system_name})...")
+                
+                payload = {"systemName": system_name}
+                
+                try:
+                    response = requests.post(api_url, headers=headers, json=payload, timeout=30, verify=False)
+                    print(f"[CONFIG API] {component} response status: {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        data = response.json()
+                        version_list = data.get("versionNameList", [])
+                        
+                        if version_list:
+                            # Take the first version (latest)
+                            latest_version = version_list[0]
+                            versions[component] = {"value": latest_version, "source": "Config-Service", "all_versions": version_list}
+                            print(f"[CONFIG API] ✅ {component}: {latest_version} (available: {len(version_list)} versions)")
+                        else:
+                            versions[component] = {"value": None, "source": None, "all_versions": []}
+                            print(f"[CONFIG API] ❌ {component}: No versions found")
+                    else:
+                        print(f"[CONFIG API] ❌ {component} returned status {response.status_code}: {response.text[:200]}")
+                        versions[component] = {"value": None, "source": None, "all_versions": []}
+                        
+                except Exception as e:
+                    print(f"[CONFIG API] ❌ {component} request failed: {e}")
+                    versions[component] = {"value": None, "source": None, "all_versions": []}
+
+            loading_dialog.destroy()
+
+            # Show results
+            print(f"[CONFIG API] Test complete. Processing results...")
+            result_text = "✅ Config-Service API Test Successful!\n\nComponent Version Status:\n\n"
+
+            found_count = 0
+            for component, data in versions.items():
+                if data["value"]:
+                    all_versions_str = ", ".join(data.get("all_versions", [])[:3])  # Show first 3 versions
+                    if len(data.get("all_versions", [])) > 3:
+                        all_versions_str += "..."
+                    result_text += f"✅ {component}: {data['value']}\n   Available: {all_versions_str}\n\n"
+                    found_count += 1
+                    print(f"[CONFIG API] ✅ {component}: {data['value']}")
+                else:
+                    result_text += f"❌ {component}: Not Found\n\n"
+                    print(f"[CONFIG API] ❌ {component}: Not Found")
+
+            result_text += f"📊 Summary: {found_count}/5 components found"
+            result_text += f"\n🔍 API: Config-Service (versions/search)"
+
+            if found_count == 0:
+                result_text += "\n\n⚠️ No component versions found"
+
+            print(f"[CONFIG API] " + "="*80)
+            print(f"[CONFIG API] SUMMARY: {found_count}/5 components found")
+            print(f"[CONFIG API] " + "="*80)
+            messagebox.showinfo("Config-Service API Test Results", result_text)
+
+        except requests.exceptions.RequestException as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed",
+                f"Network error: {str(e)}\n\n"
+                f"💡 HINT: Please check your network connection.")
+        except Exception as e:
+            if 'loading_dialog' in locals():
+                loading_dialog.destroy()
+            messagebox.showerror("API Test Failed",
+                f"Error: {str(e)}\n\n"
+                f"💡 HINT: Please ensure all configuration details are correct.")
 
     def create_output_selection(self):
         frame = ctk.CTkFrame(self.main_frame)
@@ -6392,8 +6786,10 @@ class OfflinePackageCreator:
             auth_b64 = base64.b64encode(auth_string.encode('ascii')).decode('ascii')
             
             # Prepare form data
+            # Get username from config (same as PPD/PPF)
+            form_username = self.config_manager.config.get("eh_launchpad_username", "1001")  # Fallback to 1001 if not set
             form_data_dict = {
-                'username': '1001',
+                'username': form_username,
                 'password': form_password,
                 'grant_type': 'password'
             }
