@@ -74,20 +74,34 @@ function Load-Environments {
     $envFile = Join-Path $PSScriptRoot "helper\environments\environments.json"
     if (Test-Path $envFile) {
         try {
-            $envData = Get-Content $envFile -Raw | ConvertFrom-Json
-            return $envData
+            $raw = Get-Content $envFile -Raw | ConvertFrom-Json
+            # Normalize to an object with an 'environments' array regardless of file shape
+            if ($null -ne $raw -and ($raw.PSObject.Properties.Name -contains 'environments')) {
+                return $raw
+            } elseif ($raw -is [System.Collections.IEnumerable]) {
+                # Create a PSCustomObject instead of hashtable for consistency
+                return [PSCustomObject]@{ environments = @($raw) }
+            } else {
+                return [PSCustomObject]@{ environments = @() }
+            }
         } catch {
             Write-Host "Warning: Failed to load environments.json: $_"
-            return @()
+            return [PSCustomObject]@{ environments = @() }
         }
     }
-    return @()
+    return [PSCustomObject]@{ environments = @() }
 }
 
 # Function to list available environments
 function Show-Environments {
     $envData = Load-Environments
-    if ($envData.Count -eq 0) {
+    # Check if envData has 'environments' property (works for both PSCustomObject and parsed JSON)
+    if ($null -ne $envData -and (Get-Member -InputObject $envData -Name 'environments' -MemberType Properties)) {
+        $envList = $envData.environments
+    } else {
+        $envList = @()
+    }
+    if ($envList.Count -eq 0) {
         Write-Host "No environments configured."
         return
     }
@@ -95,7 +109,7 @@ function Show-Environments {
     Write-Host "`n=== Available Environments ==="
     Write-Host "Alias`t`tName`t`t`tBase URL"
     Write-Host "-----`t`t----`t`t`t--------"
-    foreach ($environment in $envData.environments) {
+    foreach ($environment in $envList) {
         Write-Host "$($environment.alias)`t`t$($environment.name)`t`t$($environment.base_url)"
     }
     Write-Host "`nUse: .\GKInstall.ps1 -Env <alias> -ComponentType <type>"
@@ -110,12 +124,16 @@ function Select-Environment {
     )
     
     $envData = Load-Environments
-    if ($envData.Count -eq 0) {
+    # Check if envData has 'environments' property (works for both PSCustomObject and parsed JSON)
+    if ($null -ne $envData -and (Get-Member -InputObject $envData -Name 'environments' -MemberType Properties)) {
+        $environments = $envData.environments
+    } else {
+        $environments = @()
+    }
+    if ($environments.Count -eq 0) {
         Write-Host "No multi-environment configuration found, using default settings."
         return $null
     }
-    
-    $environments = $envData.environments
     
     Write-Host "`n=== Multi-Environment Mode ==="
     Write-Host "Found $($environments.Count) configured environment(s)"
@@ -127,10 +145,10 @@ function Select-Environment {
         Write-Host "[1] CLI Parameter: Looking for environment '$EnvAlias'..."
         $selectedEnv = $environments | Where-Object { $_.alias -eq $EnvAlias } | Select-Object -First 1
         if ($selectedEnv) {
-            Write-Host "    ✓ Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
+            Write-Host "    [OK] Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
             return $selectedEnv
         } else {
-            Write-Host "    ✗ Environment '$EnvAlias' not found!"
+            Write-Host "    [X] Environment '$EnvAlias' not found!"
             Write-Host ""
             Show-Environments
             exit 1
@@ -141,7 +159,7 @@ function Select-Environment {
         Write-Host "[1] CLI Parameter: Looking for environment named '$EnvName'..."
         $selectedEnv = $environments | Where-Object { $_.name -like "*$EnvName*" } | Select-Object -First 1
         if ($selectedEnv) {
-            Write-Host "    ✓ Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
+            Write-Host "    [OK] Found: $($selectedEnv.name) ($($selectedEnv.base_url))"
             return $selectedEnv
         }
     }
@@ -172,7 +190,7 @@ function Select-Environment {
                 Write-Host "    Found Environment=$fileEnv in station file"
                 $selectedEnv = $environments | Where-Object { $_.alias -eq $fileEnv } | Select-Object -First 1
                 if ($selectedEnv) {
-                    Write-Host "    ✓ Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
+                    Write-Host "    [OK] Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
                     return $selectedEnv
                 }
             } else {
@@ -194,18 +212,18 @@ function Select-Environment {
     }
     Write-Host ""
     
-    do {
+    while ($true) {
         $selection = Read-Host "Enter number (1-$($environments.Count))"
         $selectionNum = 0
         if ([int]::TryParse($selection, [ref]$selectionNum)) {
             if ($selectionNum -ge 1 -and $selectionNum -le $environments.Count) {
                 $selectedEnv = $environments[$selectionNum - 1]
-                Write-Host "    ✓ Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
+                Write-Host "    [OK] Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
                 return $selectedEnv
             }
         }
         Write-Host "Invalid selection, please try again."
-    } while ($true)
+    }
 }
 
 # Function to apply environment configuration
@@ -241,7 +259,7 @@ function Apply-EnvironmentConfig {
         $script:env_form_password = $ehPassword
     }
     
-    Write-Host "✓ Environment configuration applied"
+    Write-Host "[OK] Environment configuration applied"
     Write-Host "===================================`n"
 }
 
@@ -580,7 +598,7 @@ if ($null -eq $environments) {
     Write-Host "Warning: No environments.json found, using script defaults"
 } else {
     # Select environment based on CLI parameter, file, or interactive prompt
-    $selectedEnv = Select-Environment -Environments $environments -CliEnvAlias $Env -CliEnvName $EnvironmentName
+    $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
     
     if ($null -ne $selectedEnv) {
         # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
@@ -1327,23 +1345,25 @@ if (-not $isUpdate) {
 }
 
 # Create configuration files
-$installationToken = @"
+$installationToken = @'
 configService.url=https://@Server@/api/config
 cims.url=https://@Server@/api/iam/cim/rest
 station.tenantId=001
 station.storeId=@StoreNr@
 station.workstationId=@WorkstationId@
 station.applicationVersion=@Version@
-station.systemType=$systemType
-onboarding.token=$onboardingToken
+station.systemType=@SYSTEM_TYPE@
+onboarding.token=@ONBOARDING_TOKEN@
 dsg.url=https://@DsgServer@/api/digital-content/content/cep/SoftwarePackage
-"@
+'@
 
-$installationToken = $installationToken.Replace("@StoreNr@", $storeNumber)
-$installationToken = $installationToken.Replace("@WorkstationId@", $workstationId)
-$installationToken = $installationToken.Replace("@Version@", $component_version)
-$installationToken = $installationToken.Replace("@Server@", $server)
-$installationToken = $installationToken.Replace("@DsgServer@", $dsg_server)
+$installationToken = $installationToken.Replace('@StoreNr@', $storeNumber)
+$installationToken = $installationToken.Replace('@WorkstationId@', $workstationId)
+$installationToken = $installationToken.Replace('@Version@', $component_version)
+$installationToken = $installationToken.Replace('@Server@', $server)
+$installationToken = $installationToken.Replace('@DsgServer@', $dsg_server)
+$installationToken = $installationToken.Replace('@SYSTEM_TYPE@', $systemType)
+$installationToken = $installationToken.Replace('@ONBOARDING_TOKEN@', $onboardingToken)
 
 Set-Content -Path "installationtoken.txt" -Value $installationToken
 
@@ -1353,10 +1373,11 @@ $base64Token = [Convert]::ToBase64String($bytes)
 Set-Content -Path "installationtoken.base64" -Value $base64Token
 
 # Create addonpack.properties
-$addonpackProps = @"
-dsg.addonpack.url=https://$dsg_server/dsg/content/cep/AddOnPacks
+$addonpackProps = @'
+dsg.addonpack.url=https://@DSG_SERVER@/dsg/content/cep/AddOnPacks
 addonpacks=
-"@
+'@
+$addonpackProps = $addonpackProps.Replace('@DSG_SERVER@', $dsg_server)
 Set-Content -Path "$install_dir\addonpack.properties" -Value $addonpackProps
 
 # Only handle .p12 certificates for non-POS installations
@@ -1469,14 +1490,20 @@ if (-not (Test-Path $templateFile)) {
 # Read the template content
 $launcherProps = Get-Content -Path $templateFile -Raw
 
+# Prepare replacement values (avoid complex expressions in hashtable for PS 5.1)
+if ($offline_mode) { $offline_mode_value = "1" } else { $offline_mode_value = "0" }
+if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version_value = $jre_version } else { $jre_version_value = "" }
+if ($offline_mode -and $jre_files.Count -gt 0) { $jre_package_value = $jre_files[0].FullName } else { $jre_package_value = "" }
+if ($offline_mode -and $has_installer_jar) { $installer_package_value = $installer_jar } else { $installer_package_value = "" }
+
 # Replace placeholders with actual values
 $replacements = @{
     '@INSTALL_DIR@' = $install_dir
     '@BASE64_TOKEN@' = $base64Token
-    '@OFFLINE_MODE@' = $(if ($offline_mode) { "1" } else { "0" })
-    '@JRE_VERSION@' = $(if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version } else { "" })
-    '@JRE_PACKAGE@' = $(if ($offline_mode -and $jre_files.Count -gt 0) { $jre_files[0].FullName } else { "" })
-    '@INSTALLER_PACKAGE@' = $(if ($offline_mode -and $has_installer_jar) { $installer_jar } else { "" })
+    '@OFFLINE_MODE@' = $offline_mode_value
+    '@JRE_VERSION@' = $jre_version_value
+    '@JRE_PACKAGE@' = $jre_package_value
+    '@INSTALLER_PACKAGE@' = $installer_package_value
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
     '@FIREBIRD_SERVER_PATH@' = $firebird_server_path
@@ -1485,8 +1512,10 @@ $replacements = @{
 
 # Add Tomcat replacements if Tomcat files were found
 if ($tomcat_files.Count -gt 0) {
-    $replacements['@TOMCAT_VERSION@'] = $(if ($offline_mode) { $tomcat_version } else { "" })
-    $replacements['@TOMCAT_PACKAGE@'] = $(if ($offline_mode) { $tomcat_files[0].FullName } else { "" })
+    if ($offline_mode) { $tomcat_version_value = $tomcat_version } else { $tomcat_version_value = "" }
+    if ($offline_mode) { $tomcat_package_value = $tomcat_files[0].FullName } else { $tomcat_package_value = "" }
+    $replacements['@TOMCAT_VERSION@'] = $tomcat_version_value
+    $replacements['@TOMCAT_PACKAGE@'] = $tomcat_package_value
 }
 
 # Add Jaybird driver path if found

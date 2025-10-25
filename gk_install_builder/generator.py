@@ -1014,8 +1014,21 @@ fi
                     print(f"Warning: Could not find insertion point for station detection code in Bash script")
             
             # Write the modified template to the output file
-            with open(output_path, 'w', newline='\n') as f:
-                f.write(template)
+            # PowerShell 5.1 requires proper Windows line endings (CRLF) and UTF-8 BOM for Unicode support
+            if platform == "Windows":
+                # For Windows: ensure consistent CRLF line endings for PowerShell 5.1 compatibility
+                # First normalize all line endings to LF, then convert to CRLF
+                template = template.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+                # Write with binary mode to ensure exact byte output with UTF-8 BOM
+                with open(output_path, 'wb') as f:
+                    # Add UTF-8 BOM for PowerShell 5.1 to properly detect encoding
+                    f.write(b'\xef\xbb\xbf')
+                    f.write(template.encode('utf-8'))
+            else:
+                # For Linux: use LF line endings
+                template = template.replace('\r\n', '\n').replace('\r', '\n')
+                with open(output_path, 'w', newline='\n', encoding='utf-8') as f:
+                    f.write(template)
             
             # For Linux scripts, make the file executable
             if platform == "Linux":
@@ -1024,7 +1037,7 @@ fi
                     print(f"Made {output_filename} executable")
                 except Exception as e:
                     print(f"Warning: Failed to make {output_filename} executable: {e}")
-            
+
             print(f"Successfully generated {output_filename} at {output_path}")
                 
         except Exception as e:
