@@ -456,18 +456,50 @@ class EnvironmentManager:
             )
             remember_checkbox.pack(pady=5, padx=20, anchor="w")
             
+            # Environment selection frame
+            env_frame = ctk.CTkFrame(kp_dialog)
+            env_frame.pack(pady=10, fill="x", padx=20)
+            
+            ctk.CTkLabel(env_frame, text="Environment:", width=100).pack(side="left")
+            env_var = tk.StringVar(value="TEST")
+            env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, values=["TEST", "PROD"], state="disabled")
+            env_combo.pack(side="left", padx=5)
+            
+            # Connect button frame
+            connect_frame = ctk.CTkFrame(kp_dialog)
+            connect_frame.pack(pady=10, fill="x", padx=20)
+            
+            connect_btn = ctk.CTkButton(
+                connect_frame,
+                text="Connect",
+                command=lambda: connect_to_keepass()
+            )
+            connect_btn.pack(side="left", padx=10)
+            
             # Status label
             status_var = tk.StringVar(value="Not connected")
-            status_label = ctk.CTkLabel(kp_dialog, textvariable=status_var)
-            status_label.pack(pady=5)
+            status_label = ctk.CTkLabel(connect_frame, textvariable=status_var)
+            status_label.pack(side="left", padx=10)
             
-            # Connect and Get Password button
+            # Detect Projects button (initially disabled)
+            detect_projects_btn = ctk.CTkButton(
+                kp_dialog,
+                text="Detect Projects",
+                command=lambda: detect_projects(),
+                state="disabled"
+            )
+            detect_projects_btn.pack(pady=5)
+            
+            # Get password button (initially disabled)
             get_password_btn = ctk.CTkButton(
                 kp_dialog,
-                text="Connect and Get Password",
-                command=lambda: get_password_directly()
+                text="Get Password",
+                command=lambda: get_password(),
+                state="disabled"
             )
-            get_password_btn.pack(pady=10)
+            get_password_btn.pack(pady=5)
+            
+            def connect_to_keepass():
             
             def get_password_directly():
                 try:
