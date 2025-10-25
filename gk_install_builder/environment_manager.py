@@ -639,6 +639,15 @@ class EnvironmentManager:
                     
                     from gk_install_builder.main import GKInstallBuilder as Builder
                     instance = Builder(None)
+                    
+                    # Check if any children match wrapper patterns
+                    wrapper_matches = []
+                    for child in children[:10]:  # Check first 10
+                        name = child.get('Name', '')
+                        if '-OPOS-' in name or name.endswith('-01') or name.endswith('-02'):
+                            wrapper_matches.append(name)
+                    print(f"DEBUG: Children matching wrapper pattern: {wrapper_matches}")
+                    
                     projects = instance.get_subfolders(folder_structure)
                     
                     print(f"DEBUG: Projects found by get_subfolders: {len(projects)}")
