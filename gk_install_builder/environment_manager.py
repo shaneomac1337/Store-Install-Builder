@@ -632,6 +632,10 @@ class EnvironmentManager:
                     instance = Builder(None)
                     projects = instance.get_subfolders(folder_structure)
                     
+                    print(f"DEBUG: Projects found: {len(projects)}")
+                    if projects:
+                        print(f"DEBUG: First few projects: {[p.get('name') for p in projects[:5]]}")
+                    
                     if not projects:
                         status_var.set("No projects found!")
                         return
