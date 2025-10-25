@@ -60,7 +60,7 @@ $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${usern
 
 # Form data with decrypted password
 $body = @{
-    username = "1001"
+    username = "@FORM_USERNAME@"
     password = $formPassword
     grant_type = "password"
 }
