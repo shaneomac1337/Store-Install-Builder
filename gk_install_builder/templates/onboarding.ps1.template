@@ -40,6 +40,7 @@ if (-Not (Test-Path $onboardingPath)) {
 # Verify files exist
 $basicAuthPath = Join-Path $tokensPath "basic_auth_password.txt"
 $formPasswordPath = Join-Path $tokensPath "form_password.txt"
+$formUsernamePath = Join-Path $tokensPath "form_username.txt"
 
 if (-Not (Test-Path $basicAuthPath)) {
     Write-Host "Basic auth password file does not exist: $basicAuthPath"
@@ -51,16 +52,23 @@ if (-Not (Test-Path $formPasswordPath)) {
     exit
 }
 
-# Load and decode passwords
-$basicAuthPassword = Decode-Base64 (Get-Content $basicAuthPath)
-$formPassword = Decode-Base64 (Get-Content $formPasswordPath)
+# Load passwords (already plain text)
+$basicAuthPassword = Get-Content $basicAuthPath -Raw
+$formPassword = Get-Content $formPasswordPath -Raw
+
+# Read form username from file if available, otherwise use template default
+if (Test-Path $formUsernamePath) {
+    $formUsername = Get-Content $formUsernamePath -Raw
+} else {
+    $formUsername = "@FORM_USERNAME@"
+}
 
 # Use decoded passwords
 $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${basicAuthPassword}"))
 
 # Form data with decrypted password
 $body = @{
-    username = "@FORM_USERNAME@"
+    username = $formUsername
     password = $formPassword
     grant_type = "password"
 }

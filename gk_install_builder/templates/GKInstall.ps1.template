@@ -649,23 +649,24 @@ if ($UseDefaultVersions) {
         $formPasswordPath = Join-Path $tokensPath "form_password.txt"
 
         if ((Test-Path $basicAuthPath) -and (Test-Path $formPasswordPath)) {
-            # Function to Base64 decode (same as onboarding.ps1)
-            function Decode-Base64 {
-                param($encodedText)
-                return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($encodedText))
-            }
-
             $username = "launchpad"
-            # Decode the Base64 encoded passwords (same as onboarding.ps1)
-            $basicAuthPassword = Decode-Base64 (Get-Content $basicAuthPath)
-            $formPassword = Decode-Base64 (Get-Content $formPasswordPath)
+            # Read credentials (already plain text)
+            $basicAuthPassword = Get-Content $basicAuthPath -Raw
+            $formPassword = Get-Content $formPasswordPath -Raw
+            
+            # Use environment-specific username if available, otherwise use template default
+            if ($script:env_form_username) {
+                $formUsername = $script:env_form_username
+            } else {
+                $formUsername = "@FORM_USERNAME@"
+            }
 
             # Create Basic Auth header (same as onboarding.ps1)
             $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${basicAuthPassword}"))
 
             # Form data (same as onboarding.ps1)
             $body = @{
-                username = "@FORM_USERNAME@"
+                username = $formUsername
                 password = $formPassword
                 grant_type = "password"
             }

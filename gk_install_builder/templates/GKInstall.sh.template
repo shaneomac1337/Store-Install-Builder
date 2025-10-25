@@ -380,17 +380,14 @@ apply_environment_config() {
   local tokens_dir="$script_dir/helper/tokens"
   
   # Update OAuth2 credentials if provided
-  local oauth2_username
   local oauth2_password_b64
   if [ "$JQ_AVAILABLE" = true ]; then
-    oauth2_username=$(echo "$env_json" | jq -r '.oauth2_username // empty')
-    oauth2_password_b64=$(echo "$env_json" | jq -r '.oauth2_password // empty')
+    oauth2_password_b64=$(echo "$env_json" | jq -r '.launchpad_oauth2_b64 // empty')
   else
-    oauth2_username=$(json_extract "$env_json" "oauth2_username")
-    oauth2_password_b64=$(json_extract "$env_json" "oauth2_password")
+    oauth2_password_b64=$(json_extract "$env_json" "launchpad_oauth2_b64")
   fi
   
-  if [ -n "$oauth2_username" ] && [ -n "$oauth2_password_b64" ]; then
+  if [ -n "$oauth2_password_b64" ]; then
     local oauth2_password=$(decode_base64 "$oauth2_password_b64")
     echo "$oauth2_password" > "$tokens_dir/basic_auth_password.txt"
     echo "  Updated OAuth2 credentials" >&2
@@ -400,15 +397,16 @@ apply_environment_config() {
   local eh_username
   local eh_password_b64
   if [ "$JQ_AVAILABLE" = true ]; then
-    eh_username=$(echo "$env_json" | jq -r '.employee_hub_username // empty')
-    eh_password_b64=$(echo "$env_json" | jq -r '.employee_hub_password // empty')
+    eh_username=$(echo "$env_json" | jq -r '.eh_launchpad_username // empty')
+    eh_password_b64=$(echo "$env_json" | jq -r '.eh_launchpad_password_b64 // empty')
   else
-    eh_username=$(json_extract "$env_json" "employee_hub_username")
-    eh_password_b64=$(json_extract "$env_json" "employee_hub_password")
+    eh_username=$(json_extract "$env_json" "eh_launchpad_username")
+    eh_password_b64=$(json_extract "$env_json" "eh_launchpad_password_b64")
   fi
   
   if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
     local eh_password=$(decode_base64 "$eh_password_b64")
+    echo "$eh_username" > "$tokens_dir/form_username.txt"
     echo "$eh_password" > "$tokens_dir/form_password.txt"
     echo "  Updated Employee Hub credentials" >&2
   fi
@@ -779,18 +777,21 @@ if [ "$use_default_versions" = true ]; then
   tokens_path="$script_dir/helper/tokens"
   basic_auth_path="$tokens_path/basic_auth_password.txt"
   form_password_path="$tokens_path/form_password.txt"
+  form_username_path="$tokens_path/form_username.txt"
 
   # Check if credential files exist and get OAuth token
   if [ -f "$basic_auth_path" ] && [ -f "$form_password_path" ]; then
-    # Function to Base64 decode (same as onboarding.sh)
-    decode_base64() {
-      echo "$1" | base64 --decode
-    }
-
-    # Read and decode credentials (same as onboarding.sh)
+    # Read credentials (already decoded plain text)
     username="launchpad"
-    basic_auth_password=$(decode_base64 "$(cat "$basic_auth_path")")
-    form_password=$(decode_base64 "$(cat "$form_password_path")")
+    basic_auth_password=$(cat "$basic_auth_path")
+    form_password=$(cat "$form_password_path")
+    
+    # Read form username from file if available, otherwise use template default
+    if [ -f "$form_username_path" ]; then
+      form_username=$(cat "$form_username_path")
+    else
+      form_username="@FORM_USERNAME@"
+    fi
 
     if [ -n "$basic_auth_password" ] && [ -n "$form_password" ]; then
       # Create Basic Auth header (same as onboarding.sh)
@@ -812,7 +813,6 @@ if [ "$use_default_versions" = true ]; then
       }
 
       # Form data with URL encoding (same as onboarding.sh)
-      form_username="@FORM_USERNAME@"
       username_encoded=$(urlencode "$form_username")
       password_encoded=$(urlencode "$form_password")
       form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"

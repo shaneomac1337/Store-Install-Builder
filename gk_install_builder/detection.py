@@ -27,7 +27,10 @@ class DetectionManager:
                 "windows_regex": r"([^-]+)-([0-9]+)$",
                 "linux_regex": r"([^-]+)-([0-9]+)$",
                 "test_hostname": "STORE-1234-101",
-                "detect_environment": False  # Whether to extract environment prefix from hostname
+                "detect_environment": False,  # Whether to extract environment prefix from hostname
+                "env_group": 1,      # Which regex group contains the environment (1, 2, or 3)
+                "store_group": 2,    # Which regex group contains the store ID (1, 2, or 3)
+                "workstation_group": 3  # Which regex group contains the workstation ID (1, 2, or 3)
             }
         }
     
@@ -178,6 +181,24 @@ class DetectionManager:
         """Set hostname environment detection status (alias)"""
         self.enable_hostname_environment_detection(enabled)
     
+    def get_group_mapping(self, group_name):
+        """Get the regex group number for a specific mapping (env, store, or workstation)"""
+        key = f"{group_name}_group"
+        return self.detection_config["hostname_detection"].get(key, 1)
+    
+    def set_group_mapping(self, group_name, group_number):
+        """Set the regex group number for a specific mapping (env, store, or workstation)"""
+        key = f"{group_name}_group"
+        self.detection_config["hostname_detection"][key] = group_number
+    
+    def get_all_group_mappings(self):
+        """Get all group mappings as a dictionary"""
+        return {
+            "env": self.detection_config["hostname_detection"].get("env_group", 1),
+            "store": self.detection_config["hostname_detection"].get("store_group", 2),
+            "workstation": self.detection_config["hostname_detection"].get("workstation_group", 3)
+        }
+    
     def test_hostname_regex(self, hostname, platform="linux"):
         """Test the hostname regex against a sample hostname"""
         import re
@@ -192,17 +213,23 @@ class DetectionManager:
             match = pattern.search(hostname)
             
             if match and len(match.groups()) >= 2:
+                # Get configured group mappings
+                group_mappings = self.get_all_group_mappings()
+                env_group = group_mappings["env"]
+                store_group = group_mappings["store"]
+                ws_group = group_mappings["workstation"]
+                
                 # Check if this is a 3-group regex (with environment)
                 if len(match.groups()) >= 3:
-                    # 3-group format: Environment, Store ID, Workstation ID
-                    environment = match.group(1)
-                    store_id = match.group(2)
-                    workstation_id = match.group(3)
+                    # 3-group format: Use configured group mappings
+                    environment = match.group(env_group)
+                    store_id = match.group(store_group)
+                    workstation_id = match.group(ws_group)
                 else:
-                    # 2-group format: Store ID, Workstation ID
+                    # 2-group format: Use configured group mappings (environment not extracted)
                     environment = None
-                    store_id = match.group(1)
-                    workstation_id = match.group(2)
+                    store_id = match.group(store_group)
+                    workstation_id = match.group(ws_group)
                 
                 # Additional validation based on platform
                 if platform.lower() == "windows":
