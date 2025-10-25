@@ -144,19 +144,43 @@ function Select-Environment {
         }
     }
     
-    # Priority 2: Environment file detection
-    Write-Host "[2] File Detection: Checking for environment indicator file..."
-    $envIndicatorFile = "C:\gkretail\environment.txt"
-    if (Test-Path $envIndicatorFile) {
-        $fileEnv = (Get-Content $envIndicatorFile -Raw).Trim()
-        Write-Host "    Found environment file with value: $fileEnv"
-        $selectedEnv = $environments | Where-Object { $_.alias -eq $fileEnv } | Select-Object -First 1
-        if ($selectedEnv) {
-            Write-Host "    ✓ Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
-            return $selectedEnv
+    # Priority 2: Environment file detection from .station files
+    Write-Host "[2] File Detection: Checking for environment in .station file..."
+    
+    # Determine station filename based on component type
+    $station_filename = switch ($ComponentType) {
+        'POS' { "POS.station" }
+        'WDM' { "WDM.station" }
+        'FLOW-SERVICE' { "FLOW-SERVICE.station" }
+        'LPA-SERVICE' { "LPA.station" }
+        'STOREHUB-SERVICE' { "SH.station" }
+        default { $null }
+    }
+    
+    if ($station_filename) {
+        $stations_dir = "C:\gkretail\stations"
+        $station_file = Join-Path $stations_dir $station_filename
+        
+        if (Test-Path $station_file) {
+            Write-Host "    Checking station file: $station_file"
+            $station_content = Get-Content $station_file -Raw -ErrorAction SilentlyContinue
+            
+            if ($station_content -and $station_content -match 'Environment=([^\r\n]+)') {
+                $fileEnv = $matches[1].Trim()
+                Write-Host "    Found Environment=$fileEnv in station file"
+                $selectedEnv = $environments | Where-Object { $_.alias -eq $fileEnv } | Select-Object -First 1
+                if ($selectedEnv) {
+                    Write-Host "    ✓ Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
+                    return $selectedEnv
+                }
+            } else {
+                Write-Host "    No Environment= line found in station file"
+            }
+        } else {
+            Write-Host "    Station file not found: $station_file"
         }
     } else {
-        Write-Host "    No environment file found at $envIndicatorFile"
+        Write-Host "    ComponentType not yet determined, skipping station file check"
     }
     
     # Priority 3: Interactive prompt
