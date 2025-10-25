@@ -30,7 +30,7 @@ class KeePassDialog:
         
     def open(self):
         """Open the KeePass authentication dialog"""
-        from main import GKInstallBuilder
+        from gk_install_builder.main import GKInstallBuilder
         
         # Create dialog
         dialog = ctk.CTkToplevel(self.parent)
@@ -106,21 +106,28 @@ class KeePassDialog:
         env_combo = ctk.CTkComboBox(env_frame, width=200, variable=env_var, values=["TEST", "PROD"], state="disabled")
         env_combo.pack(side="left", padx=5)
         
-        # Connect button frame
-        connect_frame = ctk.CTkFrame(dialog)
-        connect_frame.pack(pady=10, fill="x", padx=20)
-        
+        # Connect button (centered)
         connect_btn = ctk.CTkButton(
-            connect_frame,
+            dialog,
             text="Connect",
-            command=lambda: connect_to_keepass()
+            command=lambda: connect_to_keepass(),
+            width=140
         )
-        connect_btn.pack(side="left", padx=10)
+        connect_btn.pack(pady=10)
         
-        # Status label
+        # Status label in its own frame to prevent text overlap
+        status_frame = ctk.CTkFrame(dialog)
+        status_frame.pack(fill="x", padx=20, pady=(0, 10))
+        
         status_var = tk.StringVar(value="Not connected")
-        status_label = ctk.CTkLabel(connect_frame, textvariable=status_var)
-        status_label.pack(side="left", padx=10)
+        status_label = ctk.CTkLabel(
+            status_frame,
+            textvariable=status_var,
+            wraplength=450,  # Wrap long text
+            anchor="center",
+            justify="center"
+        )
+        status_label.pack(fill="x", padx=10, pady=5)
         
         # Detect Projects button (initially disabled)
         detect_projects_btn = ctk.CTkButton(
@@ -209,7 +216,7 @@ class KeePassDialog:
                 folder_structure = client.get_folder(projects_folder_id)
                 
                 # Find project
-                from main import GKInstallBuilder as Builder
+                from gk_install_builder.main import GKInstallBuilder as Builder
                 instance = Builder(None)
                 folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
                 
@@ -347,7 +354,7 @@ class KeePassDialog:
                     try:
                         folder_contents = client.get_folder_by_id(project['id'], recurse_level=2)
                         
-                        from main import GKInstallBuilder as Builder
+                        from gk_install_builder.main import GKInstallBuilder as Builder
                         instance = Builder(None)
                         subfolders = instance.get_subfolders(folder_contents)
                         
@@ -414,7 +421,7 @@ class KeePassDialog:
                 if hasattr(dialog, 'folder_contents'):
                     folder_contents = dialog.folder_contents
                     
-                    from main import GKInstallBuilder as Builder
+                    from gk_install_builder.main import GKInstallBuilder as Builder
                     instance = Builder(None)
                     
                     # Find environment
