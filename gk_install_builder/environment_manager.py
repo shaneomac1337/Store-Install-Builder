@@ -382,6 +382,95 @@ class EnvironmentManager:
         oauth_entry.insert(0, env_data.get("launchpad_oauth2", ""))
         entries["launchpad_oauth2"] = oauth_entry
         
+        # Add KeeServer button if KeePass client is available
+        if hasattr(self.config_manager, 'parent') and hasattr(self.config_manager.parent, 'keepass_client'):
+            from gk_install_builder.main import GKInstallBuilder
+            if GKInstallBuilder.keepass_client:
+                def obtain_from_keeserver():
+                    try:
+                        # Get base URL from the entry
+                        base_url = entries["base_url"].get().strip()
+                        if not base_url:
+                            messagebox.showerror("Error", "Please enter Base URL first.")
+                            return
+                        
+                        # Auto-detect project and environment from base URL
+                        project_name = "AZR-CSE"  # Default
+                        detected_env = "TEST"  # Default
+                        
+                        if "." in base_url:
+                            parts = base_url.split(".")
+                            if parts[0]:
+                                detected_env = parts[0].upper()
+                            if len(parts) >= 2 and parts[1]:
+                                detected_project = parts[1].upper()
+                                project_name = f"AZR-{detected_project}"
+                        
+                        client = GKInstallBuilder.keepass_client
+                        
+                        # Get project folder
+                        projects_folder_id = "87300a24-9741-4d24-8a5c-a8b04e0b7049"
+                        folder_structure = client.get_folder(projects_folder_id)
+                        
+                        # Find project folder
+                        from gk_install_builder.main import GKInstallBuilder as Builder
+                        instance = Builder(None)
+                        folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
+                        
+                        if not folder_id:
+                            messagebox.showerror("Error", f"Project '{project_name}' not found in KeeServer.")
+                            return
+                        
+                        # Get environment folder
+                        folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
+                        env_folder = None
+                        for folder in instance.get_subfolders(folder_contents):
+                            if isinstance(folder, dict) and folder.get('name') == detected_env:
+                                env_folder = folder
+                                break
+                        
+                        if not env_folder:
+                            messagebox.showerror("Error", f"Environment '{detected_env}' not found for project '{project_name}'.")
+                            return
+                        
+                        # Get full environment structure
+                        env_id = env_folder['id']
+                        env_structure = client.get_folder_by_id(env_id, recurse_level=2)
+                        
+                        # Find basic auth password entry
+                        entry = instance.find_basic_auth_password_entry(env_structure)
+                        
+                        if not entry:
+                            messagebox.showerror("Error", f"Basic auth password not found for {project_name}/{detected_env}.")
+                            return
+                        
+                        # Get the password
+                        if isinstance(entry, dict) and 'Id' in entry:
+                            password_url = f"credentials/{entry['Id']}/password"
+                            password = client._make_request('GET', password_url)
+                            
+                            # Set password in the entry field
+                            oauth_entry.delete(0, 'end')
+                            oauth_entry.insert(0, password)
+                            messagebox.showinfo("Success", f"OAuth2 password obtained from KeeServer for {project_name}/{detected_env}.")
+                        else:
+                            messagebox.showerror("Error", "Failed to retrieve password from KeeServer.")
+                    
+                    except Exception as e:
+                        messagebox.showerror("Error", f"Failed to obtain from KeeServer: {str(e)}")
+                        import traceback
+                        traceback.print_exc()
+                
+                kee_btn = ctk.CTkButton(
+                    oauth_frame,
+                    text="Obtain from KeeServer",
+                    width=150,
+                    command=obtain_from_keeserver,
+                    fg_color="#2b5f8f",
+                    hover_color="#1a4060"
+                )
+                kee_btn.pack(side="left", padx=5)
+        
         # EH Username
         eh_user_frame = ctk.CTkFrame(main_frame)
         eh_user_frame.pack(fill="x", pady=5)
