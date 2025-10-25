@@ -5,7 +5,6 @@ COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 tenant_id="001"
 username="launchpad"
-form_username="@FORM_USERNAME@"
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -61,6 +60,7 @@ fi
 # Verify files exist
 basic_auth_path="$tokens_path/basic_auth_password.txt"
 form_password_path="$tokens_path/form_password.txt"
+form_username_path="$tokens_path/form_username.txt"
 
 if [ ! -f "$basic_auth_path" ]; then
   echo "Basic auth password file does not exist: $basic_auth_path"
@@ -72,9 +72,16 @@ if [ ! -f "$form_password_path" ]; then
   exit 1
 fi
 
-# Load and decode passwords
-basic_auth_password=$(decode_base64 "$(cat "$basic_auth_path")")
-form_password=$(decode_base64 "$(cat "$form_password_path")")
+# Load passwords (already decoded plain text)
+basic_auth_password=$(cat "$basic_auth_path")
+form_password=$(cat "$form_password_path")
+
+# Read form username from file if available, otherwise use template default
+if [ -f "$form_username_path" ]; then
+  form_username=$(cat "$form_username_path")
+else
+  form_username="@FORM_USERNAME@"
+fi
 
 # Basic Auth credentials
 username="launchpad"

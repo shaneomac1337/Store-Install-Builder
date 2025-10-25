@@ -4260,6 +4260,120 @@ WorkstationID=101"""
             justify="left"
         ).pack(anchor="w", padx=10, pady=(5, 10))
         
+        # Group mapping configuration
+        group_mapping_frame = ctk.CTkFrame(env_detection_frame)
+        group_mapping_frame.pack(fill="x", padx=10, pady=(5, 10))
+        
+        ctk.CTkLabel(
+            group_mapping_frame,
+            text="Regex Group Mapping (Advanced):",
+            font=("Helvetica", 11, "bold"),
+            text_color="#FF8C00"
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+        
+        ctk.CTkLabel(
+            group_mapping_frame,
+            text="Configure which regex capture group corresponds to each value.",
+            text_color="gray70",
+            font=("Helvetica", 9),
+            wraplength=650
+        ).pack(anchor="w", padx=10, pady=(0, 5))
+        
+        # Get current group mappings
+        group_mappings = self.detection_manager.get_all_group_mappings()
+        
+        # Create a sub-frame for the dropdowns
+        dropdowns_frame = ctk.CTkFrame(group_mapping_frame, fg_color="transparent")
+        dropdowns_frame.pack(fill="x", padx=20, pady=5)
+        
+        # Environment group dropdown
+        env_group_frame = ctk.CTkFrame(dropdowns_frame, fg_color="transparent")
+        env_group_frame.pack(fill="x", pady=2)
+        
+        ctk.CTkLabel(
+            env_group_frame,
+            text="Environment:",
+            width=120,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+        
+        self.env_group_dropdown = ctk.CTkOptionMenu(
+            env_group_frame,
+            values=["1", "2", "3"],
+            width=80
+        )
+        self.env_group_dropdown.set(str(group_mappings["env"]))
+        self.env_group_dropdown.pack(side="left")
+        
+        ctk.CTkLabel(
+            env_group_frame,
+            text="(e.g., P, Q, DEV)",
+            text_color="gray60",
+            font=("Helvetica", 9)
+        ).pack(side="left", padx=(10, 0))
+        
+        # Store group dropdown
+        store_group_frame = ctk.CTkFrame(dropdowns_frame, fg_color="transparent")
+        store_group_frame.pack(fill="x", pady=2)
+        
+        ctk.CTkLabel(
+            store_group_frame,
+            text="Store ID:",
+            width=120,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+        
+        self.store_group_dropdown = ctk.CTkOptionMenu(
+            store_group_frame,
+            values=["1", "2", "3"],
+            width=80
+        )
+        self.store_group_dropdown.set(str(group_mappings["store"]))
+        self.store_group_dropdown.pack(side="left")
+        
+        ctk.CTkLabel(
+            store_group_frame,
+            text="(e.g., 1234)",
+            text_color="gray60",
+            font=("Helvetica", 9)
+        ).pack(side="left", padx=(10, 0))
+        
+        # Workstation group dropdown
+        ws_group_frame = ctk.CTkFrame(dropdowns_frame, fg_color="transparent")
+        ws_group_frame.pack(fill="x", pady=2)
+        
+        ctk.CTkLabel(
+            ws_group_frame,
+            text="Workstation ID:",
+            width=120,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+        
+        self.workstation_group_dropdown = ctk.CTkOptionMenu(
+            ws_group_frame,
+            values=["1", "2", "3"],
+            width=80
+        )
+        self.workstation_group_dropdown.set(str(group_mappings["workstation"]))
+        self.workstation_group_dropdown.pack(side="left")
+        
+        ctk.CTkLabel(
+            ws_group_frame,
+            text="(e.g., 101)",
+            text_color="gray60",
+            font=("Helvetica", 9)
+        ).pack(side="left", padx=(10, 0))
+        
+        # Example note
+        ctk.CTkLabel(
+            group_mapping_frame,
+            text="Example: For hostname '1234-P-101' with regex '^([0-9]+)-([A-Z])-([0-9]+)$', set Environment=2, Store=1, Workstation=3",
+            text_color="#4a9eff",
+            font=("Helvetica", 9),
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+        
         # --- Path configuration ---
         # Create a frame for path configuration options
         path_config_frame = ctk.CTkFrame(tab_file_detection)
@@ -4611,9 +4725,17 @@ WorkstationID=101"""
                     results_text.configure(state="disabled")
                     return
 
-            # Update the pattern in the detection manager
+            # Update the pattern and hostname in the detection manager
             self.detection_manager.set_hostname_regex(regex_pattern, platform)
             self.detection_manager.set_test_hostname(hostname)
+            
+            # Read live group mappings from dropdowns and update detection manager
+            if hasattr(self, 'env_group_dropdown'):
+                self.detection_manager.set_group_mapping('env', int(self.env_group_dropdown.get()))
+            if hasattr(self, 'store_group_dropdown'):
+                self.detection_manager.set_group_mapping('store', int(self.store_group_dropdown.get()))
+            if hasattr(self, 'workstation_group_dropdown'):
+                self.detection_manager.set_group_mapping('workstation', int(self.workstation_group_dropdown.get()))
 
             # Test the regex
             result = self.detection_manager.test_hostname_regex(hostname, platform)
@@ -4767,11 +4889,19 @@ WorkstationID=101"""
             self.linux_test_entry.delete(0, 'end')
             self.linux_test_entry.insert(0, test_hostname)
         
+        # Update group mappings for 3-group pattern: Environment(1), Store(2), Workstation(3)
+        if hasattr(self, 'env_group_dropdown'):
+            self.env_group_dropdown.set("1")
+        if hasattr(self, 'store_group_dropdown'):
+            self.store_group_dropdown.set("2")
+        if hasattr(self, 'workstation_group_dropdown'):
+            self.workstation_group_dropdown.set("3")
+        
         # Show success message
         from tkinter import messagebox
         messagebox.showinfo(
             "Pattern Applied",
-            f"Applied 3-group pattern to both Windows and Linux:\n\nPattern: {three_group_pattern}\nTest Hostname: {test_hostname}\n\nClick 'Test Regex' to verify it extracts:\n• Environment: P\n• Store ID: 1234\n• Workstation ID: 101"
+            f"Applied 3-group pattern to both Windows and Linux:\n\nPattern: {three_group_pattern}\nTest Hostname: {test_hostname}\n\nGroup Mappings: Environment=1, Store=2, Workstation=3\n\nClick 'Test Regex' to verify it extracts:\n• Environment: P\n• Store ID: 1234\n• Workstation ID: 101"
         )
     
     def apply_classic_2group_pattern(self):
@@ -4798,11 +4928,19 @@ WorkstationID=101"""
             self.linux_test_entry.delete(0, 'end')
             self.linux_test_entry.insert(0, test_hostname)
         
+        # Update group mappings for 2-group pattern: Store(1), Workstation(2), Environment not used
+        if hasattr(self, 'env_group_dropdown'):
+            self.env_group_dropdown.set("1")  # Not used but set to 1 by default
+        if hasattr(self, 'store_group_dropdown'):
+            self.store_group_dropdown.set("1")
+        if hasattr(self, 'workstation_group_dropdown'):
+            self.workstation_group_dropdown.set("2")
+        
         # Show success message
         from tkinter import messagebox
         messagebox.showinfo(
             "Pattern Reverted",
-            f"Reverted to classic 2-group pattern for both Windows and Linux:\n\nPattern: {two_group_pattern}\nTest Hostname: {test_hostname}\n\nClick 'Test Regex' to verify it extracts:\n• Store ID: 1234\n• Workstation ID: 101"
+            f"Reverted to classic 2-group pattern for both Windows and Linux:\n\nPattern: {two_group_pattern}\nTest Hostname: {test_hostname}\n\nGroup Mappings: Store=1, Workstation=2\n\nClick 'Test Regex' to verify it extracts:\n• Store ID: 1234\n• Workstation ID: 101"
         )
     
     def browse_base_directory(self):
@@ -4884,6 +5022,14 @@ WorkstationID=101"""
         # Save hostname environment detection setting
         if hasattr(self, 'hostname_env_detection_var'):
             self.detection_manager.set_hostname_env_detection(self.hostname_env_detection_var.get())
+        
+        # Save group mappings from dropdowns
+        if hasattr(self, 'env_group_dropdown'):
+            self.detection_manager.set_group_mapping('env', int(self.env_group_dropdown.get()))
+        if hasattr(self, 'store_group_dropdown'):
+            self.detection_manager.set_group_mapping('store', int(self.store_group_dropdown.get()))
+        if hasattr(self, 'workstation_group_dropdown'):
+            self.detection_manager.set_group_mapping('workstation', int(self.workstation_group_dropdown.get()))
         
         # Save to config
         self.config_manager.config["detection_config"] = self.detection_manager.get_config()

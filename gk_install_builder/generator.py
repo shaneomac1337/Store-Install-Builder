@@ -511,6 +511,12 @@ class ProjectGenerator:
             
             # Only enable environment detection if both hostname detection is enabled AND env detection is enabled
             if use_hostname_detection and hostname_env_detection:
+                # Get configured group mappings
+                group_mappings = self.detection_manager.get_all_group_mappings()
+                env_group = group_mappings.get("env", 1)
+                store_group = group_mappings.get("store", 2)
+                ws_group = group_mappings.get("workstation", 3)
+                
                 # Insert hostname environment detection code
                 if platform == "Windows":
                     # Get the configured regex pattern for hostname detection
@@ -522,12 +528,12 @@ class ProjectGenerator:
         $hostname = $env:COMPUTERNAME
         Write-Host "    Computer name: $hostname"
         
-        # Use the configured hostname regex to extract environment (group 1), store (group 2), and workstation (group 3)
+        # Use the configured hostname regex to extract environment (group {env_group}), store (group {store_group}), and workstation (group {ws_group})
         # Regex pattern: {hostname_regex}
         if ($hostname -match '{hostname_regex}') {{
             if ($matches.Count -ge 4) {{
                 # 3-group regex: Environment, Store, Workstation
-                $hostnameEnv = $matches[1]
+                $hostnameEnv = $matches[{env_group}]
                 Write-Host "    Extracted environment from hostname: $hostnameEnv"
                 $selectedEnv = $environments | Where-Object {{ $_.alias -eq $hostnameEnv }} | Select-Object -First 1
                 if ($selectedEnv) {{
@@ -563,12 +569,12 @@ class ProjectGenerator:
   local hostname=$(hostname)
   echo "    Computer name: $hostname" >&2
   
-  # Use the configured hostname regex to extract environment (group 1), store (group 2), and workstation (group 3)
+  # Use the configured hostname regex to extract environment (group {env_group}), store (group {store_group}), and workstation (group {ws_group})
   # Regex pattern: {hostname_regex}
   if [[ "$hostname" =~ {hostname_regex} ]]; then
     if [ ${{#BASH_REMATCH[@]}} -ge 4 ]; then
       # 3-group regex: Environment, Store, Workstation
-      local hostname_env="${{BASH_REMATCH[1]}}"
+      local hostname_env="${{BASH_REMATCH[{env_group}]}}"
       echo "    Extracted environment from hostname: $hostname_env" >&2
       local selected=$(echo "$environments" | jq --arg alias "$hostname_env" '.environments[] | select(.alias == $alias)')
       if [ -n "$selected" ]; then
@@ -601,12 +607,18 @@ class ProjectGenerator:
             if platform == "Windows":
                 hostname_regex = self.detection_manager.get_hostname_regex("windows")
                 
+                # Get configured group mappings
+                group_mappings = self.detection_manager.get_all_group_mappings()
+                env_group = group_mappings.get("env", 1)
+                store_group = group_mappings.get("store", 2)
+                ws_group = group_mappings.get("workstation", 3)
+                
                 if hostname_env_detection:
-                    # 3-group pattern: Extract store from group 2, workstation from group 3 (environment is group 1)
+                    # 3-group pattern: Use configured group mappings
                     store_workstation_code = rf'''if ($hs -match '{hostname_regex}') {{
-            # 3-group pattern: Environment (1), Store ID (2), Workstation ID (3)
-            $storeId = $matches[2]
-            $workstationId = $matches[3]
+            # 3-group pattern: Environment ({env_group}), Store ID ({store_group}), Workstation ID ({ws_group})
+            $storeId = $matches[{store_group}]
+            $workstationId = $matches[{ws_group}]
             $storeNumber = $storeId
 
             # Validate extracted parts
@@ -620,11 +632,11 @@ class ProjectGenerator:
             }}
         }}'''
                 else:
-                    # 2-group pattern: Extract store from group 1, workstation from group 2
+                    # 2-group pattern: Use configured group mappings (store and workstation only)
                     store_workstation_code = rf'''if ($hs -match '{hostname_regex}') {{
             # Pattern like R005-101 or SOMENAME-1674-101 where last part is digits
-            $storeId = $matches[1]
-            $workstationId = $matches[2]
+            $storeId = $matches[{store_group}]
+            $workstationId = $matches[{ws_group}]
 
             # If storeId contains a dash, it might be SOMENAME-1674-101 format
             if ($storeId -match '.*-(\d{{4}})$') {{
@@ -649,13 +661,19 @@ class ProjectGenerator:
             else:  # Linux
                 hostname_regex = self.detection_manager.get_hostname_regex("linux")
                 
+                # Get configured group mappings
+                group_mappings = self.detection_manager.get_all_group_mappings()
+                env_group = group_mappings.get("env", 1)
+                store_group = group_mappings.get("store", 2)
+                ws_group = group_mappings.get("workstation", 3)
+                
                 if hostname_env_detection:
-                    # 3-group pattern: Extract store from group 2, workstation from group 3 (environment is group 1)
+                    # 3-group pattern: Use configured group mappings
                     store_workstation_code = f'''# Extract the last part (workstation ID)
     if [[ "$hs" =~ {hostname_regex} ]]; then
-      # 3-group pattern: Environment (1), Store ID (2), Workstation ID (3)
-      storeNumber="${{BASH_REMATCH[2]}}"
-      workstationId="${{BASH_REMATCH[3]}}"
+      # 3-group pattern: Environment ({env_group}), Store ID ({store_group}), Workstation ID ({ws_group})
+      storeNumber="${{BASH_REMATCH[{store_group}]}}"
+      workstationId="${{BASH_REMATCH[{ws_group}]}}"
       
       # Validate extracted parts
       # Accept any alphanumeric characters for store ID with at least 1 character
@@ -669,11 +687,11 @@ class ProjectGenerator:
       fi
     fi'''
                 else:
-                    # 2-group pattern: Keep existing logic
+                    # 2-group pattern: Use configured group mappings (store and workstation only)
                     store_workstation_code = f'''# Extract the last part (workstation ID)
     if [[ "$hs" =~ {hostname_regex} ]]; then
-      storeId="${{BASH_REMATCH[1]}}"
-      workstationId="${{BASH_REMATCH[2]}}"
+      storeId="${{BASH_REMATCH[{store_group}]}}"
+      workstationId="${{BASH_REMATCH[{ws_group}]}}"
       
       # If storeId contains a dash, it might be SOMENAME-1674-101 format
       if [[ "$storeId" =~ .*-([0-9]{{4}})$ ]]; then
