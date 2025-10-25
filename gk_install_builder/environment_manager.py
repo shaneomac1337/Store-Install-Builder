@@ -52,7 +52,49 @@ class EnvironmentManager:
             font=("Helvetica", 11),
             text_color="gray"
         )
-        subtitle_label.pack(pady=(0, 15))
+        subtitle_label.pack(pady=(0, 10))
+        
+        # KeeServer connection button
+        keeserver_frame = ctk.CTkFrame(main_frame)
+        keeserver_frame.pack(fill="x", pady=(0, 15))
+        
+        from gk_install_builder.main import GKInstallBuilder
+        
+        def update_keeserver_button():
+            """Update KeeServer button state"""
+            if GKInstallBuilder.keepass_client:
+                keeserver_btn.configure(
+                    text="✓ KeeServer Connected",
+                    fg_color="#2d5f2d",
+                    hover_color="#1f4a1f"
+                )
+            else:
+                keeserver_btn.configure(
+                    text="Connect to KeeServer",
+                    fg_color="#1f538d",
+                    hover_color="#16415c"
+                )
+        
+        def open_keeserver_dialog():
+            """Open KeeServer connection dialog"""
+            # Import the main app instance to call its method
+            if hasattr(self.parent, 'open_keepass_dialog'):
+                self.parent.open_keepass_dialog()
+                # Update button after dialog closes
+                self.window.after(500, update_keeserver_button)
+            else:
+                messagebox.showerror("Error", "KeeServer connection not available from this window.")
+        
+        keeserver_btn = ctk.CTkButton(
+            keeserver_frame,
+            text="Connect to KeeServer",
+            width=200,
+            command=open_keeserver_dialog
+        )
+        keeserver_btn.pack(pady=5)
+        
+        # Initial button state
+        update_keeserver_button()
         
         # Content area - split into list and details
         content_frame = ctk.CTkFrame(main_frame)
@@ -384,6 +426,7 @@ class EnvironmentManager:
         
         # Add KeeServer button if KeePass client is available
         from gk_install_builder.main import GKInstallBuilder
+        print(f"DEBUG: GKInstallBuilder.keepass_client = {GKInstallBuilder.keepass_client}")
         if GKInstallBuilder.keepass_client:
                 def obtain_from_keeserver():
                     try:
