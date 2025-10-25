@@ -95,6 +95,105 @@ trap 'handle_error $LINENO' ERR
 # MULTI-ENVIRONMENT SUPPORT FUNCTIONS
 # ============================================================================
 
+# Check if jq is available
+JQ_AVAILABLE=false
+if command -v jq >/dev/null 2>&1; then
+  JQ_AVAILABLE=true
+  echo "jq detected - using for JSON parsing" >&2
+else
+  echo "jq not found - using fallback bash JSON parsing" >&2
+fi
+
+# Fallback function to extract JSON value (simple grep/sed approach)
+# Usage: json_extract "json_string" "key"
+json_extract() {
+  local json="$1"
+  local key="$2"
+  echo "$json" | grep -o "\"$key\"[[:space:]]*:[[:space:]]*\"[^\"]*\"" | sed "s/\"$key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\"/\1/"
+}
+
+# Fallback function to extract all environments and format them
+# Usage: json_list_environments "json_string"
+json_list_environments() {
+  local json="$1"
+  # Extract each environment block (simplified - assumes well-formed JSON)
+  local env_count=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ \"alias\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+      local alias="${BASH_REMATCH[1]}"
+      # Read next few lines to get name, base_url, tenant_id
+      local block="$line"
+      for i in {1..10}; do
+        read -r next_line || break
+        block+="$next_line"
+        if [[ "$next_line" =~ ^[[:space:]]*\} ]]; then
+          break
+        fi
+      done
+      
+      local name=$(echo "$block" | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"name"[[:space:]]*:[[:space:]]*"\([^"]*\)"/\1/')
+      local base_url=$(echo "$block" | grep -o '"base_url"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"base_url"[[:space:]]*:[[:space:]]*"\([^"]*\)"/\1/')
+      local tenant_id=$(echo "$block" | grep -o '"tenant_id"[[:space:]]*:[[:space:]]*"[^"]*"' | sed 's/"tenant_id"[[:space:]]*:[[:space:]]*"\([^"]*\)"/\1/')
+      
+      echo "Alias: $alias"
+      echo "Name: $name"
+      echo "Base URL: $base_url"
+      echo "Tenant ID: $tenant_id"
+      echo ""
+      env_count=$((env_count + 1))
+    fi
+  done <<< "$json"
+}
+
+# Fallback function to select environment by alias
+# Usage: json_select_by_alias "json_string" "alias"
+json_select_by_alias() {
+  local json="$1"
+  local search_alias="$2"
+  
+  # Find the environment block that contains the matching alias
+  local in_env=false
+  local brace_count=0
+  local env_block=""
+  
+  while IFS= read -r line; do
+    # Check if we're starting an environment object
+    if [[ "$line" =~ \{[[:space:]]*$ ]] && ! $in_env; then
+      in_env=true
+      brace_count=1
+      env_block="$line"
+      continue
+    fi
+    
+    if $in_env; then
+      env_block+="
+$line"
+      
+      # Track braces
+      if [[ "$line" =~ \{ ]]; then
+        brace_count=$((brace_count + 1))
+      fi
+      if [[ "$line" =~ \} ]]; then
+        brace_count=$((brace_count - 1))
+      fi
+      
+      # When we close the environment object
+      if [ $brace_count -eq 0 ]; then
+        # Check if this block contains our alias
+        if echo "$env_block" | grep -q "\"alias\"[[:space:]]*:[[:space:]]*\"$search_alias\""; then
+          echo "$env_block"
+          return 0
+        fi
+        # Reset for next environment
+        in_env=false
+        env_block=""
+      fi
+    fi
+  done <<< "$json"
+  
+  return 1
+}
+
 # Function to load environments.json
 load_environments() {
   local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -121,7 +220,11 @@ show_environments() {
   echo ""
   
   # Parse JSON and display environments
-  echo "$environments" | jq -r '.environments[] | "Alias: \(.alias)\nName: \(.name)\nBase URL: \(.base_url)\nTenant ID: \(.tenant_id)\n"'
+  if [ "$JQ_AVAILABLE" = true ]; then
+    echo "$environments" | jq -r '.environments[] | "Alias: \(.alias)\nName: \(.name)\nBase URL: \(.base_url)\nTenant ID: \(.tenant_id)\n"'
+  else
+    json_list_environments "$environments"
+  fi
   
   echo "Usage: $0 --env <alias>"
 }
@@ -139,7 +242,11 @@ select_environment() {
   # Priority 1: CLI parameter
   if [ -n "$cli_env_alias" ]; then
     echo "Selecting environment from CLI parameter: $cli_env_alias" >&2
-    echo "$environments" | jq --arg alias "$cli_env_alias" '.environments[] | select(.alias == $alias)'
+    if [ "$JQ_AVAILABLE" = true ]; then
+      echo "$environments" | jq --arg alias "$cli_env_alias" '.environments[] | select(.alias == $alias)'
+    else
+      json_select_by_alias "$environments" "$cli_env_alias"
+    fi
     return 0
   fi
   
@@ -170,7 +277,12 @@ select_environment() {
         local file_env=$(grep "^Environment=" "$station_file" | cut -d'=' -f2 | tr -d '\r\n' | xargs)
         if [ -n "$file_env" ]; then
           echo "    Found Environment=$file_env in station file" >&2
-          local selected=$(echo "$environments" | jq --arg alias "$file_env" '.environments[] | select(.alias == $alias)')
+          local selected
+          if [ "$JQ_AVAILABLE" = true ]; then
+            selected=$(echo "$environments" | jq --arg alias "$file_env" '.environments[] | select(.alias == $alias)')
+          else
+            selected=$(json_select_by_alias "$environments" "$file_env")
+          fi
           if [ -n "$selected" ]; then
             echo "    ✓ Matched environment" >&2
             echo "$selected"
@@ -189,13 +301,37 @@ select_environment() {
   
   # Priority 3: Interactive prompt
   echo "Available environments:" >&2
-  local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"')
-  echo "$env_list" >&2
+  if [ "$JQ_AVAILABLE" = true ]; then
+    local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"')
+    echo "$env_list" >&2
+  else
+    # Simple fallback list
+    while IFS= read -r line; do
+      if [[ "$line" =~ \"alias\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+        local alias="${BASH_REMATCH[1]}"
+        # Try to find name on next few lines
+        local block="$line"
+        for i in {1..5}; do
+          read -r next_line || break
+          block+="$next_line"
+          if [[ "$next_line" =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+            local name="${BASH_REMATCH[1]}"
+            echo "$alias - $name" >&2
+            break
+          fi
+        done
+      fi
+    done <<< "$environments"
+  fi
   echo "" >&2
   read -p "Enter environment alias (or press Enter to skip): " user_env
   
   if [ -n "$user_env" ]; then
-    echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)'
+    if [ "$JQ_AVAILABLE" = true ]; then
+      echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)'
+    else
+      json_select_by_alias "$environments" "$user_env"
+    fi
     return 0
   fi
   
@@ -208,8 +344,14 @@ apply_environment_config() {
   local env_json="$1"
   
   # Extract and set variables
-  base_url=$(echo "$env_json" | jq -r '.base_url')
-  local tenant_id=$(echo "$env_json" | jq -r '.tenant_id // "001"')
+  if [ "$JQ_AVAILABLE" = true ]; then
+    base_url=$(echo "$env_json" | jq -r '.base_url')
+    local tenant_id=$(echo "$env_json" | jq -r '.tenant_id // "001"')
+  else
+    base_url=$(json_extract "$env_json" "base_url")
+    local tenant_id=$(json_extract "$env_json" "tenant_id")
+    tenant_id=${tenant_id:-001}
+  fi
   
   echo "Applying environment configuration:" >&2
   echo "  Base URL: $base_url" >&2
@@ -220,8 +362,15 @@ apply_environment_config() {
   local tokens_dir="$script_dir/helper/tokens"
   
   # Update OAuth2 credentials if provided
-  local oauth2_username=$(echo "$env_json" | jq -r '.oauth2_username // empty')
-  local oauth2_password_b64=$(echo "$env_json" | jq -r '.oauth2_password // empty')
+  local oauth2_username
+  local oauth2_password_b64
+  if [ "$JQ_AVAILABLE" = true ]; then
+    oauth2_username=$(echo "$env_json" | jq -r '.oauth2_username // empty')
+    oauth2_password_b64=$(echo "$env_json" | jq -r '.oauth2_password // empty')
+  else
+    oauth2_username=$(json_extract "$env_json" "oauth2_username")
+    oauth2_password_b64=$(json_extract "$env_json" "oauth2_password")
+  fi
   
   if [ -n "$oauth2_username" ] && [ -n "$oauth2_password_b64" ]; then
     local oauth2_password=$(decode_base64 "$oauth2_password_b64")
@@ -230,8 +379,15 @@ apply_environment_config() {
   fi
   
   # Update Employee Hub credentials if provided
-  local eh_username=$(echo "$env_json" | jq -r '.employee_hub_username // empty')
-  local eh_password_b64=$(echo "$env_json" | jq -r '.employee_hub_password // empty')
+  local eh_username
+  local eh_password_b64
+  if [ "$JQ_AVAILABLE" = true ]; then
+    eh_username=$(echo "$env_json" | jq -r '.employee_hub_username // empty')
+    eh_password_b64=$(echo "$env_json" | jq -r '.employee_hub_password // empty')
+  else
+    eh_username=$(json_extract "$env_json" "employee_hub_username")
+    eh_password_b64=$(json_extract "$env_json" "employee_hub_password")
+  fi
   
   if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
     local eh_password=$(decode_base64 "$eh_password_b64")
@@ -537,7 +693,11 @@ if environments=$(load_environments 2>/dev/null); then
   if selected_env=$(select_environment "$environments" "$env_alias"); then
     # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
     apply_environment_config "$selected_env"
-    env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+    if [ "$JQ_AVAILABLE" = true ]; then
+      env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+    else
+      env_alias_name=$(json_extract "$selected_env" "alias")
+    fi
     echo "Environment '$env_alias_name' applied successfully"
   else
     echo "No environment selected, using script defaults"
