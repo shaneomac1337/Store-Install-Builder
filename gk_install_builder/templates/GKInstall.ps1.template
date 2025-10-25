@@ -86,8 +86,8 @@ function Load-Environments {
 
 # Function to list available environments
 function Show-Environments {
-    $environments = Load-Environments
-    if ($environments.Count -eq 0) {
+    $envData = Load-Environments
+    if ($envData.Count -eq 0) {
         Write-Host "No environments configured."
         return
     }
@@ -95,8 +95,8 @@ function Show-Environments {
     Write-Host "`n=== Available Environments ==="
     Write-Host "Alias`t`tName`t`t`tBase URL"
     Write-Host "-----`t`t----`t`t`t--------"
-    foreach ($env in $environments) {
-        Write-Host "$($env.alias)`t`t$($env.name)`t`t$($env.base_url)"
+    foreach ($environment in $envData.environments) {
+        Write-Host "$($environment.alias)`t`t$($environment.name)`t`t$($environment.base_url)"
     }
     Write-Host "`nUse: .\GKInstall.ps1 -Env <alias> -ComponentType <type>"
     Write-Host "Example: .\GKInstall.ps1 -Env P -ComponentType POS`n"
@@ -109,11 +109,13 @@ function Select-Environment {
         [string]$EnvName
     )
     
-    $environments = Load-Environments
-    if ($environments.Count -eq 0) {
+    $envData = Load-Environments
+    if ($envData.Count -eq 0) {
         Write-Host "No multi-environment configuration found, using default settings."
         return $null
     }
+    
+    $environments = $envData.environments
     
     Write-Host "`n=== Multi-Environment Mode ==="
     Write-Host "Found $($environments.Count) configured environment(s)"
