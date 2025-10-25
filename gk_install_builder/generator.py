@@ -356,15 +356,20 @@ class ProjectGenerator:
         try:
             environments = config.get("environments", [])
             
-            if not environments:
-                print("No environments configured, skipping environments.json generation")
-                return
-            
-            print(f"\nGenerating environments.json with {len(environments)} environment(s)...")
-            
             # Create helper/environments directory
             env_dir = os.path.join(output_dir, "helper", "environments")
             os.makedirs(env_dir, exist_ok=True)
+            
+            if not environments:
+                print("No environments configured, generating empty environments.json")
+                # Write empty array
+                env_json_path = os.path.join(env_dir, "environments.json")
+                with open(env_json_path, 'w') as f:
+                    json.dump([], f, indent=2)
+                print(f"Generated empty environments.json at: {env_json_path}")
+                return
+            
+            print(f"\nGenerating environments.json with {len(environments)} environment(s)...")
             
             # Prepare environments data with base64-encoded passwords
             processed_envs = []
