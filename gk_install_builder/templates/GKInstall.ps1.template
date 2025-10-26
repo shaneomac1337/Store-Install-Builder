@@ -767,8 +767,25 @@ $tenantId = "@TENANT_ID@"
 
 # Function to load environments from environments.json
 function Load-Environments {
-    Show-Environments
-    exit 0
+    $envFile = Join-Path $PSScriptRoot "helper\environments\environments.json"
+    if (Test-Path $envFile) {
+        try {
+            $raw = Get-Content $envFile -Raw | ConvertFrom-Json
+            # Normalize to an object with an 'environments' array regardless of file shape
+            if ($null -ne $raw -and ($raw.PSObject.Properties.Name -contains 'environments')) {
+                return $raw
+            } elseif ($raw -is [System.Collections.IEnumerable]) {
+                # Create a PSCustomObject instead of hashtable for consistency
+                return [PSCustomObject]@{ environments = @($raw) }
+            } else {
+                return [PSCustomObject]@{ environments = @() }
+            }
+        } catch {
+            Write-Host "Warning: Failed to load environments.json: $_"
+            return [PSCustomObject]@{ environments = @() }
+        }
+    }
+    return [PSCustomObject]@{ environments = @() }
 }
 
 # ============================================================================
@@ -811,11 +828,24 @@ if ($UseDefaultVersions) {
         $basicAuthPath = Join-Path $tokensPath "basic_auth_password.txt"
         $formPasswordPath = Join-Path $tokensPath "form_password.txt"
 
+        Write-Host "[DEBUG] Tokens path: $tokensPath"
+        Write-Host "[DEBUG] Basic auth file exists: $(Test-Path $basicAuthPath)"
+        Write-Host "[DEBUG] Form password file exists: $(Test-Path $formPasswordPath)"
+
         if ((Test-Path $basicAuthPath) -and (Test-Path $formPasswordPath)) {
             $username = "launchpad"
-            # Read credentials (already plain text)
-            $basicAuthPassword = Get-Content $basicAuthPath -Raw
-            $formPassword = Get-Content $formPasswordPath -Raw
+            # Read credentials (Base64 encoded) and decode them
+            $basicAuthPasswordEncoded = (Get-Content $basicAuthPath -Raw).Trim()
+            $formPasswordEncoded = (Get-Content $formPasswordPath -Raw).Trim()
+            
+            # Decode from Base64
+            $basicAuthPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($basicAuthPasswordEncoded))
+            $formPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($formPasswordEncoded))
+            
+            Write-Host "[DEBUG] Basic auth password length: $($basicAuthPassword.Length) chars"
+            Write-Host "[DEBUG] Basic auth password (first 3 chars): $($basicAuthPassword.Substring(0, [Math]::Min(3, $basicAuthPassword.Length)))***"
+            Write-Host "[DEBUG] Form password length: $($formPassword.Length) chars"
+            Write-Host "[DEBUG] Form password (first 3 chars): $($formPassword.Substring(0, [Math]::Min(3, $formPassword.Length)))***"
             
             # Use environment-specific username if available, otherwise use template default
             if ($script:env_form_username) {
@@ -823,6 +853,10 @@ if ($UseDefaultVersions) {
             } else {
                 $formUsername = "@FORM_USERNAME@"
             }
+
+            Write-Host "[DEBUG] Form username: $formUsername"
+            Write-Host "[DEBUG] Base URL: $base_url"
+            Write-Host "[DEBUG] Tenant ID: $tenantId"
 
             # Create Basic Auth header (same as onboarding.ps1)
             $base64Auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${username}:${basicAuthPassword}"))
@@ -841,17 +875,30 @@ if ($UseDefaultVersions) {
 
             # Get OAuth token (same URL as onboarding.ps1)
             $tokenUrl = "https://$base_url/auth-service/tenants/${tenantId}/oauth/token"
+            Write-Host "[DEBUG] Token URL: $tokenUrl"
+            Write-Host "[DEBUG] Request body (URL-encoded): $formData"
+            
             $response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Headers @{Authorization = "Basic $base64Auth"} -Body $formData -ContentType "application/x-www-form-urlencoded"
 
             # Save the access token (same as onboarding.ps1)
             $accessToken = $response.access_token
             Set-Content -Path (Join-Path $tokensPath "access_token.txt") -Value $accessToken -NoNewline
             Write-Host "OAuth token obtained and saved successfully"
+            Write-Host "[DEBUG] Token length: $($accessToken.Length)"
         } else {
             Write-Host "Warning: Required credential files not found, proceeding with existing token..."
         }
     } catch {
         Write-Host "Warning: Failed to get fresh OAuth token: $($_.Exception.Message)"
+        if ($_.Exception.Response) {
+            try {
+                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                $responseBody = $reader.ReadToEnd()
+                Write-Host "[DEBUG] Response body: $responseBody"
+            } catch {
+                Write-Host "[DEBUG] Could not read response body"
+            }
+        }
         Write-Host "Proceeding with existing token..."
     }
 
