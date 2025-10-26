@@ -1558,8 +1558,8 @@ echo "Starting onboarding process for $COMPONENT_TYPE"
 
 # Skip onboarding and store initialization if this is an update
 if [ "$isUpdate" = false ]; then
-    # Call the onboarding script with the appropriate component type
-    if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url"; then
+    # Call the onboarding script with the appropriate component type and tenant_id
+    if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --tenant_id "$tenant_id"; then
       echo "Error during $COMPONENT_TYPE onboarding"
       exit 1
     fi
