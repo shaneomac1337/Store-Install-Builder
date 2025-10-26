@@ -985,6 +985,9 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
             
             # Apply file detection settings - always insert code but use never-match pattern when disabled
             file_detection_enabled = self.detection_manager.is_detection_enabled()
+            
+            # Replace FILE_DETECTION_ENABLED placeholder
+            template = template.replace("@FILE_DETECTION_ENABLED@", "True" if file_detection_enabled else "False")
 
             # Always insert file detection code for consistent structure
             # Use never-match pattern when file detection is disabled
