@@ -771,23 +771,6 @@ function Load-Environments {
     exit 0
 }
 
-# Load environments configuration
-$environments = Load-Environments
-if ($null -eq $environments) {
-    Write-Host "Warning: No environments.json found, using script defaults"
-} else {
-    # Select environment based on CLI parameter, file, or interactive prompt
-    $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
-    
-    if ($null -ne $selectedEnv) {
-        # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
-        Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
-        Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
-    } else {
-        Write-Host "No environment selected, using script defaults"
-    }
-}
-
 # ============================================================================
 # SCRIPT CONFIGURATION (may be overridden by environment config above)
 # ============================================================================
@@ -1273,6 +1256,28 @@ if (Test-Path $install_dir) {
     }
 } else {
     Write-Host "Installation directory does not exist. Performing full installation."
+}
+
+# Multi-environment selection (skip in update mode)
+if (-not $isUpdate) {
+    # Load environments configuration
+    $environments = Load-Environments
+    if ($null -eq $environments) {
+        Write-Host "Warning: No environments.json found, using script defaults"
+    } else {
+        # Select environment based on CLI parameter, file, or interactive prompt
+        $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
+        
+        if ($null -ne $selectedEnv) {
+            # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+            Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
+            Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+        } else {
+            Write-Host "No environment selected, using script defaults"
+        }
+    }
+} else {
+    Write-Host "Update mode detected - skipping environment selection, will use existing installation configuration"
 }
 
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
