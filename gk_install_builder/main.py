@@ -648,7 +648,7 @@ class GKInstallBuilder:
         # Version label with customtkinter styling
         version_label = ctk.CTkLabel(
             info_frame,
-            text="v5.25",
+            text="v5.27",
             font=("Helvetica", 12),
             text_color=("gray50", "gray70")
         )
@@ -1796,13 +1796,13 @@ class GKInstallBuilder:
         version_source_dropdown = ctk.CTkOptionMenu(
             grid_frame,
             variable=self.version_source_var,
-            values=["FP", "CONFIG"],
+            values=["FP", "CONFIG-SERVICE"],
             command=self.on_version_source_change,
             width=200
         )
         version_source_dropdown.grid(row=2, column=1, padx=10, pady=5, sticky="w")
         self.create_tooltip(version_source_label, "Choose which API to use for fetching default versions")
-        self.create_tooltip(version_source_dropdown, "FP = Function Pack (FP/FPD scope)\nCONFIG = Config-Service (versions/search)")
+        self.create_tooltip(version_source_dropdown, "FP = Function Pack (FP/FPD scope)\nCONFIG-SERVICE = Config-Service (versions/search)")
         self.config_manager.register_entry("default_version_source", self.version_source_var)
 
         # Test API button
@@ -2837,7 +2837,7 @@ class GKInstallBuilder:
         # Version
         version_label = ctk.CTkLabel(
             content_frame,
-            text="Version 5.25",
+            text="Version 5.27",
             font=("Helvetica", 12),
             text_color=("gray50", "gray70")
         )
