@@ -263,11 +263,13 @@ select_environment() {
   # HOSTNAME_ENV_DETECTION_PLACEHOLDER
   
   # Priority 2: File detection from .station files
-  echo "[2] File Detection: Checking for environment in .station file..." >&2
-  
-  # Determine station filename based on component type
-  local station_filename=""
-  case "$COMPONENT_TYPE" in
+  local file_detection_enabled="@FILE_DETECTION_ENABLED@"
+  if [ "$file_detection_enabled" = "True" ]; then
+    echo "[2] File Detection: Checking for environment in .station file..." >&2
+    
+    # Determine station filename based on component type
+    local station_filename=""
+    case "$COMPONENT_TYPE" in
     'POS') station_filename="POS.station" ;;
     'WDM') station_filename="WDM.station" ;;
     'FLOW-SERVICE') station_filename="FLOW-SERVICE.station" ;;
@@ -314,6 +316,9 @@ select_environment() {
     fi
   else
     echo "    ComponentType not yet determined, skipping station file check" >&2
+  fi
+  else
+    echo "[2] File Detection: Disabled - skipping environment detection from station files" >&2
   fi
   
   # Priority 3: Interactive prompt

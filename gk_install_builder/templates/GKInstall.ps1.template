@@ -167,10 +167,12 @@ function Select-Environment {
     # HOSTNAME_ENV_DETECTION_PLACEHOLDER
     
     # Priority 2: Environment file detection from .station files
-    Write-Host "[2] File Detection: Checking for environment in .station file..."
-    
-    # Determine station filename based on component type
-    $station_filename = switch ($ComponentType) {
+    $fileDetectionEnabled = "@FILE_DETECTION_ENABLED@"
+    if ($fileDetectionEnabled -eq "True") {
+        Write-Host "[2] File Detection: Checking for environment in .station file..."
+        
+        # Determine station filename based on component type
+        $station_filename = switch ($ComponentType) {
         'POS' { "POS.station" }
         'WDM' { "WDM.station" }
         'FLOW-SERVICE' { "FLOW-SERVICE.station" }
@@ -210,6 +212,9 @@ function Select-Environment {
         }
     } else {
         Write-Host "    ComponentType not yet determined, skipping station file check"
+    }
+    } else {
+        Write-Host "[2] File Detection: Disabled - skipping environment detection from station files"
     }
     
     # Priority 3: Interactive prompt
