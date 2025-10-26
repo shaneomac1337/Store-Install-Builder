@@ -242,12 +242,22 @@ select_environment() {
   # Priority 1: CLI parameter
   if [ -n "$cli_env_alias" ]; then
     echo "Selecting environment from CLI parameter: $cli_env_alias" >&2
+    local selected
     if [ "$JQ_AVAILABLE" = true ]; then
-      echo "$environments" | jq --arg alias "$cli_env_alias" '.environments[] | select(.alias == $alias)'
+      selected=$(echo "$environments" | jq --arg alias "$cli_env_alias" '.environments[] | select(.alias == $alias)')
     else
-      json_select_by_alias "$environments" "$cli_env_alias"
+      selected=$(json_select_by_alias "$environments" "$cli_env_alias")
     fi
-    return 0
+    
+    if [ -n "$selected" ]; then
+      echo "$selected"
+      return 0
+    else
+      echo "[X] ERROR: Environment '$cli_env_alias' not found!" >&2
+      echo "" >&2
+      show_environments
+      exit 1
+    fi
   fi
   
   # HOSTNAME_ENV_DETECTION_PLACEHOLDER
@@ -287,6 +297,13 @@ select_environment() {
             echo "    ✓ Matched environment" >&2
             echo "$selected"
             return 0
+          else
+            echo "    ✗ ERROR: Environment '$file_env' found in station file but not configured!" >&2
+            echo "" >&2
+            show_environments
+            echo "" >&2
+            echo "Please add environment '$file_env' to your configuration or fix the station file." >&2
+            exit 1
           fi
         fi
       else
@@ -361,15 +378,22 @@ select_environment() {
 apply_environment_config() {
   local env_json="$1"
   
-  # Extract and set variables
+  # Extract and set variables (export tenant_id so it's available globally)
   if [ "$JQ_AVAILABLE" = true ]; then
     base_url=$(echo "$env_json" | jq -r '.base_url')
-    local tenant_id=$(echo "$env_json" | jq -r '.tenant_id // "001"')
+    new_tenant_id=$(echo "$env_json" | jq -r '.tenant_id // empty')
   else
     base_url=$(json_extract "$env_json" "base_url")
-    local tenant_id=$(json_extract "$env_json" "tenant_id")
-    tenant_id=${tenant_id:-001}
+    new_tenant_id=$(json_extract "$env_json" "tenant_id")
   fi
+
+  # Only override tenant_id if environment specifies a value
+  if [ -n "$new_tenant_id" ]; then
+    tenant_id="$new_tenant_id"
+  fi
+  
+  # Export tenant_id so it's available outside this function
+  export tenant_id
   
   echo "Applying environment configuration:" >&2
   echo "  Base URL: $base_url" >&2
@@ -411,7 +435,95 @@ apply_environment_config() {
     echo "  Updated Employee Hub credentials" >&2
   fi
   
+  # Update tenant_id in all helper JSON files
+  update_helper_json_tenant_id "$tenant_id" "$eh_username"
+  
   echo "Environment configuration applied successfully" >&2
+}
+
+# Function to update tenant_id and username in helper JSON files
+update_helper_json_tenant_id() {
+  local new_tenant_id="$1"
+  local new_username="$2"
+  local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local helper_dir="$script_dir/helper"
+  
+  echo "Updating helper JSON files with tenant_id: $new_tenant_id" >&2
+  
+  # Update onboarding JSON files
+  if [ -d "$helper_dir/onboarding" ]; then
+    for json_file in "$helper_dir/onboarding"/*.json; do
+      if [ -f "$json_file" ]; then
+        if [ "$JQ_AVAILABLE" = true ]; then
+          # Use jq to update tenant_id fields
+          temp_file=$(mktemp)
+          jq --arg tid "$new_tenant_id" '
+            if .tenant_id then .tenant_id = $tid else . end |
+            if .tenantId then .tenantId = $tid else . end |
+            if .restrictions.tenantId then .restrictions.tenantId = $tid else . end
+          ' "$json_file" > "$temp_file" && mv "$temp_file" "$json_file"
+        else
+          # Fallback: use sed for simple replacements
+          sed -i "s/\"tenant_id\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"tenant_id\": \"$new_tenant_id\"/g" "$json_file"
+          sed -i "s/\"tenantId\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"tenantId\": \"$new_tenant_id\"/g" "$json_file"
+        fi
+        echo "  Updated $(basename "$json_file")" >&2
+      fi
+    done
+  fi
+  
+  # Update init/get_store.json
+  local get_store_json="$helper_dir/init/get_store.json"
+  if [ -f "$get_store_json" ]; then
+    if [ "$JQ_AVAILABLE" = true ]; then
+      temp_file=$(mktemp)
+      jq --arg tid "$new_tenant_id" '.station.tenantId = $tid' "$get_store_json" > "$temp_file" && mv "$temp_file" "$get_store_json"
+    else
+      sed -i "s/\"tenantId\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"tenantId\": \"$new_tenant_id\"/g" "$get_store_json"
+    fi
+    echo "  Updated get_store.json" >&2
+  fi
+  
+  # Update init/storehub/update_config.json with username if provided
+  if [ -n "$new_username" ]; then
+    local storehub_config="$helper_dir/init/storehub/update_config.json"
+    if [ -f "$storehub_config" ]; then
+      if [ "$JQ_AVAILABLE" = true ]; then
+        temp_file=$(mktemp)
+        jq --arg usr "$new_username" '.user = $usr' "$storehub_config" > "$temp_file" && mv "$temp_file" "$storehub_config"
+      else
+        sed -i "s/\"user\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"user\": \"$new_username\"/g" "$storehub_config"
+      fi
+      echo "  Updated storehub/update_config.json" >&2
+    fi
+  fi
+  
+  # Update structure/create_structure.json
+  local create_structure_json="$helper_dir/structure/create_structure.json"
+  if [ -f "$create_structure_json" ]; then
+    # First handle template placeholders
+    sed -i "s/@TENANT_ID@/$new_tenant_id/g" "$create_structure_json"
+    
+    # Then handle actual JSON values
+    if [ "$JQ_AVAILABLE" = true ]; then
+      temp_file=$(mktemp)
+      jq_cmd='. | if .tenant.tenantId then .tenant.tenantId = $tid else . end'
+      if [ -n "$new_username" ]; then
+        jq_cmd="$jq_cmd | if .user then .user = \$usr else . end"
+        jq --arg tid "$new_tenant_id" --arg usr "$new_username" "$jq_cmd" "$create_structure_json" > "$temp_file" && mv "$temp_file" "$create_structure_json"
+      else
+        jq --arg tid "$new_tenant_id" "$jq_cmd" "$create_structure_json" > "$temp_file" && mv "$temp_file" "$create_structure_json"
+      fi
+    else
+      sed -i "s/\"tenantId\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"tenantId\": \"$new_tenant_id\"/g" "$create_structure_json"
+      if [ -n "$new_username" ]; then
+        sed -i "s/\"user\"[[:space:]]*:[[:space:]]*\"[^\"]*\"/\"user\": \"$new_username\"/g" "$create_structure_json"
+      fi
+    fi
+    echo "  Updated create_structure.json" >&2
+  fi
+  
+  echo "Helper JSON files updated successfully" >&2
 }
 
 # ============================================================================
@@ -697,6 +809,9 @@ get_default_versions_config_service() {
 # MULTI-ENVIRONMENT SUPPORT - Load and Apply Environment Configuration
 # ============================================================================
 
+# Initialize tenant_id from main configuration (can be overridden by environment)
+tenant_id="@TENANT_ID@"
+
 # Handle list-environments flag
 if [ "$list_environments" = true ]; then
   show_environments
@@ -766,8 +881,7 @@ esac
 if [ "$use_default_versions" = true ]; then
   echo "UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API..."
 
-  # Extract tenant ID from base_url or use default
-  tenant_id="001"  # Default tenant ID, could be made configurable
+  # tenant_id is already set from main config or overridden by apply_environment_config if an environment was selected
 
   # First, ensure we have a fresh OAuth token (just the token, not full onboarding)
   echo "Getting fresh OAuth token for version API call..."
@@ -1526,7 +1640,7 @@ fi
 cat > "installationtoken.txt" << EOF
 configService.url=https://$server/api/config
 cims.url=https://$server/api/iam/cim/rest
-station.tenantId=001
+station.tenantId=$tenant_id
 station.storeId=$storeNumber
 station.workstationId=$workstationId
 station.applicationVersion=$component_version

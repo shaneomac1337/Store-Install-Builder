@@ -194,6 +194,13 @@ function Select-Environment {
                 if ($selectedEnv) {
                     Write-Host "    [OK] Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
                     return $selectedEnv
+                } else {
+                    Write-Host "    [X] ERROR: Environment '$fileEnv' found in station file but not configured!"
+                    Write-Host ""
+                    Show-Environments
+                    Write-Host ""
+                    Write-Host "Please add environment '$fileEnv' to your configuration or fix the station file."
+                    exit 1
                 }
             } else {
                 Write-Host "    No Environment= line found in station file"
@@ -261,8 +268,115 @@ function Apply-EnvironmentConfig {
         $script:env_form_password = $ehPassword
     }
     
+    # Update tenant_id in all helper JSON files
+    Update-HelperJsonTenantId -TenantId $script:tenantId -Username $script:env_form_username
+    
     Write-Host "[OK] Environment configuration applied"
     Write-Host "===================================`n"
+}
+
+# Function to update tenant_id and username in helper JSON files
+function Update-HelperJsonTenantId {
+    param(
+        [string]$TenantId,
+        [string]$Username
+    )
+    
+    if ([string]::IsNullOrWhiteSpace($TenantId)) {
+        return
+    }
+    
+    $helperDir = Join-Path $PSScriptRoot "helper"
+    Write-Host "Updating helper JSON files with tenant_id: $TenantId"
+    
+    # Update onboarding JSON files
+    $onboardingDir = Join-Path $helperDir "onboarding"
+    if (Test-Path $onboardingDir) {
+        Get-ChildItem -Path $onboardingDir -Filter "*.json" | ForEach-Object {
+            try {
+                $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
+                
+                # Update tenant_id fields
+                if ($content.PSObject.Properties.Name -contains 'tenant_id') {
+                    $content.tenant_id = $TenantId
+                }
+                if ($content.PSObject.Properties.Name -contains 'tenantId') {
+                    $content.tenantId = $TenantId
+                }
+                if ($content.restrictions -and ($content.restrictions.PSObject.Properties.Name -contains 'tenantId')) {
+                    $content.restrictions.tenantId = $TenantId
+                }
+                
+                $content | ConvertTo-Json -Depth 10 | Set-Content $_.FullName
+                Write-Host "  Updated $($_.Name)"
+            } catch {
+                Write-Host "  Warning: Failed to update $($_.Name): $_"
+            }
+        }
+    }
+    
+    # Update init/get_store.json
+    $getStoreJson = Join-Path $helperDir "init\get_store.json"
+    if (Test-Path $getStoreJson) {
+        try {
+            $content = Get-Content $getStoreJson -Raw | ConvertFrom-Json
+            if ($content.station) {
+                $content.station.tenantId = $TenantId
+            }
+            $content | ConvertTo-Json -Depth 10 | Set-Content $getStoreJson
+            Write-Host "  Updated get_store.json"
+        } catch {
+            Write-Host "  Warning: Failed to update get_store.json: $_"
+        }
+    }
+    
+    # Update init/storehub/update_config.json with username if provided
+    if (![string]::IsNullOrWhiteSpace($Username)) {
+        $storehubConfig = Join-Path $helperDir "init\storehub\update_config.json"
+        if (Test-Path $storehubConfig) {
+            try {
+                $content = Get-Content $storehubConfig -Raw | ConvertFrom-Json
+                if ($content.PSObject.Properties.Name -contains 'user') {
+                    $content.user = $Username
+                }
+                $content | ConvertTo-Json -Depth 10 | Set-Content $storehubConfig
+                Write-Host "  Updated storehub/update_config.json"
+            } catch {
+                Write-Host "  Warning: Failed to update update_config.json: $_"
+            }
+        }
+    }
+    
+    # Update structure/create_structure.json
+    $createStructureJson = Join-Path $helperDir "structure\create_structure.json"
+    if (Test-Path $createStructureJson) {
+        try {
+            # First handle template placeholders
+            $content = Get-Content $createStructureJson -Raw
+            $content = $content -replace '@TENANT_ID@', $TenantId
+            
+            # Then handle actual JSON values
+            try {
+                $jsonContent = $content | ConvertFrom-Json
+                if ($jsonContent.tenant) {
+                    $jsonContent.tenant.tenantId = $TenantId
+                }
+                if (![string]::IsNullOrWhiteSpace($Username) -and ($jsonContent.PSObject.Properties.Name -contains 'user')) {
+                    $jsonContent.user = $Username
+                }
+                $content = $jsonContent | ConvertTo-Json -Depth 10
+            } catch {
+                # If JSON parsing fails, just use the template-replaced version
+            }
+            
+            $content | Set-Content $createStructureJson
+            Write-Host "  Updated create_structure.json"
+        } catch {
+            Write-Host "  Warning: Failed to update create_structure.json: $_"
+        }
+    }
+    
+    Write-Host "Helper JSON files updated successfully"
 }
 
 # Function to extract version from any package filename
@@ -585,11 +699,14 @@ function Get-DefaultVersions-ConfigService {
 }
 
 # ============================================================================
-# MULTI-ENVIRONMENT SUPPORT - Load and Apply Environment Configuration
+# MULTI-ENVIRONMENT SUPPORT FUNCTIONS
 # ============================================================================
 
-# Handle ListEnvironments flag
-if ($ListEnvironments) {
+# Initialize tenant_id from main configuration (can be overridden by environment)
+$tenantId = "@TENANT_ID@"
+
+# Function to load environments from environments.json
+function Load-Environments {
     Show-Environments
     exit 0
 }
@@ -637,8 +754,11 @@ $systemType = switch ($ComponentType) {
 if ($UseDefaultVersions) {
     Write-Host "UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API..."
 
-    # Extract tenant ID from base_url or use default
-    $tenantId = "001"  # Default tenant ID, could be made configurable
+    # Use tenant ID from environment config if available, otherwise use main config default
+    if ($script:tenantId) {
+        $tenantId = $script:tenantId  # Use environment-specific tenant ID
+    }
+    # Otherwise $tenantId already has the value from main configuration (@TENANT_ID@)
 
     # First, ensure we have a fresh OAuth token (just the token, not full onboarding)
     Write-Host "Getting fresh OAuth token for version API call..."
@@ -1328,7 +1448,7 @@ if (-not $isUpdate) {
 $installationToken = @'
 configService.url=https://@Server@/api/config
 cims.url=https://@Server@/api/iam/cim/rest
-station.tenantId=001
+station.tenantId=@TenantId@
 station.storeId=@StoreNr@
 station.workstationId=@WorkstationId@
 station.applicationVersion=@Version@
@@ -1344,6 +1464,7 @@ $installationToken = $installationToken.Replace('@Server@', $server)
 $installationToken = $installationToken.Replace('@DsgServer@', $dsg_server)
 $installationToken = $installationToken.Replace('@SYSTEM_TYPE@', $systemType)
 $installationToken = $installationToken.Replace('@ONBOARDING_TOKEN@', $onboardingToken)
+$installationToken = $installationToken.Replace('@TenantId@', $tenantId)
 
 Set-Content -Path "installationtoken.txt" -Value $installationToken
 

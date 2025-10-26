@@ -14,6 +14,42 @@ param (
 # Initialize StoreHub wait tracking variable
 $script:storeHubWaitComplete = $false
 
+# Function to log API calls with clear formatting
+function Log-ApiCall {
+    param(
+        [string]$Method,
+        [string]$Url,
+        [string]$Description
+    )
+    
+    Write-Host ""
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host "API CALL: $Description" -ForegroundColor Cyan
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host "Method: $Method"
+    Write-Host "URL: $Url"
+    Write-Host "Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+}
+
+function Log-ApiResponse {
+    param(
+        [string]$Status,
+        $Response
+    )
+    
+    Write-Host "---------------------------------------"
+    Write-Host "Response Status: $Status" -ForegroundColor $(if ($Status -eq "SUCCESS") { "Green" } else { "Red" })
+    if ($Status -eq "SUCCESS") {
+        $responseStr = if ($Response -is [string]) { $Response } else { $Response | ConvertTo-Json -Compress }
+        $preview = if ($responseStr.Length -gt 200) { $responseStr.Substring(0, 200) + "..." } else { $responseStr }
+        Write-Host "Response: $preview"
+    } else {
+        Write-Host "Response: $Response"
+    }
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
 # Get script directory and set current directory as base path
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $basePath = Get-Location
@@ -98,7 +134,9 @@ try {
         $storeUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
         
         try {
+            Log-ApiCall -Method "POST" -Url $storeUrl -Description "Get Store Structure Information"
             $storeResponse = Invoke-RestMethod -Uri $storeUrl -Method Post -Headers $headers -Body (Get-Content -Path $processedGetStorePath -Raw) -ContentType "application/json; variant=Plain; charset=UTF-8"
+            Log-ApiResponse -Status "SUCCESS" -Response $storeResponse
             Write-Host "Successfully retrieved store information"
             
             # Save the response to storemanager.json
@@ -461,7 +499,9 @@ try {
 
     # First API call - Get Business Unit
     $buUrl = "https://$base_url/api/business-unit/rest/v1/business-units/$StoreId"
+    Log-ApiCall -Method "GET" -Url $buUrl -Description "Get Business Unit Information"
     $buResponse = Invoke-RestMethod -Uri $buUrl -Method Get -Headers $headers
+    Log-ApiResponse -Status "SUCCESS" -Response $buResponse
     Write-Host "Successfully retrieved business unit information"
     
     # Extract businessUnitGroupID from the key object in the response
@@ -478,8 +518,10 @@ try {
 
     # Second API call - Try to Get Workstation first
     $wsUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
+    Log-ApiCall -Method "GET" -Url $wsUrl -Description "Check if Workstation Exists"
     try {
         $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
+        Log-ApiResponse -Status "SUCCESS" -Response $wsResponse
         Write-Host "Successfully retrieved existing workstation information"
     }
     catch {
@@ -509,7 +551,10 @@ try {
                 }
             } | ConvertTo-Json -Depth 10
 
+            Log-ApiCall -Method "POST" -Url $wsCreateUrl -Description "Register Workstation to SDC (type: $typeCode)"
+            Write-Host "Payload: $wsPayload"
             $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
+            Log-ApiResponse -Status "SUCCESS" -Response $wsResponse
             Write-Host "Successfully created new workstation"
             
             # Add a sleep for StoreHub components to allow time for backend processing
@@ -524,6 +569,7 @@ try {
             }
         }
         else {
+            Log-ApiResponse -Status "FAILURE" -Response $_.Exception.Message
             Write-Host "Error accessing workstation:"
             Write-Host $_
             if ($_.Exception.Response) {

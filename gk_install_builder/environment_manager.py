@@ -353,8 +353,8 @@ class EnvironmentManager:
         base_url_entry.insert(0, env_data.get("base_url", ""))
         entries["base_url"] = base_url_entry
         
-        # Use default tenant checkbox
-        use_default_var = tk.BooleanVar(value=env_data.get("use_default_tenant", True))
+        # Use default tenant checkbox (default to False so environment-specific tenant is used unless opted-in)
+        use_default_var = tk.BooleanVar(value=env_data.get("use_default_tenant", False))
         
         tenant_checkbox_frame = ctk.CTkFrame(main_frame)
         tenant_checkbox_frame.pack(fill="x", pady=10)

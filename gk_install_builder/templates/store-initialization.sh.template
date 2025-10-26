@@ -3,6 +3,36 @@
 # Exit on any error
 set -e
 
+# Function to log API calls with clear formatting
+log_api_call() {
+  local method="$1"
+  local url="$2"
+  local description="$3"
+  
+  echo ""
+  echo "======================================="
+  echo "API CALL: $description"
+  echo "======================================="
+  echo "Method: $method"
+  echo "URL: $url"
+  echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
+}
+
+log_api_response() {
+  local status="$1"
+  local response="$2"
+  
+  echo "---------------------------------------"
+  echo "Response Status: $status"
+  if [ "$status" = "SUCCESS" ]; then
+    echo "Response: ${response:0:200}$([ ${#response} -gt 200 ] && echo '...')"
+  else
+    echo "Response: $response"
+  fi
+  echo "======================================="
+  echo ""
+}
+
 # Default values will be overridden by command line arguments
 COMPONENT_TYPE=""
 base_url=""
@@ -123,9 +153,11 @@ else
   # Add content-type header for this specific call
   content_type_header=(-H "Content-Type: application/json; variant=Plain; charset=UTF-8")
   
+  log_api_call "POST" "$store_url" "Get Store Structure Information"
   store_response=$(curl -s -f -X POST "$store_url" "${headers[@]}" "${content_type_header[@]}" -d @"$processed_get_store_path")
   
   if [ $? -eq 0 ]; then
+    log_api_response "SUCCESS" "$store_response"
     echo "Successfully retrieved store information"
     
     # Save the response to storemanager.json
@@ -575,12 +607,15 @@ fi
 
 # First API call - Get Business Unit
 bu_url="https://$base_url/api/business-unit/rest/v1/business-units/$STORE_ID"
+log_api_call "GET" "$bu_url" "Get Business Unit Information"
 bu_response=$(curl -s -f -X GET "$bu_url" "${headers[@]}")
 if [ $? -ne 0 ]; then
+  log_api_response "FAILURE" "curl command failed"
   echo "Error occurred during business unit API call"
   exit 1
 fi
 
+log_api_response "SUCCESS" "$bu_response"
 echo "Successfully retrieved business unit information"
 
 # Parse the business unit response for businessUnitGroupID from the key object
@@ -618,6 +653,7 @@ echo "Found businessUnitGroupID: $business_unit_group_id"
 
 # Second API call - Try to Get Workstation first
 ws_url="https://$base_url/api/pos/master-data/rest/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
+log_api_call "GET" "$ws_url" "Check if Workstation Exists"
 ws_response=$(curl -s -f -X GET "$ws_url" "${headers[@]}" || echo "HTTP_ERROR")
 
 if [ "$ws_response" = "HTTP_ERROR" ]; then
@@ -654,13 +690,17 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
     ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
     
     ws_create_url="https://$base_url/api/pos/master-data/rest/v1/workstations"
+    log_api_call "POST" "$ws_create_url" "Register Workstation to SDC (type: $type_code)"
+    echo "Payload: $ws_payload"
     ws_response=$(curl -s -f -X POST "$ws_create_url" "${headers[@]}" -d "$ws_payload")
     
     if [ $? -ne 0 ]; then
+      log_api_response "FAILURE" "$ws_response"
       echo "Error creating workstation"
       echo "Response: $ws_response"
       exit 1
     fi
+    log_api_response "SUCCESS" "$ws_response"
     echo "Successfully created new workstation"
     
     # Add a sleep for StoreHub components to allow time for backend processing
@@ -674,11 +714,13 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
       storehub_wait_complete=1
     fi
   else
+    log_api_response "FAILURE" "Status code: $status_code"
     echo "Error accessing workstation. Status code: $status_code"
     echo "Response: $ws_response"
     exit 1
   fi
 else
+  log_api_response "SUCCESS" "$ws_response"
   echo "Successfully retrieved existing workstation information"
 fi
 
