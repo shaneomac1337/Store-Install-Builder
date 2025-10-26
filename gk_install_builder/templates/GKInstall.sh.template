@@ -850,25 +850,6 @@ if [ "$list_environments" = true ]; then
   exit 0
 fi
 
-# Load environments configuration
-if environments=$(load_environments 2>/dev/null); then
-  # Select environment based on CLI parameter, file, or interactive prompt
-  if selected_env=$(select_environment "$environments" "$env_alias"); then
-    # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
-    apply_environment_config "$selected_env"
-    if [ "$JQ_AVAILABLE" = true ]; then
-      env_alias_name=$(echo "$selected_env" | jq -r '.alias')
-    else
-      env_alias_name=$(json_extract "$selected_env" "alias")
-    fi
-    echo "Environment '$env_alias_name' applied successfully"
-  else
-    echo "No environment selected, using script defaults"
-  fi
-else
-  echo "Warning: No environments.json found, using script defaults"
-fi
-
 # ============================================================================
 # SCRIPT CONFIGURATION (may be overridden by environment config above)
 # ============================================================================
@@ -927,21 +908,50 @@ if [ "$use_default_versions" = true ]; then
 
   # Check if credential files exist and get OAuth token
   if [ -f "$basic_auth_path" ] && [ -f "$form_password_path" ]; then
-    # Read credentials (already decoded plain text)
+    # Read credentials (should be plain text, but auto-detect base64)
     username="launchpad"
     basic_auth_password=$(cat "$basic_auth_path")
     form_password=$(cat "$form_password_path")
     
+    echo "[DEBUG] Credential files found"
+    echo "[DEBUG] Basic auth username: $username"
+    echo "[DEBUG] Basic auth password length: ${#basic_auth_password}"
+    echo "[DEBUG] Form password length: ${#form_password}"
+    
+    # Auto-detect and decode base64 if needed
+    # Check if basic_auth_password looks like base64 (only alphanumeric + / + = characters)
+    if [[ "$basic_auth_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+      decoded_basic=$(echo "$basic_auth_password" | base64 -d 2>/dev/null)
+      if [ $? -eq 0 ] && [ -n "$decoded_basic" ]; then
+        echo "[DEBUG] Basic auth password detected as base64-encoded, decoding..."
+        basic_auth_password="$decoded_basic"
+        echo "[DEBUG] Basic auth password decoded (length: ${#basic_auth_password})"
+      fi
+    fi
+    
+    # Auto-detect and decode form password if needed
+    if [[ "$form_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+      decoded_form=$(echo "$form_password" | base64 -d 2>/dev/null)
+      if [ $? -eq 0 ] && [ -n "$decoded_form" ]; then
+        echo "[DEBUG] Form password detected as base64-encoded, decoding..."
+        form_password="$decoded_form"
+        echo "[DEBUG] Form password decoded (length: ${#form_password})"
+      fi
+    fi
+    
     # Read form username from file if available, otherwise use template default
     if [ -f "$form_username_path" ]; then
       form_username=$(cat "$form_username_path")
+      echo "[DEBUG] Form username from file: $form_username"
     else
       form_username="@FORM_USERNAME@"
+      echo "[DEBUG] Form username from template: $form_username"
     fi
 
     if [ -n "$basic_auth_password" ] && [ -n "$form_password" ]; then
       # Create Basic Auth header (same as onboarding.sh)
       auth_string=$(echo -n "$username:$basic_auth_password" | base64 | tr -d '\n')
+      echo "[DEBUG] Basic Auth header created"
 
       # URL encoding function (same as onboarding.sh)
       urlencode() {
@@ -962,15 +972,22 @@ if [ "$use_default_versions" = true ]; then
       username_encoded=$(urlencode "$form_username")
       password_encoded=$(urlencode "$form_password")
       form_data="username=${username_encoded}&password=${password_encoded}&grant_type=password"
+      echo "[DEBUG] Form data prepared"
 
       # Get OAuth token (same URL as onboarding.sh)
       token_url="https://$base_url/auth-service/tenants/$tenant_id/oauth/token"
+      echo "[DEBUG] Token URL: $token_url"
+      echo "[DEBUG] Making OAuth token request..."
+      
       response=$(curl -s -X POST "$token_url" \
         -H "Authorization: Basic $auth_string" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "$form_data")
+      
+      curl_exit_code=$?
+      echo "[DEBUG] OAuth API request completed (status: $curl_exit_code)"
 
-      if [ $? -eq 0 ] && [ -n "$response" ]; then
+      if [ $curl_exit_code -eq 0 ] && [ -n "$response" ]; then
         # Extract access token from JSON response
         access_token=$(echo "$response" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"\([^"]*\)"/\1/')
 
@@ -980,15 +997,25 @@ if [ "$use_default_versions" = true ]; then
           echo -n "$access_token" > "$token_file"
           echo "OAuth token obtained and saved successfully"
         else
+          echo "[ERROR] Could not extract access token from response"
+          echo "[DEBUG] API Response: $response"
           echo "Warning: Could not extract access token from response, proceeding with existing token..."
         fi
       else
+        echo "[ERROR] OAuth token request failed (curl status: $curl_exit_code)"
+        echo "[DEBUG] API Response: $response"
         echo "Warning: Failed to get OAuth token, proceeding with existing token..."
       fi
     else
+      echo "[ERROR] Credentials are empty"
+      echo "[DEBUG] Basic auth password empty: $([ -z "$basic_auth_password" ] && echo 'YES' || echo 'NO')"
+      echo "[DEBUG] Form password empty: $([ -z "$form_password" ] && echo 'YES' || echo 'NO')"
       echo "Warning: Credentials are empty, proceeding with existing token..."
     fi
   else
+    echo "[ERROR] Required credential files not found"
+    echo "[DEBUG] Basic auth path exists: $([ -f "$basic_auth_path" ] && echo 'YES' || echo 'NO') - $basic_auth_path"
+    echo "[DEBUG] Form password path exists: $([ -f "$form_password_path" ] && echo 'YES' || echo 'NO') - $form_password_path"
     echo "Warning: Required credential files not found, proceeding with existing token..."
   fi
 
@@ -1431,6 +1458,30 @@ if [ -d "$install_dir" ]; then
     fi
 else
     echo "Installation directory does not exist. Performing full installation."
+fi
+
+# Multi-environment selection (skip in update mode)
+if [ "$isUpdate" = false ]; then
+  # Load environments configuration
+  if environments=$(load_environments 2>/dev/null); then
+    # Select environment based on CLI parameter, file, or interactive prompt
+    if selected_env=$(select_environment "$environments" "$env_alias"); then
+      # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+      apply_environment_config "$selected_env"
+      if [ "$JQ_AVAILABLE" = true ]; then
+        env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+      else
+        env_alias_name=$(json_extract "$selected_env" "alias")
+      fi
+      echo "Environment '$env_alias_name' applied successfully"
+    else
+      echo "No environment selected, using script defaults"
+    fi
+  else
+    echo "Warning: No environments.json found, using script defaults"
+  fi
+else
+  echo "Update mode detected - skipping environment selection, will use existing installation configuration"
 fi
 
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
