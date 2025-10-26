@@ -769,6 +769,9 @@ class ProjectGenerator:
             
             # Get version source setting
             version_source = config.get("default_version_source", "FP")
+            # Map CONFIG-SERVICE (GUI display name) to CONFIG (script value)
+            if version_source == "CONFIG-SERVICE":
+                version_source = "CONFIG"
             
             # Get form username (eh_launchpad_username)
             form_username = config.get("eh_launchpad_username", "1001")

@@ -291,12 +291,12 @@ class EnvironmentManager:
         """
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("Add Environment" if mode == "add" else "Edit Environment")
-        dialog.geometry("500x700")
+        dialog.geometry("600x700")
         dialog.transient(self.window)
         
         # Center dialog
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+        x = (dialog.winfo_screenwidth() // 2) - (600 // 2)
         y = (dialog.winfo_screenheight() // 2) - (700 // 2)
         dialog.geometry(f"+{x}+{y}")
         

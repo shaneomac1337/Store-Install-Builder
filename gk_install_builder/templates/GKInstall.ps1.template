@@ -516,29 +516,59 @@ function Get-DefaultVersions {
         try {
             $fpResponse = Invoke-RestMethod -Uri $fpApiUrl -Method Get -Headers $headers -TimeoutSec 30
 
-            # Parse FP scope results
+            # Parse FP scope results - try Update_Version first, then fall back to Version
             foreach ($property in $fpResponse) {
                 if ($property.value) {
                     switch ($property.propertyId) {
-                        "POSClient_Version" {
+                        "POSClient_Update_Version" {
                             $versions["POS"] = $property.value
                             $versionSources["POS"] = "FP (Modified)"
                         }
-                        "WDM_Version" {
+                        "POSClient_Version" {
+                            if (-not $versions.ContainsKey("POS")) {
+                                $versions["POS"] = $property.value
+                                $versionSources["POS"] = "FP (Modified)"
+                            }
+                        }
+                        "WDM_Update_Version" {
                             $versions["WDM"] = $property.value
                             $versionSources["WDM"] = "FP (Modified)"
                         }
-                        "FlowService_Version" {
+                        "WDM_Version" {
+                            if (-not $versions.ContainsKey("WDM")) {
+                                $versions["WDM"] = $property.value
+                                $versionSources["WDM"] = "FP (Modified)"
+                            }
+                        }
+                        "FlowService_Update_Version" {
                             $versions["FLOW-SERVICE"] = $property.value
                             $versionSources["FLOW-SERVICE"] = "FP (Modified)"
                         }
-                        "LPA_Version" {
+                        "FlowService_Version" {
+                            if (-not $versions.ContainsKey("FLOW-SERVICE")) {
+                                $versions["FLOW-SERVICE"] = $property.value
+                                $versionSources["FLOW-SERVICE"] = "FP (Modified)"
+                            }
+                        }
+                        "LPA_Update_Version" {
                             $versions["LPA-SERVICE"] = $property.value
                             $versionSources["LPA-SERVICE"] = "FP (Modified)"
                         }
-                        "StoreHub_Version" {
+                        "LPA_Version" {
+                            if (-not $versions.ContainsKey("LPA-SERVICE")) {
+                                $versions["LPA-SERVICE"] = $property.value
+                                $versionSources["LPA-SERVICE"] = "FP (Modified)"
+                            }
+                        }
+                        "SH_Update_Version" {
                             $versions["STOREHUB-SERVICE"] = $property.value
                             $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
+                        }
+                        "StoreHub_Version" {
+                            if (-not $versions.ContainsKey("STOREHUB-SERVICE")) {
+                                $versions["STOREHUB-SERVICE"] = $property.value
+                                $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
+                            }
                         }
                     }
                 }
@@ -560,14 +590,26 @@ function Get-DefaultVersions {
             try {
                 $fpdResponse = Invoke-RestMethod -Uri $fpdApiUrl -Method Get -Headers $headers -TimeoutSec 30
 
-                # Parse FPD scope results for missing components only
+                # Parse FPD scope results for missing components only - try Update_Version first, then fall back to Version
                 foreach ($property in $fpdResponse) {
                     if ($property.value) {
                         switch ($property.propertyId) {
+                            "POSClient_Update_Version" {
+                                if (-not $versions.ContainsKey("POS")) {
+                                    $versions["POS"] = $property.value
+                                    $versionSources["POS"] = "FPD (Default)"
+                                }
+                            }
                             "POSClient_Version" {
                                 if (-not $versions.ContainsKey("POS")) {
                                     $versions["POS"] = $property.value
                                     $versionSources["POS"] = "FPD (Default)"
+                                }
+                            }
+                            "WDM_Update_Version" {
+                                if (-not $versions.ContainsKey("WDM")) {
+                                    $versions["WDM"] = $property.value
+                                    $versionSources["WDM"] = "FPD (Default)"
                                 }
                             }
                             "WDM_Version" {
@@ -576,16 +618,34 @@ function Get-DefaultVersions {
                                     $versionSources["WDM"] = "FPD (Default)"
                                 }
                             }
+                            "FlowService_Update_Version" {
+                                if (-not $versions.ContainsKey("FLOW-SERVICE")) {
+                                    $versions["FLOW-SERVICE"] = $property.value
+                                    $versionSources["FLOW-SERVICE"] = "FPD (Default)"
+                                }
+                            }
                             "FlowService_Version" {
                                 if (-not $versions.ContainsKey("FLOW-SERVICE")) {
                                     $versions["FLOW-SERVICE"] = $property.value
                                     $versionSources["FLOW-SERVICE"] = "FPD (Default)"
                                 }
                             }
+                            "LPA_Update_Version" {
+                                if (-not $versions.ContainsKey("LPA-SERVICE")) {
+                                    $versions["LPA-SERVICE"] = $property.value
+                                    $versionSources["LPA-SERVICE"] = "FPD (Default)"
+                                }
+                            }
                             "LPA_Version" {
                                 if (-not $versions.ContainsKey("LPA-SERVICE")) {
                                     $versions["LPA-SERVICE"] = $property.value
                                     $versionSources["LPA-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "SH_Update_Version" {
+                                if (-not $versions.ContainsKey("STOREHUB-SERVICE")) {
+                                    $versions["STOREHUB-SERVICE"] = $property.value
+                                    $versionSources["STOREHUB-SERVICE"] = "FPD (Default)"
                                 }
                             }
                             "StoreHub_Version" {
