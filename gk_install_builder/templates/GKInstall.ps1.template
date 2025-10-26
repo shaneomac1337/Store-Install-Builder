@@ -842,11 +842,6 @@ if ($UseDefaultVersions) {
             $basicAuthPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($basicAuthPasswordEncoded))
             $formPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($formPasswordEncoded))
             
-            Write-Host "[DEBUG] Basic auth password length: $($basicAuthPassword.Length) chars"
-            Write-Host "[DEBUG] Basic auth password (first 3 chars): $($basicAuthPassword.Substring(0, [Math]::Min(3, $basicAuthPassword.Length)))***"
-            Write-Host "[DEBUG] Form password length: $($formPassword.Length) chars"
-            Write-Host "[DEBUG] Form password (first 3 chars): $($formPassword.Substring(0, [Math]::Min(3, $formPassword.Length)))***"
-            
             # Use environment-specific username if available, otherwise use template default
             if ($script:env_form_username) {
                 $formUsername = $script:env_form_username
