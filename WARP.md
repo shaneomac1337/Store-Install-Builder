@@ -6,30 +6,32 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 GK Install Builder is a Python GUI application for generating installation packages for retail store environments. It creates platform-specific installation scripts (Windows PowerShell and Linux Bash), configuration files, and deployment packages for multiple retail components (POS, WDM, Flow Service, LPA Service, StoreHub Service).
 
-**Key Technology**: CustomTkinter-based GUI application that generates installation scripts and integrates with WebDAV and Pleasant Password Server.
+**Key Technology**: CustomTkinter-based GUI application with multi-environment support, OAuth2 integration, and automated deployment package generation.
 
-## Development Setup
+**Active Branch**: Currently on `feature/multi-environment` with recent OAuth token generation and multi-tenancy support for retail deployments.
+
+## Development Commands
 
 ### Prerequisites
-- Python 3.7 or higher (currently using Python 3.13.5)
-- Dependencies: customtkinter, requests, webdavclient3, urllib3, pillow, setuptools, wheel, pyinstaller
+- Python 3.7+ (tested with Python 3.13.5)
+- Windows PowerShell 5.1+ or compatible shell (for testing Windows scripts)
 
-### Installation
+### Common Commands
 ```pwsh
-# Install dependencies
+# Install/update dependencies
 pip install -r requirements.txt
 
-# Run the application
+# Run development instance
 python -m gk_install_builder.main
-```
 
-### Building Executable
-```pwsh
-# Create standalone executable (uses StoreInstallBuilder.spec)
+# Build standalone Windows executable
 pyinstaller StoreInstallBuilder.spec
+
+# Output location
+# - Executable: dist/GK Install Builder/GK Install Builder.exe
+# - All dependencies: dist/GK Install Builder/
 ```
 
-The executable and dependencies will be in `dist/GK Install Builder/` directory.
 
 ## Core Architecture
 
@@ -116,16 +118,43 @@ Templates use `@VARIABLE@` syntax for substitution. The generator replaces these
 - `@AUTH_SERVICE_BA_USER@` / `@AUTH_SERVICE_BA_PASSWORD@` - Auth credentials
 - Platform-specific paths for Firebird, Jaybird, etc.
 
+## Multi-Environment & Multi-Tenancy Support
+
+### Environment Manager (`environment_manager.py`)
+Handles configuration for multiple retail environments (TEST, PROD, etc.):
+- Per-environment credentials and base URLs
+- Environment aliasing and cloning for similar configurations
+- Automatic environment detection based on hostname patterns
+- OAuth2 token generation and token caching per environment
+
+### KeePass Integration (`keepass_dialog.py`)
+Reusable dialog for Pleasant Password Server authentication:
+- Session-based credential caching (class-level storage)
+- Environment auto-detection from base URL subdomain parsing
+- Password retrieval with automatic project name resolution
+
+### Environment Detection (`detection.py`)
+Automated workstation/store identification supporting:
+- Hostname regex patterns (platform-specific: Windows vs Linux)
+- File-based detection using custom station files
+- Environment-specific detection toggles
+- Automatic environment selection in generated scripts
+
 ## Configuration
 
-### Configuration File
-Application state is persisted to `gk_install_config.json` in the project root. This includes:
-- Project metadata (name, base URL, version)
-- Platform selection (Windows/Linux)
-- Component-specific versions and settings
-- Detection configuration
-- Security credentials
-- WebDAV credentials
+### Configuration Files
+Application state is persisted to JSON files:
+- **`gk_install_config.json`**: Main application configuration including:
+  - Project metadata (name, base URL, version)
+  - Platform selection (Windows/Linux)
+  - Component-specific versions and settings
+  - Detection configuration
+  - Security credentials
+  - WebDAV credentials
+- **`environments.json`**: Multi-environment definitions (if used)
+  - Per-environment credentials
+  - Base URLs and tenant IDs
+  - Detection patterns per environment
 
 ### Version Management
 Default component versions are defined in `gk_install_builder/default_versions.json` (fallback for Employee Hub Service API). The application can:
@@ -225,10 +254,17 @@ Connection details:
 
 ### Employee Hub Service API
 Endpoint: `https://BASE_URL/employee-hub-service/services/rest/v1/properties`
-- Requires bearer token (from onboarding process)
+- Requires OAuth2 bearer token
 - Query params: `scope=FP&referenceId=platform` (modified versions) or `scope=FPD&referenceId=platform` (default versions)
 - Returns component version properties
 - Headers: `authorization: Bearer TOKEN`, `gk-tenant-id: TENANT_ID`
+
+### OAuth2 Token Generation
+Automated token flow via Employee Hub Service:
+- Token endpoint: `https://BASE_URL/oauth2/oauth/token`
+- Credentials passed via form data in generated onboarding scripts
+- Tokens cached per environment for session reuse
+- Fallback to `Update_Version` property if dynamic versions unavailable
 
 ## Common Development Tasks
 
@@ -252,10 +288,41 @@ Endpoint: `https://BASE_URL/employee-hub-service/services/rest/v1/properties`
 3. Update UI default values in `main.py` if needed
 4. Test with fresh configuration (delete `gk_install_config.json`)
 
+## Architecture Patterns & Key Decision Points
+
+### Script Generation Strategy
+- Templates use simple `@VARIABLE@` token replacement (no advanced templating engine)
+- Generated scripts include automatic environment detection via hostname patterns or station files
+- Generated scripts handle both OAuth2 token generation and fallback to `Update_Version` properties
+- Scripts are self-contained (credentials embedded in generated packages)
+
+### State Management
+- Configuration auto-saves after 1-second debounce to reduce file I/O
+- Multi-environment state stored in `environments.json` (separate from main config)
+- Class-level static variables in `GKInstallBuilder` cache KeePass credentials for session lifetime
+- Threading used for all blocking operations (WebDAV, API calls, file operations)
+
+### Data Flow for Package Generation
+1. User configures environment, components, and detection settings in GUI
+2. Config Manager auto-saves to JSON with debounce
+3. Generator reads config + templates
+4. Template substitution creates platform-specific scripts
+5. Helper files (launchers, JSON configs) are copied and template-substituted
+6. Output package ready for deployment
+
+## Recent Developments & Known Limitations
+
+- Multi-environment support (feature/multi-environment branch) enables per-environment OAuth tokens and credentials
+- Environment auto-detection via hostname patterns now supports toggling per environment
+- `Update_Version` fallback property added for component version retrieval when API unavailable
+- Tenant ID now properly propagated to all generated scripts and API calls
+- WebDAV operations bypass SSL verification (intended for internal retail networks)
+- Generated packages embed credentials—consider security implications for production deployments
+
 ## Notes
 
-- The application automatically indexes new codebases when entering git repositories
-- Generated scripts include automatic version detection from package filenames
-- Templates use token-based replacement (not advanced templating engines)
-- Configuration auto-saves after 1-second delay to reduce file I/O
-- WebDAV operations bypass SSL certificate validation (internal use)
+- Current branch is `feature/multi-environment`—merge to main when multi-tenancy testing complete
+- Templates are platform-specific; update both `.ps1` (Windows) and `.sh` (Linux) versions when modifying deployment logic
+- Helper structure includes launchers for each component; add new launchers when adding components
+- Version detection in generated scripts relies on package filename parsing—maintain consistent naming
+- API endpoints require specific header formats; see `.template` files for exact OAuth and tenant-id header patterns
