@@ -540,7 +540,12 @@ class ProjectGenerator:
                     Write-Host "    [OK] Matched: $($selectedEnv.name) ($($selectedEnv.base_url))"
                     return $selectedEnv
                 }} else {{
-                    Write-Host "    [X] Environment '$hostnameEnv' not found in configuration"
+                    Write-Host "    [X] ERROR: Environment '$hostnameEnv' detected from hostname but not configured!"
+                    Write-Host ""
+                    Show-Environments
+                    Write-Host ""
+                    Write-Host "Please add environment '$hostnameEnv' to your configuration."
+                    exit 1
                 }}
             }} else {{
                 Write-Host "    [X] Regex matched but does not have 3 capture groups (need: Environment, Store, Workstation)"
@@ -582,7 +587,12 @@ class ProjectGenerator:
         echo "$selected"
         return 0
       else
-        echo "    ✗ Environment '$hostname_env' not found in configuration" >&2
+        echo "    ✗ ERROR: Environment '$hostname_env' detected from hostname but not configured!" >&2
+        echo "" >&2
+        show_environments
+        echo "" >&2
+        echo "Please add environment '$hostname_env' to your configuration." >&2
+        exit 1
       fi
     else
       echo "    ✗ Regex matched but does not have 3 capture groups (need: Environment, Store, Workstation)" >&2
@@ -764,43 +774,43 @@ class ProjectGenerator:
             form_username = config.get("eh_launchpad_username", "1001")
             
             if platform == "Windows":
-                # Windows-specific replacements
-                replacements = [
-                    ("test.cse.cloud4retail.co", base_url),
-                    ("C:\\gkretail", base_install_dir.replace("\\", "\\\\")),  # double backslash
-                    ("C:/gkretail", base_install_dir.replace("\\", "/")),  # handle any accidental forward slashes
-                    (r"C:\gkretail", base_install_dir),  # single backslash (main fix)
-                    ("$base_install_dir = \"C:\\gkretail\"", f"$base_install_dir = \"{base_install_dir}\""),  # assignment line
-                    ('"v1.0.0"', f'"{default_version}"'),
-                    ("CSE-OPOS-CLOUD", pos_system_type),
-                    ("CSE-wdm", wdm_system_type),
-                    ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
-                    ("CSE-lps-lpa", lpa_service_system_type),
-                    ("CSE-sh-cloud", storehub_service_system_type),
-                    ("@POS_VERSION@", pos_version),
-                    ("@WDM_VERSION@", wdm_version),
-                    ("@FLOW_SERVICE_VERSION@", flow_service_version),
-                    ("@LPA_SERVICE_VERSION@", lpa_service_version),
-                    ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
-                    ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
-                    ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
-                    ("@VERSION_SOURCE@", version_source),
-                    ("@FORM_USERNAME@", form_username),
-                    ("@POS_SYSTEM_TYPE@", pos_system_type),
-                    ("@WDM_SYSTEM_TYPE@", wdm_system_type),
-                    ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
-                    ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
-                    ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
-                    ("station.tenantId=001", f"station.tenantId={tenant_id}")
-                ]
+                    # Windows-specific replacements
+                    replacements = [
+                        ("test.cse.cloud4retail.co", base_url),
+                        ("C:\\gkretail", base_install_dir.replace("\\", "\\\\")),  # double backslash
+                        ("C:/gkretail", base_install_dir.replace("\\", "/")),  # handle any accidental forward slashes
+                        (r"C:\gkretail", base_install_dir),  # single backslash (main fix)
+                        ("$base_install_dir = \"C:\\gkretail\"", f"$base_install_dir = \"{base_install_dir}\""),  # assignment line
+                        ('"v1.0.0"', f'"{default_version}"'),
+                        ("CSE-OPOS-CLOUD", pos_system_type),
+                        ("CSE-wdm", wdm_system_type),
+                        ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
+                        ("CSE-lps-lpa", lpa_service_system_type),
+                        ("CSE-sh-cloud", storehub_service_system_type),
+                        ("@POS_VERSION@", pos_version),
+                        ("@WDM_VERSION@", wdm_version),
+                        ("@FLOW_SERVICE_VERSION@", flow_service_version),
+                        ("@LPA_SERVICE_VERSION@", lpa_service_version),
+                        ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
+                        ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
+                        ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
+                        ("@VERSION_SOURCE@", version_source),
+                        ("@FORM_USERNAME@", form_username),
+                        ("@POS_SYSTEM_TYPE@", pos_system_type),
+                        ("@WDM_SYSTEM_TYPE@", wdm_system_type),
+                        ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
+                        ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
+                        ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
+                        ("@TENANT_ID@", tenant_id)
+                    ]
                 
-                # Add version function for component-specific versions
-                if use_version_override:
-                    # We're no longer using the function approach, so we don't need to add the function
-                    pass
-                else:
-                    # We're no longer using the function approach, so we don't need to add the function
-                    pass
+                    # Add version function for component-specific versions
+                    if use_version_override:
+                        # We're no longer using the function approach, so we don't need to add the function
+                        pass
+                    else:
+                        # We're no longer using the function approach, so we don't need to add the function
+                        pass
                 
             else:  # Linux
                 # Linux-specific replacements
@@ -827,7 +837,7 @@ class ProjectGenerator:
                     ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                     ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                     ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
-                    ("station.tenantId=001", f"station.tenantId={tenant_id}")
+                    ("@TENANT_ID@", tenant_id)
                 ]
                 
                 # Add version function for component-specific versions (bash version)
@@ -1956,33 +1966,104 @@ tomcat_package_local=@TOMCAT_PACKAGE@
     def _modify_json_files(self, helper_dir, config):
         """Modify JSON files with new configuration"""
         try:
-            # Modify all JSON files in onboarding directory
-            onboarding_dir = os.path.join(helper_dir, "onboarding")
-            if not os.path.exists(onboarding_dir):
-                return
-
-            # Get all JSON files in the directory
-            json_files = [f for f in os.listdir(onboarding_dir) if f.endswith('.json')]
+            tenant_id = config.get("tenant_id", "001")
+            username = config.get("eh_launchpad_username", "1001")
+            base_url = config.get("base_url", "")
             
-            for json_file in json_files:
-                file_path = os.path.join(onboarding_dir, json_file)
-                try:
-                    with open(file_path, 'r') as f:
-                        data = json.loads(f.read())
-                    
-                    # Recursively replace URLs in the JSON structure
-                    self._replace_urls_in_json(data, config['base_url'])
-                    
-                    # Update specific fields if they exist
-                    if "restrictions" in data:
-                        data["restrictions"]["tenantId"] = config["tenant_id"]
-                    
-                    # Write updated JSON with proper formatting
-                    with open(file_path, 'w') as f:
-                        json.dump(data, f, indent=4)
+            # 1. Modify all JSON files in onboarding directory
+            onboarding_dir = os.path.join(helper_dir, "onboarding")
+            if os.path.exists(onboarding_dir):
+                json_files = [f for f in os.listdir(onboarding_dir) if f.endswith('.json')]
+                
+                for json_file in json_files:
+                    file_path = os.path.join(onboarding_dir, json_file)
+                    try:
+                        with open(file_path, 'r') as f:
+                            data = json.loads(f.read())
                         
-                except Exception as e:
-                    self._show_error(f"Failed to modify {json_file}: {str(e)}")
+                        # Recursively replace URLs in the JSON structure
+                        self._replace_urls_in_json(data, base_url)
+                        
+                        # Update tenant_id if present
+                        if "tenant_id" in data:
+                            data["tenant_id"] = tenant_id
+                        if "tenantId" in data:
+                            data["tenantId"] = tenant_id
+                        if "restrictions" in data and "tenantId" in data["restrictions"]:
+                            data["restrictions"]["tenantId"] = tenant_id
+                        
+                        # Write updated JSON with proper formatting
+                        with open(file_path, 'w') as f:
+                            json.dump(data, f, indent=4)
+                        print(f"  Modified onboarding file: {json_file}")
+                            
+                    except Exception as e:
+                        print(f"  Warning: Failed to modify {json_file}: {str(e)}")
+            
+            # 2. Modify JSON files in init directory
+            init_dir = os.path.join(helper_dir, "init")
+            if os.path.exists(init_dir):
+                # Update get_store.json
+                get_store_path = os.path.join(init_dir, "get_store.json")
+                if os.path.exists(get_store_path):
+                    try:
+                        with open(get_store_path, 'r') as f:
+                            data = json.loads(f.read())
+                        
+                        # Update tenantId in station object
+                        if "station" in data and "tenantId" in data["station"]:
+                            data["station"]["tenantId"] = tenant_id
+                        
+                        with open(get_store_path, 'w') as f:
+                            json.dump(data, f, indent=2)
+                        print(f"  Modified init file: get_store.json")
+                    except Exception as e:
+                        print(f"  Warning: Failed to modify get_store.json: {str(e)}")
+                
+                # Update storehub/update_config.json
+                storehub_config_path = os.path.join(init_dir, "storehub", "update_config.json")
+                if os.path.exists(storehub_config_path):
+                    try:
+                        with open(storehub_config_path, 'r') as f:
+                            data = json.loads(f.read())
+                        
+                        # Update user field
+                        if "user" in data:
+                            data["user"] = username
+                        
+                        with open(storehub_config_path, 'w') as f:
+                            json.dump(data, f, indent=2)
+                        print(f"  Modified storehub file: update_config.json")
+                    except Exception as e:
+                        print(f"  Warning: Failed to modify update_config.json: {str(e)}")
+            
+            # 3. Modify JSON files in structure directory
+            structure_dir = os.path.join(helper_dir, "structure")
+            if os.path.exists(structure_dir):
+                create_structure_path = os.path.join(structure_dir, "create_structure.json")
+                if os.path.exists(create_structure_path):
+                    try:
+                        with open(create_structure_path, 'r') as f:
+                            content = f.read()
+                        
+                        # Replace tenant ID placeholder or actual value
+                        if "@TENANT_ID@" in content:
+                            # Template replacement
+                            content = content.replace("@TENANT_ID@", tenant_id)
+                        else:
+                            # JSON-based replacement
+                            data = json.loads(content)
+                            if "tenant" in data and "tenantId" in data["tenant"]:
+                                data["tenant"]["tenantId"] = tenant_id
+                            if "user" in data:
+                                data["user"] = username
+                            content = json.dumps(data, indent=4)
+                        
+                        with open(create_structure_path, 'w') as f:
+                            f.write(content)
+                        print(f"  Modified structure file: create_structure.json")
+                    except Exception as e:
+                        print(f"  Warning: Failed to modify create_structure.json: {str(e)}")
                     
         except Exception as e:
             raise Exception(f"Failed to modify JSON files: {str(e)}")

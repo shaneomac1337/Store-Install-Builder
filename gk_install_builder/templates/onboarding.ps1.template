@@ -10,6 +10,41 @@ $url = "https://$base_url/auth-service/tenants/${tenant_id}/oauth/token"
 # Basic Auth credentials
 $username = "launchpad"
 
+# Function to log API calls with clear formatting
+function Log-ApiCall {
+    param(
+        [string]$Method,
+        [string]$Url,
+        [string]$Description
+    )
+    
+    Write-Host ""
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host "API CALL: $Description" -ForegroundColor Cyan
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host "Method: $Method"
+    Write-Host "URL: $Url"
+    Write-Host "Time: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+}
+
+function Log-ApiResponse {
+    param(
+        [string]$Status,
+        [string]$Response
+    )
+    
+    Write-Host "---------------------------------------"
+    Write-Host "Response Status: $Status" -ForegroundColor $(if ($Status -eq "SUCCESS") { "Green" } else { "Red" })
+    if ($Status -eq "SUCCESS") {
+        $preview = if ($Response.Length -gt 200) { $Response.Substring(0, 200) + "..." } else { $Response }
+        Write-Host "Response: $preview"
+    } else {
+        Write-Host "Response: $Response"
+    }
+    Write-Host "=======================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
 # Function to Base64 encode
 function Encode-Base64 {
     param($plainText)
@@ -80,7 +115,9 @@ $formData = ($body.GetEnumerator() | ForEach-Object {
 
 # Make the API call
 try {
+    Log-ApiCall -Method "POST" -Url $url -Description "Get OAuth2 Access Token"
     $response = Invoke-RestMethod -Uri $url -Method Post -Headers @{Authorization = "Basic $base64Auth"} -Body $formData -ContentType "application/x-www-form-urlencoded"
+    Log-ApiResponse -Status "SUCCESS" -Response ($response | ConvertTo-Json -Compress)
     
     # Save the access token without extra newline
     $accessToken = $response.access_token
@@ -118,7 +155,10 @@ try {
     }
 
     try {
+        Log-ApiCall -Method "POST" -Url $onboardingUrl -Description "Create Onboarding Token for $ComponentType"
+        Write-Host "Request Body: $jsonFile"
         $onboardingResponse = Invoke-RestMethod -Uri $onboardingUrl -Method Post -Headers $headers -Body $body
+        Log-ApiResponse -Status "SUCCESS" -Response ($onboardingResponse | ConvertTo-Json -Compress)
         
         # Save the onboarding token without extra newline
         $onboardingToken = $onboardingResponse.token
@@ -126,6 +166,7 @@ try {
         Write-Host "$ComponentType onboarding token successfully saved to onboarding.token"
     }
     catch {
+        Log-ApiResponse -Status "FAILURE" -Response $_.Exception.Message
         Write-Host "Error in $ComponentType onboarding request: $_"
     }
 }
