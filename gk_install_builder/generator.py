@@ -664,7 +664,8 @@ class ProjectGenerator:
                     Write-Host "Store Number: $storeNumber"
                     Write-Host "Workstation ID: $workstationId"
                 }}
-            }}'''
+            }}
+        }}'''
                 
                 # Replace the placeholder
                 template = template.replace("# HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER", store_workstation_code)
@@ -1000,84 +1001,84 @@ download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$com
                     file_detection_message = 'Write-Host "File detection is disabled in configuration - skipping file detection" -ForegroundColor Yellow\n'
 
                 station_detection_code = '''
-{never_match_comment}# File detection for the current component ($ComponentType)
-$fileDetectionEnabled = {file_enabled_flag}
-$componentType = $ComponentType
+        {never_match_comment}# File detection for the current component ($ComponentType)
+        $fileDetectionEnabled = {file_enabled_flag}
+        $componentType = $ComponentType
 
-# Check if we're using base directory or custom paths
-$useBaseDirectory = "{is_using_base_dir}".ToLower()
+        # Check if we're using base directory or custom paths
+        $useBaseDirectory = "{is_using_base_dir}".ToLower()
 
-if ($useBaseDirectory -eq "true") {{
-    # Use base directory approach
-    $basePath = "{base_dir}"
-    $customFilenames = @{{
-        "POS" = "{pos_filename}";
-        "WDM" = "{wdm_filename}";
-        "FLOW-SERVICE" = "{flow_filename}";
-        "LPA-SERVICE" = "{lpa_filename}";
-        "STOREHUB-SERVICE" = "{sh_filename}"
-    }}
-
-    # Get the appropriate station file for the current component
-    $stationFileName = $customFilenames[$componentType]
-    if (-not $stationFileName) {{
-        $stationFileName = "$componentType.station"
-    }}
-
-    $stationFilePath = Join-Path $basePath $stationFileName
-}} else {{
-    # Use custom paths approach
-    $customPaths = @{{
-        "POS" = "{pos_path}";
-        "WDM" = "{wdm_path}";
-        "FLOW-SERVICE" = "{flow_path}";
-        "LPA-SERVICE" = "{lpa_path}";
-        "STOREHUB-SERVICE" = "{sh_path}"
-    }}
-
-    # Get the appropriate station file path for the current component
-    $stationFilePath = $customPaths[$componentType]
-    if (-not $stationFilePath) {{
-        Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
-        # Fallback to a default path
-        $stationFilePath = "C:\\gkretail\\stations\\$componentType.station"
-    }}
-}}
-
-# Check if hostname detection failed and file detection is enabled
-if (-not $hostnameDetected -and $fileDetectionEnabled) {{
-    {file_detection_message}Write-Host "Trying file detection for $componentType using $stationFilePath"
-    
-    if (Test-Path $stationFilePath) {{
-        $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
-        
-        if ($fileContent) {{
-            $lines = $fileContent -split "`r?`n"
-            
-            foreach ($line in $lines) {{
-                if ($line -match "StoreID=(.+)") {{
-                    $storeNumber = $matches[1].Trim()
-                    Write-Host "Found Store ID in file: $storeNumber"
-                }}
-                
-                if ($line -match "WorkstationID=(.+)") {{
-                    $workstationId = $matches[1].Trim()
-                    Write-Host "Found Workstation ID in file: $workstationId"
-                }}
+        if ($useBaseDirectory -eq "true") {{
+            # Use base directory approach
+            $basePath = "{base_dir}"
+            $customFilenames = @{{
+                "POS" = "{pos_filename}";
+                "WDM" = "{wdm_filename}";
+                "FLOW-SERVICE" = "{flow_filename}";
+                "LPA-SERVICE" = "{lpa_filename}";
+                "STOREHUB-SERVICE" = "{sh_filename}"
             }}
-            
-            # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^[0-9]+$') {{
-                $script:hostnameDetected = $true  # Use $script: scope to ensure it affects the parent scope
-                Write-Host "Successfully detected values from file:"
-                Write-Host "Store Number: $storeNumber"
-                Write-Host "Workstation ID: $workstationId"
+
+            # Get the appropriate station file for the current component
+            $stationFileName = $customFilenames[$componentType]
+            if (-not $stationFileName) {{
+                $stationFileName = "$componentType.station"
+            }}
+
+            $stationFilePath = Join-Path $basePath $stationFileName
+        }} else {{
+            # Use custom paths approach
+            $customPaths = @{{
+                "POS" = "{pos_path}";
+                "WDM" = "{wdm_path}";
+                "FLOW-SERVICE" = "{flow_path}";
+                "LPA-SERVICE" = "{lpa_path}";
+                "STOREHUB-SERVICE" = "{sh_path}"
+            }}
+
+            # Get the appropriate station file path for the current component
+            $stationFilePath = $customPaths[$componentType]
+            if (-not $stationFilePath) {{
+                Write-Host "Warning: No custom path defined for $componentType" -ForegroundColor Yellow
+                # Fallback to a default path
+                $stationFilePath = "C:\\gkretail\\stations\\$componentType.station"
             }}
         }}
-    }} else {{
-        Write-Host "Station file not found at: $stationFilePath"
-    }}
-}}
+
+        # Check if file detection is enabled
+        if ($fileDetectionEnabled) {{
+            {file_detection_message}Write-Host "Trying file detection for $componentType using $stationFilePath"
+            
+            if (Test-Path $stationFilePath) {{
+                $fileContent = Get-Content -Path $stationFilePath -Raw -ErrorAction SilentlyContinue
+                
+                if ($fileContent) {{
+                    $lines = $fileContent -split "`r?`n"
+                    
+                    foreach ($line in $lines) {{
+                        if ($line -match "StoreID=(.+)") {{
+                            $storeNumber = $matches[1].Trim()
+                            Write-Host "Found Store ID in file: $storeNumber"
+                        }}
+                        
+                        if ($line -match "WorkstationID=(.+)") {{
+                            $workstationId = $matches[1].Trim()
+                            Write-Host "Found Workstation ID in file: $workstationId"
+                        }}
+                    }}
+                    
+                    # Validate extracted values
+                    if ($storeNumber -and $workstationId -match '^[0-9]+$') {{
+                        $hostnameDetected = $true
+                        Write-Host "Successfully detected values from file:"
+                        Write-Host "Store Number: $storeNumber"
+                        Write-Host "Workstation ID: $workstationId"
+                    }}
+                }}
+            }} else {{
+                Write-Host "Station file not found at: $stationFilePath"
+            }}
+        }}
 '''.format(
     never_match_comment=never_match_comment,
     file_enabled_flag=file_enabled_flag,
