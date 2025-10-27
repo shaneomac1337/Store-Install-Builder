@@ -217,17 +217,10 @@ function Select-Environment {
         Write-Host "[2] File Detection: Disabled - skipping environment detection from station files"
     }
     
-    # Priority 3: Auto-select if only one environment or prompt for selection
-    if ($environments.Count -eq 1) {
-        Write-Host "[3] Default Selection: Only one environment configured, using it automatically"
-        $selectedEnv = $environments[0]
-        Write-Host "    [OK] Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
-        return $selectedEnv
-    }
-    
-    # Priority 4: Interactive prompt (multiple environments)
+    # Priority 3: Interactive prompt - always offer choice between configured environment(s) and default
     Write-Host "[3] Interactive Selection: Please choose an environment"
     Write-Host ""
+    Write-Host "  [0] Use Default (from main configuration)"
     for ($i = 0; $i -lt $environments.Count; $i++) {
         $env = $environments[$i]
         Write-Host "  [$($i+1)] $($env.alias) - $($env.name) ($($env.base_url))"
@@ -235,9 +228,13 @@ function Select-Environment {
     Write-Host ""
     
     while ($true) {
-        $selection = Read-Host "Enter number (1-$($environments.Count))"
+        $selection = Read-Host "Enter number (0 for default, 1-$($environments.Count) for environment)"
         $selectionNum = 0
         if ([int]::TryParse($selection, [ref]$selectionNum)) {
+            if ($selectionNum -eq 0) {
+                Write-Host "    [OK] Using default configuration"
+                return $null
+            }
             if ($selectionNum -ge 1 -and $selectionNum -le $environments.Count) {
                 $selectedEnv = $environments[$selectionNum - 1]
                 Write-Host "    [OK] Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
