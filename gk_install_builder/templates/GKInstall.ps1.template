@@ -881,7 +881,9 @@ if ($UseDefaultVersions) {
             # Get OAuth token (same URL as onboarding.ps1)
             $tokenUrl = "https://$base_url/auth-service/tenants/${tenantId}/oauth/token"
             Write-Host "[DEBUG] Token URL: $tokenUrl"
-            Write-Host "[DEBUG] Request body (URL-encoded): $formData"
+            # Mask password in debug output
+            $maskedFormData = $formData -replace '(password=)[^&]+', '$1********'
+            Write-Host "[DEBUG] Request body (URL-encoded): $maskedFormData"
             
             $response = Invoke-RestMethod -Uri $tokenUrl -Method Post -Headers @{Authorization = "Basic $base64Auth"} -Body $formData -ContentType "application/x-www-form-urlencoded"
 
