@@ -217,7 +217,15 @@ function Select-Environment {
         Write-Host "[2] File Detection: Disabled - skipping environment detection from station files"
     }
     
-    # Priority 3: Interactive prompt
+    # Priority 3: Auto-select if only one environment or prompt for selection
+    if ($environments.Count -eq 1) {
+        Write-Host "[3] Default Selection: Only one environment configured, using it automatically"
+        $selectedEnv = $environments[0]
+        Write-Host "    [OK] Selected: $($selectedEnv.name) ($($selectedEnv.base_url))"
+        return $selectedEnv
+    }
+    
+    # Priority 4: Interactive prompt (multiple environments)
     Write-Host "[3] Interactive Selection: Please choose an environment"
     Write-Host ""
     for ($i = 0; $i -lt $environments.Count; $i++) {
