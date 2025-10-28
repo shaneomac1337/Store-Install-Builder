@@ -3093,7 +3093,7 @@ class GKInstallBuilder:
 
     def get_basic_auth_password_from_keepass(self, target_entry=None, password_type="basic_auth"):
         """Get password from KeePass"""
-        from gk_install_builder.keepass_dialog import KeePassDialog
+        from keepass_dialog import KeePassDialog
         
         # If no target entry is specified, use the appropriate password entry based on type
         if target_entry is None:
