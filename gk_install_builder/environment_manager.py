@@ -392,7 +392,7 @@ class EnvironmentManager:
         # Add KeeServer key button (always visible)
         def open_keepass_for_environment():
             """Open full KeePass dialog to get OAuth2 password"""
-            from gk_install_builder.keepass_dialog import KeePassDialog
+            from keepass_dialog import KeePassDialog
             
             # Create callback to get base URL from the entry widget
             def get_base_url():

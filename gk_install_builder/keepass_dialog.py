@@ -30,7 +30,7 @@ class KeePassDialog:
         
     def open(self):
         """Open the KeePass authentication dialog"""
-        from gk_install_builder.main import GKInstallBuilder
+        from main import GKInstallBuilder
         
         # Create dialog
         dialog = ctk.CTkToplevel(self.parent)
@@ -216,7 +216,7 @@ class KeePassDialog:
                 folder_structure = client.get_folder(projects_folder_id)
                 
                 # Find project
-                from gk_install_builder.main import GKInstallBuilder as Builder
+                from main import GKInstallBuilder as Builder
                 instance = Builder(None)
                 folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
                 
@@ -354,7 +354,7 @@ class KeePassDialog:
                     try:
                         folder_contents = client.get_folder_by_id(project['id'], recurse_level=2)
                         
-                        from gk_install_builder.main import GKInstallBuilder as Builder
+                        from main import GKInstallBuilder as Builder
                         instance = Builder(None)
                         subfolders = instance.get_subfolders(folder_contents)
                         
@@ -421,7 +421,7 @@ class KeePassDialog:
                 if hasattr(dialog, 'folder_contents'):
                     folder_contents = dialog.folder_contents
                     
-                    from gk_install_builder.main import GKInstallBuilder as Builder
+                    from main import GKInstallBuilder as Builder
                     instance = Builder(None)
                     
                     # Find environment
