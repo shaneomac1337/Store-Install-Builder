@@ -417,8 +417,8 @@ apply_environment_config() {
   fi
   
   if [ -n "$oauth2_password_b64" ]; then
-    local oauth2_password=$(decode_base64 "$oauth2_password_b64")
-    echo "$oauth2_password" > "$tokens_dir/basic_auth_password.txt"
+    # Store as base64 (consistent with generator)
+    echo "$oauth2_password_b64" > "$tokens_dir/basic_auth_password.txt"
     echo "  Updated OAuth2 credentials" >&2
   fi
   
@@ -434,9 +434,9 @@ apply_environment_config() {
   fi
   
   if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
-    local eh_password=$(decode_base64 "$eh_password_b64")
+    # Store password as base64 (consistent with generator)
     echo "$eh_username" > "$tokens_dir/form_username.txt"
-    echo "$eh_password" > "$tokens_dir/form_password.txt"
+    echo "$eh_password_b64" > "$tokens_dir/form_password.txt"
     echo "  Updated Employee Hub credentials" >&2
   fi
   
