@@ -914,9 +914,10 @@ if [ "$use_default_versions" = true ]; then
   # Check if credential files exist and get OAuth token
   if [ -f "$basic_auth_path" ] && [ -f "$form_password_path" ]; then
     # Read credentials (should be plain text, but auto-detect base64)
+    # Use tr -d to remove any trailing newlines or carriage returns
     username="launchpad"
-    basic_auth_password=$(cat "$basic_auth_path")
-    form_password=$(cat "$form_password_path")
+    basic_auth_password=$(cat "$basic_auth_path" | tr -d '\n\r')
+    form_password=$(cat "$form_password_path" | tr -d '\n\r')
     
     echo "[DEBUG] Credential files found"
     echo "[DEBUG] Basic auth username: $username"
@@ -926,7 +927,8 @@ if [ "$use_default_versions" = true ]; then
     # Auto-detect and decode base64 if needed
     # Check if basic_auth_password looks like base64 (only alphanumeric + / + = characters)
     if [[ "$basic_auth_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
-      decoded_basic=$(echo "$basic_auth_password" | base64 -d 2>/dev/null)
+      # Use tr to remove any newlines/carriage returns before decoding
+      decoded_basic=$(echo "$basic_auth_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
       if [ $? -eq 0 ] && [ -n "$decoded_basic" ]; then
         echo "[DEBUG] Basic auth password detected as base64-encoded, decoding..."
         basic_auth_password="$decoded_basic"
@@ -936,7 +938,8 @@ if [ "$use_default_versions" = true ]; then
     
     # Auto-detect and decode form password if needed
     if [[ "$form_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
-      decoded_form=$(echo "$form_password" | base64 -d 2>/dev/null)
+      # Use tr to remove any newlines/carriage returns before decoding
+      decoded_form=$(echo "$form_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
       if [ $? -eq 0 ] && [ -n "$decoded_form" ]; then
         echo "[DEBUG] Form password detected as base64-encoded, decoding..."
         form_password="$decoded_form"
