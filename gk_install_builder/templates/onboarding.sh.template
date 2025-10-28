@@ -102,24 +102,44 @@ if [ ! -f "$form_password_path" ]; then
   exit 1
 fi
 
-# Load passwords (already decoded plain text)
-basic_auth_password=$(cat "$basic_auth_path")
-form_password=$(cat "$form_password_path")
+# Load passwords (base64 encoded) and decode them
+# Use tr -d to remove any trailing newlines or carriage returns
+basic_auth_password=$(cat "$basic_auth_path" | tr -d '\n\r')
+form_password=$(cat "$form_password_path" | tr -d '\n\r')
+
+# Auto-detect and decode base64 if needed
+# Check if basic_auth_password looks like base64 (only alphanumeric + / + = characters)
+if [[ "$basic_auth_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+  decoded_basic=$(echo "$basic_auth_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$decoded_basic" ]; then
+    echo "Basic auth password detected as base64-encoded, decoding..."
+    basic_auth_password="$decoded_basic"
+  fi
+fi
+
+# Auto-detect and decode form password if needed
+if [[ "$form_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+  decoded_form=$(echo "$form_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$decoded_form" ]; then
+    echo "Form password detected as base64-encoded, decoding..."
+    form_password="$decoded_form"
+  fi
+fi
 
 # Read form username from file if available, otherwise use template default
 if [ -f "$form_username_path" ]; then
-  form_username=$(cat "$form_username_path")
+  form_username=$(cat "$form_username_path" | tr -d '\n\r')
 else
   form_username="@FORM_USERNAME@"
 fi
 
 # Basic Auth credentials
 username="launchpad"
-# Use the decoded password from the file instead of hardcoding it
+# Use the decoded password from the file
 password="$basic_auth_password"
 
 # Encode credentials
-auth_string=$(echo -n "$username:$password" | base64)
+auth_string=$(echo -n "$username:$password" | base64 | tr -d '\n')
 
 # URL encoding function that doesn't rely on jq
 urlencode() {
