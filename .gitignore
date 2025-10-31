@@ -5,6 +5,8 @@ Product/
 __pycache__/
 *.pyc
 gk_install_config.json
+build/
+dist/
 # HAR files contain sensitive tokens
 *.har
 # Downloaded packages from DSG API
