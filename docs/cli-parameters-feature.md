@@ -30,8 +30,8 @@ Added CLI parameters to override automatic detection of Store ID and Workstation
 
 **New Parameters:**
 ```bash
---storeId <value>         # Optional: Override Store ID detection
---workstationId <value>   # Optional: Override Workstation ID detection
+--storeId / --StoreID <value>         # Optional: Override Store ID detection
+--workstationId / --WorkstationID <value>   # Optional: Override Workstation ID detection
 ```
 
 **Same priority order as PowerShell**
@@ -53,7 +53,7 @@ Added CLI parameters to override automatic detection of Store ID and Workstation
 
 **Linux:**
 ```bash
-./GKInstall.sh --ComponentType POS --storeId R005 --workstationId 02
+./GKInstall.sh --ComponentType POS --StoreID R005 --WorkstationID 02
 ```
 
 **Result:**
@@ -73,7 +73,7 @@ Added CLI parameters to override automatic detection of Store ID and Workstation
 
 **Linux:**
 ```bash
-./GKInstall.sh --ComponentType POS --workstationId 02
+./GKInstall.sh --ComponentType POS --WorkstationID 02
 ```
 
 **Result:**
@@ -97,7 +97,7 @@ Added CLI parameters to override automatic detection of Store ID and Workstation
 
 **Linux:**
 ```bash
-./GKInstall.sh --ComponentType POS --storeId R005
+./GKInstall.sh --ComponentType POS --StoreID R005
 ```
 
 **Result:**
@@ -115,7 +115,7 @@ Added CLI parameters to override automatic detection of Store ID and Workstation
 
 **Linux:**
 ```bash
-./GKInstall.sh --env DEV --ComponentType POS --workstationId 02
+./GKInstall.sh --env DEV --ComponentType POS --WorkstationID 02
 ```
 
 **Result:**
@@ -252,7 +252,7 @@ foreach ($ws in $workstations) {
 #!/bin/bash
 # Store ID detected from hostname
 # Workstation ID passed as environment variable
-./GKInstall.sh --ComponentType POS --workstationId "$WORKSTATION_ID"
+./GKInstall.sh --ComponentType POS --WorkstationID "$WORKSTATION_ID"
 ```
 
 ### Scenario 3: Manual Override for Testing
@@ -275,7 +275,7 @@ Get-Help .\GKInstall.ps1 -Parameter WorkstationId
 ### Bash
 ```bash
 ./GKInstall.sh --help
-# Shows: [--storeId <id>] [--workstationId <id>]
+# Shows: [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>]
 ```
 
 ---
@@ -300,9 +300,10 @@ Get-Help .\GKInstall.ps1 -Parameter WorkstationId
    - Use `-WorkstationId` (capital W and I)
    - Use `-storeId` (lowercase s)
 
-2. **Bash parameters use lowercase:**
-   - Use `--workstationId`
-   - Use `--storeId`
+2. **Bash parameters support both aliases:**
+   - Use `--WorkstationID` or `--workstationId`
+   - Use `--StoreID` or `--storeId`
+   - Stick to these spellings; other casing (e.g. `--workStationID`) will be rejected by the parser
 
 3. **Values are validated:**
    - Workstation ID must be numeric

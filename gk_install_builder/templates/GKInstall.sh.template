@@ -28,11 +28,11 @@ while [ $# -gt 0 ]; do
       base_url="$2"
       shift 2
       ;;
-    --storeId)
+    --storeId|--StoreID)
       storeId="$2"
       shift 2
       ;;
-    --workstationId)
+    --workstationId|--WorkstationID)
       workstationId="$2"
       shift 2
       ;;
@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId <id>] [--workstationId <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
       exit 1
       ;;
   esac
