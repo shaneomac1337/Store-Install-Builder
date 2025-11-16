@@ -30,27 +30,27 @@ class KeePassDialog:
         
     def open(self):
         """Open the KeePass authentication dialog"""
-        from main import GKInstallBuilder
-        
+        from integrations.keepass_handler import KeePassHandler
+
         # Create dialog
         dialog = ctk.CTkToplevel(self.parent)
         dialog.title("KeePass Authentication")
         dialog.geometry("500x550")
         dialog.transient(self.parent)
-        
+
         dialog.update_idletasks()
         dialog.deiconify()
         dialog.wait_visibility()
         dialog.lift()
         dialog.focus_force()
-        
+
         # Center
         x = self.parent.winfo_x() + (self.parent.winfo_width() // 2) - 250
         y = self.parent.winfo_y() + (self.parent.winfo_height() // 2) - 275
         dialog.geometry(f"+{x}+{y}")
-        
+
         dialog.grab_set()
-        
+
         def on_dialog_close():
             try:
                 if hasattr(dialog, 'client'):
@@ -61,32 +61,32 @@ class KeePassDialog:
                 pass
             finally:
                 dialog.destroy()
-        
+
         dialog.protocol("WM_DELETE_WINDOW", on_dialog_close)
-        
+
         # Username frame
         username_frame = ctk.CTkFrame(dialog)
         username_frame.pack(pady=10, fill="x", padx=20)
-        
+
         ctk.CTkLabel(username_frame, text="Username:", width=100).pack(side="left")
         username_var = tk.StringVar()
         username_entry = ctk.CTkEntry(username_frame, width=200, textvariable=username_var)
         username_entry.pack(side="left", padx=5)
-        
-        if GKInstallBuilder.keepass_username:
-            username_var.set(GKInstallBuilder.keepass_username)
-        
+
+        if KeePassHandler.keepass_username:
+            username_var.set(KeePassHandler.keepass_username)
+
         # Password frame
         password_frame = ctk.CTkFrame(dialog)
         password_frame.pack(pady=10, fill="x", padx=20)
-        
+
         ctk.CTkLabel(password_frame, text="Password:", width=100).pack(side="left")
         password_var = tk.StringVar()
         password_entry = ctk.CTkEntry(password_frame, width=200, textvariable=password_var, show="*")
         password_entry.pack(side="left", padx=5)
-        
-        if GKInstallBuilder.keepass_password:
-            password_var.set(GKInstallBuilder.keepass_password)
+
+        if KeePassHandler.keepass_password:
+            password_var.set(KeePassHandler.keepass_password)
         
         # Remember checkbox
         remember_var = tk.BooleanVar(value=True)
@@ -192,12 +192,12 @@ class KeePassDialog:
                 
                 status_var.set("Authentication successful! Saving settings...")
                 dialog.update_idletasks()
-                
+
                 # Save credentials if remember is checked
                 if remember_var.get():
-                    GKInstallBuilder.keepass_client = client
-                    GKInstallBuilder.keepass_username = username_var.get()
-                    GKInstallBuilder.keepass_password = password_var.get()
+                    KeePassHandler.keepass_client = client
+                    KeePassHandler.keepass_username = username_var.get()
+                    KeePassHandler.keepass_password = password_var.get()
                 
                 # Store client
                 dialog.client = client
@@ -216,9 +216,9 @@ class KeePassDialog:
                 folder_structure = client.get_folder(projects_folder_id)
                 
                 # Find project
-                from main import GKInstallBuilder as Builder
-                instance = Builder(None)
-                folder_id = instance.find_folder_id_by_name(folder_structure, project_name)
+                # Create temporary instance for helper methods
+                temp_handler = KeePassHandler(None, None)
+                folder_id = temp_handler.find_folder_id_by_name(folder_structure, project_name)
                 
                 if not folder_id:
                     status_var.set(f"Folder '{project_name}' not found! Click 'Detect Projects' to choose manually.")
@@ -229,7 +229,7 @@ class KeePassDialog:
                 dialog.update_idletasks()
                 
                 folder_contents = client.get_folder_by_id(folder_id, recurse_level=2)
-                subfolders = instance.get_subfolders(folder_contents)
+                subfolders = temp_handler.get_subfolders(folder_contents)
                 
                 # Update environment dropdown
                 env_values = [folder['name'] for folder in subfolders] if (subfolders and isinstance(subfolders[0], dict)) else subfolders
@@ -353,10 +353,10 @@ class KeePassDialog:
                     
                     try:
                         folder_contents = client.get_folder_by_id(project['id'], recurse_level=2)
-                        
-                        from main import GKInstallBuilder as Builder
-                        instance = Builder(None)
-                        subfolders = instance.get_subfolders(folder_contents)
+
+                        # Create temporary instance for helper methods
+                        temp_handler = KeePassHandler(None, None)
+                        subfolders = temp_handler.get_subfolders(folder_contents)
                         
                         env_values = [f['name'] for f in subfolders] if (subfolders and isinstance(subfolders[0], dict)) else subfolders
                         filtered = [e for e in env_values if not e.startswith("INFRA-")]
@@ -420,22 +420,22 @@ class KeePassDialog:
                 
                 if hasattr(dialog, 'folder_contents'):
                     folder_contents = dialog.folder_contents
-                    
-                    from main import GKInstallBuilder as Builder
-                    instance = Builder(None)
-                    
+
+                    # Create temporary instance for helper methods
+                    temp_handler = KeePassHandler(None, None)
+
                     # Find environment
                     env_folder = None
-                    for folder in instance.get_subfolders(folder_contents):
+                    for folder in temp_handler.get_subfolders(folder_contents):
                         if isinstance(folder, dict) and folder.get('name') == environment:
                             env_folder = folder
                             break
-                    
+
                     if env_folder:
                         env_id = env_folder['id'] if isinstance(env_folder, dict) else env_folder
                         env_structure = client.get_folder_by_id(env_id, recurse_level=2)
-                        
-                        entry = instance.find_basic_auth_password_entry(env_structure)
+
+                        entry = temp_handler.find_basic_auth_password_entry(env_structure)
                         
                         if entry and isinstance(entry, dict) and 'Id' in entry:
                             password_url = f"credentials/{entry['Id']}/password"
