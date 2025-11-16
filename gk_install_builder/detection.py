@@ -24,13 +24,13 @@ class DetectionManager:
                 "STOREHUB-SERVICE": ""
             },
             "hostname_detection": {
-                "windows_regex": r"([^-]+)-([0-9]+)$",
-                "linux_regex": r"([^-]+)-([0-9]+)$",
-                "test_hostname": "STORE-1234-101",
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
                 "detect_environment": False,  # Whether to extract environment prefix from hostname
                 "env_group": 1,      # Which regex group contains the environment (1, 2, or 3)
-                "store_group": 2,    # Which regex group contains the store ID (1, 2, or 3)
-                "workstation_group": 3  # Which regex group contains the workstation ID (1, 2, or 3)
+                "store_group": 1,    # Which regex group contains the store ID (1, 2, or 3)
+                "workstation_group": 2  # Which regex group contains the workstation ID (1, 2, or 3)
             }
         }
     
@@ -198,7 +198,28 @@ class DetectionManager:
             "store": self.detection_config["hostname_detection"].get("store_group", 2),
             "workstation": self.detection_config["hostname_detection"].get("workstation_group", 3)
         }
-    
+
+    def is_using_3group_pattern(self):
+        """Check if using 3-group hostname pattern (env-store-workstation)"""
+        # 3-group pattern means environment detection is enabled
+        return self.detection_config["hostname_detection"].get("detect_environment", False)
+
+    def set_using_3group_pattern(self, use_3group):
+        """Set whether to use 3-group hostname pattern"""
+        self.detection_config["hostname_detection"]["detect_environment"] = use_3group
+
+        # Set default group mappings for 3-group or 2-group pattern
+        if use_3group:
+            # 3-group pattern: group1=env, group2=store, group3=workstation
+            self.detection_config["hostname_detection"]["env_group"] = 1
+            self.detection_config["hostname_detection"]["store_group"] = 2
+            self.detection_config["hostname_detection"]["workstation_group"] = 3
+        else:
+            # 2-group pattern: group1=store, group2=workstation (no env)
+            self.detection_config["hostname_detection"]["env_group"] = 1
+            self.detection_config["hostname_detection"]["store_group"] = 1
+            self.detection_config["hostname_detection"]["workstation_group"] = 2
+
     def test_hostname_regex(self, hostname, platform="linux"):
         """Test the hostname regex against a sample hostname"""
         import re

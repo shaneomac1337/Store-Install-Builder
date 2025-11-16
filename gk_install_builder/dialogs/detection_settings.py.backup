@@ -1,0 +1,867 @@
+"""
+Detection Settings Dialog for Store-Install-Builder
+Provides configuration for hostname detection, file detection, and environment detection
+"""
+
+import customtkinter as ctk
+from tkinter import messagebox, filedialog
+
+# Import UI helpers
+from ui.helpers import bind_mousewheel_to_frame
+from utils.tooltips import create_tooltip
+
+
+class DetectionSettingsDialog:
+    """Dialog for configuring detection settings"""
+
+    def __init__(self, parent, config_manager, detection_manager, hostname_detection_var, detection_var, parent_app=None):
+        """
+        Initialize Detection Settings Dialog
+
+        Args:
+            parent: Parent window
+            config_manager: ConfigManager instance
+            detection_manager: DetectionManager instance
+            hostname_detection_var: BooleanVar for hostname detection checkbox
+            detection_var: BooleanVar for file detection checkbox
+            parent_app: Reference to parent GKInstallBuilder instance
+        """
+        self.parent = parent
+        self.config_manager = config_manager
+        self.detection_manager = detection_manager
+        self.hostname_detection_var = hostname_detection_var
+        self.detection_var = detection_var
+        self.parent_app = parent_app
+
+        # Initialize window reference
+        self.window = None
+
+        # Initialize instance variables for UI elements
+        self.path_approach_var = None
+        self.base_dir_entry = None
+        self.filename_entries = {}
+        self.file_path_entries = {}
+        self.windows_regex_entry = None
+        self.linux_regex_entry = None
+        self.windows_test_entry = None
+        self.linux_test_entry = None
+        self.hostname_env_detection_var = None
+        self.env_group_dropdown = None
+        self.store_group_dropdown = None
+        self.workstation_group_dropdown = None
+
+    def show(self):
+        """Show the detection settings dialog"""
+        if self.window is not None and self.window.winfo_exists():
+            self.window.lift()
+            self.window.focus_force()
+            return
+
+        # Create a new window for detection settings
+        self.window = ctk.CTkToplevel(self.parent)
+        self.window.title("Detection Settings")
+        self.window.geometry("1024x1024")
+        self.window.transient(self.parent)
+
+        # Force window update and wait for it to be visible before grabbing
+        self.window.update()
+
+        # Add a short delay to ensure the window is fully mapped on Linux
+        self.window.after(100, lambda: self._safe_grab_set(self.window))
+
+        # Main frame with scrollbar
+        main_frame = ctk.CTkScrollableFrame(self.window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(main_frame)
+
+        # Title and description
+        ctk.CTkLabel(
+            main_frame,
+            text="Detection Settings",
+            font=("Helvetica", 16, "bold")
+        ).pack(anchor="w", padx=10, pady=10)
+
+        # Create a tabview for different detection settings sections
+        tabview = ctk.CTkTabview(main_frame)
+        tabview.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Create tabs
+        tab_regex = tabview.add("Hostname Detection")
+        tab_file_detection = tabview.add("File Detection")
+        tab_environment = tabview.add("Environment Detection")
+
+        # Build each tab
+        self._build_hostname_tab(tab_regex)
+        self._build_file_detection_tab(tab_file_detection)
+        self._build_environment_tab(tab_environment)
+
+        # Buttons frame
+        buttons_frame = ctk.CTkFrame(main_frame)
+        buttons_frame.pack(fill="x", padx=10, pady=10)
+
+        save_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Save Settings",
+            command=self.save_detection_settings
+        )
+        save_btn.pack(side="right", padx=10)
+
+        cancel_btn = ctk.CTkButton(
+            buttons_frame,
+            text="Cancel",
+            command=self.window.destroy
+        )
+        cancel_btn.pack(side="right", padx=10)
+
+    def _build_environment_tab(self, tab):
+        """Build the environment detection tab"""
+        ctk.CTkLabel(
+            tab,
+            text="Multi-Environment Auto-Detection",
+            font=("Helvetica", 14, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(
+            tab,
+            text="Enable environment detection from hostname patterns to automatically switch between DEV/TEST/PROD environments.",
+            wraplength=900,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 15))
+
+        # Existing environment detection checkbox (from main window)
+        # This just displays the current state and provides info
+        info_frame = ctk.CTkFrame(tab)
+        info_frame.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            info_frame,
+            text="ℹ️ Current Status:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        status_text = "Enabled" if self.hostname_detection_var.get() else "Disabled"
+        status_color = "#2ECC71" if self.hostname_detection_var.get() else "#E74C3C"
+
+        ctk.CTkLabel(
+            info_frame,
+            text=f"Hostname-based environment detection is currently: {status_text}",
+            text_color=status_color,
+            font=("Helvetica", 11)
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        ctk.CTkLabel(
+            info_frame,
+            text="💡 You can enable/disable this feature in the main window under 'Detection and Identification'",
+            wraplength=900,
+            justify="left",
+            font=("Helvetica", 10),
+            text_color="#95A5A6"
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        # How it works section
+        how_frame = ctk.CTkFrame(tab)
+        how_frame.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            how_frame,
+            text="📋 How It Works:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(
+            how_frame,
+            text="1. Configure your hostname regex pattern in the 'Hostname Detection' tab\n"
+                 "2. Include an environment capture group (e.g., 'P' for PROD, 'Q' for TEST, 'D' for DEV)\n"
+                 "3. Enable environment detection in the 'Hostname Detection' tab\n"
+                 "4. The installer will automatically detect and switch environments based on the hostname",
+            wraplength=900,
+            justify="left",
+            font=("Helvetica", 11)
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+    def _build_file_detection_tab(self, tab):
+        """Build the file detection tab"""
+        # File Detection tab content (simplified version)
+        ctk.CTkLabel(
+            tab,
+            text="File-Based Station Detection",
+            font=("Helvetica", 14, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(
+            tab,
+            text="Configure how the installer should detect station files containing Store ID and Workstation ID.",
+            wraplength=900,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 15))
+
+        # Path approach selection
+        approach_frame = ctk.CTkFrame(tab)
+        approach_frame.pack(fill="x", padx=10, pady=10)
+
+        self.path_approach_var = ctk.StringVar(
+            value="base_dir" if self.detection_manager.is_using_base_directory() else "custom_paths"
+        )
+
+        ctk.CTkLabel(
+            approach_frame,
+            text="File Location Approach:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkRadioButton(
+            approach_frame,
+            text="Base Directory + Filenames (Recommended)",
+            variable=self.path_approach_var,
+            value="base_dir",
+            command=self.update_detection_ui
+        ).pack(anchor="w", padx=20, pady=5)
+
+        ctk.CTkRadioButton(
+            approach_frame,
+            text="Custom Full Paths",
+            variable=self.path_approach_var,
+            value="custom_paths",
+            command=self.update_detection_ui
+        ).pack(anchor="w", padx=20, pady=5)
+
+        # Base directory approach frame
+        self.base_dir_frame = ctk.CTkFrame(tab)
+        self.base_dir_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            self.base_dir_frame,
+            text="Base Directory:",
+            font=("Helvetica", 11, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        base_dir_input_frame = ctk.CTkFrame(self.base_dir_frame, fg_color="transparent")
+        base_dir_input_frame.pack(fill="x", padx=10, pady=5)
+
+        self.base_dir_entry = ctk.CTkEntry(base_dir_input_frame, width=500)
+        self.base_dir_entry.pack(side="left", padx=(0, 10))
+        self.base_dir_entry.insert(0, self.detection_manager.get_base_directory())
+
+        ctk.CTkButton(
+            base_dir_input_frame,
+            text="Browse",
+            width=80,
+            command=self.browse_base_directory
+        ).pack(side="left")
+
+        # Filenames configuration
+        ctk.CTkLabel(
+            self.base_dir_frame,
+            text="Station Filenames:",
+            font=("Helvetica", 11, "bold")
+        ).pack(anchor="w", padx=10, pady=(15, 5))
+
+        # Create filename entries for each component
+        components = ["POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        for component in components:
+            row_frame = ctk.CTkFrame(self.base_dir_frame, fg_color="transparent")
+            row_frame.pack(fill="x", padx=20, pady=5)
+
+            ctk.CTkLabel(
+                row_frame,
+                text=f"{component}:",
+                width=150,
+                anchor="w"
+            ).pack(side="left", padx=(0, 10))
+
+            entry = ctk.CTkEntry(row_frame, width=300)
+            entry.pack(side="left")
+            entry.insert(0, self.detection_manager.get_custom_filename(component))
+            self.filename_entries[component] = entry
+
+        # Custom paths approach frame
+        self.custom_paths_frame = ctk.CTkFrame(tab)
+        self.custom_paths_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        ctk.CTkLabel(
+            self.custom_paths_frame,
+            text="Custom File Paths:",
+            font=("Helvetica", 11, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        # Create path entries for each component
+        for component in components:
+            row_frame = ctk.CTkFrame(self.custom_paths_frame, fg_color="transparent")
+            row_frame.pack(fill="x", padx=20, pady=5)
+
+            ctk.CTkLabel(
+                row_frame,
+                text=f"{component}:",
+                width=150,
+                anchor="w"
+            ).pack(side="left", padx=(0, 10))
+
+            entry = ctk.CTkEntry(row_frame, width=400)
+            entry.pack(side="left", padx=(0, 10))
+            entry.insert(0, self.detection_manager.get_file_path(component))
+            self.file_path_entries[component] = entry
+
+            ctk.CTkButton(
+                row_frame,
+                text="Browse",
+                width=80,
+                command=lambda c=component: self.browse_station_file(c)
+            ).pack(side="left")
+
+        # Update visibility
+        self.update_detection_ui()
+
+    def _build_hostname_tab(self, tab_regex):
+        """Build the hostname detection tab"""
+        # Description
+        ctk.CTkLabel(
+            tab_regex,
+            text="Configure hostname patterns to automatically extract Store ID and Workstation ID from computer hostnames.",
+            wraplength=900,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 15))
+
+        # Pattern selection
+        pattern_frame = ctk.CTkFrame(tab_regex)
+        pattern_frame.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            pattern_frame,
+            text="Quick Pattern Templates:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkButton(
+            pattern_frame,
+            text="Apply 3-Group Pattern (Env-Store-Workstation)",
+            command=self.apply_3group_pattern,
+            width=350
+        ).pack(anchor="w", padx=20, pady=5)
+
+        ctk.CTkButton(
+            pattern_frame,
+            text="Apply Classic 2-Group Pattern (Store-Workstation)",
+            command=self.apply_classic_2group_pattern,
+            width=350
+        ).pack(anchor="w", padx=20, pady=5)
+
+        # Environment detection toggle (specific to 3-group mode)
+        self.hostname_env_detection_var = ctk.BooleanVar(
+            value=self.detection_manager.get_hostname_env_detection()
+        )
+
+        env_toggle_frame = ctk.CTkFrame(tab_regex)
+        env_toggle_frame.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            env_toggle_frame,
+            text="⚙️ Environment Detection Settings:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        env_checkbox = ctk.CTkCheckBox(
+            env_toggle_frame,
+            text="Enable environment auto-switching from hostname pattern",
+            variable=self.hostname_env_detection_var,
+            font=("Helvetica", 11),
+            command=self.on_env_detection_toggle
+        )
+        env_checkbox.pack(anchor="w", padx=10, pady=10)
+
+        # Group mapping section (only visible if using 3-group pattern)
+        self.group_mapping_frame = ctk.CTkFrame(tab_regex)
+
+        ctk.CTkLabel(
+            self.group_mapping_frame,
+            text="🎯 Capture Group Mapping:",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        ctk.CTkLabel(
+            self.group_mapping_frame,
+            text="Specify which capture group in your regex corresponds to each field:",
+            wraplength=900,
+            font=("Helvetica", 11)
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+        # Get current group mappings
+        group_mappings = self.detection_manager.get_all_group_mappings()
+
+        # Environment group dropdown
+        env_row = ctk.CTkFrame(self.group_mapping_frame, fg_color="transparent")
+        env_row.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(
+            env_row,
+            text="Environment (DEV/TEST/PROD):",
+            width=250,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+
+        self.env_group_dropdown = ctk.CTkOptionMenu(
+            env_row,
+            values=["1", "2", "3"],
+            width=100
+        )
+        self.env_group_dropdown.set(str(group_mappings.get('env', 1)))
+        self.env_group_dropdown.pack(side="left")
+
+        # Store ID group dropdown
+        store_row = ctk.CTkFrame(self.group_mapping_frame, fg_color="transparent")
+        store_row.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(
+            store_row,
+            text="Store ID:",
+            width=250,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+
+        self.store_group_dropdown = ctk.CTkOptionMenu(
+            store_row,
+            values=["1", "2", "3"],
+            width=100
+        )
+        self.store_group_dropdown.set(str(group_mappings.get('store', 2)))
+        self.store_group_dropdown.pack(side="left")
+
+        # Workstation ID group dropdown
+        ws_row = ctk.CTkFrame(self.group_mapping_frame, fg_color="transparent")
+        ws_row.pack(fill="x", padx=20, pady=5)
+
+        ctk.CTkLabel(
+            ws_row,
+            text="Workstation ID:",
+            width=250,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+
+        self.workstation_group_dropdown = ctk.CTkOptionMenu(
+            ws_row,
+            values=["1", "2", "3"],
+            width=100
+        )
+        self.workstation_group_dropdown.set(str(group_mappings.get('workstation', 3)))
+        self.workstation_group_dropdown.pack(side="left")
+
+        # Regex configuration frame
+        regex_frame = ctk.CTkFrame(tab_regex)
+        regex_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Check if using 3-group pattern
+        is_3group = self.detection_manager.is_using_3group_pattern()
+
+        # Important note about capture groups
+        note_frame = ctk.CTkFrame(regex_frame, fg_color="#2C3E50")
+        note_frame.pack(fill="x", padx=10, pady=10)
+
+        if is_3group:
+            ctk.CTkLabel(
+                note_frame,
+                text="Important: Your regex must include exactly THREE capture groups:",
+                font=("Helvetica", 11, "bold"),
+                text_color="#FF8C00"  # Orange
+            ).pack(anchor="w", padx=10, pady=(5, 0))
+
+            ctk.CTkLabel(
+                note_frame,
+                text="1. First group captures the Environment (e.g., 'P', 'Q', 'DEV')\n2. Second group captures the Store ID/Number\n3. Third group captures the Workstation ID",
+                justify="left"
+            ).pack(anchor="w", padx=20, pady=(0, 5))
+        else:
+            ctk.CTkLabel(
+                note_frame,
+                text="Important: Your regex must include exactly TWO capture groups:",
+                font=("Helvetica", 11, "bold"),
+                text_color="#FF8C00"  # Orange
+            ).pack(anchor="w", padx=10, pady=(5, 0))
+
+            ctk.CTkLabel(
+                note_frame,
+                text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (usually 3 digits but can be different)",
+                justify="left"
+            ).pack(anchor="w", padx=20, pady=(0, 5))
+
+        # Create two sections: one for Windows and one for Linux
+        self.create_regex_editor(regex_frame, "Windows")
+        self.create_regex_editor(regex_frame, "Linux")
+
+    def create_regex_editor(self, parent_frame, platform):
+        """Create a regex editor section for a specific platform"""
+        # Create a frame for this platform
+        platform_frame = ctk.CTkFrame(parent_frame)
+        platform_frame.pack(fill="x", padx=10, pady=10)
+
+        # Title
+        ctk.CTkLabel(
+            platform_frame,
+            text=f"{platform} Hostname Pattern",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(10, 5))
+
+        # Regex input
+        regex_row = ctk.CTkFrame(platform_frame, fg_color="transparent")
+        regex_row.pack(fill="x", padx=10, pady=5)
+
+        ctk.CTkLabel(
+            regex_row,
+            text="Regex Pattern:",
+            width=120,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+
+        regex_entry = ctk.CTkEntry(regex_row, width=600)
+        regex_entry.pack(side="left", fill="x", expand=True)
+
+        # Load current regex
+        current_regex = self.detection_manager.get_hostname_regex(platform.lower())
+        if current_regex:
+            regex_entry.insert(0, current_regex)
+
+        # Store the entry
+        if platform == "Windows":
+            self.windows_regex_entry = regex_entry
+        else:
+            self.linux_regex_entry = regex_entry
+
+        # Test hostname input
+        test_row = ctk.CTkFrame(platform_frame, fg_color="transparent")
+        test_row.pack(fill="x", padx=10, pady=5)
+
+        ctk.CTkLabel(
+            test_row,
+            text="Test Hostname:",
+            width=120,
+            anchor="w"
+        ).pack(side="left", padx=(0, 10))
+
+        test_entry = ctk.CTkEntry(test_row, width=400)
+        test_entry.pack(side="left", padx=(0, 10))
+
+        # Load test hostname
+        test_hostname = self.detection_manager.get_test_hostname()
+        if test_hostname:
+            test_entry.insert(0, test_hostname)
+
+        # Store the entry
+        if platform == "Windows":
+            self.windows_test_entry = test_entry
+        else:
+            self.linux_test_entry = test_entry
+
+        # Test button
+        test_btn = ctk.CTkButton(
+            test_row,
+            text="Test Pattern",
+            width=120,
+            command=lambda: self.test_regex(platform)
+        )
+        test_btn.pack(side="left")
+
+        # Example
+        ctk.CTkLabel(
+            platform_frame,
+            text=f"Example {platform} hostname: {'POS-P0001-002' if platform == 'Windows' else 'pos-p0001-002'}",
+            font=("Helvetica", 10),
+            text_color="#95A5A6"
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
+    def test_regex(self, platform):
+        """Test the regex pattern against the test hostname"""
+        import re
+
+        # Get the regex pattern
+        if platform == "Windows":
+            pattern = self.windows_regex_entry.get()
+            test_hostname = self.windows_test_entry.get()
+        else:
+            pattern = self.linux_regex_entry.get()
+            test_hostname = self.linux_test_entry.get()
+
+        if not pattern or not test_hostname:
+            messagebox.showerror(
+                "Missing Input",
+                "Please provide both a regex pattern and a test hostname."
+            )
+            return
+
+        try:
+            # Test the regex
+            match = re.search(pattern, test_hostname)
+
+            if match:
+                groups = match.groups()
+
+                # Check if we're using 3-group or 2-group pattern
+                is_3group = self.detection_manager.is_using_3group_pattern()
+
+                if is_3group:
+                    if len(groups) == 3:
+                        messagebox.showinfo(
+                            "Pattern Match Success",
+                            f"✅ Pattern matched successfully!\n\n"
+                            f"Environment: {groups[0]}\n"
+                            f"Store ID: {groups[1]}\n"
+                            f"Workstation ID: {groups[2]}\n\n"
+                            f"Test Hostname: {test_hostname}"
+                        )
+                    else:
+                        messagebox.showwarning(
+                            "Incorrect Number of Groups",
+                            f"⚠️ Pattern matched but has {len(groups)} capture groups.\n\n"
+                            f"For 3-group mode, you need exactly 3 capture groups:\n"
+                            f"1. Environment (e.g., 'P', 'Q', 'DEV')\n"
+                            f"2. Store ID\n"
+                            f"3. Workstation ID\n\n"
+                            f"Captured: {groups}"
+                        )
+                else:
+                    if len(groups) == 2:
+                        messagebox.showinfo(
+                            "Pattern Match Success",
+                            f"✅ Pattern matched successfully!\n\n"
+                            f"Store ID: {groups[0]}\n"
+                            f"Workstation ID: {groups[1]}\n\n"
+                            f"Test Hostname: {test_hostname}"
+                        )
+                    else:
+                        messagebox.showwarning(
+                            "Incorrect Number of Groups",
+                            f"⚠️ Pattern matched but has {len(groups)} capture groups.\n\n"
+                            f"For 2-group mode, you need exactly 2 capture groups:\n"
+                            f"1. Store ID\n"
+                            f"2. Workstation ID\n\n"
+                            f"Captured: {groups}"
+                        )
+            else:
+                messagebox.showwarning(
+                    "No Match",
+                    f"❌ Pattern did not match the test hostname.\n\n"
+                    f"Pattern: {pattern}\n"
+                    f"Hostname: {test_hostname}\n\n"
+                    f"Please adjust your regex pattern."
+                )
+
+        except re.error as e:
+            messagebox.showerror(
+                "Invalid Regex",
+                f"❌ Invalid regular expression:\n\n{str(e)}\n\n"
+                f"Please check your regex syntax."
+            )
+
+    def _safe_grab_set(self, window):
+        """Safely set grab on a window, handling potential Linux visibility issues"""
+        try:
+            # Make sure window is visible and updated
+            window.update_idletasks()
+            window.update()
+            window.deiconify()
+            window.focus_force()
+
+            # Attempt to set grab
+            window.grab_set()
+        except Exception as e:
+            print(f"Warning: Could not set grab on window: {e}")
+            # Try again after a short delay
+            window.after(200, lambda: self._safe_grab_set(window))
+
+    def update_detection_ui(self):
+        """Update the detection UI based on current settings"""
+        # Update file detection tab visibility
+        if hasattr(self, 'path_approach_var') and self.path_approach_var is not None:
+            is_base_dir = self.path_approach_var.get() == "base_dir"
+
+            if is_base_dir:
+                self.base_dir_frame.pack(fill="both", expand=True, padx=10, pady=10)
+                self.custom_paths_frame.pack_forget()
+            else:
+                self.base_dir_frame.pack_forget()
+                self.custom_paths_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Update environment detection tab visibility
+        if (hasattr(self, 'hostname_env_detection_var') and self.hostname_env_detection_var is not None and
+            hasattr(self, 'group_mapping_frame') and self.group_mapping_frame is not None):
+            if self.hostname_env_detection_var.get():
+                self.group_mapping_frame.pack(fill="x", padx=10, pady=10)
+            else:
+                self.group_mapping_frame.pack_forget()
+
+    def on_env_detection_toggle(self):
+        """Handle environment detection toggle"""
+        self.update_detection_ui()
+
+    def apply_3group_pattern(self):
+        """Apply the 3-group pattern template"""
+        # Set the detection manager to use 3-group pattern
+        self.detection_manager.set_using_3group_pattern(True)
+
+        # Set default 3-group regex patterns
+        windows_pattern = r"POS-([A-Z]+)(\d{4})-(\d{3})"
+        linux_pattern = r"pos-([a-z]+)(\d{4})-(\d{3})"
+
+        if hasattr(self, 'windows_regex_entry'):
+            self.windows_regex_entry.delete(0, 'end')
+            self.windows_regex_entry.insert(0, windows_pattern)
+
+        if hasattr(self, 'linux_regex_entry'):
+            self.linux_regex_entry.delete(0, 'end')
+            self.linux_regex_entry.insert(0, linux_pattern)
+
+        # Set test hostname
+        if hasattr(self, 'windows_test_entry'):
+            self.windows_test_entry.delete(0, 'end')
+            self.windows_test_entry.insert(0, "POS-P0001-002")
+
+        if hasattr(self, 'linux_test_entry'):
+            self.linux_test_entry.delete(0, 'end')
+            self.linux_test_entry.insert(0, "pos-p0001-002")
+
+        # Enable environment detection
+        if hasattr(self, 'hostname_env_detection_var'):
+            self.hostname_env_detection_var.set(True)
+
+        # Update UI
+        self.update_detection_ui()
+
+        messagebox.showinfo(
+            "Pattern Applied",
+            "3-Group pattern template applied!\n\n"
+            "Pattern format: <Prefix>-<Env><StoreID>-<WorkstationID>\n"
+            "Example: POS-P0001-002\n\n"
+            "Environment detection has been enabled.\n"
+            "You can now test the pattern with your hostname."
+        )
+
+    def apply_classic_2group_pattern(self):
+        """Apply the classic 2-group pattern template"""
+        # Set the detection manager to use 2-group pattern
+        self.detection_manager.set_using_3group_pattern(False)
+
+        # Set default 2-group regex patterns
+        windows_pattern = r"POS-(\d{4})-(\d{3})"
+        linux_pattern = r"pos-(\d{4})-(\d{3})"
+
+        if hasattr(self, 'windows_regex_entry'):
+            self.windows_regex_entry.delete(0, 'end')
+            self.windows_regex_entry.insert(0, windows_pattern)
+
+        if hasattr(self, 'linux_regex_entry'):
+            self.linux_regex_entry.delete(0, 'end')
+            self.linux_regex_entry.insert(0, linux_pattern)
+
+        # Set test hostname
+        if hasattr(self, 'windows_test_entry'):
+            self.windows_test_entry.delete(0, 'end')
+            self.windows_test_entry.insert(0, "POS-0001-002")
+
+        if hasattr(self, 'linux_test_entry'):
+            self.linux_test_entry.delete(0, 'end')
+            self.linux_test_entry.insert(0, "pos-0001-002")
+
+        # Disable environment detection
+        if hasattr(self, 'hostname_env_detection_var'):
+            self.hostname_env_detection_var.set(False)
+
+        # Update UI
+        self.update_detection_ui()
+
+        messagebox.showinfo(
+            "Pattern Applied",
+            "Classic 2-Group pattern template applied!\n\n"
+            "Pattern format: <Prefix>-<StoreID>-<WorkstationID>\n"
+            "Example: POS-0001-002\n\n"
+            "Environment detection has been disabled.\n"
+            "You can now test the pattern with your hostname."
+        )
+
+    def browse_base_directory(self):
+        """Browse for base directory"""
+        directory = filedialog.askdirectory(
+            title="Select Base Directory for Station Files"
+        )
+        if directory:
+            self.base_dir_entry.delete(0, 'end')
+            self.base_dir_entry.insert(0, directory)
+
+    def browse_station_file(self, component):
+        """Browse for a station file"""
+        filename = filedialog.askopenfilename(
+            title=f"Select {component} Station File"
+        )
+        if filename:
+            if component in self.file_path_entries:
+                self.file_path_entries[component].delete(0, 'end')
+                self.file_path_entries[component].insert(0, filename)
+
+    def save_detection_settings(self):
+        """Save detection settings"""
+        # If hostname detection is enabled, force station detection to be enabled
+        if self.hostname_detection_var.get():
+            self.detection_var.set(True)
+
+        # Update detection manager with new values
+        self.detection_manager.enable_file_detection(self.detection_var.get())
+
+        # Set base directory or custom paths based on selected approach
+        is_base_dir = self.path_approach_var.get() == "base_dir"
+        self.detection_manager.use_base_directory(is_base_dir)
+
+        if is_base_dir:
+            # Save base directory
+            self.detection_manager.set_base_directory(self.base_dir_entry.get())
+
+            # Save custom filenames
+            for component, entry in self.filename_entries.items():
+                self.detection_manager.set_custom_filename(component, entry.get())
+        else:
+            # Save custom file paths
+            for component, entry in self.file_path_entries.items():
+                self.detection_manager.set_file_path(component, entry.get())
+
+        # Save regex settings if they exist
+        try:
+            # Windows regex
+            if hasattr(self, 'windows_regex_entry'):
+                self.detection_manager.set_hostname_regex(
+                    self.windows_regex_entry.get(),
+                    "windows"
+                )
+
+            # Linux regex
+            if hasattr(self, 'linux_regex_entry'):
+                self.detection_manager.set_hostname_regex(
+                    self.linux_regex_entry.get(),
+                    "linux"
+                )
+
+            # Test hostname
+            if hasattr(self, 'linux_test_entry'):
+                self.detection_manager.set_test_hostname(self.linux_test_entry.get())
+            elif hasattr(self, 'windows_test_entry'):
+                self.detection_manager.set_test_hostname(self.windows_test_entry.get())
+        except Exception as e:
+            print(f"Error saving regex settings: {e}")
+
+        # Save hostname environment detection setting
+        if hasattr(self, 'hostname_env_detection_var'):
+            self.detection_manager.set_hostname_env_detection(self.hostname_env_detection_var.get())
+
+        # Save group mappings from dropdowns
+        if hasattr(self, 'env_group_dropdown'):
+            self.detection_manager.set_group_mapping('env', int(self.env_group_dropdown.get()))
+        if hasattr(self, 'store_group_dropdown'):
+            self.detection_manager.set_group_mapping('store', int(self.store_group_dropdown.get()))
+        if hasattr(self, 'workstation_group_dropdown'):
+            self.detection_manager.set_group_mapping('workstation', int(self.workstation_group_dropdown.get()))
+
+        # Save to config
+        self.config_manager.config["detection_config"] = self.detection_manager.get_config()
+        self.config_manager.save_config()
+
+        # Close window
+        if self.window:
+            self.window.destroy()
+
+        messagebox.showinfo("Success", "Detection settings saved successfully.")
