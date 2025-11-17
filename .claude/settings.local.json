@@ -11,7 +11,10 @@
       "Bash(git reset:*)",
       "Bash(git commit:*)",
       "Bash(tree:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(dir:*)",
+      "Bash(nul)",
+      "Bash(del .coverage NUL temp_test_config.json 2)"
     ],
     "deny": [],
     "ask": []
