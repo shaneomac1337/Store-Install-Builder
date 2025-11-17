@@ -4,7 +4,10 @@ This module manages KeePass integration for retrieving credentials from Pleasant
 """
 
 from tkinter import messagebox
-from pleasant_password_client import PleasantPasswordClient
+try:
+    from gk_install_builder.pleasant_password_client import PleasantPasswordClient
+except ImportError:
+    from pleasant_password_client import PleasantPasswordClient
 
 
 class KeePassHandler:

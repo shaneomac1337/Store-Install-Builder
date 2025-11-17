@@ -1,34 +1,52 @@
 import customtkinter as ctk
-from config import ConfigManager
-from generator import ProjectGenerator
 import os
 import tkinter.ttk as ttk
 import tkinter as tk
 from tkinter import messagebox
 import sys
-import os
 import requests
 import json
-from detection import DetectionManager
-from environment_manager import EnvironmentManager
-# Add parent directory to path to import PleasantPasswordClient
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pleasant_password_client import PleasantPasswordClient
 
-# Import refactored modules
-from ui.helpers import bind_mousewheel_to_frame
-from utils.tooltips import create_tooltip
-from utils.ui_colors import get_theme_colors
-from dialogs.about import AboutDialog
-from dialogs.launcher_settings import LauncherSettingsEditor
-from dialogs.offline_package import OfflinePackageCreator
-from dialogs.detection_settings import DetectionSettingsDialog
-from features.auto_fill import AutoFillManager
-from features.platform_handler import PlatformHandler
-from features.version_manager import VersionManager
-from features.certificate_manager import CertificateManager
-from integrations.api_client import APIClient
-from integrations.keepass_handler import KeePassHandler
+# Support both package imports (for PyInstaller) and direct imports (for dev)
+try:
+    from gk_install_builder.config import ConfigManager
+    from gk_install_builder.generator import ProjectGenerator
+    from gk_install_builder.detection import DetectionManager
+    from gk_install_builder.environment_manager import EnvironmentManager
+    from gk_install_builder.pleasant_password_client import PleasantPasswordClient
+    from gk_install_builder.ui.helpers import bind_mousewheel_to_frame
+    from gk_install_builder.utils.tooltips import create_tooltip
+    from gk_install_builder.utils.ui_colors import get_theme_colors
+    from gk_install_builder.dialogs.about import AboutDialog
+    from gk_install_builder.dialogs.launcher_settings import LauncherSettingsEditor
+    from gk_install_builder.dialogs.offline_package import OfflinePackageCreator
+    from gk_install_builder.dialogs.detection_settings import DetectionSettingsDialog
+    from gk_install_builder.features.auto_fill import AutoFillManager
+    from gk_install_builder.features.platform_handler import PlatformHandler
+    from gk_install_builder.features.version_manager import VersionManager
+    from gk_install_builder.features.certificate_manager import CertificateManager
+    from gk_install_builder.integrations.api_client import APIClient
+    from gk_install_builder.integrations.keepass_handler import KeePassHandler
+except ImportError:
+    from config import ConfigManager
+    from generator import ProjectGenerator
+    from detection import DetectionManager
+    from environment_manager import EnvironmentManager
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from pleasant_password_client import PleasantPasswordClient
+    from ui.helpers import bind_mousewheel_to_frame
+    from utils.tooltips import create_tooltip
+    from utils.ui_colors import get_theme_colors
+    from dialogs.about import AboutDialog
+    from dialogs.launcher_settings import LauncherSettingsEditor
+    from dialogs.offline_package import OfflinePackageCreator
+    from dialogs.detection_settings import DetectionSettingsDialog
+    from features.auto_fill import AutoFillManager
+    from features.platform_handler import PlatformHandler
+    from features.version_manager import VersionManager
+    from features.certificate_manager import CertificateManager
+    from integrations.api_client import APIClient
+    from integrations.keepass_handler import KeePassHandler
 
 class GKInstallBuilder:
     def __init__(self, root=None):

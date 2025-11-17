@@ -3,7 +3,11 @@ import customtkinter as ctk
 import subprocess
 import tempfile
 from tkinter import messagebox
-from utils.tooltips import create_tooltip
+
+try:
+    from gk_install_builder.utils.tooltips import create_tooltip
+except ImportError:
+    from utils.tooltips import create_tooltip
 
 class CertificateManager:
     """Manages SSL certificate generation and configuration"""

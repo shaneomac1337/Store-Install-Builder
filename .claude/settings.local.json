@@ -14,7 +14,8 @@
       "Bash(git rm:*)",
       "Bash(dir:*)",
       "Bash(nul)",
-      "Bash(del .coverage NUL temp_test_config.json 2)"
+      "Bash(del .coverage NUL temp_test_config.json 2)",
+      "Bash(pyinstaller:*)"
     ],
     "deny": [],
     "ask": []

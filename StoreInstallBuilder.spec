@@ -3,13 +3,13 @@
 block_cipher = None
 
 a = Analysis(
-    ['gk_install_builder/main.py'],
+    ['run_app.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('gk_install_builder/templates', 'templates'),
+        ('gk_install_builder/templates', 'gk_install_builder/templates'),
         ('helper', 'helper'),
-        ('gk_install_builder/assets', 'assets')
+        ('gk_install_builder/assets', 'gk_install_builder/assets')
     ],
     hiddenimports=[
         'PIL._tkinter_finder',
@@ -20,7 +20,49 @@ a = Analysis(
         'tkinter',
         'tkinter.filedialog',
         'tkinter.messagebox',
-        'tkinter.ttk'
+        'tkinter.ttk',
+        # Core modules (relative imports from main.py)
+        'gk_install_builder.config',
+        'gk_install_builder.generator',
+        'gk_install_builder.detection',
+        'gk_install_builder.environment_manager',
+        'gk_install_builder.pleasant_password_client',
+        # Generator modules
+        'gk_install_builder.generators',
+        'gk_install_builder.generators.gk_install_generator',
+        'gk_install_builder.generators.helper_file_generator',
+        'gk_install_builder.generators.launcher_generator',
+        'gk_install_builder.generators.onboarding_generator',
+        'gk_install_builder.generators.template_processor',
+        'gk_install_builder.generators.offline_package_helpers',
+        # Configuration module
+        'gk_install_builder.gen_config',
+        'gk_install_builder.gen_config.generator_config',
+        # UI modules
+        'gk_install_builder.ui',
+        'gk_install_builder.ui.helpers',
+        # Utils modules
+        'gk_install_builder.utils',
+        'gk_install_builder.utils.tooltips',
+        'gk_install_builder.utils.ui_colors',
+        'gk_install_builder.utils.helpers',
+        'gk_install_builder.utils.version',
+        # Dialog modules
+        'gk_install_builder.dialogs',
+        'gk_install_builder.dialogs.about',
+        'gk_install_builder.dialogs.launcher_settings',
+        'gk_install_builder.dialogs.offline_package',
+        'gk_install_builder.dialogs.detection_settings',
+        # Feature modules
+        'gk_install_builder.features',
+        'gk_install_builder.features.auto_fill',
+        'gk_install_builder.features.platform_handler',
+        'gk_install_builder.features.version_manager',
+        'gk_install_builder.features.certificate_manager',
+        # Integration modules
+        'gk_install_builder.integrations',
+        'gk_install_builder.integrations.api_client',
+        'gk_install_builder.integrations.keepass_handler'
     ],
     hookspath=[],
     hooksconfig={},

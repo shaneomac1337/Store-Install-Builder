@@ -4,7 +4,11 @@ About dialog for Store-Install-Builder
 import os
 import sys
 import customtkinter as ctk
-from ui.helpers import bind_mousewheel_to_frame
+
+try:
+    from gk_install_builder.ui.helpers import bind_mousewheel_to_frame
+except ImportError:
+    from ui.helpers import bind_mousewheel_to_frame
 
 
 class AboutDialog:

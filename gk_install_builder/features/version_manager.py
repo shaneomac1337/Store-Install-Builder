@@ -1,5 +1,9 @@
 import customtkinter as ctk
-from utils.tooltips import create_tooltip
+
+try:
+    from gk_install_builder.utils.tooltips import create_tooltip
+except ImportError:
+    from utils.tooltips import create_tooltip
 
 class VersionManager:
     """Manages version configuration UI for components"""
