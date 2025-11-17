@@ -3,7 +3,10 @@
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import messagebox
-from pleasant_password_client import PleasantPasswordClient
+try:
+    from gk_install_builder.pleasant_password_client import PleasantPasswordClient
+except ImportError:
+    from pleasant_password_client import PleasantPasswordClient
 
 
 class KeePassDialog:

@@ -10,8 +10,6 @@ import urllib3
 import time
 import threading
 import queue
-from detection import DetectionManager
-import re
 from datetime import datetime
 from urllib.parse import unquote
 import requests
@@ -22,6 +20,11 @@ from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 
 # Support both package-relative imports (for tests/package use) and direct imports (for running app)
+try:
+    from gk_install_builder.detection import DetectionManager
+except ImportError:
+    from detection import DetectionManager
+
 try:
     from .gen_config import TEMPLATE_DIR, HELPER_STRUCTURE, DEFAULT_DOWNLOAD_WORKERS, DEFAULT_CHUNK_SIZE, LAUNCHER_TEMPLATES
     from .utils import create_directory_structure, copy_certificate, write_installation_script, determine_gk_install_paths, replace_urls_in_json, create_helper_structure, setup_firebird_environment_variables, get_component_version

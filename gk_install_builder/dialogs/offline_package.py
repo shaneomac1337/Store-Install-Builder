@@ -16,8 +16,12 @@ import threading
 import time
 
 # Import UI helpers
-from ui.helpers import bind_mousewheel_to_frame
-from utils.tooltips import create_tooltip
+try:
+    from gk_install_builder.ui.helpers import bind_mousewheel_to_frame
+    from gk_install_builder.utils.tooltips import create_tooltip
+except ImportError:
+    from ui.helpers import bind_mousewheel_to_frame
+    from utils.tooltips import create_tooltip
 
 
 # New class for the Offline Package Creator window
