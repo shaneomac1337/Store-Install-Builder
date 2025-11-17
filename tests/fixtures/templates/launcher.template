@@ -1,0 +1,12 @@
+{
+  "component": "@COMPONENT_NAME@",
+  "version": "@COMPONENT_VERSION@",
+  "baseUrl": "@BASE_URL@",
+  "installDir": "@BASE_INSTALL_DIR@",
+  "tenantId": "@TENANT_ID@",
+  "systemType": "@SYSTEM_TYPE@",
+  "config": {
+    "enableAutoStart": true,
+    "logLevel": "INFO"
+  }
+}

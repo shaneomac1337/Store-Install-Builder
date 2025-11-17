@@ -1282,7 +1282,9 @@ class GKInstallBuilder:
                     "LPA-SERVICE": "",
                     "STOREHUB-SERVICE": ""
                 },
-                "hostname_detection": {}
+                "hostname_detection": {
+                    "detect_environment": False
+                }
             }
             self.detection_manager.set_config(default_config)
             self.config_manager.config["detection_config"] = self.detection_manager.get_config()
@@ -1322,7 +1324,9 @@ class GKInstallBuilder:
                     "LPA-SERVICE": "",
                     "STOREHUB-SERVICE": ""
                 },
-                "hostname_detection": {}
+                "hostname_detection": {
+                    "detect_environment": False
+                }
             }
             self.detection_manager.set_config(default_config)
             self.config_manager.config["detection_config"] = self.detection_manager.get_config()

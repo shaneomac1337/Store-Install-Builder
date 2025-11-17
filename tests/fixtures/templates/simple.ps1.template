@@ -1,0 +1,35 @@
+# Simple PowerShell Template for Testing
+# This is a minimal template to test variable replacement
+
+param(
+    [string]$storeId = "",
+    [string]$workstationId = ""
+)
+
+# Configuration Variables
+$BASE_URL = "@BASE_URL@"
+$BASE_INSTALL_DIR = "@BASE_INSTALL_DIR@"
+$PROJECT_NAME = "@PROJECT_NAME@"
+$VERSION = "@VERSION@"
+$TENANT_ID = "@TENANT_ID@"
+$SSL_PASSWORD = "@SSL_PASSWORD@"
+$SYSTEM_TYPE = "@SYSTEM_TYPE@"
+
+# Detection Settings
+$USE_HOSTNAME_DETECTION = "@USE_HOSTNAME_DETECTION@"
+$USE_FILE_DETECTION = "@USE_FILE_DETECTION@"
+
+# HOSTNAME_ENV_DETECTION_PLACEHOLDER
+
+# Component Versions
+$POS_VERSION = "@POS_VERSION@"
+$WDM_VERSION = "@WDM_VERSION@"
+$FLOW_SERVICE_VERSION = "@FLOW_SERVICE_VERSION@"
+
+Write-Host "Starting installation for $PROJECT_NAME version $VERSION"
+Write-Host "Base URL: $BASE_URL"
+Write-Host "Install Directory: $BASE_INSTALL_DIR"
+Write-Host "Tenant ID: $TENANT_ID"
+
+# Installation logic would go here
+Write-Host "Installation complete!"

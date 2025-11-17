@@ -1,0 +1,11 @@
+{
+  "platform": "InvalidPlatform",
+  "base_url": "",
+  "base_install_dir": "",
+  "project_name": "",
+  "version": "",
+  "tenant_id": "",
+  "output_dir": "",
+  "include_pos": "not_a_boolean",
+  "environments": "not_an_array"
+}
