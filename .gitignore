@@ -24,8 +24,13 @@ archive/
 gk_install_builder/debug/
 
 # Temporary files
-temp_*.py
+temp_*
 regenerate_*.py
+NUL
+
+# Coverage reports
+.coverage
+htmlcov/
 
 # HAR files contain sensitive tokens
 *.har
