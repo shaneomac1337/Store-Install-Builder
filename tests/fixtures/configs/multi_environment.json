@@ -1,0 +1,66 @@
+{
+  "platform": "Windows",
+  "base_url": "dev.cloud4retail.co",
+  "base_install_dir": "C:\\gkretail",
+  "project_name": "Multi-Environment Project",
+  "version": "v1.5.0",
+  "tenant_id": "005",
+  "output_dir": "test_output_multi_env",
+  "ssl_password": "multienv123",
+  "system_type": "GKR-POS-CLOUD",
+  "certificate_path": "",
+  "include_pos": true,
+  "include_wdm": true,
+  "include_flow_service": false,
+  "include_lpa_service": false,
+  "include_storehub_service": false,
+  "use_hostname_detection": true,
+  "use_file_detection": false,
+  "hostname_pattern_windows": "^(\\w+)-POS-(\\d{4})-(\\d{3})$",
+  "hostname_pattern_linux": "^(\\w+)-pos-(\\d{4})-(\\d{3})$",
+  "pos_version": "v1.5.0",
+  "wdm_version": "v1.2.0",
+  "flow_service_version": "",
+  "lpa_service_version": "",
+  "storehub_service_version": "",
+  "auth_service_ba_user": "multiuser",
+  "auth_service_ba_password": "multipass",
+  "environments": [
+    {
+      "alias": "DEV",
+      "name": "Development",
+      "base_url": "dev.cloud4retail.co",
+      "tenant_id": "001",
+      "launchpad_oauth2": "devpass001",
+      "eh_launchpad_username": "1001",
+      "eh_launchpad_password": "ehdev001"
+    },
+    {
+      "alias": "QA",
+      "name": "Quality Assurance",
+      "base_url": "qa.cloud4retail.co",
+      "tenant_id": "002",
+      "launchpad_oauth2": "qapass002",
+      "eh_launchpad_username": "2001",
+      "eh_launchpad_password": "ehqa002"
+    },
+    {
+      "alias": "STAGING",
+      "name": "Staging",
+      "base_url": "staging.cloud4retail.co",
+      "tenant_id": "003",
+      "launchpad_oauth2": "stagingpass003",
+      "eh_launchpad_username": "3001",
+      "eh_launchpad_password": "ehstaging003"
+    },
+    {
+      "alias": "PROD",
+      "name": "Production",
+      "base_url": "prod.cloud4retail.co",
+      "tenant_id": "004",
+      "launchpad_oauth2": "prodpass004",
+      "eh_launchpad_username": "4001",
+      "eh_launchpad_password": "ehprod004"
+    }
+  ]
+}

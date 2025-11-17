@@ -1,0 +1,53 @@
+{
+  "platform": "Windows",
+  "base_url": "dev.cse.cloud4retail.co",
+  "base_install_dir": "C:\\gkretail",
+  "project_name": "Full Test Project",
+  "version": "v2.0.0",
+  "tenant_id": "002",
+  "output_dir": "test_output_full",
+  "ssl_password": "test123",
+  "system_type": "CSE-POS-CLOUD",
+  "certificate_path": "C:\\certs\\certificate.p12",
+  "include_pos": true,
+  "include_wdm": true,
+  "include_flow_service": true,
+  "include_lpa_service": true,
+  "include_storehub_service": true,
+  "use_hostname_detection": true,
+  "use_file_detection": true,
+  "hostname_pattern_windows": "^POS-(\\d{4})-(\\d{3})$",
+  "hostname_pattern_linux": "^pos-(\\d{4})-(\\d{3})$",
+  "pos_version": "v2.1.0",
+  "wdm_version": "v1.5.0",
+  "flow_service_version": "v3.0.0",
+  "lpa_service_version": "v2.2.0",
+  "storehub_service_version": "v1.8.0",
+  "auth_service_ba_user": "admin",
+  "auth_service_ba_password": "password123",
+  "launchpad_oauth2": "oauth_password",
+  "eh_launchpad_username": "1002",
+  "eh_launchpad_password": "ehpass123",
+  "firebird_server_path": "C:\\Program Files\\Firebird\\Firebird_3_0",
+  "jaybird_path": "C:\\gkretail\\Jaybird",
+  "environments": [
+    {
+      "alias": "DEV",
+      "name": "Development",
+      "base_url": "dev.cse.cloud4retail.co",
+      "tenant_id": "001",
+      "launchpad_oauth2": "devpass123",
+      "eh_launchpad_username": "1001",
+      "eh_launchpad_password": "ehdevpass"
+    },
+    {
+      "alias": "QA",
+      "name": "Quality Assurance",
+      "base_url": "qa.cse.cloud4retail.co",
+      "tenant_id": "002",
+      "launchpad_oauth2": "qapass123",
+      "eh_launchpad_username": "2001",
+      "eh_launchpad_password": "ehqapass"
+    }
+  ]
+}

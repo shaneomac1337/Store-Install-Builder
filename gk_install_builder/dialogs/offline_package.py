@@ -985,32 +985,35 @@ class OfflinePackageCreator:
                 messagebox.showinfo("Properties", "\n".join(props))
     
     def _download_file_to_root(self, item):
-        """Download a file to the downloaded_packages directory with progress dialog"""
+        """Download a file to the output directory with progress dialog"""
         import os
         import requests
         from tkinter import messagebox
         import customtkinter as ctk
         import urllib3
         import threading
-        
+
         # Suppress SSL warnings for faster downloads
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
+
         try:
-            # Get project root (parent of gk_install_builder)
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            
-            # Create downloaded_packages directory if it doesn't exist
-            download_dir = os.path.join(project_root, "downloaded_packages")
+            # Get output directory from config (convert to absolute path)
+            output_dir = self.config_manager.config.get("output_dir", "generated_scripts")
+            download_dir = os.path.abspath(output_dir)
+
+            # Create downloaded_packages subdirectory in output directory
+            download_dir = os.path.join(download_dir, "downloaded_packages")
             os.makedirs(download_dir, exist_ok=True)
-            
+
             # Build full remote path
             remote_path = f"{self._browser_state['current_path']}/{item['name']}".replace('//', '/')
-            
-            # Local file path in downloaded_packages
+
+            # Local file path in output directory's downloaded_packages folder
             local_path = os.path.join(download_dir, item['name'])
-            
-            print(f"\n=== Downloading File ===")
+
+            print(f"\n=== Downloading File (Context Menu) ===")
+            print(f"Output directory: {output_dir}")
+            print(f"Download directory: {download_dir}")
             print(f"Remote: {remote_path}")
             print(f"Local: {local_path}")
             
@@ -1280,12 +1283,18 @@ class OfflinePackageCreator:
         
         # Success
         if download_state['completed']:
+            # Get relative path for display
+            try:
+                rel_path = os.path.relpath(local_path)
+            except:
+                rel_path = local_path
+
             self.status_label.configure(
-                text=f"Downloaded {item['name']} to downloaded_packages",
+                text=f"Downloaded {item['name']} to output directory",
                 text_color="#53D86A"
             )
             print(f"Download complete: {local_path}")
-            
+
             messagebox.showinfo(
                 "Download Complete",
                 f"File downloaded successfully!\n\nSaved to:\n{local_path}"
