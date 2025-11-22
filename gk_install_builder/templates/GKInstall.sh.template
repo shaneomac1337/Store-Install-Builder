@@ -78,6 +78,22 @@ elif [ "$COMPONENT_TYPE" = "SH" ]; then
   COMPONENT_TYPE="STOREHUB-SERVICE"
 fi
 
+# Clean up any stale access token from previous runs
+token_path="$PWD/helper/tokens/access_token.txt"
+if [ -f "$token_path" ]; then
+    rm -f "$token_path" && \
+        echo "Cleaned up stale access token from previous installation" || \
+        echo "Warning: Could not remove stale access token"
+fi
+
+# Clean up environment-specific username file to prevent contamination
+form_username_path="$PWD/helper/tokens/form_username.txt"
+if [ -f "$form_username_path" ]; then
+    rm -f "$form_username_path" && \
+        echo "Cleaned up stale form username from previous installation" || \
+        echo "Warning: Could not remove stale form username"
+fi
+
 # Now that COMPONENT_TYPE is correctly set, capture all console output to a log file
 timestamp=$(date +"%Y%m%d_%H%M%S")
 log_file="GKInstall_${COMPONENT_TYPE}_$timestamp.log"
@@ -2187,11 +2203,19 @@ while [ $elapsed -lt $max_wait_time ]; do
                 echo "Warning: Could not move log file to results directory"
             fi
         fi
-        
+
         echo "Cleanup completed. Installation files have been moved to $results_dir directory."
+
+        # Clean up access token
+        rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
         exit 0
       elif echo "$final_log_content" | grep -q "Installation failed"; then
         echo "Installation failed. Please check the logs at: $installer_log_path"
+
+        # Clean up access token
+        rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
         exit 1
       fi
     fi
@@ -2261,7 +2285,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -2273,8 +2297,12 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to results directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Installation files have been moved to $results_dir directory."
+
+      # Clean up access token
+      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
       exit 0
     else
       echo "Launcher failed with exit code: $launcher_exit_code"
@@ -2352,8 +2380,12 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to errors directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
+
+      # Clean up access token
+      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
       exit 1
     fi
   fi
@@ -2452,7 +2484,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-      
+
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -2464,8 +2496,12 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to results directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Installation files have been moved to $results_dir directory."
+
+      # Clean up access token
+      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
       exit 0
     elif echo "$log_content" | grep -q "Installation failed"; then
       echo "Installation failed. Please check the logs at: $installer_log_path"
@@ -2547,8 +2583,12 @@ while [ $elapsed -lt $max_wait_time ]; do
               echo "Warning: Could not move log file to errors directory"
           fi
       fi
-      
+
       echo "Cleanup completed. Failed installation files have been moved to $errors_dir directory."
+
+      # Clean up access token
+      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
       exit 1
     fi
   else
@@ -2566,6 +2606,10 @@ while [ $elapsed -lt $max_wait_time ]; do
         echo "Terminating launcher process..."
         kill $launcher_pid
       fi
+
+      # Clean up access token
+      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
       exit 1
     fi
   fi
@@ -2662,4 +2706,8 @@ if [ -f "$log_file" ]; then
 fi
 
 echo "Cleanup completed. Timed out installation files have been moved to $errors_dir directory."
+
+# Clean up access token
+rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
+
 exit 1 

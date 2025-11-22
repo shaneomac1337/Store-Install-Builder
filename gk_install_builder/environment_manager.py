@@ -291,12 +291,12 @@ class EnvironmentManager:
         """
         dialog = ctk.CTkToplevel(self.window)
         dialog.title("Add Environment" if mode == "add" else "Edit Environment")
-        dialog.geometry("600x700")
+        dialog.geometry("700x700")
         dialog.transient(self.window)
-        
+
         # Center dialog
         dialog.update_idletasks()
-        x = (dialog.winfo_screenwidth() // 2) - (600 // 2)
+        x = (dialog.winfo_screenwidth() // 2) - (700 // 2)
         y = (dialog.winfo_screenheight() // 2) - (700 // 2)
         dialog.geometry(f"+{x}+{y}")
         
@@ -388,7 +388,24 @@ class EnvironmentManager:
         oauth_entry.pack(side="left", padx=10)
         oauth_entry.insert(0, env_data.get("launchpad_oauth2", ""))
         entries["launchpad_oauth2"] = oauth_entry
-        
+
+        # Add show/hide password toggle
+        def toggle_oauth_visibility():
+            if oauth_entry.cget("show") == "*":
+                oauth_entry.configure(show="")
+                oauth_toggle_btn.configure(text="🙈")
+            else:
+                oauth_entry.configure(show="*")
+                oauth_toggle_btn.configure(text="👁️")
+
+        oauth_toggle_btn = ctk.CTkButton(
+            oauth_frame,
+            text="👁️",
+            width=40,
+            command=toggle_oauth_visibility
+        )
+        oauth_toggle_btn.pack(side="left", padx=2)
+
         # Add KeeServer key button (always visible)
         def open_keepass_for_environment():
             """Open full KeePass dialog to get OAuth2 password"""
@@ -432,7 +449,24 @@ class EnvironmentManager:
         eh_pass_entry.pack(side="left", padx=10)
         eh_pass_entry.insert(0, env_data.get("eh_launchpad_password", ""))
         entries["eh_launchpad_password"] = eh_pass_entry
-        
+
+        # Add show/hide password toggle
+        def toggle_eh_pass_visibility():
+            if eh_pass_entry.cget("show") == "*":
+                eh_pass_entry.configure(show="")
+                eh_pass_toggle_btn.configure(text="🙈")
+            else:
+                eh_pass_entry.configure(show="*")
+                eh_pass_toggle_btn.configure(text="👁️")
+
+        eh_pass_toggle_btn = ctk.CTkButton(
+            eh_pass_frame,
+            text="👁️",
+            width=40,
+            command=toggle_eh_pass_visibility
+        )
+        eh_pass_toggle_btn.pack(side="left", padx=2)
+
         # Buttons
         button_frame = ctk.CTkFrame(main_frame)
         button_frame.pack(fill="x", pady=20)
