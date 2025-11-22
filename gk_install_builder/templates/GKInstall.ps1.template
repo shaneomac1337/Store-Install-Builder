@@ -65,6 +65,17 @@ if ($ComponentType -eq 'LPA') {
     $ComponentType = 'STOREHUB-SERVICE'
 }
 
+# Clean up any stale access token from previous runs
+$tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+if (Test-Path $tokenPath) {
+    try {
+        Remove-Item -Path $tokenPath -Force -ErrorAction Stop
+        Write-Host "Cleaned up stale access token from previous installation"
+    } catch {
+        Write-Host "Warning: Could not remove stale access token: $_"
+    }
+}
+
 # Function for error handling
 function Handle-Error {
     param($LineNumber)
@@ -2160,6 +2171,13 @@ while ($elapsed -lt $maxWaitTime) {
 
                     # Final cleanup operations before exiting
                     Write-Host "Executing final cleanup before exit..."
+
+                    # Clean up access token
+                    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                    if (Test-Path $tokenPath) {
+                        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                    }
+
                     [System.GC]::Collect()  # Force garbage collection
                     Start-Sleep -Seconds 1  # Give GC time to work
 
@@ -2281,7 +2299,13 @@ while ($elapsed -lt $maxWaitTime) {
                     Write-Host "Warning: Could not copy log file to results directory: $_"
                 }
             }
-            
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             exit 0
         } else {
             Write-Host "Launcher failed with exit code: $($launcherProcess.ExitCode)"
@@ -2399,7 +2423,13 @@ while ($elapsed -lt $maxWaitTime) {
             Start-Sleep -Seconds 1
             try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
             Start-Sleep -Seconds 2
-            
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             exit 1
         }
     }
@@ -2535,12 +2565,19 @@ while ($elapsed -lt $maxWaitTime) {
                 }
                 
                 Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-                
+
                 # Final cleanup operations before exiting
                 Write-Host "Executing final cleanup before exit..."
+
+                # Clean up access token
+                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                if (Test-Path $tokenPath) {
+                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                }
+
                 [System.GC]::Collect()  # Force garbage collection
                 Start-Sleep -Seconds 1  # Give GC time to work
-                
+
                 exit 0
             }
             elseif ($logContent -match "Installation failed") {
@@ -2647,9 +2684,15 @@ while ($elapsed -lt $maxWaitTime) {
                         Write-Host "Warning: Could not copy log file to errors directory: $_"
                     }
                 }
-                
+
                 Write-Host "Cleanup completed. Failed installation files have been moved to $errorsDir directory."
-                
+
+                # Clean up access token
+                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                if (Test-Path $tokenPath) {
+                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                }
+
                 exit 1
             }
         }
@@ -2673,6 +2716,13 @@ while ($elapsed -lt $maxWaitTime) {
                 Write-Host "Terminating launcher process..."
                 $launcherProcess.Kill()
             }
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             Stop-TranscriptSafely
             exit 1
         }
@@ -2799,6 +2849,12 @@ if (Test-Path $logFile) {
 }
 
 Write-Host "Cleanup completed. Timed out installation files have been moved to $errorsDir directory."
+
+# Clean up access token
+$tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+if (Test-Path $tokenPath) {
+    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+}
 
 Stop-TranscriptSafely
 exit 1 
