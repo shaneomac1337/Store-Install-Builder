@@ -76,17 +76,6 @@ if (Test-Path $tokenPath) {
     }
 }
 
-# Clean up environment-specific username file to prevent contamination
-$formUsernamePath = Join-Path $PSScriptRoot "helper\tokens\form_username.txt"
-if (Test-Path $formUsernamePath) {
-    try {
-        Remove-Item -Path $formUsernamePath -Force -ErrorAction Stop
-        Write-Host "Cleaned up stale form username from previous installation"
-    } catch {
-        Write-Host "Warning: Could not remove stale form username: $_"
-    }
-}
-
 # Function for error handling
 function Handle-Error {
     param($LineNumber)
@@ -287,71 +276,39 @@ function Apply-EnvironmentConfig {
     # Override script variables with environment settings
     $script:base_url = $Environment.base_url
     $script:tenantId = $Environment.tenant_id
-    
-    # Decode and set credentials
-    if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
-        $oauth2Password = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.launchpad_oauth2_b64))
-        # Store for later use in token generation
-        $script:env_oauth2_password = $oauth2Password
-    }
-    
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username)) {
-        $script:env_form_username = $Environment.eh_launchpad_username
-    }
-    
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
-        $ehPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.eh_launchpad_password_b64))
-        $script:env_form_password = $ehPassword
-    }
 
-    # Write environment-specific credentials to password files (overwrite main config defaults)
+    # Get tokens directory path
     $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
 
+    # Write credentials to files (and backup defaults first)
     if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
+        # Backup original on first environment application
         $basicAuthPath = Join-Path $tokensDir "basic_auth_password.txt"
-        $basicAuthDefaultPath = Join-Path $tokensDir "basic_auth_password.txt.default"
-
-        # Backup original credentials on first environment application
-        if (-not (Test-Path $basicAuthDefaultPath)) {
-            if (Test-Path $basicAuthPath) {
-                Copy-Item -Path $basicAuthPath -Destination $basicAuthDefaultPath -Force
-            }
+        $basicAuthDefault = "$basicAuthPath.default"
+        if (!(Test-Path $basicAuthDefault)) {
+            Copy-Item $basicAuthPath $basicAuthDefault -ErrorAction SilentlyContinue
         }
-
+        # Write environment credentials
         Set-Content -Path $basicAuthPath -Value $Environment.launchpad_oauth2_b64 -NoNewline
-        Write-Host "  Updated OAuth2 credentials from environment"
+        Write-Host "  Updated OAuth2 credentials"
     }
 
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
-        $formPasswordPath = Join-Path $tokensDir "form_password.txt"
-        $formPasswordDefaultPath = Join-Path $tokensDir "form_password.txt.default"
-
-        # Backup original credentials on first environment application
-        if (-not (Test-Path $formPasswordDefaultPath)) {
-            if (Test-Path $formPasswordPath) {
-                Copy-Item -Path $formPasswordPath -Destination $formPasswordDefaultPath -Force
-            }
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username) -and ![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
+        # Backup originals on first environment application
+        $formUserPath = Join-Path $tokensDir "form_username.txt"
+        $formPassPath = Join-Path $tokensDir "form_password.txt"
+        $formUserDefault = "$formUserPath.default"
+        $formPassDefault = "$formPassPath.default"
+        if (!(Test-Path $formPassDefault)) {
+            Copy-Item $formPassPath $formPassDefault -ErrorAction SilentlyContinue
+            Copy-Item $formUserPath $formUserDefault -ErrorAction SilentlyContinue
         }
-
-        Set-Content -Path $formPasswordPath -Value $Environment.eh_launchpad_password_b64 -NoNewline
-        Write-Host "  Updated form password from environment"
+        # Write environment credentials
+        Set-Content -Path $formUserPath -Value $Environment.eh_launchpad_username -NoNewline
+        Set-Content -Path $formPassPath -Value $Environment.eh_launchpad_password_b64 -NoNewline
+        Write-Host "  Updated Employee Hub credentials"
     }
-
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username)) {
-        $formUsernamePath = Join-Path $tokensDir "form_username.txt"
-        $formUsernameDefaultPath = Join-Path $tokensDir "form_username.txt.default"
-
-        # Backup original credentials on first environment application
-        if (-not (Test-Path $formUsernameDefaultPath)) {
-            if (Test-Path $formUsernamePath) {
-                Copy-Item -Path $formUsernamePath -Destination $formUsernameDefaultPath -Force
-            }
-        }
-
-        Set-Content -Path $formUsernamePath -Value $Environment.eh_launchpad_username -NoNewline
-        Write-Host "  Updated form username from environment"
-    }
-
+    
     # Update tenant_id in all helper JSON files
     Update-HelperJsonTenantId -TenantId $script:tenantId -Username $script:env_form_username
     
@@ -941,23 +898,23 @@ if (-not $isUpdate) {
     $environments = Load-Environments
     if ($null -eq $environments) {
         Write-Host "Warning: No environments.json found, using script defaults"
-        # Restore original credentials if they were backed up
+        # Restore default credentials if backups exist (check each file individually)
         $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
-        $basicAuthDefaultPath = Join-Path $tokensDir "basic_auth_password.txt.default"
-        $formPasswordDefaultPath = Join-Path $tokensDir "form_password.txt.default"
-        $formUsernameDefaultPath = Join-Path $tokensDir "form_username.txt.default"
-
-        if (Test-Path $basicAuthDefaultPath) {
-            Copy-Item -Path $basicAuthDefaultPath -Destination (Join-Path $tokensDir "basic_auth_password.txt") -Force
-            Write-Host "Restored original OAuth2 credentials"
+        $restored = $false
+        if (Test-Path (Join-Path $tokensDir "basic_auth_password.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "basic_auth_password.txt.default") (Join-Path $tokensDir "basic_auth_password.txt") -Force
+            $restored = $true
         }
-        if (Test-Path $formPasswordDefaultPath) {
-            Copy-Item -Path $formPasswordDefaultPath -Destination (Join-Path $tokensDir "form_password.txt") -Force
-            Write-Host "Restored original Employee Hub password"
+        if (Test-Path (Join-Path $tokensDir "form_password.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "form_password.txt.default") (Join-Path $tokensDir "form_password.txt") -Force
+            $restored = $true
         }
-        if (Test-Path $formUsernameDefaultPath) {
-            Copy-Item -Path $formUsernameDefaultPath -Destination (Join-Path $tokensDir "form_username.txt") -Force
-            Write-Host "Restored original Employee Hub username"
+        if (Test-Path (Join-Path $tokensDir "form_username.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "form_username.txt.default") (Join-Path $tokensDir "form_username.txt") -Force
+            $restored = $true
+        }
+        if ($restored) {
+            Write-Host "Restored default credentials"
         }
     } else {
         # Select environment based on CLI parameter, file, or interactive prompt
@@ -969,23 +926,23 @@ if (-not $isUpdate) {
             Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
         } else {
             Write-Host "No environment selected, using script defaults"
-            # Restore original credentials if they were backed up
+            # Restore default credentials if backups exist (check each file individually)
             $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
-            $basicAuthDefaultPath = Join-Path $tokensDir "basic_auth_password.txt.default"
-            $formPasswordDefaultPath = Join-Path $tokensDir "form_password.txt.default"
-            $formUsernameDefaultPath = Join-Path $tokensDir "form_username.txt.default"
-
-            if (Test-Path $basicAuthDefaultPath) {
-                Copy-Item -Path $basicAuthDefaultPath -Destination (Join-Path $tokensDir "basic_auth_password.txt") -Force
-                Write-Host "Restored original OAuth2 credentials"
+            $restored = $false
+            if (Test-Path (Join-Path $tokensDir "basic_auth_password.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "basic_auth_password.txt.default") (Join-Path $tokensDir "basic_auth_password.txt") -Force
+                $restored = $true
             }
-            if (Test-Path $formPasswordDefaultPath) {
-                Copy-Item -Path $formPasswordDefaultPath -Destination (Join-Path $tokensDir "form_password.txt") -Force
-                Write-Host "Restored original Employee Hub password"
+            if (Test-Path (Join-Path $tokensDir "form_password.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "form_password.txt.default") (Join-Path $tokensDir "form_password.txt") -Force
+                $restored = $true
             }
-            if (Test-Path $formUsernameDefaultPath) {
-                Copy-Item -Path $formUsernameDefaultPath -Destination (Join-Path $tokensDir "form_username.txt") -Force
-                Write-Host "Restored original Employee Hub username"
+            if (Test-Path (Join-Path $tokensDir "form_username.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "form_username.txt.default") (Join-Path $tokensDir "form_username.txt") -Force
+                $restored = $true
+            }
+            if ($restored) {
+                Write-Host "Restored default credentials"
             }
         }
     }
@@ -1539,11 +1496,12 @@ if ($isUpdate) {
 } else {
     # For new installations, detect from hostname or prompt user
     # Only run detection if we still need values
+
     if (-not $hostnameDetected -and -not [string]::IsNullOrEmpty($hs)) {
         # Try different patterns:
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
-        
+
         # HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER
     }
 
@@ -2127,31 +2085,25 @@ while ($elapsed -lt $maxWaitTime) {
                             Write-Host "Warning: Could not copy log file to results directory: $_"
                         }
                     }
-                    
+
                     Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
 
                     # Final cleanup operations before exiting
                     Write-Host "Executing final cleanup before exit..."
-                    [System.GC]::Collect()  # Force garbage collection
-                    Start-Sleep -Seconds 1  # Give GC time to work
 
                     # Clean up access token
                     $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
                     if (Test-Path $tokenPath) {
                         Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
                     }
+
+                    [System.GC]::Collect()  # Force garbage collection
+                    Start-Sleep -Seconds 1  # Give GC time to work
 
                     exit 0
                 }
                 elseif ($finalLogContent -match "Installation failed") {
                     Write-Host "Installation failed. Please check the logs at: $installerLogPath"
-
-                    # Clean up access token
-                    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-                    if (Test-Path $tokenPath) {
-                        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-                    }
-
                     exit 1
                 }
             }
@@ -2535,14 +2487,15 @@ while ($elapsed -lt $maxWaitTime) {
 
                 # Final cleanup operations before exiting
                 Write-Host "Executing final cleanup before exit..."
-                [System.GC]::Collect()  # Force garbage collection
-                Start-Sleep -Seconds 1  # Give GC time to work
 
                 # Clean up access token
                 $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
                 if (Test-Path $tokenPath) {
                     Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
                 }
+
+                [System.GC]::Collect()  # Force garbage collection
+                Start-Sleep -Seconds 1  # Give GC time to work
 
                 exit 0
             }

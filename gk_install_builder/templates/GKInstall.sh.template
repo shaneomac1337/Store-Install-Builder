@@ -925,9 +925,6 @@ case "$COMPONENT_TYPE" in
     ;;
 esac
 
-# Create installation directory if it doesn't exist
-mkdir -p "$install_dir"
-
 # Check if this is an update of an existing installation
 isUpdate=false
 if [ -d "$install_dir" ]; then
@@ -981,38 +978,42 @@ if [ "$isUpdate" = false ]; then
       echo "Environment '$env_alias_name' applied successfully"
     else
       echo "No environment selected, using script defaults"
-      # Restore original credentials if they were backed up
-      script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-      tokens_dir="$script_dir/helper/tokens"
-      if [ -f "$tokens_dir/basic_auth_password.txt.default" ]; then
-        cp "$tokens_dir/basic_auth_password.txt.default" "$tokens_dir/basic_auth_password.txt"
-        echo "Restored original OAuth2 credentials"
+      # Restore default credentials if backups exist (check each file individually)
+      restored=false
+      if [ -f "$PWD/helper/tokens/basic_auth_password.txt.default" ]; then
+        cp "$PWD/helper/tokens/basic_auth_password.txt.default" "$PWD/helper/tokens/basic_auth_password.txt"
+        restored=true
       fi
-      if [ -f "$tokens_dir/form_password.txt.default" ]; then
-        cp "$tokens_dir/form_password.txt.default" "$tokens_dir/form_password.txt"
-        echo "Restored original Employee Hub password"
+      if [ -f "$PWD/helper/tokens/form_password.txt.default" ]; then
+        cp "$PWD/helper/tokens/form_password.txt.default" "$PWD/helper/tokens/form_password.txt"
+        restored=true
       fi
-      if [ -f "$tokens_dir/form_username.txt.default" ]; then
-        cp "$tokens_dir/form_username.txt.default" "$tokens_dir/form_username.txt"
-        echo "Restored original Employee Hub username"
+      if [ -f "$PWD/helper/tokens/form_username.txt.default" ]; then
+        cp "$PWD/helper/tokens/form_username.txt.default" "$PWD/helper/tokens/form_username.txt"
+        restored=true
+      fi
+      if [ "$restored" = true ]; then
+        echo "Restored default credentials"
       fi
     fi
   else
     echo "Warning: No environments.json found, using script defaults"
-    # Restore original credentials if they were backed up
-    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    tokens_dir="$script_dir/helper/tokens"
-    if [ -f "$tokens_dir/basic_auth_password.txt.default" ]; then
-      cp "$tokens_dir/basic_auth_password.txt.default" "$tokens_dir/basic_auth_password.txt"
-      echo "Restored original OAuth2 credentials"
+    # Restore default credentials if backups exist (check each file individually)
+    restored=false
+    if [ -f "$PWD/helper/tokens/basic_auth_password.txt.default" ]; then
+      cp "$PWD/helper/tokens/basic_auth_password.txt.default" "$PWD/helper/tokens/basic_auth_password.txt"
+      restored=true
     fi
-    if [ -f "$tokens_dir/form_password.txt.default" ]; then
-      cp "$tokens_dir/form_password.txt.default" "$tokens_dir/form_password.txt"
-      echo "Restored original Employee Hub password"
+    if [ -f "$PWD/helper/tokens/form_password.txt.default" ]; then
+      cp "$PWD/helper/tokens/form_password.txt.default" "$PWD/helper/tokens/form_password.txt"
+      restored=true
     fi
-    if [ -f "$tokens_dir/form_username.txt.default" ]; then
-      cp "$tokens_dir/form_username.txt.default" "$tokens_dir/form_username.txt"
-      echo "Restored original Employee Hub username"
+    if [ -f "$PWD/helper/tokens/form_username.txt.default" ]; then
+      cp "$PWD/helper/tokens/form_username.txt.default" "$PWD/helper/tokens/form_username.txt"
+      restored=true
+    fi
+    if [ "$restored" = true ]; then
+      echo "Restored default credentials"
     fi
   fi
 else
@@ -1552,6 +1553,9 @@ if [ "$offline_mode" = true ]; then
   # JRE and Tomcat files are already set in the dynamic detection code above
 fi
 
+# Create installation directory if it doesn't exist
+mkdir -p "$install_dir"
+
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
 if [ "$isUpdate" = true ] && [ "$offline_mode" = true ] && [ "$has_installer_jar" = true ]; then
     installerTempDir="$install_dir/installer/temp"
@@ -1634,11 +1638,12 @@ if [ "$isUpdate" = true ]; then
 else
   # For new installations, detect from hostname or prompt user
   # Only run detection if at least one value is still missing
+
   if [ "$hostnameDetected" = false ] && [ -n "$hs" ]; then
     # Try different patterns:
     # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
-    
+
     # Extract the last part (workstation ID)
     if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then
       storeId="${BASH_REMATCH[1]}"
@@ -1731,6 +1736,7 @@ if [ "$isUpdate" = false ]; then
     fi
     echo "$COMPONENT_TYPE onboarding completed successfully"
 
+    # Execute store initialization right after successful onboarding
     # Run store initialization for all components including WDM
     echo "Starting store initialization..."
     store_init_script="$PWD/store-initialization.sh"
@@ -2320,7 +2326,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-
+      
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -2519,7 +2525,7 @@ while [ $elapsed -lt $max_wait_time ]; do
           fi
         fi
       done
-
+      
       # Make sure the log file is moved to results directory at the end
       if [ -f "$log_file" ]; then
           dest_log_file="$results_dir/$log_file"
@@ -2641,10 +2647,6 @@ while [ $elapsed -lt $max_wait_time ]; do
         echo "Terminating launcher process..."
         kill $launcher_pid
       fi
-
-      # Clean up access token
-      rm -f "$PWD/helper/tokens/access_token.txt" 2>/dev/null
-
       exit 1
     fi
   fi
