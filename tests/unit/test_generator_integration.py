@@ -26,12 +26,31 @@ class TestCompleteProjectGeneration:
     def _configure_detection_manager(generator):
         """Helper to configure detection_manager for integration tests"""
         generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
             "detection_files": {
                 "POS": "stations\\POS.station",
                 "WDM": "stations\\WDM.station",
                 "FLOW-SERVICE": "stations\\Flow.station",
                 "LPA-SERVICE": "stations\\LPA.station",
                 "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
             }
         }
         generator.detection_manager.get_hostname_env_detection = Mock(return_value=False)
@@ -159,12 +178,31 @@ class TestMultiEnvironmentGeneration:
     def _configure_detection_manager(generator):
         """Helper to configure detection_manager for multi-environment tests"""
         generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
             "detection_files": {
                 "POS": "stations\\POS.station",
                 "WDM": "stations\\WDM.station",
                 "FLOW-SERVICE": "stations\\Flow.station",
                 "LPA-SERVICE": "stations\\LPA.station",
                 "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
             }
         }
         generator.detection_manager.get_hostname_env_detection = Mock(return_value=True)
@@ -299,12 +337,31 @@ class TestDetectionSystemIntegration:
     def _configure_detection_manager(generator, hostname_env_detection=True):
         """Helper to configure detection_manager for detection tests"""
         generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
             "detection_files": {
                 "POS": "stations\\POS.station",
                 "WDM": "stations\\WDM.station",
                 "FLOW-SERVICE": "stations\\Flow.station",
                 "LPA-SERVICE": "stations\\LPA.station",
                 "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
             }
         }
         generator.detection_manager.get_hostname_env_detection = Mock(return_value=hostname_env_detection)
@@ -377,12 +434,31 @@ class TestEndToEndValidation:
     def _configure_detection_manager(generator):
         """Helper to configure detection_manager for validation tests"""
         generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
             "detection_files": {
                 "POS": "stations\\POS.station",
                 "WDM": "stations\\WDM.station",
                 "FLOW-SERVICE": "stations\\Flow.station",
                 "LPA-SERVICE": "stations\\LPA.station",
                 "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
             }
         }
         generator.detection_manager.get_hostname_env_detection = Mock(return_value=False)
