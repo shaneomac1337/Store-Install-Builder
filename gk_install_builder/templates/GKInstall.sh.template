@@ -1579,11 +1579,62 @@ if [ "$isUpdate" = true ]; then
 else
   # For new installations, detect from hostname or prompt user
   # Only run detection if at least one value is still missing
+
+  # ============================================
+  # IP-Based Store Detection (Coop Sweden)
+  # ============================================
+  echo ""
+  echo "=== IP-Based Store Detection ==="
+
+  ip_detected=false
+  mapping_file="/tmp/store_ip_mapping.properties"
+
+  # Try to download store IP mapping file from DSG
+  mapping_url="https://${base_url}/dsg/content/cep/SoftwarePackage/store_ip_mapping.properties"
+  echo "Attempting to download store IP mapping from DSG..."
+
+  if curl -L --fail --silent --show-error --output "$mapping_file" "$mapping_url" 2>/dev/null; then
+      echo "Mapping file downloaded successfully"
+
+      # Get current IP address (first non-loopback IPv4)
+      current_ip=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '127.0.0.1' | head -n 1)
+
+      if [ -n "$current_ip" ]; then
+          echo "Current IP address: $current_ip"
+
+          # Parse mapping file (format: IP=StoreID)
+          while IFS='=' read -r ip store_id; do
+              if [ "$ip" = "$current_ip" ]; then
+                  storeNumber="$store_id"
+                  echo "IP-based detection SUCCESS: IP $current_ip mapped to Store ID $storeNumber"
+                  ip_detected=true
+                  hostnameDetected=true  # Mark as detected to skip manual input
+                  break
+              fi
+          done < "$mapping_file"
+
+          if [ "$ip_detected" = false ]; then
+              echo "No mapping found for IP $current_ip in mapping file"
+          fi
+      else
+          echo "Could not determine current IP address"
+      fi
+
+      # Clean up temp file
+      rm -f "$mapping_file"
+  else
+      echo "Could not download IP mapping file, falling back to other detection methods..."
+  fi
+
+  if [ "$ip_detected" = true ]; then
+      echo "Store ID detected via IP mapping, skipping hostname detection"
+  fi
+
   if [ "$hostnameDetected" = false ] && [ -n "$hs" ]; then
     # Try different patterns:
     # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
-    
+
     # Extract the last part (workstation ID)
     if [[ "$hs" =~ ([^-]+)-([0-9]+)$ ]]; then
       storeId="${BASH_REMATCH[1]}"

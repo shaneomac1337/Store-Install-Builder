@@ -53,3 +53,7 @@ Launcher.exe
 # OS files
 .DS_Store
 Thumbs.db
+
+# Coop Sweden specific
+coop_*/
+store_ip_mapping.properties
