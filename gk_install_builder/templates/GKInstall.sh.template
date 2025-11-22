@@ -1602,8 +1602,15 @@ else
       if [ -n "$current_ip" ]; then
           echo "Current IP address: $current_ip"
 
-          # Parse mapping file (format: IP=StoreID)
-          while IFS='=' read -r ip store_id; do
+          # Parse mapping file (format: StoreID:IP)
+          echo "Mapping file contents (first 10 lines):"
+          head -n 10 "$mapping_file" | while read line; do echo "  $line"; done
+
+          while IFS=':' read -r store_id ip; do
+              # Trim whitespace
+              store_id=$(echo "$store_id" | xargs)
+              ip=$(echo "$ip" | xargs)
+
               if [ "$ip" = "$current_ip" ]; then
                   storeNumber="$store_id"
                   echo "IP-based detection SUCCESS: IP $current_ip mapped to Store ID $storeNumber"
@@ -1615,6 +1622,7 @@ else
 
           if [ "$ip_detected" = false ]; then
               echo "No mapping found for IP $current_ip in mapping file"
+              echo "Expected format: StoreID:IP (e.g., 9999:10.0.1.37)"
           fi
       else
           echo "Could not determine current IP address"
