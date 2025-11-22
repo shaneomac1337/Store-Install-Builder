@@ -1020,27 +1020,6 @@ if ($ComponentType -eq 'WDM') {
     }
 }
 
-# ============================================
-# WDM Monitoring Service Management (Coop Sweden)
-# ============================================
-if ($ComponentType -eq 'WDM') {
-    Write-Host "`n=== WDM Monitoring Service Check ===" -ForegroundColor Cyan
-
-    # Check for TomcatWDMMonitor service
-    $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
-    if ($wdmMonitorService) {
-        Write-Host "Found TomcatWDMMonitor service (Status: $($wdmMonitorService.Status))"
-        if ($wdmMonitorService.Status -eq "Running") {
-            Write-Host "Stopping TomcatWDMMonitor service..." -ForegroundColor Yellow
-            Stop-Service -Name "TomcatWDMMonitor" -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Seconds 2
-            Write-Host "TomcatWDMMonitor service stopped" -ForegroundColor Green
-        }
-    } else {
-        Write-Host "TomcatWDMMonitor service not found (first-time install)" -ForegroundColor Gray
-    }
-}
-
 # Add component-specific package directory check
 $package_dir = if ($ComponentType -eq 'LPA-SERVICE') { "offline_package_LPA" }
                elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "offline_package_SH" }
@@ -2126,29 +2105,6 @@ while ($elapsed -lt $maxWaitTime) {
                     }
 
                     Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-
-                    # ============================================
-                    # WDM Monitoring Service Restart (Coop Sweden)
-                    # ============================================
-                    if ($ComponentType -eq 'WDM') {
-                        Write-Host "`n=== Restarting WDM Monitoring Service ===" -ForegroundColor Cyan
-
-                        # Try to start TomcatWDMMonitor service if it exists
-                        $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
-                        if ($wdmMonitorService) {
-                            Write-Host "Starting TomcatWDMMonitor service..."
-                            Start-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
-                            Start-Sleep -Seconds 2
-
-                            # Verify service started
-                            $wdmMonitorServiceAfter = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
-                            if ($wdmMonitorServiceAfter -and $wdmMonitorServiceAfter.Status -eq "Running") {
-                                Write-Host "TomcatWDMMonitor service is now running" -ForegroundColor Green
-                            } else {
-                                Write-Host "Warning: TomcatWDMMonitor service failed to start" -ForegroundColor Yellow
-                            }
-                        }
-                    }
 
                     # Final cleanup operations before exiting
                     Write-Host "Executing final cleanup before exit..."
