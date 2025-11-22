@@ -1020,6 +1020,27 @@ if ($ComponentType -eq 'WDM') {
     }
 }
 
+# ============================================
+# WDM Monitoring Service Management (Coop Sweden)
+# ============================================
+if ($ComponentType -eq 'WDM') {
+    Write-Host "`n=== WDM Monitoring Service Check ===" -ForegroundColor Cyan
+
+    # Check for TomcatWDMMonitor service
+    $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+    if ($wdmMonitorService) {
+        Write-Host "Found TomcatWDMMonitor service (Status: $($wdmMonitorService.Status))"
+        if ($wdmMonitorService.Status -eq "Running") {
+            Write-Host "Stopping TomcatWDMMonitor service..." -ForegroundColor Yellow
+            Stop-Service -Name "TomcatWDMMonitor" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Write-Host "TomcatWDMMonitor service stopped" -ForegroundColor Green
+        }
+    } else {
+        Write-Host "TomcatWDMMonitor service not found (first-time install)" -ForegroundColor Gray
+    }
+}
+
 # Add component-specific package directory check
 $package_dir = if ($ComponentType -eq 'LPA-SERVICE') { "offline_package_LPA" }
                elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "offline_package_SH" }
@@ -1433,11 +1454,82 @@ if ($isUpdate) {
 } else {
     # For new installations, detect from hostname or prompt user
     # Only run detection if we still need values
+
+    # ============================================
+    # IP-Based Store Detection (Coop Sweden)
+    # ============================================
+    Write-Host "`n=== IP-Based Store Detection ===" -ForegroundColor Cyan
+
+    $ipDetected = $false
+    $mappingFile = Join-Path $env:TEMP "store_ip_mapping.properties"
+
+    # Try to download store IP mapping file from DSG
+    $mappingUrl = "https://$base_url/dsg/content/cep/SoftwarePackage/store_ip_mapping.properties"
+    Write-Host "Attempting to download store IP mapping from DSG..."
+
+    try {
+        # Try curl first (faster, available on Windows 10+)
+        if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
+            Write-Host "Using curl to download mapping file..."
+            & curl.exe -L --fail --silent --show-error --output "$mappingFile" "$mappingUrl" 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "Mapping file downloaded successfully using curl" -ForegroundColor Green
+            } else {
+                throw "Curl failed with exit code $LASTEXITCODE"
+            }
+        } else {
+            # Fallback: WebClient
+            Write-Host "Using WebClient to download mapping file..."
+            $webClient = New-Object System.Net.WebClient
+            $webClient.Headers.Add("User-Agent", "GKInstallBuilder/1.0")
+            $content = $webClient.DownloadString($mappingUrl)
+            Set-Content -Path $mappingFile -Value $content -Encoding UTF8
+            Write-Host "Mapping file downloaded successfully using WebClient" -ForegroundColor Green
+        }
+
+        # Get current IP address
+        $currentIP = (Get-NetIPAddress -AddressFamily IPv4 |
+                      Where-Object { $_.IPAddress -ne "127.0.0.1" -and $_.PrefixOrigin -ne "WellKnown" } |
+                      Select-Object -First 1).IPAddress
+
+        Write-Host "Current IP address: $currentIP"
+
+        # Parse mapping file (format: IP=StoreID)
+        if (Test-Path $mappingFile) {
+            $mappingContent = Get-Content $mappingFile
+            foreach ($line in $mappingContent) {
+                # Match format: 192.168.1.100=1234
+                if ($line -match "^$([regex]::Escape($currentIP))=(.+)$") {
+                    $storeNumber = $matches[1].Trim()
+                    Write-Host "IP-based detection SUCCESS: IP $currentIP mapped to Store ID $storeNumber" -ForegroundColor Green
+                    $ipDetected = $true
+                    break
+                }
+            }
+
+            if (-not $ipDetected) {
+                Write-Host "No mapping found for IP $currentIP in mapping file" -ForegroundColor Yellow
+            }
+
+            # Clean up temp file
+            Remove-Item $mappingFile -Force -ErrorAction SilentlyContinue
+        }
+    } catch {
+        Write-Host "Could not download or parse IP mapping file: $_" -ForegroundColor Yellow
+        Write-Host "Falling back to other detection methods..." -ForegroundColor Yellow
+    }
+
+    # If IP detection succeeded, skip hostname detection
+    if ($ipDetected) {
+        $hostnameDetected = $true  # Mark as detected to skip manual input
+        Write-Host "Store ID detected via IP mapping, skipping hostname detection" -ForegroundColor Cyan
+    }
+
     if (-not $hostnameDetected -and -not [string]::IsNullOrEmpty($hs)) {
         # Try different patterns:
         # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
         # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
-        
+
         # HOSTNAME_STORE_WORKSTATION_DETECTION_PLACEHOLDER
     }
 
@@ -2027,14 +2119,37 @@ while ($elapsed -lt $maxWaitTime) {
                             Write-Host "Warning: Could not copy log file to results directory: $_"
                         }
                     }
-                    
+
                     Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-                    
+
+                    # ============================================
+                    # WDM Monitoring Service Restart (Coop Sweden)
+                    # ============================================
+                    if ($ComponentType -eq 'WDM') {
+                        Write-Host "`n=== Restarting WDM Monitoring Service ===" -ForegroundColor Cyan
+
+                        # Try to start TomcatWDMMonitor service if it exists
+                        $wdmMonitorService = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+                        if ($wdmMonitorService) {
+                            Write-Host "Starting TomcatWDMMonitor service..."
+                            Start-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+                            Start-Sleep -Seconds 2
+
+                            # Verify service started
+                            $wdmMonitorServiceAfter = Get-Service -Name "TomcatWDMMonitor" -ErrorAction SilentlyContinue
+                            if ($wdmMonitorServiceAfter -and $wdmMonitorServiceAfter.Status -eq "Running") {
+                                Write-Host "TomcatWDMMonitor service is now running" -ForegroundColor Green
+                            } else {
+                                Write-Host "Warning: TomcatWDMMonitor service failed to start" -ForegroundColor Yellow
+                            }
+                        }
+                    }
+
                     # Final cleanup operations before exiting
                     Write-Host "Executing final cleanup before exit..."
                     [System.GC]::Collect()  # Force garbage collection
                     Start-Sleep -Seconds 1  # Give GC time to work
-                    
+
                     exit 0
                 }
                 elseif ($finalLogContent -match "Installation failed") {
