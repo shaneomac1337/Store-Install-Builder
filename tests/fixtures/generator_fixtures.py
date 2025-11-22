@@ -382,9 +382,32 @@ def create_mock_detection_manager() -> Mock:
     mock.get_file_path.return_value = "C:\\gkretail\\stations\\POS.station"
     mock.get_base_directory.return_value = "C:\\gkretail"
     mock.detection_config = {
-        "use_hostname_detection": False,
-        "use_file_detection": False,
-        "detection_files": {}
+        "file_detection_enabled": True,
+        "use_base_directory": True,
+        "base_directory": "",
+        "custom_filenames": {
+            "POS": "POS.station",
+            "WDM": "WDM.station",
+            "FLOW-SERVICE": "FLOW-SERVICE.station",
+            "LPA-SERVICE": "LPA.station",
+            "STOREHUB-SERVICE": "SH.station"
+        },
+        "detection_files": {
+            "POS": "",
+            "WDM": "",
+            "FLOW-SERVICE": "",
+            "LPA-SERVICE": "",
+            "STOREHUB-SERVICE": ""
+        },
+        "hostname_detection": {
+            "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+            "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+            "test_hostname": "1234-101",
+            "detect_environment": False,
+            "env_group": 1,
+            "store_group": 1,
+            "workstation_group": 2
+        }
     }
     return mock
 
