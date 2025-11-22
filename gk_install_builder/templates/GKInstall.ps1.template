@@ -265,21 +265,37 @@ function Apply-EnvironmentConfig {
     # Override script variables with environment settings
     $script:base_url = $Environment.base_url
     $script:tenantId = $Environment.tenant_id
-    
-    # Decode and set credentials
+
+    # Get tokens directory path
+    $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
+
+    # Write credentials to files (and backup defaults first)
     if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
-        $oauth2Password = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.launchpad_oauth2_b64))
-        # Store for later use in token generation
-        $script:env_oauth2_password = $oauth2Password
+        # Backup original on first environment application
+        $basicAuthPath = Join-Path $tokensDir "basic_auth_password.txt"
+        $basicAuthDefault = "$basicAuthPath.default"
+        if (!(Test-Path $basicAuthDefault)) {
+            Copy-Item $basicAuthPath $basicAuthDefault -ErrorAction SilentlyContinue
+        }
+        # Write environment credentials
+        Set-Content -Path $basicAuthPath -Value $Environment.launchpad_oauth2_b64 -NoNewline
+        Write-Host "  Updated OAuth2 credentials"
     }
-    
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username)) {
-        $script:env_form_username = $Environment.eh_launchpad_username
-    }
-    
-    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
-        $ehPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.eh_launchpad_password_b64))
-        $script:env_form_password = $ehPassword
+
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username) -and ![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
+        # Backup originals on first environment application
+        $formUserPath = Join-Path $tokensDir "form_username.txt"
+        $formPassPath = Join-Path $tokensDir "form_password.txt"
+        $formUserDefault = "$formUserPath.default"
+        $formPassDefault = "$formPassPath.default"
+        if (!(Test-Path $formPassDefault)) {
+            Copy-Item $formPassPath $formPassDefault -ErrorAction SilentlyContinue
+            Copy-Item $formUserPath $formUserDefault -ErrorAction SilentlyContinue
+        }
+        # Write environment credentials
+        Set-Content -Path $formUserPath -Value $Environment.eh_launchpad_username -NoNewline
+        Set-Content -Path $formPassPath -Value $Environment.eh_launchpad_password_b64 -NoNewline
+        Write-Host "  Updated Employee Hub credentials"
     }
     
     # Update tenant_id in all helper JSON files
@@ -824,6 +840,105 @@ $systemType = switch ($ComponentType) {
     default { "CSE-OPOS-CLOUD" }
 }
 
+# Check if this is an update of an existing installation
+$isUpdate = $false
+if (Test-Path $install_dir) {
+    # Check for log folders
+    $logPath = Join-Path $install_dir "log"
+    $logsPath = Join-Path $install_dir "logs"
+
+    # Determine which log folder exists
+    $logFolderPath = $null
+    if (Test-Path $logPath) {
+        $logFolderPath = $logPath
+    } elseif (Test-Path $logsPath) {
+        $logFolderPath = $logsPath
+    }
+
+    # If a log folder exists, check for recent activity (last 7 days)
+    if ($logFolderPath) {
+        Write-Host "Found existing installation at $install_dir with log folder at $logFolderPath"
+
+        try {
+            $recentFiles = Get-ChildItem -Path $logFolderPath -Recurse -File |
+                           Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }
+
+            if ($recentFiles.Count -gt 0) {
+                Write-Host "Found $($recentFiles.Count) recently modified log files (within 7 days)"
+                Write-Host "This appears to be an active installation. Performing update instead of full installation."
+                $isUpdate = $true
+            } else {
+                Write-Host "No recent activity found in logs. Performing full installation."
+            }
+        } catch {
+            Write-Host "Error checking log files: $_"
+            Write-Host "Continuing with full installation."
+        }
+    } else {
+        Write-Host "No log folder found. Performing full installation."
+    }
+} else {
+    Write-Host "Installation directory does not exist. Performing full installation."
+}
+
+# Multi-environment selection (skip in update mode)
+if (-not $isUpdate) {
+    # Load environments configuration
+    $environments = Load-Environments
+    if ($null -eq $environments) {
+        Write-Host "Warning: No environments.json found, using script defaults"
+        # Restore default credentials if backups exist (check each file individually)
+        $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
+        $restored = $false
+        if (Test-Path (Join-Path $tokensDir "basic_auth_password.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "basic_auth_password.txt.default") (Join-Path $tokensDir "basic_auth_password.txt") -Force
+            $restored = $true
+        }
+        if (Test-Path (Join-Path $tokensDir "form_password.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "form_password.txt.default") (Join-Path $tokensDir "form_password.txt") -Force
+            $restored = $true
+        }
+        if (Test-Path (Join-Path $tokensDir "form_username.txt.default")) {
+            Copy-Item (Join-Path $tokensDir "form_username.txt.default") (Join-Path $tokensDir "form_username.txt") -Force
+            $restored = $true
+        }
+        if ($restored) {
+            Write-Host "Restored default credentials"
+        }
+    } else {
+        # Select environment based on CLI parameter, file, or interactive prompt
+        $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
+
+        if ($null -ne $selectedEnv) {
+            # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+            Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
+            Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+        } else {
+            Write-Host "No environment selected, using script defaults"
+            # Restore default credentials if backups exist (check each file individually)
+            $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
+            $restored = $false
+            if (Test-Path (Join-Path $tokensDir "basic_auth_password.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "basic_auth_password.txt.default") (Join-Path $tokensDir "basic_auth_password.txt") -Force
+                $restored = $true
+            }
+            if (Test-Path (Join-Path $tokensDir "form_password.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "form_password.txt.default") (Join-Path $tokensDir "form_password.txt") -Force
+                $restored = $true
+            }
+            if (Test-Path (Join-Path $tokensDir "form_username.txt.default")) {
+                Copy-Item (Join-Path $tokensDir "form_username.txt.default") (Join-Path $tokensDir "form_username.txt") -Force
+                $restored = $true
+            }
+            if ($restored) {
+                Write-Host "Restored default credentials"
+            }
+        }
+    }
+} else {
+    Write-Host "Update mode detected - skipping environment selection, will use existing installation configuration"
+}
+
 # Determine component version based on UseDefaultVersions flag
 if ($UseDefaultVersions) {
     Write-Host "UseDefaultVersions flag is enabled - fetching versions from Employee Hub Service API..."
@@ -1273,69 +1388,6 @@ if ($offline.IsPresent) {
 # Create installation directory if it doesn't exist
 if (-not (Test-Path $install_dir)) {
     New-Item -ItemType Directory -Path $install_dir -Force
-}
-
-# Check if this is an update of an existing installation
-$isUpdate = $false
-if (Test-Path $install_dir) {
-    # Check for log folders
-    $logPath = Join-Path $install_dir "log"
-    $logsPath = Join-Path $install_dir "logs"
-    
-    # Determine which log folder exists
-    $logFolderPath = $null
-    if (Test-Path $logPath) {
-        $logFolderPath = $logPath
-    } elseif (Test-Path $logsPath) {
-        $logFolderPath = $logsPath
-    }
-    
-    # If a log folder exists, check for recent activity (last 7 days)
-    if ($logFolderPath) {
-        Write-Host "Found existing installation at $install_dir with log folder at $logFolderPath"
-        
-        try {
-            $recentFiles = Get-ChildItem -Path $logFolderPath -Recurse -File | 
-                           Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }
-            
-            if ($recentFiles.Count -gt 0) {
-                Write-Host "Found $($recentFiles.Count) recently modified log files (within 7 days)"
-                Write-Host "This appears to be an active installation. Performing update instead of full installation."
-                $isUpdate = $true
-            } else {
-                Write-Host "No recent activity found in logs. Performing full installation."
-            }
-        } catch {
-            Write-Host "Error checking log files: $_"
-            Write-Host "Continuing with full installation."
-        }
-    } else {
-        Write-Host "No log folder found. Performing full installation."
-    }
-} else {
-    Write-Host "Installation directory does not exist. Performing full installation."
-}
-
-# Multi-environment selection (skip in update mode)
-if (-not $isUpdate) {
-    # Load environments configuration
-    $environments = Load-Environments
-    if ($null -eq $environments) {
-        Write-Host "Warning: No environments.json found, using script defaults"
-    } else {
-        # Select environment based on CLI parameter, file, or interactive prompt
-        $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
-        
-        if ($null -ne $selectedEnv) {
-            # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
-            Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
-            Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
-        } else {
-            Write-Host "No environment selected, using script defaults"
-        }
-    }
-} else {
-    Write-Host "Update mode detected - skipping environment selection, will use existing installation configuration"
 }
 
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
