@@ -12,8 +12,8 @@ if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     Write-Host "Please click 'Yes' in the UAC prompt to continue." -ForegroundColor Yellow
     Start-Sleep -Seconds 2
 
-    # Relaunch as administrator
-    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    # Relaunch as administrator in the same directory
+    Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs -WorkingDirectory $PSScriptRoot
     exit
 }
 
