@@ -438,11 +438,15 @@ apply_environment_config() {
   fi
   
   if [ -n "$oauth2_password_b64" ]; then
+    # Backup original credentials on first environment application
+    if [ ! -f "$tokens_dir/basic_auth_password.txt.default" ]; then
+      cp "$tokens_dir/basic_auth_password.txt" "$tokens_dir/basic_auth_password.txt.default" 2>/dev/null
+    fi
     # Store as base64 (consistent with generator)
     echo "$oauth2_password_b64" > "$tokens_dir/basic_auth_password.txt"
     echo "  Updated OAuth2 credentials" >&2
   fi
-  
+
   # Update Employee Hub credentials if provided
   local eh_username
   local eh_password_b64
@@ -453,8 +457,13 @@ apply_environment_config() {
     eh_username=$(json_extract "$env_json" "eh_launchpad_username")
     eh_password_b64=$(json_extract "$env_json" "eh_launchpad_password_b64")
   fi
-  
+
   if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
+    # Backup original credentials on first environment application
+    if [ ! -f "$tokens_dir/form_password.txt.default" ]; then
+      cp "$tokens_dir/form_password.txt" "$tokens_dir/form_password.txt.default" 2>/dev/null
+      cp "$tokens_dir/form_username.txt" "$tokens_dir/form_username.txt.default" 2>/dev/null
+    fi
     # Store password as base64 (consistent with generator)
     echo "$eh_username" > "$tokens_dir/form_username.txt"
     echo "$eh_password_b64" > "$tokens_dir/form_password.txt"
@@ -915,6 +924,100 @@ case "$COMPONENT_TYPE" in
     install_dir="$base_install_dir/wdm"
     ;;
 esac
+
+# Create installation directory if it doesn't exist
+mkdir -p "$install_dir"
+
+# Check if this is an update of an existing installation
+isUpdate=false
+if [ -d "$install_dir" ]; then
+    # Check for log folders
+    logPath="$install_dir/log"
+    logsPath="$install_dir/logs"
+
+    # Determine which log folder exists
+    logFolderPath=""
+    if [ -d "$logPath" ]; then
+        logFolderPath="$logPath"
+    elif [ -d "$logsPath" ]; then
+        logFolderPath="$logsPath"
+    fi
+
+    # If a log folder exists, check for recent activity (last 7 days)
+    if [ -n "$logFolderPath" ]; then
+        echo "Found existing installation at $install_dir with log folder at $logFolderPath"
+
+        # Get files modified in the last 7 days
+        recentFiles=$(find "$logFolderPath" -type f -mtime -7 2>/dev/null)
+        recentFileCount=$(echo "$recentFiles" | grep -v '^$' | wc -l)
+
+        if [ $recentFileCount -gt 0 ]; then
+            echo "Found $recentFileCount recently modified log files (within 7 days)"
+            echo "This appears to be an active installation. Performing update instead of full installation."
+            isUpdate=true
+        else
+            echo "No recent activity found in logs. Performing full installation."
+        fi
+    else
+        echo "No log folder found. Performing full installation."
+    fi
+else
+    echo "Installation directory does not exist. Performing full installation."
+fi
+
+# Multi-environment selection (skip in update mode)
+if [ "$isUpdate" = false ]; then
+  # Load environments configuration
+  if environments=$(load_environments 2>/dev/null); then
+    # Select environment based on CLI parameter, file, or interactive prompt
+    if selected_env=$(select_environment "$environments" "$env_alias"); then
+      # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
+      apply_environment_config "$selected_env"
+      if [ "$JQ_AVAILABLE" = true ]; then
+        env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+      else
+        env_alias_name=$(json_extract "$selected_env" "alias")
+      fi
+      echo "Environment '$env_alias_name' applied successfully"
+    else
+      echo "No environment selected, using script defaults"
+      # Restore original credentials if they were backed up
+      script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      tokens_dir="$script_dir/helper/tokens"
+      if [ -f "$tokens_dir/basic_auth_password.txt.default" ]; then
+        cp "$tokens_dir/basic_auth_password.txt.default" "$tokens_dir/basic_auth_password.txt"
+        echo "Restored original OAuth2 credentials"
+      fi
+      if [ -f "$tokens_dir/form_password.txt.default" ]; then
+        cp "$tokens_dir/form_password.txt.default" "$tokens_dir/form_password.txt"
+        echo "Restored original Employee Hub password"
+      fi
+      if [ -f "$tokens_dir/form_username.txt.default" ]; then
+        cp "$tokens_dir/form_username.txt.default" "$tokens_dir/form_username.txt"
+        echo "Restored original Employee Hub username"
+      fi
+    fi
+  else
+    echo "Warning: No environments.json found, using script defaults"
+    # Restore original credentials if they were backed up
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    tokens_dir="$script_dir/helper/tokens"
+    if [ -f "$tokens_dir/basic_auth_password.txt.default" ]; then
+      cp "$tokens_dir/basic_auth_password.txt.default" "$tokens_dir/basic_auth_password.txt"
+      echo "Restored original OAuth2 credentials"
+    fi
+    if [ -f "$tokens_dir/form_password.txt.default" ]; then
+      cp "$tokens_dir/form_password.txt.default" "$tokens_dir/form_password.txt"
+      echo "Restored original Employee Hub password"
+    fi
+    if [ -f "$tokens_dir/form_username.txt.default" ]; then
+      cp "$tokens_dir/form_username.txt.default" "$tokens_dir/form_username.txt"
+      echo "Restored original Employee Hub username"
+    fi
+  fi
+else
+  echo "Update mode detected - skipping environment selection, will use existing installation configuration"
+fi
 
 # Determine component version based on use_default_versions flag
 if [ "$use_default_versions" = true ]; then
@@ -1449,70 +1552,6 @@ if [ "$offline_mode" = true ]; then
   # JRE and Tomcat files are already set in the dynamic detection code above
 fi
 
-# Create installation directory if it doesn't exist
-mkdir -p "$install_dir"
-
-# Check if this is an update of an existing installation
-isUpdate=false
-if [ -d "$install_dir" ]; then
-    # Check for log folders
-    logPath="$install_dir/log"
-    logsPath="$install_dir/logs"
-    
-    # Determine which log folder exists
-    logFolderPath=""
-    if [ -d "$logPath" ]; then
-        logFolderPath="$logPath"
-    elif [ -d "$logsPath" ]; then
-        logFolderPath="$logsPath"
-    fi
-    
-    # If a log folder exists, check for recent activity (last 7 days)
-    if [ -n "$logFolderPath" ]; then
-        echo "Found existing installation at $install_dir with log folder at $logFolderPath"
-        
-        # Get files modified in the last 7 days
-        recentFiles=$(find "$logFolderPath" -type f -mtime -7 2>/dev/null)
-        recentFileCount=$(echo "$recentFiles" | grep -v '^$' | wc -l)
-        
-        if [ $recentFileCount -gt 0 ]; then
-            echo "Found $recentFileCount recently modified log files (within 7 days)"
-            echo "This appears to be an active installation. Performing update instead of full installation."
-            isUpdate=true
-        else
-            echo "No recent activity found in logs. Performing full installation."
-        fi
-    else
-        echo "No log folder found. Performing full installation."
-    fi
-else
-    echo "Installation directory does not exist. Performing full installation."
-fi
-
-# Multi-environment selection (skip in update mode)
-if [ "$isUpdate" = false ]; then
-  # Load environments configuration
-  if environments=$(load_environments 2>/dev/null); then
-    # Select environment based on CLI parameter, file, or interactive prompt
-    if selected_env=$(select_environment "$environments" "$env_alias"); then
-      # Apply the selected environment configuration (overrides base_url, credentials, tenant_id)
-      apply_environment_config "$selected_env"
-      if [ "$JQ_AVAILABLE" = true ]; then
-        env_alias_name=$(echo "$selected_env" | jq -r '.alias')
-      else
-        env_alias_name=$(json_extract "$selected_env" "alias")
-      fi
-      echo "Environment '$env_alias_name' applied successfully"
-    else
-      echo "No environment selected, using script defaults"
-    fi
-  else
-    echo "Warning: No environments.json found, using script defaults"
-  fi
-else
-  echo "Update mode detected - skipping environment selection, will use existing installation configuration"
-fi
-
 # If this is an update in offline mode and we have an installer jar, copy it to the temp directory
 if [ "$isUpdate" = true ] && [ "$offline_mode" = true ] && [ "$has_installer_jar" = true ]; then
     installerTempDir="$install_dir/installer/temp"
@@ -1692,59 +1731,55 @@ if [ "$isUpdate" = false ]; then
     fi
     echo "$COMPONENT_TYPE onboarding completed successfully"
 
-    # Execute store initialization right after successful onboarding
-    if [ "$COMPONENT_TYPE" != "WDM" ]; then
-        echo "Starting store initialization..."
-        store_init_script="$PWD/store-initialization.sh"
-        if [ -f "$store_init_script" ]; then
-            # Update get_store.json with the store ID
-            get_store_json_path="$PWD/helper/init/get_store.json"
-            if [ -f "$get_store_json_path" ]; then
-              echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
-              # Create a processed directory if it doesn't exist
-              mkdir -p "$PWD/helper/init"
-              # Create a processed copy
-              processed_get_store_path="$PWD/helper/init/get_store_processed.json"
-              # Copy the original to processed file
-              cp "$get_store_json_path" "$processed_get_store_path"
-              # Use sed to replace the placeholder with the actual store number in the processed copy
-              sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
-              echo "get_store_processed.json created successfully"
-            else
-              echo "Warning: get_store.json not found at: $get_store_json_path"
-            fi
+    # Run store initialization for all components including WDM
+    echo "Starting store initialization..."
+    store_init_script="$PWD/store-initialization.sh"
+    if [ -f "$store_init_script" ]; then
+        # Update get_store.json with the store ID
+        get_store_json_path="$PWD/helper/init/get_store.json"
+        if [ -f "$get_store_json_path" ]; then
+          echo "Creating processed copy of get_store.json with Store ID: $storeNumber"
+          # Create a processed directory if it doesn't exist
+          mkdir -p "$PWD/helper/init"
+          # Create a processed copy
+          processed_get_store_path="$PWD/helper/init/get_store_processed.json"
+          # Copy the original to processed file
+          cp "$get_store_json_path" "$processed_get_store_path"
+          # Use sed to replace the placeholder with the actual store number in the processed copy
+          sed -i "s/@RETAIL_STORE_ID@/$storeNumber/g" "$processed_get_store_path"
+          echo "get_store_processed.json created successfully"
+        else
+          echo "Warning: get_store.json not found at: $get_store_json_path"
+        fi
 
-            # Update StoreHub configuration with dynamic version if this is a StoreHub installation
-            if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-              storehub_config_path="$PWD/helper/init/storehub/update_config.json"
-              if [ -f "$storehub_config_path" ]; then
-                echo "Updating StoreHub configuration with dynamic version: $component_version"
-                # Create a backup of the original
-                cp "$storehub_config_path" "$storehub_config_path.backup"
-                # Create a processed copy with the dynamic version
-                processed_storehub_config_path="$PWD/helper/init/storehub/update_config_processed.json"
-                cp "$storehub_config_path" "$processed_storehub_config_path"
-                # Replace the version placeholder with the dynamic version
-                sed -i "s/@SYSTEM_VERSION@/$component_version/g" "$processed_storehub_config_path"
-                echo "StoreHub configuration updated with version: $component_version"
-              else
-                echo "Warning: StoreHub config not found at: $storehub_config_path"
-              fi
-            fi
-
-            # Call the store initialization script with the dynamic version
-            if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version"; then
-              echo "Error during store initialization"
-              exit 1
-            fi
-            echo "Store initialization completed successfully"
+        # Update StoreHub configuration with dynamic version if this is a StoreHub installation
+        if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
+          storehub_config_path="$PWD/helper/init/storehub/update_config.json"
+          if [ -f "$storehub_config_path" ]; then
+            echo "Updating StoreHub configuration with dynamic version: $component_version"
+            # Create a backup of the original
+            cp "$storehub_config_path" "$storehub_config_path.backup"
+            # Create a processed copy with the dynamic version
+            processed_storehub_config_path="$PWD/helper/init/storehub/update_config_processed.json"
+            cp "$storehub_config_path" "$processed_storehub_config_path"
+            # Replace the version placeholder with the dynamic version
+            sed -i "s/@SYSTEM_VERSION@/$component_version/g" "$processed_storehub_config_path"
+            echo "StoreHub configuration updated with version: $component_version"
           else
-            echo "Error: Store initialization script not found at: $store_init_script"
-            exit 1
+            echo "Warning: StoreHub config not found at: $storehub_config_path"
           fi
-    else
-      echo "Skipping store initialization for WDM component"
-    fi
+        fi
+
+        # Call the store initialization script with the dynamic version
+        if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version"; then
+          echo "Error during store initialization"
+          exit 1
+        fi
+        echo "Store initialization completed successfully"
+      else
+        echo "Error: Store initialization script not found at: $store_init_script"
+        exit 1
+      fi
 else
     echo "Skipping onboarding and store initialization for update"
 fi
