@@ -2172,13 +2172,7 @@ while [ $elapsed -lt $max_wait_time ]; do
         echo "Installation directory: $install_dir"
         
         # Component-specific completion messages
-        if [ "$COMPONENT_TYPE" = "WDM" ]; then
-          echo "WDM installation completed. Please check the following:"
-          echo "1. Tomcat service status"
-          echo "2. WDM application accessibility at https://localhost:8543"
-        else
-          echo "$COMPONENT_TYPE installation completed. Please check the application status."
-        fi
+        echo "$COMPONENT_TYPE installation has been completed successfully."
         
         # Cleanup: Move generated files to a results directory
         results_dir="results_$COMPONENT_TYPE"
@@ -2450,13 +2444,7 @@ while [ $elapsed -lt $max_wait_time ]; do
       echo "Installation directory: $install_dir"
       
       # Component-specific completion messages
-      if [ "$COMPONENT_TYPE" = "WDM" ]; then
-        echo "WDM installation completed. Please check the following:"
-        echo "1. Tomcat service status"
-        echo "2. WDM application accessibility at https://localhost:8543"
-      else
-        echo "$COMPONENT_TYPE installation completed. Please check the application status."
-      fi
+      echo "$COMPONENT_TYPE installation has been completed successfully."
       
       # Kill the launcher process if it's still running
       if kill -0 $launcher_pid 2>/dev/null; then
