@@ -11,6 +11,9 @@ param (
     [string]$Version
 )
 
+# Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # Initialize StoreHub wait tracking variable
 $script:storeHubWaitComplete = $false
 

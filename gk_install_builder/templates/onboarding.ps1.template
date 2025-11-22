@@ -4,6 +4,9 @@ param (
     [string]$tenant_id = "001"  # Add this parameter
 )
 
+# Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 # API endpoint
 $url = "https://$base_url/auth-service/tenants/${tenant_id}/oauth/token"
 
