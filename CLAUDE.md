@@ -242,6 +242,40 @@ Used in generator.py for file browsing:
 - Script extension: `.sh`
 - Requires special mousewheel handling (Button-4/Button-5 events)
 
+## Branch-Specific Features
+
+### coop_sweden_5.27 Branch
+
+This branch contains Coop Sweden-specific customizations:
+
+**Features:**
+1. **IP-Based Store Detection** - Downloads `store_ip_mapping.properties` from DSG and matches machine IP to store ID
+2. **WDM Monitoring Service Management** - Automatically stops/starts `TomcatWDMMonitor` service during WDM installation
+3. **Convenience Wrapper Scripts** - One-click WDM installation with pre-configured defaults:
+   - `InstallWDM.bat` (Windows batch)
+   - `InstallWDM.ps1` (PowerShell)
+   - `InstallWDM.sh` (Linux bash)
+
+**Usage:**
+- Run `InstallWDM.bat` (or .ps1/.sh) for automated WDM installation with:
+  - Component Type: WDM
+  - Workstation ID: 200
+  - Offline Mode: Enabled
+
+**Detection Priority:**
+1. CLI parameters (`--storeId`, `--workstationId`)
+2. Update mode (read from existing station.properties)
+3. **IP-based detection** (new: matches IP from DSG mapping file)
+4. Hostname regex detection
+5. Manual user input
+
+**Differences from Main:**
+- IP-based detection added as priority 3 (before hostname detection)
+- WDM monitoring service automatically managed
+- Wrapper scripts for quick deployment
+- Store initialization still runs for all components (including WDM)
+- Hostname detection remains enabled (fallback after IP detection)
+
 ## Recent Features & Architectural Changes
 
 ### Major Code Refactoring (November 2025)
