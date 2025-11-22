@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **GK Install Builder** is a Python GUI application that generates cross-platform installation packages for retail store environments. It creates platform-specific installation scripts (Windows PowerShell and Linux Bash), configuration files, and deployment packages for retail components (POS, WDM, Flow Service, LPA Service, StoreHub Service).
 
-**Current Branch**: `feature/multi-environment` (main development branch is `main`)
+**Current Branch**: `refactor` (main development branch is `main`)
 
-**Recent Major Refactoring (November 2025)**: The codebase underwent a comprehensive refactoring that reduced `generator.py` from 3,592 lines to 894 lines (75.1% reduction) while maintaining 100% test coverage (143/143 tests passing). All functionality has been preserved with zero regressions.
+**Recent Major Refactoring (November 2025)**: The codebase underwent a comprehensive refactoring that reduced `generator.py` from 3,592 lines to 899 lines (75.0% reduction) while maintaining 100% test coverage (143/143 tests passing). All functionality has been preserved with zero regressions.
 
 ## Development Commands
 
@@ -44,12 +44,12 @@ pytest tests/unit/test_config_management.py
 
 ### Main Components
 
-1. **Main Application** (`gk_install_builder/main.py` - ~1,329 lines)
+1. **Main Application** (`gk_install_builder/main.py` - ~1,392 lines)
    - CustomTkinter-based GUI with wizard interface for first-time users
    - Multi-section configuration form with auto-save (1-second debounce)
    - Integration manager for all feature modules
 
-2. **Project Generator** (`gk_install_builder/generator.py` - 894 lines, refactored)
+2. **Project Generator** (`gk_install_builder/generator.py` - 899 lines, refactored)
    - Main orchestrator for installation package generation
    - Coordinates all generation modules and manages the overall build process
    - Creates complete directory structure with helper files
@@ -57,7 +57,7 @@ pytest tests/unit/test_config_management.py
    - Includes `DSGRestBrowser` class for REST API integration with token refresh on 401 errors
 
 3. **Generator Modules** (`gk_install_builder/generators/` - NEW)
-   - **`gk_install_generator.py`** (693 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
+   - **`gk_install_generator.py`** (771 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
    - **`helper_file_generator.py`**: Helper file operations, store initialization scripts, component files, JSON configs, and multi-environment support
    - **`launcher_generator.py`**: Component launcher template generation with per-component settings
    - **`onboarding_generator.py`**: Onboarding script generation for both platforms
@@ -85,12 +85,19 @@ pytest tests/unit/test_config_management.py
    - Per-environment credentials and base URLs
    - Environment aliasing and cloning
 
+7. **Generator Configuration** (`gk_install_builder/gen_config/generator_config.py` - 156 lines)
+   - Generator configuration management
+   - Centralized configuration for generation processes
+   - Configuration validation and defaults
+
 ### Utility Modules (`gk_install_builder/utils/` - EXPANDED)
 
 - **helpers.py**: JSON processing utilities
 - **tooltips.py**: UI tooltip helpers
 - **ui_colors.py**: Consistent color scheme
 - **version.py**: Version management utilities (NEW)
+- **environment_setup.py** (42 lines): Environment setup utilities
+- **file_operations.py** (128 lines): File operation utilities
 
 ### Feature Modules (`gk_install_builder/features/`)
 
@@ -112,6 +119,7 @@ pytest tests/unit/test_config_management.py
 - **detection_settings.py**: Store/Workstation detection configuration
 - **launcher_settings.py**: Component launcher editor
 - **offline_package.py**: Offline package creator for internet-free environments
+- **download_dialogs.py** (248 lines): Download progress dialogs
 - **about.py**: About dialog
 
 ## Template System
@@ -240,14 +248,14 @@ Used in generator.py for file browsing:
 The codebase underwent a comprehensive refactoring that significantly improved maintainability while preserving all functionality:
 
 **Key Achievements:**
-- **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 894 lines** (75.1% reduction)
+- **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 899 lines** (75.0% reduction)
 - **100% Test Coverage Maintained**: All **143 tests passing** throughout refactoring
 - **Zero Regressions**: Generated output remains functionally identical to original
 - **Clean Repository**: All backup files and old versions archived in `archive/` directory
 
 **New Modular Structure:**
 - Created dedicated `generators/` subdirectory with specialized modules
-- Extracted GKInstall script generation (693 lines) to `gk_install_generator.py`
+- Extracted GKInstall script generation (771 lines) to `gk_install_generator.py`
 - Extracted helper file operations to `helper_file_generator.py`
 - Extracted launcher template generation to `launcher_generator.py`
 - Extracted onboarding script generation to `onboarding_generator.py`
@@ -359,6 +367,7 @@ The `archive/` directory preserves the refactoring history:
 archive/
 ├── backups/               # Backup files created during development
 ├── old_versions/          # Previous versions of main.py from refactoring phases
+├── pre-refactoring/       # Complete pre-refactoring codebase snapshot
 ├── refactoring_docs/      # Refactoring documentation and session summaries
 └── temp/                  # Temporary files from development
 ```

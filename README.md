@@ -102,19 +102,19 @@ The application follows a modular architecture with these key components:
 
 ### Core Components
 
-- **Main Application** (`gk_install_builder/main.py`): The core GUI and application controller
+- **Main Application** (`gk_install_builder/main.py` - ~1,392 lines): The core GUI and application controller
   - CustomTkinter-based interface with wizard mode for first-time users
   - Multi-section configuration form with auto-save
   - Integration manager for all feature modules
 
-- **Project Generator** (`gk_install_builder/generator.py`): Main orchestrator for installation package generation (894 lines, refactored)
+- **Project Generator** (`gk_install_builder/generator.py` - 899 lines, refactored): Main orchestrator for installation package generation
   - Coordinates all generation modules and manages the overall build process
   - Creates complete directory structure with helper files
   - Delegates to specialized generator modules for specific tasks
   - Supports both Windows (.ps1) and Linux (.sh) scripts
 
 - **Generator Modules** (`gk_install_builder/generators/`): Specialized script generation modules
-  - **gk_install_generator.py** (693 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
+  - **gk_install_generator.py** (771 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
   - **helper_file_generator.py**: Helper file operations, store initialization scripts, component files, JSON configs, and multi-environment support
   - **launcher_generator.py**: Component launcher template generation with per-component settings
   - **onboarding_generator.py**: Onboarding script generation for both platforms
@@ -133,11 +133,15 @@ The application follows a modular architecture with these key components:
   - File-based detection using .station files
   - Platform-specific regex patterns for Windows and Linux
 
-- **Environment Manager** (`gk_install_builder/environment_manager.py`): Multi-environment and multi-tenancy support
+- **Environment Manager** (`gk_install_builder/environment_manager.py` - 492 lines): Multi-environment and multi-tenancy support
   - Per-environment configurations with separate credentials
   - Environment aliasing and cloning
   - OAuth2 token caching per environment
   - Automatic environment detection via hostname patterns
+
+- **Generator Configuration** (`gk_install_builder/gen_config/generator_config.py` - 156 lines): Generator configuration management
+  - Centralized configuration for generation processes
+  - Configuration validation and defaults
 
 - **Pleasant Password Client** (`gk_install_builder/pleasant_password_client.py`): Interfaces with the Pleasant Password Server API
   - OAuth2 authentication
@@ -189,7 +193,19 @@ Located in `gk_install_builder/dialogs/`:
 - **detection_settings.py**: Store/Workstation detection configuration dialog
 - **launcher_settings.py**: Component launcher editor dialog
 - **offline_package.py**: Offline package creator dialog
+- **download_dialogs.py** (248 lines): Download progress dialogs
 - **about.py**: About dialog
+
+### Utility Modules
+
+Located in `gk_install_builder/utils/`:
+
+- **helpers.py**: JSON processing utilities
+- **tooltips.py**: UI tooltip helpers
+- **ui_colors.py**: Consistent color scheme
+- **version.py**: Version management utilities
+- **environment_setup.py** (42 lines): Environment setup utilities
+- **file_operations.py** (128 lines): File operation utilities
 
 ## Technologies Used
 
@@ -286,7 +302,8 @@ Store-Install-Builder/
 │   │   ├── about.py
 │   │   ├── detection_settings.py
 │   │   ├── launcher_settings.py
-│   │   └── offline_package.py
+│   │   ├── offline_package.py
+│   │   └── download_dialogs.py      # Download progress dialogs (248 lines)
 │   ├── features/                    # Feature modules
 │   │   ├── auto_fill.py
 │   │   ├── certificate_manager.py
@@ -294,7 +311,7 @@ Store-Install-Builder/
 │   │   └── version_manager.py
 │   ├── generators/                  # Script generation modules (NEW)
 │   │   ├── __init__.py
-│   │   ├── gk_install_generator.py      # GKInstall script generation (693 lines)
+│   │   ├── gk_install_generator.py      # GKInstall script generation (771 lines)
 │   │   ├── helper_file_generator.py     # Helper files and configs
 │   │   ├── launcher_generator.py        # Component launcher templates
 │   │   ├── onboarding_generator.py      # Onboarding scripts
@@ -317,11 +334,15 @@ Store-Install-Builder/
 │   │   ├── helpers.py               # JSON processing utilities
 │   │   ├── tooltips.py
 │   │   ├── ui_colors.py
-│   │   └── version.py               # Version management utilities (NEW)
+│   │   ├── version.py               # Version management utilities (NEW)
+│   │   ├── environment_setup.py     # Environment setup utilities (42 lines)
+│   │   └── file_operations.py       # File operation utilities (128 lines)
 │   ├── config.py                    # Configuration management
 │   ├── detection.py                 # Store/workstation detection logic
 │   ├── environment_manager.py       # Multi-environment support
-│   ├── generator.py                 # Installation package generator (894 lines, refactored)
+│   ├── gen_config/                  # Generator configuration module
+│   │   └── generator_config.py      # Generator config management (156 lines)
+│   ├── generator.py                 # Installation package generator (899 lines, refactored)
 │   ├── keepass_dialog.py            # KeePass dialog UI
 │   ├── main.py                      # Application entry point
 │   ├── pleasant_password_client.py  # Password management client
@@ -329,6 +350,7 @@ Store-Install-Builder/
 ├── archive/                         # Archived refactoring files (NEW)
 │   ├── backups/                     # Code backups
 │   ├── old_versions/                # Previous file versions
+│   ├── pre-refactoring/             # Complete pre-refactoring codebase snapshot
 │   ├── refactoring_docs/            # Refactoring documentation
 │   └── temp/                        # Temporary development files
 ├── helper/                          # Helper files (copied to output)
@@ -708,7 +730,7 @@ The codebase underwent a comprehensive refactoring to improve maintainability, m
 
 #### Key Achievements
 
-- **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 894 lines** (75.1% reduction)
+- **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 899 lines** (75.0% reduction)
 - **100% Test Coverage Maintained**: All **143 tests passing** throughout refactoring
 - **Zero Regressions**: Generated output remains functionally identical to original
 - **Clean Repository**: All backup files and old versions archived in `archive/` directory
@@ -717,7 +739,7 @@ The codebase underwent a comprehensive refactoring to improve maintainability, m
 
 Created dedicated `generators/` subdirectory with specialized modules:
 
-- **`gk_install_generator.py`** (693 lines)
+- **`gk_install_generator.py`** (771 lines)
   - Extracted GKInstall script generation logic
   - Handles Windows (PowerShell) and Linux (Bash) script generation
   - Template variable replacement and hostname/file detection code injection
@@ -783,6 +805,7 @@ Created `utils/` subdirectory for shared functionality:
 Old code preserved in `archive/` directory:
 - `archive/backups/` - Backup files from refactoring
 - `archive/old_versions/` - Previous versions of main.py
+- `archive/pre-refactoring/` - Complete pre-refactoring codebase snapshot
 - `archive/refactoring_docs/` - Detailed refactoring documentation
 - `archive/temp/` - Temporary development files
 

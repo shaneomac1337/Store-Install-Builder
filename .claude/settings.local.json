@@ -15,7 +15,9 @@
       "Bash(dir:*)",
       "Bash(nul)",
       "Bash(del .coverage NUL temp_test_config.json 2)",
-      "Bash(pyinstaller:*)"
+      "Bash(pyinstaller:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pytest:*)"
     ],
     "deny": [],
     "ask": []
