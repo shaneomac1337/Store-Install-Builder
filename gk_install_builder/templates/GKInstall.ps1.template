@@ -2016,7 +2016,7 @@ while ($elapsed -lt $maxWaitTime) {
         if (Test-Path $installerLogPath) {
             try {
                 $finalLogContent = Get-Content $installerLogPath -ErrorAction Stop | Select-Object -Last 20
-                if ($finalLogContent -match "Installation finished successfully") {
+                if ($finalLogContent -match "Installation finished") {
                     Write-Host "Installation completed successfully!"
                     Write-Host "Installation directory: $install_dir"
                     
@@ -2423,7 +2423,7 @@ while ($elapsed -lt $maxWaitTime) {
 
             # Check for completion
             $logContent = $currentContent | Select-Object -Last 20
-            if ($logContent -match "Installation finished successfully") {
+            if ($logContent -match "Installation finished") {
                 Write-Host "Installation completed successfully!"
                 Write-Host "Installation directory: $install_dir"
                 
