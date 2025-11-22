@@ -2021,13 +2021,7 @@ while ($elapsed -lt $maxWaitTime) {
                     Write-Host "Installation directory: $install_dir"
                     
                     # Component-specific completion messages
-                    if ($ComponentType -eq 'WDM') {
-                        Write-Host "WDM installation completed. Please check the following:"
-                        Write-Host "1. Tomcat service status"
-                        Write-Host "2. WDM application accessibility at https://localhost:8543"
-                    } else {
-                        Write-Host "$ComponentType installation completed. Please check the application status."
-                    }
+                    Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
                     
                     # Cleanup: Move generated files to a results directory
                     $resultsDir = "results_$ComponentType"
@@ -2428,13 +2422,7 @@ while ($elapsed -lt $maxWaitTime) {
                 Write-Host "Installation directory: $install_dir"
                 
                 # Component-specific completion messages
-                if ($ComponentType -eq 'WDM') {
-                    Write-Host "WDM installation completed. Please check the following:"
-                    Write-Host "1. Tomcat service status"
-                    Write-Host "2. WDM application accessibility at https://localhost:8543"
-                } else {
-                    Write-Host "$ComponentType installation completed. Please check the application status."
-                }
+                Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
                 
                 # Cleanup: Move generated files to a results directory
                 $resultsDir = "results_$ComponentType"
