@@ -65,6 +65,28 @@ if ($ComponentType -eq 'LPA') {
     $ComponentType = 'STOREHUB-SERVICE'
 }
 
+# Clean up any stale access token from previous runs
+$tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+if (Test-Path $tokenPath) {
+    try {
+        Remove-Item -Path $tokenPath -Force -ErrorAction Stop
+        Write-Host "Cleaned up stale access token from previous installation"
+    } catch {
+        Write-Host "Warning: Could not remove stale access token: $_"
+    }
+}
+
+# Clean up environment-specific username file to prevent contamination
+$formUsernamePath = Join-Path $PSScriptRoot "helper\tokens\form_username.txt"
+if (Test-Path $formUsernamePath) {
+    try {
+        Remove-Item -Path $formUsernamePath -Force -ErrorAction Stop
+        Write-Host "Cleaned up stale form username from previous installation"
+    } catch {
+        Write-Host "Warning: Could not remove stale form username: $_"
+    }
+}
+
 # Function for error handling
 function Handle-Error {
     param($LineNumber)
@@ -281,7 +303,28 @@ function Apply-EnvironmentConfig {
         $ehPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Environment.eh_launchpad_password_b64))
         $script:env_form_password = $ehPassword
     }
-    
+
+    # Write environment-specific credentials to password files (overwrite main config defaults)
+    $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
+
+    if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
+        $basicAuthPath = Join-Path $tokensDir "basic_auth_password.txt"
+        Set-Content -Path $basicAuthPath -Value $Environment.launchpad_oauth2_b64 -NoNewline
+        Write-Host "  Updated OAuth2 credentials from environment"
+    }
+
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
+        $formPasswordPath = Join-Path $tokensDir "form_password.txt"
+        Set-Content -Path $formPasswordPath -Value $Environment.eh_launchpad_password_b64 -NoNewline
+        Write-Host "  Updated form password from environment"
+    }
+
+    if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username)) {
+        $formUsernamePath = Join-Path $tokensDir "form_username.txt"
+        Set-Content -Path $formUsernamePath -Value $Environment.eh_launchpad_username -NoNewline
+        Write-Host "  Updated form username from environment"
+    }
+
     # Update tenant_id in all helper JSON files
     Update-HelperJsonTenantId -TenantId $script:tenantId -Username $script:env_form_username
     
@@ -2023,16 +2066,29 @@ while ($elapsed -lt $maxWaitTime) {
                     }
                     
                     Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-                    
+
                     # Final cleanup operations before exiting
                     Write-Host "Executing final cleanup before exit..."
                     [System.GC]::Collect()  # Force garbage collection
                     Start-Sleep -Seconds 1  # Give GC time to work
-                    
+
+                    # Clean up access token
+                    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                    if (Test-Path $tokenPath) {
+                        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                    }
+
                     exit 0
                 }
                 elseif ($finalLogContent -match "Installation failed") {
                     Write-Host "Installation failed. Please check the logs at: $installerLogPath"
+
+                    # Clean up access token
+                    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                    if (Test-Path $tokenPath) {
+                        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                    }
+
                     exit 1
                 }
             }
@@ -2147,7 +2203,13 @@ while ($elapsed -lt $maxWaitTime) {
                     Write-Host "Warning: Could not copy log file to results directory: $_"
                 }
             }
-            
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             exit 0
         } else {
             Write-Host "Launcher failed with exit code: $($launcherProcess.ExitCode)"
@@ -2265,7 +2327,13 @@ while ($elapsed -lt $maxWaitTime) {
             Start-Sleep -Seconds 1
             try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
             Start-Sleep -Seconds 2
-            
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             exit 1
         }
     }
@@ -2401,12 +2469,18 @@ while ($elapsed -lt $maxWaitTime) {
                 }
                 
                 Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-                
+
                 # Final cleanup operations before exiting
                 Write-Host "Executing final cleanup before exit..."
                 [System.GC]::Collect()  # Force garbage collection
                 Start-Sleep -Seconds 1  # Give GC time to work
-                
+
+                # Clean up access token
+                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                if (Test-Path $tokenPath) {
+                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                }
+
                 exit 0
             }
             elseif ($logContent -match "Installation failed") {
@@ -2513,9 +2587,15 @@ while ($elapsed -lt $maxWaitTime) {
                         Write-Host "Warning: Could not copy log file to errors directory: $_"
                     }
                 }
-                
+
                 Write-Host "Cleanup completed. Failed installation files have been moved to $errorsDir directory."
-                
+
+                # Clean up access token
+                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                if (Test-Path $tokenPath) {
+                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+                }
+
                 exit 1
             }
         }
@@ -2539,6 +2619,13 @@ while ($elapsed -lt $maxWaitTime) {
                 Write-Host "Terminating launcher process..."
                 $launcherProcess.Kill()
             }
+
+            # Clean up access token
+            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+            if (Test-Path $tokenPath) {
+                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+            }
+
             Stop-TranscriptSafely
             exit 1
         }
@@ -2665,6 +2752,12 @@ if (Test-Path $logFile) {
 }
 
 Write-Host "Cleanup completed. Timed out installation files have been moved to $errorsDir directory."
+
+# Clean up access token
+$tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+if (Test-Path $tokenPath) {
+    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+}
 
 Stop-TranscriptSafely
 exit 1 
