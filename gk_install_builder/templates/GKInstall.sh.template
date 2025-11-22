@@ -2108,7 +2108,7 @@ while [ $elapsed -lt $max_wait_time ]; do
     if [ -f "$installer_log_path" ]; then
       final_log_content=$(tail -n 20 "$installer_log_path" 2>/dev/null || echo "")
       
-      if echo "$final_log_content" | grep -q "Installation finished successfully"; then
+      if echo "$final_log_content" | grep -q "Installation finished"; then
         echo "Installation completed successfully!"
         echo "Installation directory: $install_dir"
         
@@ -2386,7 +2386,7 @@ while [ $elapsed -lt $max_wait_time ]; do
     # Check for completion
     log_content=$(tail -n 20 "$installer_log_path" 2>/dev/null || echo "")
     
-    if echo "$log_content" | grep -q "Installation finished successfully"; then
+    if echo "$log_content" | grep -q "Installation finished"; then
       echo "Installation completed successfully!"
       echo "Installation directory: $install_dir"
       
