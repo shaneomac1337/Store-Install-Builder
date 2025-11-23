@@ -70,7 +70,9 @@ a = Analysis(
         # Integration modules
         'gk_install_builder.integrations',
         'gk_install_builder.integrations.api_client',
-        'gk_install_builder.integrations.keepass_handler'
+        'gk_install_builder.integrations.keepass_handler',
+        # KeePass dialog (standalone module at package root)
+        'gk_install_builder.keepass_dialog'
     ],
     hookspath=[],
     hooksconfig={},
