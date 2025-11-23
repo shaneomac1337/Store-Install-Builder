@@ -530,19 +530,39 @@ select_environment() {
     fi
   fi
   echo "" >&2
-  read -p "Enter environment alias (or press Enter to skip): " user_env
-  
-  if [ -n "$user_env" ]; then
-    if [ "$JQ_AVAILABLE" = true ]; then
-      echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)'
-    else
-      json_select_by_alias "$environments" "$user_env"
+
+  # Validation loop - keep asking until valid alias or Enter (skip)
+  while true; do
+    read -p "Enter environment alias (or press Enter to skip): " user_env
+
+    # If empty (user pressed Enter), skip environment selection
+    if [ -z "$user_env" ]; then
+      echo "No environment selected, using script defaults" >&2
+      echo "" >&2
+      return 1
     fi
-    return 0
-  fi
-  
-  echo "" >&2
-  return 1
+
+    # Try to select the environment
+    local selected=""
+    if [ "$JQ_AVAILABLE" = true ]; then
+      selected=$(echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)')
+    else
+      selected=$(json_select_by_alias "$environments" "$user_env")
+    fi
+
+    # Check if we found a match
+    if [ -n "$selected" ]; then
+      # Valid alias - return the selected environment
+      echo "$selected"
+      return 0
+    else
+      # Invalid alias - show error and loop
+      echo "Error: Environment alias '$user_env' not found. Please try again." >&2
+      echo "Available environments:" >&2
+      list_environments "$environments"
+      echo "" >&2
+    fi
+  done
 }
 
 # Function to apply environment configuration
