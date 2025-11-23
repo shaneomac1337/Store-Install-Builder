@@ -74,20 +74,29 @@ class VersionManager:
         self.create_tooltip(default_versions_checkbox, "When enabled, the installation script will fetch component versions from the selected API instead of using hardcoded versions")
 
         # Version source selection (FP/FPD vs Config-Service)
+        # NOTE: CONFIG-SERVICE is temporarily disabled due to stability issues
         version_source_label = ctk.CTkLabel(grid_frame, text="API Source:")
         version_source_label.grid(row=2, column=0, padx=10, pady=5, sticky="w")
 
-        self.version_source_var = ctk.StringVar(value=self.config_manager.config.get("default_version_source", "FP"))
+        # Force FP if CONFIG-SERVICE was previously selected (since it's now disabled)
+        current_source = self.config_manager.config.get("default_version_source", "FP")
+        if current_source == "CONFIG-SERVICE":
+            current_source = "FP"
+            self.config_manager.config["default_version_source"] = "FP"
+            self.config_manager.save_config_silent()
+
+        self.version_source_var = ctk.StringVar(value=current_source)
         version_source_dropdown = ctk.CTkOptionMenu(
             grid_frame,
             variable=self.version_source_var,
-            values=["FP", "CONFIG-SERVICE"],
+            values=["FP"],  # CONFIG-SERVICE temporarily disabled
             command=self.on_version_source_change,
-            width=200
+            width=200,
+            state="disabled"  # Disable dropdown since only one option available
         )
         version_source_dropdown.grid(row=2, column=1, padx=10, pady=5, sticky="w")
-        self.create_tooltip(version_source_label, "Choose which API to use for fetching default versions")
-        self.create_tooltip(version_source_dropdown, "FP = Function Pack (FP/FPD scope)\nCONFIG-SERVICE = Config-Service (versions/search)")
+        self.create_tooltip(version_source_label, "API source for fetching default versions (CONFIG-SERVICE temporarily disabled)")
+        self.create_tooltip(version_source_dropdown, "FP = Function Pack (FP/FPD scope)\n\nNOTE: CONFIG-SERVICE is temporarily disabled due to instability.\nOnly Function Pack API is available.")
         self.config_manager.register_entry("default_version_source", self.version_source_var)
 
         # Test API button

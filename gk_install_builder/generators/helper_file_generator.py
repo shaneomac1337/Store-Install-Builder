@@ -9,6 +9,7 @@ import os
 import json
 import base64
 import time
+import shutil
 
 # Support both package-relative imports (for tests/package use) and direct imports (for running app)
 try:
@@ -119,6 +120,8 @@ def create_password_files(helper_dir, config):
             basic_auth_path = os.path.join(tokens_dir, "basic_auth_password.txt")
             with open(basic_auth_path, 'w') as f:
                 f.write(encoded_basic)
+            # Create .default backup for factory defaults
+            shutil.copy(basic_auth_path, f"{basic_auth_path}.default")
 
         # Create form password file (using eh_launchpad_password)
         form_password = config.get("eh_launchpad_password", "")
@@ -127,6 +130,8 @@ def create_password_files(helper_dir, config):
             form_password_path = os.path.join(tokens_dir, "form_password.txt")
             with open(form_password_path, 'w') as f:
                 f.write(encoded_form)
+            # Create .default backup for factory defaults
+            shutil.copy(form_password_path, f"{form_password_path}.default")
 
     except Exception as e:
         raise Exception(f"Failed to create password files: {str(e)}")
