@@ -563,9 +563,16 @@ apply_environment_config() {
     tenant_id="$new_tenant_id"
   fi
   
-  # Export tenant_id so it's available outside this function
+  # Export variables so they're available outside this function
+  export base_url
   export tenant_id
-  
+
+  # Update server variables to match the new base_url
+  server="$base_url"
+  dsg_server="$base_url"
+  export server
+  export dsg_server
+
   echo "Applying environment configuration:" >&2
   echo "  Base URL: $base_url" >&2
   echo "  Tenant ID: $tenant_id" >&2
