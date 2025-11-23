@@ -88,7 +88,7 @@ exe = EXE(
     name='GK Install Builder',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
+    strip=True,  # Strip debug symbols to reduce size
     upx=True,
     console=True,  # Set to True for console output
     icon='gk_install_builder/assets/gk_logo.png',
@@ -105,7 +105,7 @@ COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=False,
+    strip=True,  # Strip debug symbols from all binaries
     upx=True,
     upx_exclude=[],
     name='GK Install Builder',
