@@ -439,8 +439,8 @@ apply_environment_config() {
   
   if [ -n "$oauth2_password_b64" ]; then
     # Backup original credentials on first environment application
-    if [ ! -f "$tokens_dir/basic_auth_password.txt.default" ]; then
-      cp "$tokens_dir/basic_auth_password.txt" "$tokens_dir/basic_auth_password.txt.default" 2>/dev/null
+    if [ ! -f "$tokens_dir/basic_auth_password.txt.default" ] && [ -f "$tokens_dir/basic_auth_password.txt" ]; then
+      cp "$tokens_dir/basic_auth_password.txt" "$tokens_dir/basic_auth_password.txt.default" 2>/dev/null || true
     fi
     # Store as base64 (consistent with generator)
     echo "$oauth2_password_b64" > "$tokens_dir/basic_auth_password.txt"
@@ -461,8 +461,8 @@ apply_environment_config() {
   if [ -n "$eh_username" ] && [ -n "$eh_password_b64" ]; then
     # Backup original credentials on first environment application
     if [ ! -f "$tokens_dir/form_password.txt.default" ]; then
-      cp "$tokens_dir/form_password.txt" "$tokens_dir/form_password.txt.default" 2>/dev/null
-      cp "$tokens_dir/form_username.txt" "$tokens_dir/form_username.txt.default" 2>/dev/null
+      [ -f "$tokens_dir/form_password.txt" ] && cp "$tokens_dir/form_password.txt" "$tokens_dir/form_password.txt.default" 2>/dev/null || true
+      [ -f "$tokens_dir/form_username.txt" ] && cp "$tokens_dir/form_username.txt" "$tokens_dir/form_username.txt.default" 2>/dev/null || true
     fi
     # Store password as base64 (consistent with generator)
     echo "$eh_username" > "$tokens_dir/form_username.txt"
