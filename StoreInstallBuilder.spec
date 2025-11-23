@@ -94,8 +94,8 @@ exe = EXE(
     name='GK Install Builder',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,  # Strip debug symbols to reduce size
-    upx=True,
+    strip=False,  # Disable stripping to prevent DLL issues
+    upx=False,  # Disable UPX - causes DLL loading issues with Python 3.14
     console=True,  # Set to True for console output
     icon='gk_install_builder/assets/gk_logo.png',
     disable_windowed_traceback=False,
@@ -111,8 +111,8 @@ COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    strip=True,  # Strip debug symbols from all binaries
-    upx=True,
+    strip=False,  # Disable stripping to prevent DLL issues
+    upx=False,  # Disable UPX - causes DLL loading issues with Python 3.14
     upx_exclude=[],
     name='GK Install Builder',
 ) 
