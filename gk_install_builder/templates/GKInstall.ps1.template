@@ -896,6 +896,71 @@ if (Test-Path $install_dir) {
     Write-Host "Installation directory does not exist. Performing full installation."
 }
 
+# For update mode, extract values from the existing installation FIRST (before environment matching)
+if ($isUpdate) {
+    Write-Host "Running in update mode - attempting to extract configuration from existing installation"
+
+    # Look for station.properties in the installation directory
+    $stationPropertiesPath = Join-Path $install_dir "station.properties"
+    if (Test-Path $stationPropertiesPath) {
+        Write-Host "Found existing station.properties at: $stationPropertiesPath"
+        $stationPropertiesContent = Get-Content -Path $stationPropertiesPath -Raw
+
+        # Extract the store ID
+        if ($stationPropertiesContent -match 'station\.storeId=([^\r\n]+)') {
+            $storeNumber = $matches[1]
+            Write-Host "Found Store ID in station.properties: $storeNumber"
+        }
+
+        # Extract the workstation ID
+        if ($stationPropertiesContent -match 'station\.workstationId=([^\r\n]+)') {
+            $workstationId = $matches[1]
+            Write-Host "Found Workstation ID in station.properties: $workstationId"
+        }
+
+        # Extract the config service URL (with escaped colons)
+        if ($stationPropertiesContent -match 'configService\.url=([^\r\n]+)') {
+            $configServiceUrl = $matches[1]
+            # Unescape the colons: https\://domain\:443/path -> https://domain:443/path
+            $configServiceUrl = $configServiceUrl -replace '\\:', ':'
+            Write-Host "Found Config Service URL in station.properties: $configServiceUrl"
+
+            # Extract base URL from config service URL
+            # Example: https://dev.cse.cloud4retail.co:443/api/config -> dev.cse.cloud4retail.co
+            if ($configServiceUrl -match 'https?://([^:/]+)') {
+                $script:extractedBaseUrl = $matches[1]
+                Write-Host "Extracted base URL: $script:extractedBaseUrl"
+            } else {
+                Write-Host "Warning: Could not parse base URL from config service URL" -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "Warning: No configService.url found in station.properties" -ForegroundColor Yellow
+        }
+
+        # Extract the tenant ID
+        if ($stationPropertiesContent -match 'station\.tenantId=([^\r\n]+)') {
+            $script:extractedTenantId = $matches[1]
+            Write-Host "Found Tenant ID in station.properties: $script:extractedTenantId"
+        } else {
+            Write-Host "Warning: No station.tenantId found in station.properties" -ForegroundColor Yellow
+        }
+
+        # If both store ID and workstation ID were found, mark detection as complete
+        if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workstationId)) {
+            $hostnameDetected = $true
+            Write-Host "Using Store ID and Workstation ID from existing installation"
+        } else {
+            Write-Host "Error: Could not extract complete information from station.properties" -ForegroundColor Red
+            Write-Host "Update not possible. Exiting." -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        Write-Host "Error: No station.properties found at: $stationPropertiesPath" -ForegroundColor Red
+        Write-Host "Update not possible. Exiting." -ForegroundColor Red
+        exit 1
+    }
+}
+
 # Multi-environment selection (skip in update mode)
 if (-not $isUpdate) {
     # Load environments configuration
@@ -951,7 +1016,78 @@ if (-not $isUpdate) {
         }
     }
 } else {
-    Write-Host "Update mode detected - skipping environment selection, will use existing installation configuration"
+    Write-Host "Update mode detected - attempting to match environment from existing configuration"
+
+    # Load environments configuration
+    $environments = Load-Environments
+
+    if ($null -eq $environments -or $environments.environments.Count -eq 0) {
+        Write-Host "No environments.json found or it's empty" -ForegroundColor Yellow
+        Write-Host "Please select an environment manually for update mode" -ForegroundColor Yellow
+
+        # Fallback to manual environment selection
+        $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
+
+        if ($null -ne $selectedEnv) {
+            # Apply the selected environment configuration
+            Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
+            Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+        } else {
+            Write-Host "Error: No environment selected. Update cannot proceed without environment configuration." -ForegroundColor Red
+            Write-Host "Please either:" -ForegroundColor Red
+            Write-Host "  1. Create environments.json with at least one environment, OR" -ForegroundColor Red
+            Write-Host "  2. Run in fresh install mode (delete existing installation)" -ForegroundColor Red
+            exit 1
+        }
+    } else {
+        # Try to match extracted base URL to configured environments
+        if (![string]::IsNullOrEmpty($script:extractedBaseUrl)) {
+            Write-Host "Attempting to match base URL '$script:extractedBaseUrl' to configured environments..."
+
+            $matchedEnv = $environments.environments | Where-Object {
+                $_.base_url -eq $script:extractedBaseUrl
+            } | Select-Object -First 1
+
+            if ($null -ne $matchedEnv) {
+                Write-Host "Successfully matched environment: $($matchedEnv.name) ($($matchedEnv.alias))" -ForegroundColor Green
+                # Apply the matched environment configuration
+                Apply-EnvironmentConfig -Environment $matchedEnv -BaseUrlVar ([ref]$base_url)
+                Write-Host "Environment configuration applied successfully"
+            } else {
+                Write-Host "Error: No matching environment found for base URL: $script:extractedBaseUrl" -ForegroundColor Red
+                Write-Host "Available environments:" -ForegroundColor Yellow
+                foreach ($env in $environments.environments) {
+                    Write-Host "  - $($env.name) ($($env.alias)): $($env.base_url)" -ForegroundColor Yellow
+                }
+                Write-Host "`nPlease either:" -ForegroundColor Red
+                Write-Host "  1. Add an environment with base_url='$script:extractedBaseUrl' to environments.json, OR" -ForegroundColor Red
+                Write-Host "  2. Update the existing installation to use a configured environment, OR" -ForegroundColor Red
+                Write-Host "  3. Run in fresh install mode (delete existing installation)" -ForegroundColor Red
+                exit 1
+            }
+        } else {
+            Write-Host "Warning: Could not extract base URL from station.properties" -ForegroundColor Yellow
+            Write-Host "Falling back to manual environment selection" -ForegroundColor Yellow
+
+            $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
+
+            if ($null -ne $selectedEnv) {
+                Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
+                Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+            } else {
+                Write-Host "Error: No environment selected. Update cannot proceed." -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
+
+    # Override tenant ID with value from station.properties if available
+    if (![string]::IsNullOrEmpty($script:extractedTenantId)) {
+        Write-Host "Overriding tenant ID with value from station.properties: $script:extractedTenantId"
+        $script:tenantId = $script:extractedTenantId
+        # Also update the main $tenantId variable used throughout the script
+        $tenantId = $script:extractedTenantId
+    }
 }
 
 # Determine component version based on UseDefaultVersions flag
@@ -1461,45 +1597,9 @@ if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workst
     Write-Host "Both Store ID and Workstation ID provided via CLI - skipping detection"
 }
 
-# For update mode, we must extract values from the existing installation
-if ($isUpdate) {
-    Write-Host "Running in update mode - attempting to extract store and workstation IDs from existing installation"
-    
-    # Look for station.properties in the installation directory
-    $stationPropertiesPath = Join-Path $install_dir "station.properties"
-    if (Test-Path $stationPropertiesPath) {
-        Write-Host "Found existing station.properties at: $stationPropertiesPath"
-        $stationPropertiesContent = Get-Content -Path $stationPropertiesPath -Raw
-        
-        # Extract the store ID
-        if ($stationPropertiesContent -match 'station\.storeId=([^\r\n]+)') {
-            $storeNumber = $matches[1]
-            Write-Host "Found Store ID in station.properties: $storeNumber"
-        }
-        
-        # Extract the workstation ID
-        if ($stationPropertiesContent -match 'station\.workstationId=([^\r\n]+)') {
-            $workstationId = $matches[1]
-            Write-Host "Found Workstation ID in station.properties: $workstationId"
-        }
-        
-        # If both values were found, skip hostname detection
-        if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workstationId)) {
-            $hostnameDetected = $true
-            Write-Host "Using Store ID and Workstation ID from existing installation"
-        } else {
-            Write-Host "Error: Could not extract complete information from station.properties" -ForegroundColor Red
-            Write-Host "Update not possible. Exiting." -ForegroundColor Red
-            exit 1
-        }
-    } else {
-        Write-Host "Error: No station.properties found at: $stationPropertiesPath" -ForegroundColor Red
-        Write-Host "Update not possible. Exiting." -ForegroundColor Red
-        exit 1
-    }
-} else {
-    # For new installations, detect from hostname or prompt user
-    # Only run detection if we still need values
+# For new installations (not update mode), detect from hostname or prompt user
+# Only run detection if we still need values
+if (-not $isUpdate) {
 
     # ============================================
     # IP-Based Store Detection (Coop Sweden)

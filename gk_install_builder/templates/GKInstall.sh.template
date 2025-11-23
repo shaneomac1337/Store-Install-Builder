@@ -215,6 +215,55 @@ $line"
   return 1
 }
 
+# Fallback function to select environment by base URL
+# Usage: json_find_env_by_base_url "json_string" "base_url"
+json_find_env_by_base_url() {
+  local json="$1"
+  local search_base_url="$2"
+
+  # Find the environment block that contains the matching base_url
+  local in_env=false
+  local brace_count=0
+  local env_block=""
+
+  while IFS= read -r line; do
+    # Check if we're starting an environment object
+    if [[ "$line" =~ \{[[:space:]]*$ ]] && ! $in_env; then
+      in_env=true
+      brace_count=1
+      env_block="$line"
+      continue
+    fi
+
+    if $in_env; then
+      env_block+="
+$line"
+
+      # Track braces
+      if [[ "$line" =~ \{ ]]; then
+        brace_count=$((brace_count + 1))
+      fi
+      if [[ "$line" =~ \} ]]; then
+        brace_count=$((brace_count - 1))
+      fi
+
+      # When we close the environment object
+      if [ $brace_count -eq 0 ]; then
+        # Check if this block contains our base_url
+        if echo "$env_block" | grep -q "\"base_url\"[[:space:]]*:[[:space:]]*\"$search_base_url\""; then
+          echo "$env_block"
+          return 0
+        fi
+        # Reset for next environment
+        in_env=false
+        env_block=""
+      fi
+    fi
+  done <<< "$json"
+
+  return 1
+}
+
 # Function to load environments.json
 load_environments() {
   local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -962,6 +1011,74 @@ else
     echo "Installation directory does not exist. Performing full installation."
 fi
 
+# For update mode, extract values from the existing installation FIRST (before environment matching)
+if [ "$isUpdate" = true ]; then
+  echo "Running in update mode - attempting to extract configuration from existing installation"
+
+  # Look for station.properties in the installation directory
+  station_properties_path="$install_dir/station.properties"
+  if [ -f "$station_properties_path" ]; then
+    echo "Found existing station.properties at: $station_properties_path"
+
+    # Extract the store ID
+    store_id_line=$(grep "station.storeId=" "$station_properties_path")
+    if [ -n "$store_id_line" ]; then
+      storeNumber=$(echo "$store_id_line" | cut -d'=' -f2)
+      echo "Found Store ID in station.properties: $storeNumber"
+    fi
+
+    # Extract the workstation ID
+    workstation_id_line=$(grep "station.workstationId=" "$station_properties_path")
+    if [ -n "$workstation_id_line" ]; then
+      workstationId=$(echo "$workstation_id_line" | cut -d'=' -f2)
+      echo "Found Workstation ID in station.properties: $workstationId"
+    fi
+
+    # Extract the config service URL (with escaped colons)
+    config_service_url_line=$(grep "configService.url=" "$station_properties_path")
+    if [ -n "$config_service_url_line" ]; then
+      config_service_url=$(echo "$config_service_url_line" | cut -d'=' -f2-)
+      # Unescape the colons: https\://domain\:443/path -> https://domain:443/path
+      config_service_url=$(echo "$config_service_url" | sed 's/\\:/:/g')
+      echo "Found Config Service URL in station.properties: $config_service_url"
+
+      # Extract base URL from config service URL
+      # Example: https://dev.cse.cloud4retail.co:443/api/config -> dev.cse.cloud4retail.co
+      if [[ "$config_service_url" =~ https?://([^:/]+) ]]; then
+        extractedBaseUrl="${BASH_REMATCH[1]}"
+        echo "Extracted base URL: $extractedBaseUrl"
+      else
+        echo -e "\033[1;33mWarning: Could not parse base URL from config service URL\033[0m"
+      fi
+    else
+      echo -e "\033[1;33mWarning: No configService.url found in station.properties\033[0m"
+    fi
+
+    # Extract the tenant ID
+    tenant_id_line=$(grep "station.tenantId=" "$station_properties_path")
+    if [ -n "$tenant_id_line" ]; then
+      extractedTenantId=$(echo "$tenant_id_line" | cut -d'=' -f2)
+      echo "Found Tenant ID in station.properties: $extractedTenantId"
+    else
+      echo -e "\033[1;33mWarning: No station.tenantId found in station.properties\033[0m"
+    fi
+
+    # If both store ID and workstation ID were found, mark detection as complete
+    if [ -n "$storeNumber" ] && [ -n "$workstationId" ]; then
+      hostnameDetected=true
+      echo "Using Store ID and Workstation ID from existing installation"
+    else
+      echo -e "\033[1;31mError: Could not extract complete information from station.properties\033[0m"
+      echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
+      exit 1
+    fi
+  else
+    echo -e "\033[1;31mError: No station.properties found at: $station_properties_path\033[0m"
+    echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
+    exit 1
+  fi
+fi
+
 # Multi-environment selection (skip in update mode)
 if [ "$isUpdate" = false ]; then
   # Load environments configuration
@@ -1017,7 +1134,129 @@ if [ "$isUpdate" = false ]; then
     fi
   fi
 else
-  echo "Update mode detected - skipping environment selection, will use existing installation configuration"
+  echo "Update mode detected - attempting to match environment from existing configuration"
+
+  # Load environments configuration
+  if environments=$(load_environments 2>/dev/null); then
+    # Check if environments JSON is not empty
+    env_count=0
+    if [ "$JQ_AVAILABLE" = true ]; then
+      env_count=$(echo "$environments" | jq '.environments | length' 2>/dev/null || echo "0")
+    else
+      # Simple check if environments array exists
+      if echo "$environments" | grep -q '"environments"'; then
+        env_count=1
+      fi
+    fi
+
+    if [ "$env_count" -eq 0 ]; then
+      echo -e "\033[1;33mEnvironments.json found but it's empty\033[0m"
+      echo -e "\033[1;33mPlease select an environment manually for update mode\033[0m"
+
+      # Fallback to manual environment selection
+      if selected_env=$(select_environment "$environments" "$env_alias"); then
+        apply_environment_config "$selected_env"
+        if [ "$JQ_AVAILABLE" = true ]; then
+          env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+        else
+          env_alias_name=$(json_extract "$selected_env" "alias")
+        fi
+        echo "Environment '$env_alias_name' applied successfully"
+      else
+        echo -e "\033[1;31mError: No environment selected. Update cannot proceed without environment configuration.\033[0m"
+        echo -e "\033[1;31mPlease either:\033[0m"
+        echo -e "\033[1;31m  1. Create environments.json with at least one environment, OR\033[0m"
+        echo -e "\033[1;31m  2. Run in fresh install mode (delete existing installation)\033[0m"
+        exit 1
+      fi
+    else
+      # Try to match extracted base URL to configured environments
+      if [ -n "$extractedBaseUrl" ]; then
+        echo "Attempting to match base URL '$extractedBaseUrl' to configured environments..."
+
+        # Find matching environment
+        matched_env=""
+        if [ "$JQ_AVAILABLE" = true ]; then
+          matched_env=$(echo "$environments" | jq -r --arg url "$extractedBaseUrl" '.environments[] | select(.base_url == $url)' | jq -s '.[0]' 2>/dev/null)
+          if [ "$matched_env" = "null" ] || [ -z "$matched_env" ]; then
+            matched_env=""
+          fi
+        else
+          # Manual JSON parsing fallback
+          matched_env=$(json_find_env_by_base_url "$environments" "$extractedBaseUrl")
+        fi
+
+        if [ -n "$matched_env" ]; then
+          if [ "$JQ_AVAILABLE" = true ]; then
+            env_name=$(echo "$matched_env" | jq -r '.name')
+            env_alias_name=$(echo "$matched_env" | jq -r '.alias')
+          else
+            env_name=$(json_extract "$matched_env" "name")
+            env_alias_name=$(json_extract "$matched_env" "alias")
+          fi
+          echo -e "\033[1;32mSuccessfully matched environment: $env_name ($env_alias_name)\033[0m"
+          apply_environment_config "$matched_env"
+          echo "Environment configuration applied successfully"
+        else
+          echo -e "\033[1;31mError: No matching environment found for base URL: $extractedBaseUrl\033[0m"
+          echo -e "\033[1;33mAvailable environments:\033[0m"
+          if [ "$JQ_AVAILABLE" = true ]; then
+            echo "$environments" | jq -r '.environments[] | "  - \(.name) (\(.alias)): \(.base_url)"'
+          else
+            # Simple fallback - just note that environments exist
+            echo "  (Use jq to see environment details)"
+          fi
+          echo -e "\033[1;31m\nPlease either:\033[0m"
+          echo -e "\033[1;31m  1. Add an environment with base_url='$extractedBaseUrl' to environments.json, OR\033[0m"
+          echo -e "\033[1;31m  2. Update the existing installation to use a configured environment, OR\033[0m"
+          echo -e "\033[1;31m  3. Run in fresh install mode (delete existing installation)\033[0m"
+          exit 1
+        fi
+      else
+        echo -e "\033[1;33mWarning: Could not extract base URL from station.properties\033[0m"
+        echo -e "\033[1;33mFalling back to manual environment selection\033[0m"
+
+        if selected_env=$(select_environment "$environments" "$env_alias"); then
+          apply_environment_config "$selected_env"
+          if [ "$JQ_AVAILABLE" = true ]; then
+            env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+          else
+            env_alias_name=$(json_extract "$selected_env" "alias")
+          fi
+          echo "Environment '$env_alias_name' applied successfully"
+        else
+          echo -e "\033[1;31mError: No environment selected. Update cannot proceed.\033[0m"
+          exit 1
+        fi
+      fi
+    fi
+  else
+    echo -e "\033[1;33mNo environments.json found\033[0m"
+    echo -e "\033[1;33mPlease select an environment manually for update mode\033[0m"
+
+    # Attempt manual selection - will fail gracefully if no file exists
+    if selected_env=$(select_environment "" "$env_alias" 2>/dev/null); then
+      apply_environment_config "$selected_env"
+      if [ "$JQ_AVAILABLE" = true ]; then
+        env_alias_name=$(echo "$selected_env" | jq -r '.alias')
+      else
+        env_alias_name=$(json_extract "$selected_env" "alias")
+      fi
+      echo "Environment '$env_alias_name' applied successfully"
+    else
+      echo -e "\033[1;31mError: No environment configuration available. Update cannot proceed.\033[0m"
+      echo -e "\033[1;31mPlease either:\033[0m"
+      echo -e "\033[1;31m  1. Create environments.json with at least one environment, OR\033[0m"
+      echo -e "\033[1;31m  2. Run in fresh install mode (delete existing installation)\033[0m"
+      exit 1
+    fi
+  fi
+
+  # Override tenant ID with value from station.properties if available
+  if [ -n "$extractedTenantId" ]; then
+    echo "Overriding tenant ID with value from station.properties: $extractedTenantId"
+    tenant_id="$extractedTenantId"
+  fi
 fi
 
 # Determine component version based on use_default_versions flag
@@ -1598,46 +1837,9 @@ if [ -n "$storeId" ] && [ -n "$workstationId" ]; then
   hostnameDetected=true
 fi
 
-# For update mode, we must extract values from the existing installation
-if [ "$isUpdate" = true ]; then
-  echo "Running in update mode - attempting to extract store and workstation IDs from existing installation"
-  
-  # Look for station.properties in the installation directory
-  station_properties_path="$install_dir/station.properties"
-  if [ -f "$station_properties_path" ]; then
-    echo "Found existing station.properties at: $station_properties_path"
-    
-    # Extract the store ID
-    store_id_line=$(grep "station.storeId=" "$station_properties_path")
-    if [ -n "$store_id_line" ]; then
-      storeNumber=$(echo "$store_id_line" | cut -d'=' -f2)
-      echo "Found Store ID in station.properties: $storeNumber"
-    fi
-    
-    # Extract the workstation ID
-    workstation_id_line=$(grep "station.workstationId=" "$station_properties_path")
-    if [ -n "$workstation_id_line" ]; then
-      workstationId=$(echo "$workstation_id_line" | cut -d'=' -f2)
-      echo "Found Workstation ID in station.properties: $workstationId"
-    fi
-    
-    # If both values were found, skip hostname detection
-    if [ -n "$storeNumber" ] && [ -n "$workstationId" ]; then
-      hostnameDetected=true
-      echo "Using Store ID and Workstation ID from existing installation"
-    else
-      echo -e "\033[1;31mError: Could not extract complete information from station.properties\033[0m"
-      echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
-      exit 1
-    fi
-  else
-    echo -e "\033[1;31mError: No station.properties found at: $station_properties_path\033[0m"
-    echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
-    exit 1
-  fi
-else
-  # For new installations, detect from hostname or prompt user
-  # Only run detection if at least one value is still missing
+# For new installations (not update mode), detect from hostname or prompt user
+# Only run detection if at least one value is still missing
+if [ "$isUpdate" = false ]; then
 
   # ============================================
   # IP-Based Store Detection (Coop Sweden)
