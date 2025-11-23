@@ -87,7 +87,7 @@ class KeePassHandler:
             target_entry: The target entry widget to populate (optional)
             password_type: The type of password to retrieve ("basic_auth" or "webdav_admin")
         """
-        from keepass_dialog import KeePassDialog
+        from gk_install_builder.keepass_dialog import KeePassDialog
 
         # If no target entry is specified, use the appropriate password entry based on type
         if target_entry is None:
