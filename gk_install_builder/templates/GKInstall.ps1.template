@@ -288,6 +288,10 @@ function Apply-EnvironmentConfig {
     $script:base_url = $Environment.base_url
     $script:tenantId = $Environment.tenant_id
 
+    # Update server variables to match the new base_url
+    $script:server = $script:base_url
+    $script:dsg_server = $script:base_url
+
     # Get tokens directory path
     $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
 
