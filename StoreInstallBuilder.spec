@@ -1,6 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
+
+# Collect CustomTkinter data files (fonts, icons, themes)
+ctk_datas = collect_data_files('customtkinter')
 
 a = Analysis(
     ['run_app.py'],
@@ -10,7 +14,7 @@ a = Analysis(
         ('gk_install_builder/templates', 'gk_install_builder/templates'),
         ('helper', 'helper'),
         ('gk_install_builder/assets', 'gk_install_builder/assets')
-    ],
+    ] + ctk_datas,
     hiddenimports=[
         'PIL._tkinter_finder',
         'PIL._imagingtk',
