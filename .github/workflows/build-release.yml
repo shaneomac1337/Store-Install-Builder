@@ -37,10 +37,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Install dependencies
         run: |
@@ -58,14 +58,14 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           cd "dist"
-          7z a "../gk-install-builder-v${{ inputs.version }}-b${{ inputs.build }}-${{ matrix.platform }}.7z" "GK Install Builder"
+          7z a -mx=9 "../gk-install-builder-v${{ inputs.version }}-b${{ inputs.build }}-${{ matrix.platform }}.7z" "GK Install Builder"
         shell: pwsh
 
       - name: Create 7z archive (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           cd dist
-          7z a "../gk-install-builder-v${{ inputs.version }}-b${{ inputs.build }}-${{ matrix.platform }}.7z" "GK Install Builder"
+          7z a -mx=9 "../gk-install-builder-v${{ inputs.version }}-b${{ inputs.build }}-${{ matrix.platform }}.7z" "GK Install Builder"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
