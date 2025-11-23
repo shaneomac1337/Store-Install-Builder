@@ -285,7 +285,7 @@ function Apply-EnvironmentConfig {
         # Backup original on first environment application
         $basicAuthPath = Join-Path $tokensDir "basic_auth_password.txt"
         $basicAuthDefault = "$basicAuthPath.default"
-        if (!(Test-Path $basicAuthDefault)) {
+        if (!(Test-Path $basicAuthDefault) -and (Test-Path $basicAuthPath)) {
             Copy-Item $basicAuthPath $basicAuthDefault -ErrorAction SilentlyContinue
         }
         # Write environment credentials
@@ -300,8 +300,12 @@ function Apply-EnvironmentConfig {
         $formUserDefault = "$formUserPath.default"
         $formPassDefault = "$formPassPath.default"
         if (!(Test-Path $formPassDefault)) {
-            Copy-Item $formPassPath $formPassDefault -ErrorAction SilentlyContinue
-            Copy-Item $formUserPath $formUserDefault -ErrorAction SilentlyContinue
+            if (Test-Path $formPassPath) {
+                Copy-Item $formPassPath $formPassDefault -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $formUserPath) {
+                Copy-Item $formUserPath $formUserDefault -ErrorAction SilentlyContinue
+            }
         }
         # Write environment credentials
         Set-Content -Path $formUserPath -Value $Environment.eh_launchpad_username -NoNewline
