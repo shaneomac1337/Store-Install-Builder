@@ -37,16 +37,16 @@ except ImportError:
     from ui.helpers import bind_mousewheel_to_frame
     from utils.tooltips import create_tooltip
     from utils.ui_colors import get_theme_colors
-    from dialogs.about import AboutDialog
-    from dialogs.launcher_settings import LauncherSettingsEditor
-    from dialogs.offline_package import OfflinePackageCreator
-    from dialogs.detection_settings import DetectionSettingsDialog
-    from features.auto_fill import AutoFillManager
-    from features.platform_handler import PlatformHandler
-    from features.version_manager import VersionManager
-    from features.certificate_manager import CertificateManager
-    from integrations.api_client import APIClient
-    from integrations.keepass_handler import KeePassHandler
+    from gk_install_builder.dialogs.about import AboutDialog
+    from gk_install_builder.dialogs.launcher_settings import LauncherSettingsEditor
+    from gk_install_builder.dialogs.offline_package import OfflinePackageCreator
+    from gk_install_builder.dialogs.detection_settings import DetectionSettingsDialog
+    from gk_install_builder.features.auto_fill import AutoFillManager
+    from gk_install_builder.features.platform_handler import PlatformHandler
+    from gk_install_builder.features.version_manager import VersionManager
+    from gk_install_builder.features.certificate_manager import CertificateManager
+    from gk_install_builder.integrations.api_client import APIClient
+    from gk_install_builder.integrations.keepass_handler import KeePassHandler
 
 class GKInstallBuilder:
     def __init__(self, root=None):

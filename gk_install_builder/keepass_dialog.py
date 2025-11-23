@@ -33,7 +33,7 @@ class KeePassDialog:
         
     def open(self):
         """Open the KeePass authentication dialog"""
-        from integrations.keepass_handler import KeePassHandler
+        from gk_install_builder.integrations.keepass_handler import KeePassHandler
 
         # Create dialog
         dialog = ctk.CTkToplevel(self.parent)
