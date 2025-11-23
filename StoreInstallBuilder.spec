@@ -21,6 +21,10 @@ a = Analysis(
         'tkinter.filedialog',
         'tkinter.messagebox',
         'tkinter.ttk',
+        # Fix for PyInstaller backports module error
+        'backports',
+        'pkg_resources.extern',
+        'pkg_resources._vendor',
         # Core modules (relative imports from main.py)
         'gk_install_builder.config',
         'gk_install_builder.generator',
