@@ -76,6 +76,17 @@ if (Test-Path $tokenPath) {
     }
 }
 
+# Clean up environment-specific username file to prevent contamination
+$formUsernamePath = Join-Path $PSScriptRoot "helper\tokens\form_username.txt"
+if (Test-Path $formUsernamePath) {
+    try {
+        Remove-Item -Path $formUsernamePath -Force -ErrorAction Stop
+        Write-Host "Cleaned up stale form username from previous installation"
+    } catch {
+        Write-Host "Warning: Could not remove stale form username: $_"
+    }
+}
+
 # Function for error handling
 function Handle-Error {
     param($LineNumber)
@@ -280,34 +291,16 @@ function Apply-EnvironmentConfig {
     # Get tokens directory path
     $tokensDir = Join-Path $PSScriptRoot "helper\tokens"
 
-    # Write credentials to files (and backup defaults first)
+    # Write environment credentials to files
     if (![string]::IsNullOrWhiteSpace($Environment.launchpad_oauth2_b64)) {
-        # Backup original on first environment application
         $basicAuthPath = Join-Path $tokensDir "basic_auth_password.txt"
-        $basicAuthDefault = "$basicAuthPath.default"
-        if (!(Test-Path $basicAuthDefault) -and (Test-Path $basicAuthPath)) {
-            Copy-Item $basicAuthPath $basicAuthDefault -ErrorAction SilentlyContinue
-        }
-        # Write environment credentials
         Set-Content -Path $basicAuthPath -Value $Environment.launchpad_oauth2_b64 -NoNewline
         Write-Host "  Updated OAuth2 credentials"
     }
 
     if (![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_username) -and ![string]::IsNullOrWhiteSpace($Environment.eh_launchpad_password_b64)) {
-        # Backup originals on first environment application
         $formUserPath = Join-Path $tokensDir "form_username.txt"
         $formPassPath = Join-Path $tokensDir "form_password.txt"
-        $formUserDefault = "$formUserPath.default"
-        $formPassDefault = "$formPassPath.default"
-        if (!(Test-Path $formPassDefault)) {
-            if (Test-Path $formPassPath) {
-                Copy-Item $formPassPath $formPassDefault -ErrorAction SilentlyContinue
-            }
-            if (Test-Path $formUserPath) {
-                Copy-Item $formUserPath $formUserDefault -ErrorAction SilentlyContinue
-            }
-        }
-        # Write environment credentials
         Set-Content -Path $formUserPath -Value $Environment.eh_launchpad_username -NoNewline
         Set-Content -Path $formPassPath -Value $Environment.eh_launchpad_password_b64 -NoNewline
         Write-Host "  Updated Employee Hub credentials"
@@ -855,6 +848,16 @@ $systemType = switch ($ComponentType) {
     default { "CSE-OPOS-CLOUD" }
 }
 
+# Set installation directory based on component type
+$install_dir = Join-Path $base_install_dir $(
+    if ($ComponentType -eq 'POS') { "pos-full" }
+    elseif ($ComponentType -eq 'WDM') { "wdm" }
+    elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
+    elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
+    elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "storehub-service" }
+    else { "wdm" }
+)
+
 # Check if this is an update of an existing installation
 $isUpdate = $false
 if (Test-Path $install_dir) {
@@ -1237,15 +1240,6 @@ if ([string]::IsNullOrEmpty($component_version)) {
 } else {
     Write-Host "Using component version: $component_version"
 }
-
-$install_dir = Join-Path $base_install_dir $(
-    if ($ComponentType -eq 'POS') { "pos-full" } 
-    elseif ($ComponentType -eq 'WDM') { "wdm" }
-    elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
-    elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
-    elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "storehub-service" }
-    else { "wdm" }
-)
 
 # Initialize offline variables
 $jre_version = ""
