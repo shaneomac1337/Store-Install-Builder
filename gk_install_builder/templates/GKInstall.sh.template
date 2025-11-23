@@ -171,47 +171,95 @@ json_list_environments() {
 json_select_by_alias() {
   local json="$1"
   local search_alias="$2"
-  
-  # Find the environment block that contains the matching alias
-  local in_env=false
+
+  # PHASE 1: Navigate to the "environments" array
+  local in_array=false
+  local found_environments_key=false
+
+  # PHASE 2: Parse individual environment objects
+  local in_env_object=false
   local brace_count=0
   local env_block=""
-  
+
   while IFS= read -r line; do
-    # Check if we're starting an environment object
-    if [[ "$line" =~ \{[[:space:]]*$ ]] && ! $in_env; then
-      in_env=true
-      brace_count=1
-      env_block="$line"
+    # PHASE 1: Look for "environments" key and opening array bracket
+    if ! $in_array; then
+      # Check if we found the "environments" key
+      if [[ "$line" =~ \"environments\"[[:space:]]*: ]]; then
+        found_environments_key=true
+        # Don't continue - fall through to check for bracket on same line
+      fi
+
+      # After finding the key, look for the opening array bracket
+      if $found_environments_key && [[ "$line" =~ \[ ]]; then
+        in_array=true
+        found_environments_key=false  # Reset flag to avoid re-triggering
+        continue
+      fi
+
       continue
     fi
-    
-    if $in_env; then
-      env_block+="
-$line"
-      
-      # Track braces
-      if [[ "$line" =~ \{ ]]; then
-        brace_count=$((brace_count + 1))
-      fi
-      if [[ "$line" =~ \} ]]; then
-        brace_count=$((brace_count - 1))
-      fi
-      
-      # When we close the environment object
+
+    # PHASE 2: We're inside the "environments" array - parse objects
+
+    # Skip empty lines
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*$ ]] && continue
+
+    # Check for end of array
+    if [[ "$line" =~ ^[[:space:]]*\][[:space:]]*,?[[:space:]]*$ ]]; then
+      break
+    fi
+
+    # Check if we're starting a new environment object
+    if [[ "$line" =~ ^[[:space:]]*\{ ]] && ! $in_env_object; then
+      in_env_object=true
+      env_block="$line"
+
+      # PHASE 3: Count braces for THIS object only
+      local open_braces=$(echo "$line" | tr -cd '{' | wc -c)
+      local close_braces=$(echo "$line" | tr -cd '}' | wc -c)
+      brace_count=$((open_braces - close_braces))
+
+      # Handle single-line compact objects: { "alias": "Dev", ... }
       if [ $brace_count -eq 0 ]; then
-        # Check if this block contains our alias
         if echo "$env_block" | grep -q "\"alias\"[[:space:]]*:[[:space:]]*\"$search_alias\""; then
           echo "$env_block"
           return 0
         fi
-        # Reset for next environment
-        in_env=false
+        # Reset for next object
+        in_env_object=false
         env_block=""
+        brace_count=0
+      fi
+      continue
+    fi
+
+    # We're inside an environment object - accumulate lines
+    if $in_env_object; then
+      env_block+="
+$line"
+
+      # PHASE 3: Update brace count for this line
+      local open_braces=$(echo "$line" | tr -cd '{' | wc -c)
+      local close_braces=$(echo "$line" | tr -cd '}' | wc -c)
+      brace_count=$((brace_count + open_braces - close_braces))
+
+      # When brace count returns to 0, we've completed this environment object
+      if [ $brace_count -eq 0 ]; then
+        # Check if this object contains the matching alias
+        if echo "$env_block" | grep -q "\"alias\"[[:space:]]*:[[:space:]]*\"$search_alias\""; then
+          echo "$env_block"
+          return 0
+        fi
+        # No match - reset and look for next object
+        in_env_object=false
+        env_block=""
+        brace_count=0
       fi
     fi
   done <<< "$json"
-  
+
+  # No matching environment found
   return 1
 }
 
@@ -221,46 +269,94 @@ json_find_env_by_base_url() {
   local json="$1"
   local search_base_url="$2"
 
-  # Find the environment block that contains the matching base_url
-  local in_env=false
+  # PHASE 1: Navigate to the "environments" array
+  local in_array=false
+  local found_environments_key=false
+
+  # PHASE 2: Parse individual environment objects
+  local in_env_object=false
   local brace_count=0
   local env_block=""
 
   while IFS= read -r line; do
-    # Check if we're starting an environment object
-    if [[ "$line" =~ \{[[:space:]]*$ ]] && ! $in_env; then
-      in_env=true
-      brace_count=1
-      env_block="$line"
+    # PHASE 1: Look for "environments" key and opening array bracket
+    if ! $in_array; then
+      # Check if we found the "environments" key
+      if [[ "$line" =~ \"environments\"[[:space:]]*: ]]; then
+        found_environments_key=true
+        # Don't continue - fall through to check for bracket on same line
+      fi
+
+      # After finding the key, look for the opening array bracket
+      if $found_environments_key && [[ "$line" =~ \[ ]]; then
+        in_array=true
+        found_environments_key=false  # Reset flag to avoid re-triggering
+        continue
+      fi
+
       continue
     fi
 
-    if $in_env; then
-      env_block+="
-$line"
+    # PHASE 2: We're inside the "environments" array - parse objects
 
-      # Track braces
-      if [[ "$line" =~ \{ ]]; then
-        brace_count=$((brace_count + 1))
-      fi
-      if [[ "$line" =~ \} ]]; then
-        brace_count=$((brace_count - 1))
-      fi
+    # Skip empty lines
+    [[ -z "$line" || "$line" =~ ^[[:space:]]*$ ]] && continue
 
-      # When we close the environment object
+    # Check for end of array
+    if [[ "$line" =~ ^[[:space:]]*\][[:space:]]*,?[[:space:]]*$ ]]; then
+      break
+    fi
+
+    # Check if we're starting a new environment object
+    if [[ "$line" =~ ^[[:space:]]*\{ ]] && ! $in_env_object; then
+      in_env_object=true
+      env_block="$line"
+
+      # PHASE 3: Count braces for THIS object only
+      local open_braces=$(echo "$line" | tr -cd '{' | wc -c)
+      local close_braces=$(echo "$line" | tr -cd '}' | wc -c)
+      brace_count=$((open_braces - close_braces))
+
+      # Handle single-line compact objects: { "base_url": "dev.cse.cloud4retail.co", ... }
       if [ $brace_count -eq 0 ]; then
-        # Check if this block contains our base_url
         if echo "$env_block" | grep -q "\"base_url\"[[:space:]]*:[[:space:]]*\"$search_base_url\""; then
           echo "$env_block"
           return 0
         fi
-        # Reset for next environment
-        in_env=false
+        # Reset for next object
+        in_env_object=false
         env_block=""
+        brace_count=0
+      fi
+      continue
+    fi
+
+    # We're inside an environment object - accumulate lines
+    if $in_env_object; then
+      env_block+="
+$line"
+
+      # PHASE 3: Update brace count for this line
+      local open_braces=$(echo "$line" | tr -cd '{' | wc -c)
+      local close_braces=$(echo "$line" | tr -cd '}' | wc -c)
+      brace_count=$((brace_count + open_braces - close_braces))
+
+      # When brace count returns to 0, we've completed this environment object
+      if [ $brace_count -eq 0 ]; then
+        # Check if this object contains the matching base_url
+        if echo "$env_block" | grep -q "\"base_url\"[[:space:]]*:[[:space:]]*\"$search_base_url\""; then
+          echo "$env_block"
+          return 0
+        fi
+        # No match - reset and look for next object
+        in_env_object=false
+        env_block=""
+        brace_count=0
       fi
     fi
   done <<< "$json"
 
+  # No matching environment found
   return 1
 }
 
