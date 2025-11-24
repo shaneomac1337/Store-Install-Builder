@@ -10,6 +10,8 @@ import base64
 import urllib.parse
 import json
 
+from gk_install_builder.utils.version_sorting import get_latest_version, sort_versions
+
 
 class APIClient:
     """Client for API integrations (OAuth, Function Pack API, Config-Service API)"""
@@ -578,10 +580,17 @@ class APIClient:
                         version_list = data.get("versionNameList", [])
 
                         if version_list:
-                            # Take the first version (latest)
-                            latest_version = version_list[0]
-                            versions[component] = {"value": latest_version, "source": "Config-Service", "all_versions": version_list}
-                            print(f"[CONFIG API] ✅ {component}: {latest_version} (available: {len(version_list)} versions)")
+                            # Sort versions and get the latest (highest) version
+                            sorted_versions = sort_versions(version_list, descending=True)
+                            latest_version = get_latest_version(version_list)
+
+                            if latest_version:
+                                versions[component] = {"value": latest_version, "source": "Config-Service", "all_versions": sorted_versions}
+                                print(f"[CONFIG API] ✅ {component}: {latest_version} (available: {len(version_list)} versions, sorted)")
+                            else:
+                                # Fallback to first in sorted list if get_latest_version returns None
+                                versions[component] = {"value": sorted_versions[0], "source": "Config-Service", "all_versions": sorted_versions}
+                                print(f"[CONFIG API] ✅ {component}: {sorted_versions[0]} (available: {len(version_list)} versions, fallback)")
                         else:
                             versions[component] = {"value": None, "source": None, "all_versions": []}
                             print(f"[CONFIG API] ❌ {component}: No versions found")

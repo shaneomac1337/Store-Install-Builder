@@ -2,6 +2,7 @@
 requests
 customtkinter
 urllib3
+packaging  # Version parsing and comparison (PEP 440)
 # Additional dependencies
 setuptools
 wheel
