@@ -187,20 +187,23 @@ class CertificateManager:
 
                 # Generate key
                 subprocess.run(
-                    f'openssl genrsa -out "{temp_key_path}" 2048',
-                    shell=True, check=True
+                    ['openssl', 'genrsa', '-out', temp_key_path, '2048'],
+                    check=True, capture_output=True
                 )
 
                 # Generate certificate
                 subprocess.run(
-                    f'openssl req -new -x509 -key "{temp_key_path}" -out "{temp_cert_path}" -days 3650 -config "{config_file}"',
-                    shell=True, check=True
+                    ['openssl', 'req', '-new', '-x509', '-key', temp_key_path,
+                     '-out', temp_cert_path, '-days', '3650', '-config', config_file],
+                    check=True, capture_output=True
                 )
 
                 # Convert to PKCS12
                 subprocess.run(
-                    f'openssl pkcs12 -export -out "{cert_path}" -inkey "{temp_key_path}" -in "{temp_cert_path}" -password pass:{password}',
-                    shell=True, check=True
+                    ['openssl', 'pkcs12', '-export', '-out', cert_path,
+                     '-inkey', temp_key_path, '-in', temp_cert_path,
+                     '-password', f'pass:{password}'],
+                    check=True, capture_output=True
                 )
 
                 # Clean up the temporary files
