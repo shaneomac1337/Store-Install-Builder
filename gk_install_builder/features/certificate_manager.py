@@ -185,17 +185,22 @@ class CertificateManager:
                 with tempfile.NamedTemporaryFile(mode='wb', delete=False) as temp_key:
                     temp_key_path = temp_key.name
 
+                # Create clean environment without PyInstaller's library paths
+                clean_env = os.environ.copy()
+                # Remove LD_LIBRARY_PATH that PyInstaller sets, which causes library conflicts
+                clean_env.pop('LD_LIBRARY_PATH', None)
+
                 # Generate key
                 subprocess.run(
                     ['openssl', 'genrsa', '-out', temp_key_path, '2048'],
-                    check=True, capture_output=True
+                    check=True, capture_output=True, env=clean_env
                 )
 
                 # Generate certificate
                 subprocess.run(
                     ['openssl', 'req', '-new', '-x509', '-key', temp_key_path,
                      '-out', temp_cert_path, '-days', '3650', '-config', config_file],
-                    check=True, capture_output=True
+                    check=True, capture_output=True, env=clean_env
                 )
 
                 # Convert to PKCS12
@@ -203,7 +208,7 @@ class CertificateManager:
                     ['openssl', 'pkcs12', '-export', '-out', cert_path,
                      '-inkey', temp_key_path, '-in', temp_cert_path,
                      '-password', f'pass:{password}'],
-                    check=True, capture_output=True
+                    check=True, capture_output=True, env=clean_env
                 )
 
                 # Clean up the temporary files
