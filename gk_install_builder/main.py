@@ -164,7 +164,7 @@ class GKInstallBuilder:
         # Info button styled to match customtkinter aesthetics
         info_button = ctk.CTkButton(
             info_frame,
-            text="ⓘ",
+            text="i",
             width=30,
             height=30,
             corner_radius=15,
@@ -186,7 +186,7 @@ class GKInstallBuilder:
         version_label.pack(side="right", padx=5)
         
         # Add tooltip to the info button
-        self.create_tooltip(info_button, "About Store Install Builder")
+        self.create_tooltip(info_button, "About GK Install Builder")
         
         # Project Configuration - Create the main section frame
         section_frame = ctk.CTkFrame(self.main_frame)

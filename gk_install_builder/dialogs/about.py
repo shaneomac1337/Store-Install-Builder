@@ -103,7 +103,7 @@ class AboutDialog:
         # App title
         title_label = ctk.CTkLabel(
             content_frame,
-            text="Store Install Builder",
+            text="GK Install Builder",
             font=("Helvetica", 18, "bold")
         )
         title_label.pack(pady=(5, 0))
