@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **GK Install Builder** is a Python GUI application that generates cross-platform installation packages for retail store environments. It creates platform-specific installation scripts (Windows PowerShell and Linux Bash), configuration files, and deployment packages for retail components (POS, WDM, Flow Service, LPA Service, StoreHub Service).
 
-**Current Branch**: `refactor` (main development branch is `main`)
+**Current Branch**: `main`
 
-**Recent Major Refactoring (November 2025)**: The codebase underwent a comprehensive refactoring that reduced `generator.py` from 3,592 lines to 899 lines (75.0% reduction) while maintaining 100% test coverage (143/143 tests passing). All functionality has been preserved with zero regressions.
+**Recent Major Refactoring (November 2025)**: The codebase underwent a comprehensive refactoring that reduced `generator.py` from 3,592 lines to 899 lines (75.0% reduction) while maintaining 100% test coverage (187/187 tests passing). All functionality has been preserved with zero regressions.
 
 ## Development Commands
 
@@ -56,13 +56,13 @@ pytest tests/unit/test_config_management.py
    - Delegates to specialized generator modules for specific tasks
    - Includes `DSGRestBrowser` class for REST API integration with token refresh on 401 errors
 
-3. **Generator Modules** (`gk_install_builder/generators/` - NEW)
-   - **`gk_install_generator.py`** (771 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
-   - **`helper_file_generator.py`**: Helper file operations, store initialization scripts, component files, JSON configs, and multi-environment support
-   - **`launcher_generator.py`**: Component launcher template generation with per-component settings
-   - **`onboarding_generator.py`**: Onboarding script generation for both platforms
-   - **`template_processor.py`**: Hostname regex replacement and template token processing
-   - **`offline_package_helpers.py`**: File download threading, progress tracking, and package handling
+3. **Generator Modules** (`gk_install_builder/generators/`)
+   - **`gk_install_generator.py`** (791 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
+   - **`helper_file_generator.py`** (601 lines): Helper file operations, store initialization scripts, component files, JSON configs, and multi-environment support
+   - **`launcher_generator.py`** (287 lines): Component launcher template generation with per-component settings
+   - **`onboarding_generator.py`** (115 lines): Onboarding script generation for both platforms
+   - **`template_processor.py`** (150 lines): Hostname regex replacement and template token processing
+   - **`offline_package_helpers.py`** (690 lines): File download threading, progress tracking, and package handling
 
 4. **Config Manager** (`gk_install_builder/config.py` - 359 lines)
    - JSON-based configuration storage (`gk_install_config.json`)
@@ -90,37 +90,44 @@ pytest tests/unit/test_config_management.py
    - Centralized configuration for generation processes
    - Configuration validation and defaults
 
+8. **Pleasant Password Client** (`gk_install_builder/pleasant_password_client.py`)
+   - OAuth2-based KeePass integration
+   - Folder and credential browsing
+   - Password retrieval for automated configuration
+
 ### Utility Modules (`gk_install_builder/utils/` - EXPANDED)
 
-- **helpers.py**: JSON processing utilities
-- **tooltips.py**: UI tooltip helpers
-- **ui_colors.py**: Consistent color scheme
-- **version.py**: Version management utilities (NEW)
+- **helpers.py** (50 lines): JSON processing utilities
+- **tooltips.py** (128 lines): UI tooltip helpers
+- **ui_colors.py** (59 lines): Consistent color scheme
+- **version.py** (64 lines): Version management utilities
+- **version_sorting.py** (326 lines): Version comparison and sorting with semver support
 - **environment_setup.py** (42 lines): Environment setup utilities
 - **file_operations.py** (128 lines): File operation utilities
 
 ### Feature Modules (`gk_install_builder/features/`)
 
-- **auto_fill.py**: Auto-populate fields from base URL (extracts project code, detects system types)
-- **certificate_manager.py**: SSL certificate import/generation with password protection
-- **platform_handler.py**: Windows/Linux platform switching with platform-specific defaults
-- **version_manager.py**: Component version management with multiple sources (API, Config-Service, defaults)
+- **auto_fill.py** (180 lines): Auto-populate fields from base URL (extracts project code, detects system types)
+- **certificate_manager.py** (251 lines): SSL certificate import/generation with password protection
+- **platform_handler.py** (135 lines): Windows/Linux platform switching with platform-specific defaults
+- **version_manager.py** (323 lines): Component version management with multiple sources (API, Config-Service, defaults)
 
 ### Integration Modules (`gk_install_builder/integrations/`)
 
-- **api_client.py**: OAuth2 token generation and comprehensive API testing
+- **api_client.py** (646 lines): OAuth2 token generation and comprehensive API testing
   - Function Pack API testing (all 5 components with FP/FPD scope fallback)
   - Config-Service API testing (all 5 components with version lists)
+  - Version sorting integration for reliable latest version detection
   - Detailed [TEST API], [CONFIG API], and [TOKEN GEN] logging
-- **keepass_handler.py**: Pleasant Password Server integration for credential retrieval
+- **keepass_handler.py** (561 lines): Pleasant Password Server integration for credential retrieval
 
 ### Dialog Modules (`gk_install_builder/dialogs/`)
 
-- **detection_settings.py**: Store/Workstation detection configuration
-- **launcher_settings.py**: Component launcher editor
-- **offline_package.py**: Offline package creator for internet-free environments
+- **detection_settings.py** (1,333 lines): Store/Workstation detection configuration
+- **launcher_settings.py** (330 lines): Component launcher editor
+- **offline_package.py** (1,815 lines): Offline package creator for internet-free environments
 - **download_dialogs.py** (248 lines): Download progress dialogs
-- **about.py**: About dialog
+- **about.py** (256 lines): About dialog
 
 ## Template System
 
@@ -189,6 +196,14 @@ thread = threading.Thread(target=blocking_operation, daemon=True)
 thread.start()
 ```
 
+### Version Sorting
+The `version_sorting.py` module provides robust version comparison:
+- Supports standard semver (v5.27.0, 5.27.0)
+- Pre-release tags (v5.25.0-RC1, v5.25.0-SNAPSHOT)
+- Build metadata (v5.27.0+build123)
+- Incomplete versions (v5.27 -> normalized to 5.27.0)
+- Used by Config-Service API integration to reliably identify latest versions
+
 ## Key Integration Points
 
 ### Pleasant Password Server
@@ -205,7 +220,10 @@ Endpoint: `https://BASE_URL/employee-hub-service/services/rest/v1/properties`
 - Returns component version properties
 
 ### Config-Service API
-Alternative version retrieval method (newer approach).
+Alternative version retrieval method (newer approach):
+- Returns lists of available versions per component
+- Integrated with version sorting to identify latest versions
+- Supports all 5 main components (POS, WDM, Flow Service, LPA Service, StoreHub Service)
 
 ### REST API Integration (DSGRestBrowser)
 Used in generator.py for file browsing:
@@ -242,40 +260,6 @@ Used in generator.py for file browsing:
 - Script extension: `.sh`
 - Requires special mousewheel handling (Button-4/Button-5 events)
 
-## Branch-Specific Features
-
-### coop_sweden_5.27 Branch
-
-This branch contains Coop Sweden-specific customizations:
-
-**Features:**
-1. **IP-Based Store Detection** - Downloads `store_ip_mapping.properties` from DSG and matches machine IP to store ID
-2. **WDM Monitoring Service Management** - Automatically stops/starts `TomcatWDMMonitor` service during WDM installation
-3. **Convenience Wrapper Scripts** - One-click WDM installation with pre-configured defaults:
-   - `InstallWDM.bat` (Windows batch)
-   - `InstallWDM.ps1` (PowerShell)
-   - `InstallWDM.sh` (Linux bash)
-
-**Usage:**
-- Run `InstallWDM.bat` (or .ps1/.sh) for automated WDM installation with:
-  - Component Type: WDM
-  - Workstation ID: 200
-  - Offline Mode: Enabled
-
-**Detection Priority:**
-1. CLI parameters (`--storeId`, `--workstationId`)
-2. Update mode (read from existing station.properties)
-3. **IP-based detection** (new: matches IP from DSG mapping file)
-4. Hostname regex detection
-5. Manual user input
-
-**Differences from Main:**
-- IP-based detection added as priority 3 (before hostname detection)
-- WDM monitoring service automatically managed
-- Wrapper scripts for quick deployment
-- Store initialization still runs for all components (including WDM)
-- Hostname detection remains enabled (fallback after IP detection)
-
 ## Recent Features & Architectural Changes
 
 ### Major Code Refactoring (November 2025)
@@ -283,18 +267,18 @@ The codebase underwent a comprehensive refactoring that significantly improved m
 
 **Key Achievements:**
 - **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 899 lines** (75.0% reduction)
-- **100% Test Coverage Maintained**: All **143 tests passing** throughout refactoring
+- **100% Test Coverage Maintained**: All **187 tests passing** throughout refactoring
 - **Zero Regressions**: Generated output remains functionally identical to original
 - **Clean Repository**: All backup files and old versions archived in `archive/` directory
 
 **New Modular Structure:**
 - Created dedicated `generators/` subdirectory with specialized modules
-- Extracted GKInstall script generation (771 lines) to `gk_install_generator.py`
-- Extracted helper file operations to `helper_file_generator.py`
-- Extracted launcher template generation to `launcher_generator.py`
-- Extracted onboarding script generation to `onboarding_generator.py`
-- Extracted offline package helpers to `offline_package_helpers.py`
-- Added `version.py` utilities module
+- Extracted GKInstall script generation (791 lines) to `gk_install_generator.py`
+- Extracted helper file operations (601 lines) to `helper_file_generator.py`
+- Extracted launcher template generation (287 lines) to `launcher_generator.py`
+- Extracted onboarding script generation (115 lines) to `onboarding_generator.py`
+- Extracted offline package helpers (690 lines) to `offline_package_helpers.py`
+- Added `version.py` and `version_sorting.py` utilities modules
 
 **Refactoring Principles Applied:**
 - **Extract Method Pattern**: Large methods (40-800+ lines) extracted to dedicated functions
@@ -305,17 +289,18 @@ The codebase underwent a comprehensive refactoring that significantly improved m
 
 **Regression Fixes (Post-Refactoring):**
 All regressions identified and fixed with comprehensive testing:
-- ✅ Function Pack API testing fully restored (all 5 components, FP/FPD scope)
-- ✅ Config-Service API testing fully restored (all 5 components, version lists)
-- ✅ Token generation logging enhanced with detailed [TOKEN GEN] output
-- ✅ Offline package creator function signatures corrected
-- ✅ Download paths fixed to use configured output directory (not project root)
-- ✅ DSG API Browser context menu downloads now use output directory
+- Function Pack API testing fully restored (all 5 components, FP/FPD scope)
+- Config-Service API testing fully restored (all 5 components, version lists)
+- Token generation logging enhanced with detailed [TOKEN GEN] output
+- Offline package creator function signatures corrected
+- Download paths fixed to use configured output directory (not project root)
+- DSG API Browser context menu downloads now use output directory
 
-### Multi-Environment Support (feature/multi-environment branch)
-- Per-environment configurations with separate credentials
-- Environment detection via 3-group hostname patterns
-- OAuth2 token caching per environment
+### Version Sorting Feature
+- Added `version_sorting.py` module with robust semver support
+- Integrated into Config-Service API for reliable latest version detection
+- Handles pre-release tags, build metadata, and incomplete versions
+- Comprehensive test coverage in `tests/unit/test_version_sorting.py`
 
 ### CLI Parameter Overrides
 Generated scripts support CLI parameters with highest priority:
@@ -374,18 +359,19 @@ The November 2025 refactoring introduced a modular architecture. When making cha
 
 ### Running Tests After Changes
 ```bash
-# Run all tests (should always pass - 143/143)
+# Run all tests (should always pass - 187/187)
 pytest tests/ -v
 
 # Run specific test suites
 pytest tests/unit/test_generator_core.py -v
 pytest tests/unit/test_generator_integration.py -v
 pytest tests/unit/test_api_integration.py -v
+pytest tests/unit/test_version_sorting.py -v
 ```
 
 ## Important Notes
 
-- **All 143 tests must pass** - The codebase maintains 100% test coverage post-refactoring
+- **All 187 tests must pass** - The codebase maintains 100% test coverage post-refactoring
 - Templates are platform-specific; always update both `.ps1` (Windows) and `.sh` (Linux) versions
 - Generated scripts embed credentials—consider security implications
 - WebDAV operations bypass SSL verification (intended for internal retail networks)

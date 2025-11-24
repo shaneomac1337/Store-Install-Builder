@@ -114,7 +114,7 @@ The application follows a modular architecture with these key components:
   - Supports both Windows (.ps1) and Linux (.sh) scripts
 
 - **Generator Modules** (`gk_install_builder/generators/`): Specialized script generation modules
-  - **gk_install_generator.py** (771 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
+  - **gk_install_generator.py** (791 lines): GKInstall script generation with template variable replacement, hostname/file detection code injection, and platform-specific regex handling
   - **helper_file_generator.py**: Helper file operations, store initialization scripts, component files, JSON configs, and multi-environment support
   - **launcher_generator.py**: Component launcher template generation with per-component settings
   - **onboarding_generator.py**: Onboarding script generation for both platforms
@@ -311,7 +311,7 @@ Store-Install-Builder/
 │   │   └── version_manager.py
 │   ├── generators/                  # Script generation modules (NEW)
 │   │   ├── __init__.py
-│   │   ├── gk_install_generator.py      # GKInstall script generation (771 lines)
+│   │   ├── gk_install_generator.py      # GKInstall script generation (791 lines)
 │   │   ├── helper_file_generator.py     # Helper files and configs
 │   │   ├── launcher_generator.py        # Component launcher templates
 │   │   ├── onboarding_generator.py      # Onboarding scripts
@@ -330,11 +330,12 @@ Store-Install-Builder/
 │   │   └── store-initialization.sh.template
 │   ├── ui/                          # UI utilities
 │   │   └── helpers.py
-│   ├── utils/                       # General utilities (EXPANDED)
+│   ├── utils/                       # General utilities
 │   │   ├── helpers.py               # JSON processing utilities
 │   │   ├── tooltips.py
 │   │   ├── ui_colors.py
-│   │   ├── version.py               # Version management utilities (NEW)
+│   │   ├── version.py               # Version management utilities
+│   │   ├── version_sorting.py       # Version comparison and sorting (326 lines)
 │   │   ├── environment_setup.py     # Environment setup utilities (42 lines)
 │   │   └── file_operations.py       # File operation utilities (128 lines)
 │   ├── config.py                    # Configuration management
@@ -731,7 +732,7 @@ The codebase underwent a comprehensive refactoring to improve maintainability, m
 #### Key Achievements
 
 - **Massive Code Reduction**: `generator.py` reduced from **3,592 lines to 899 lines** (75.0% reduction)
-- **100% Test Coverage Maintained**: All **143 tests passing** throughout refactoring
+- **100% Test Coverage Maintained**: All **187 tests passing** throughout refactoring
 - **Zero Regressions**: Generated output remains functionally identical to original
 - **Clean Repository**: All backup files and old versions archived in `archive/` directory
 
@@ -739,33 +740,33 @@ The codebase underwent a comprehensive refactoring to improve maintainability, m
 
 Created dedicated `generators/` subdirectory with specialized modules:
 
-- **`gk_install_generator.py`** (771 lines)
+- **`gk_install_generator.py`** (791 lines)
   - Extracted GKInstall script generation logic
   - Handles Windows (PowerShell) and Linux (Bash) script generation
   - Template variable replacement and hostname/file detection code injection
   - Platform-specific regex pattern handling
 
-- **`helper_file_generator.py`**
+- **`helper_file_generator.py`** (601 lines)
   - Helper file copying and generation
   - Store initialization script creation
   - Component files and JSON configuration management
   - Launcher template generation coordination
   - Multi-environment JSON generation
 
-- **`launcher_generator.py`**
+- **`launcher_generator.py`** (287 lines)
   - Component launcher template generation
   - Per-component settings application
   - Template variable replacement for launchers
 
-- **`onboarding_generator.py`**
+- **`onboarding_generator.py`** (115 lines)
   - Onboarding script generation for both platforms
   - Environment configuration and setup
 
-- **`template_processor.py`**
+- **`template_processor.py`** (150 lines)
   - Hostname regex replacement for PowerShell and Bash
   - Template token processing utilities
 
-- **`offline_package_helpers.py`**
+- **`offline_package_helpers.py`** (690 lines)
   - File download threading and progress tracking
   - Platform dependency processing
   - Component package handling
@@ -778,6 +779,11 @@ Created `utils/` subdirectory for shared functionality:
   - Component version determination logic
   - System type to version mapping
   - Version override handling
+
+- **`version_sorting.py`** (326 lines)
+  - Semantic version comparison and sorting
+  - Handles pre-release tags, build metadata, and incomplete versions
+  - Integrated with Config-Service API for latest version detection
 
 - **`helpers.py`**
   - URL replacement in JSON files
