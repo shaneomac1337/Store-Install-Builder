@@ -772,8 +772,8 @@ function Get-DefaultVersions-ConfigService {
                 $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -TimeoutSec 30
 
                 if ($response.versionNameList -and $response.versionNameList.Count -gt 0) {
-                    # Take the first version (latest)
-                    $latestVersion = $response.versionNameList[0]
+                    # Sort versions and take the highest (latest)
+                    $latestVersion = ($response.versionNameList | Sort-Object { [System.Version]($_ -replace '^v','') } -Descending)[0]
                     $versions[$component] = $latestVersion
                     $versionSources[$component] = "Config-Service"
                     Write-Host "  Found $component`: $latestVersion (available: $($response.versionNameList.Count) versions)"

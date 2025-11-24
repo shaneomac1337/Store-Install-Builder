@@ -1018,8 +1018,8 @@ get_default_versions_config_service() {
     "$api_url")
 
   if [ $? -eq 0 ] && [ -n "$response" ]; then
-    # Extract first version from versionNameList array
-    result_version=$(echo "$response" | grep -o '"versionNameList":\["[^"]*"' | sed 's/.*"versionNameList":\["\([^"]*\)".*/\1/')
+    # Extract all versions from JSON array, sort by version, take highest
+    result_version=$(echo "$response" | grep -oP '"versionNameList":\[\K[^\]]+' | tr ',' '\n' | tr -d '" ' | sort -V -r | head -1)
 
     if [ -n "$result_version" ]; then
       echo "Found $COMPONENT_TYPE version: $result_version (Config-Service)" >&2
