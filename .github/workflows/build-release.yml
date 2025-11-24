@@ -28,7 +28,7 @@ jobs:
             platform: windows-x64
             artifact_name: GK Install Builder
             artifact_path: dist/GK Install Builder/
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform: linux-x64
             artifact_name: GK Install Builder
             artifact_path: dist/GK Install Builder/
@@ -48,7 +48,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Install emoji fonts (Ubuntu)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y fonts-noto-color-emoji
@@ -58,7 +58,7 @@ jobs:
         run: pyinstaller StoreInstallBuilder.spec
 
       - name: Install 7-Zip (Ubuntu)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: sudo apt-get update && sudo apt-get install -y p7zip-full
 
       - name: Create 7z archive (Windows)
@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
 
       - name: Create 7z archive (Linux)
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           cd dist
           7z a -mx=9 "../gk-install-builder-v${{ inputs.version }}-b${{ inputs.build }}-${{ matrix.platform }}.7z" "GK Install Builder"
