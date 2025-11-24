@@ -223,12 +223,13 @@ class DetectionManager:
     def test_hostname_regex(self, hostname, platform="linux"):
         """Test the hostname regex against a sample hostname"""
         import re
-        
+
         regex_pattern = self.get_hostname_regex(platform)
-        
+
         try:
             # Create regex pattern based on platform
-            pattern = re.compile(regex_pattern)
+            # Both Windows and Linux use case-insensitive matching
+            pattern = re.compile(regex_pattern, re.IGNORECASE)
             
             # Test against the hostname
             match = pattern.search(hostname)

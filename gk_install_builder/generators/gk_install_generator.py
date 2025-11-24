@@ -290,28 +290,38 @@ def generate_gk_install(output_dir, config, detection_manager,
 
   # Use the configured hostname regex to extract environment (group {env_group}), store (group {store_group}), and workstation (group {ws_group})
   # Regex pattern: {hostname_regex}
+  # Enable case-insensitive matching
+  shopt -s nocasematch
   if [[ "$hostname" =~ {hostname_regex} ]]; then
+    shopt -u nocasematch  # Restore default
     if [ ${{#BASH_REMATCH[@]}} -ge 4 ]; then
       # 3-group regex: Environment, Store, Workstation
       local hostname_env="${{BASH_REMATCH[{env_group}]}}"
       echo "    Extracted environment from hostname: $hostname_env" >&2
-      local selected=$(echo "$environments" | jq --arg alias "$hostname_env" '.environments[] | select(.alias == $alias)')
+      local selected
+      if [ "$JQ_AVAILABLE" = true ]; then
+        selected=$(echo "$environments" | jq --arg alias "$hostname_env" '.environments[] | select(.alias == $alias)')
+      else
+        # Fallback: use bash to find the environment by alias
+        selected=$(json_select_by_alias "$environments" "$hostname_env")
+      fi
       if [ -n "$selected" ]; then
         echo "    ✓ Matched environment" >&2
         echo "$selected"
         return 0
       else
-        echo "    ✗ ERROR: Environment '$hostname_env' detected from hostname but not configured!" >&2
+        echo "    ✗ Environment '$hostname_env' detected from hostname but not configured!" >&2
         echo "" >&2
         show_environments
         echo "" >&2
-        echo "Please add environment '$hostname_env' to your configuration." >&2
-        exit 1
+        echo "    Falling back to manual environment selection..." >&2
+        # Don't exit - fall through to file detection and then interactive prompt
       fi
     else
       echo "    ✗ Regex matched but does not have 3 capture groups (need: Environment, Store, Workstation)" >&2
     fi
   else
+    shopt -u nocasematch  # Restore default
     echo "    Hostname does not match the configured pattern" >&2
   fi
 
@@ -562,7 +572,10 @@ def generate_gk_install(output_dir, config, detection_manager,
                 if hostname_env_detection:
                     # 3-group pattern: Use configured group mappings
                     store_workstation_code = rf'''# Extract the last part (workstation ID)
+    # Enable case-insensitive matching
+    shopt -s nocasematch
     if [[ "$hs" =~ {hostname_regex} ]]; then
+      shopt -u nocasematch  # Restore default
       # 3-group pattern: Environment ({env_group}), Store ID ({store_group}), Workstation ID ({ws_group})
       storeNumber="${{BASH_REMATCH[{store_group}]}}"
       workstationId="${{BASH_REMATCH[{ws_group}]}}"
@@ -577,11 +590,16 @@ def generate_gk_install(output_dir, config, detection_manager,
           echo "Workstation ID: $workstationId"
         fi
       fi
+    else
+      shopt -u nocasematch  # Restore default
     fi'''
                 else:
                     # 2-group pattern: Use configured group mappings (store and workstation only)
                     store_workstation_code = rf'''# Extract the last part (workstation ID)
+    # Enable case-insensitive matching
+    shopt -s nocasematch
     if [[ "$hs" =~ {hostname_regex} ]]; then
+      shopt -u nocasematch  # Restore default
       storeId="${{BASH_REMATCH[{store_group}]}}"
       workstationId="${{BASH_REMATCH[{ws_group}]}}"
 
@@ -603,6 +621,8 @@ def generate_gk_install(output_dir, config, detection_manager,
           echo "Workstation ID: $workstationId"
         fi
       fi
+    else
+      shopt -u nocasematch  # Restore default
     fi'''
             else:
                 # Hostname detection disabled - use never-match pattern for consistent structure

@@ -1956,6 +1956,7 @@ fi
 if [ "$isUpdate" = false ]; then
 
   if [ "$hostnameDetected" = false ] && [ -n "$hs" ]; then
+    echo "[1] Hostname Detection: Attempting to detect Store/Workstation from hostname '$hs'..."
     # Try different patterns:
     # 1. XXXX-YYY format (e.g., R005-101, 1674-101)
     # 2. SOMENAME-XXXX-YYY format (e.g., SOMENAME-1674-101)
@@ -1989,17 +1990,17 @@ if [ "$isUpdate" = false ]; then
   # If hostname detection failed, try file detection
   if [ "$hostnameDetected" = false ]; then
     if [ -n "$hs" ]; then
-      echo "Could not extract valid Store Number and Workstation ID from hostname."
-      echo "Trying file detection..."
+      echo "    Hostname pattern did not match - no Store/Workstation ID detected"
     fi
-    
+    echo "[2] File Detection: Checking for Store/Workstation in .station file..."
+
     # File detection code will be inserted here by the generator
   fi
 
   # If both hostname and file detection failed, prompt for manual input
   # Only prompt for values that are still missing
   if [ "$hostnameDetected" = false ]; then
-    echo "Falling back to manual input for missing values."
+    echo "[3] Manual Input: Falling back to manual input for missing values."
     
     # Prompt for Store Number only if not provided
     if [ -z "$storeNumber" ]; then
