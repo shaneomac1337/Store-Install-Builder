@@ -13,6 +13,7 @@ TEMPLATE_DIR = "templates"
 HELPER_STRUCTURE = {
     "launchers": [
         "launcher.pos.template",
+        "launcher.onex-pos.template",
         "launcher.wdm.template",
         "launcher.flow-service.template",
         "launcher.lpa-service.template",
@@ -20,6 +21,7 @@ HELPER_STRUCTURE = {
     ],
     "onboarding": [
         "pos.onboarding.json",
+        "onex-pos.onboarding.json",
         "wdm.onboarding.json",
         "flow-service.onboarding.json",
         "lpa-service.onboarding.json",
@@ -46,6 +48,21 @@ DEFAULT_CHUNK_SIZE = 1024 * 1024  # 1 MiB
 # Launcher template content
 # These templates define the default configuration for each launcher type
 LAUNCHER_TEMPLATE_POS = """# Launcher defaults for POS
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationJmxPort=
+updaterJmxPort=
+createShortcuts=0
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+hardware_package_local=
+"""
+
+LAUNCHER_TEMPLATE_ONEX_POS = """# Launcher defaults for OneX POS Client
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationJmxPort=
@@ -149,6 +166,7 @@ tomcat_package_local=@TOMCAT_PACKAGE@
 # Map launcher filenames to their templates
 LAUNCHER_TEMPLATES = {
     "launcher.pos.template": LAUNCHER_TEMPLATE_POS,
+    "launcher.onex-pos.template": LAUNCHER_TEMPLATE_ONEX_POS,
     "launcher.wdm.template": LAUNCHER_TEMPLATE_WDM,
     "launcher.flow-service.template": LAUNCHER_TEMPLATE_FLOW_SERVICE,
     "launcher.lpa-service.template": LAUNCHER_TEMPLATE_LPA_SERVICE,

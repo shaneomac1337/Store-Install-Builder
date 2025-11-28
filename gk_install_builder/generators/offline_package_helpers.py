@@ -582,7 +582,7 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
 
         # List files from REST API
         files = dsg_api_browser.list_directories(api_path)
-        print(f"Found {dep_name} files: {files}")
+        print(f"Found {dep_name} items: {files}")
 
         # Apply filter if provided
         if file_filter:
@@ -592,14 +592,45 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
                 download_errors.append(f"No matching {dep_name} files found")
                 return
 
+        # Check if we have direct files or version directories
+        direct_files = [f for f in files if not f.get('is_directory', False) and
+                       f.get('name', '').endswith(f'.{file_extension}')]
+        version_dirs = [f for f in files if f.get('is_directory', False)]
+
+        print(f"Direct {file_extension} files: {len(direct_files)}, Version directories: {len(version_dirs)}")
+
+        # If we have version directories but no direct files, let user select a version first
+        if not direct_files and version_dirs:
+            print(f"No direct {file_extension} files found, prompting user to select version directory...")
+
+            # Create a simple dialog to select version directory
+            selected_version = _prompt_for_version_selection(
+                version_dirs, dep_name, dialog_parent,
+                f"Select {dep_name} Version",
+                f"Please select which {dep_name} version to download:"
+            )
+
+            if not selected_version:
+                print(f"No {dep_name} version selected")
+                return
+
+            # Navigate into the selected version directory
+            version_path = f"{api_path}/{selected_version}"
+            print(f"Listing contents of version directory: {version_path}")
+            files = dsg_api_browser.list_directories(version_path)
+            print(f"Found files in version directory: {files}")
+
+            # Update api_path for the download
+            api_path = version_path
+
         # Prompt user to select files
         selected_files = prompt_for_file_selection_callback(
             files,
             dep_name,
             dialog_parent,
             dialog_parent,  # Use dialog_parent as fallback too
-            title=f"Select {dep_name} Version",
-            description=f"Please select which {dep_name} {'driver' if dep_key == 'JAYBIRD' else 'version'} to download:",
+            title=f"Select {dep_name} Files",
+            description=f"Please select which {dep_name} {'driver' if dep_key == 'JAYBIRD' else 'files'} to download:",
             file_type=file_extension,
             config=config
         )
@@ -614,6 +645,78 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
     except Exception as e:
         print(f"Error accessing {dep_name} directory: {e}")
         download_errors.append(f"Failed to access {dep_name} directory: {str(e)}")
+
+
+def _prompt_for_version_selection(version_dirs, dep_name, dialog_parent, title, description):
+    """
+    Prompt user to select a version directory
+
+    Returns:
+        Selected version name (string) or None if cancelled
+    """
+    import tkinter as tk
+
+    # Sort versions (try natural version sorting)
+    sorted_versions = sorted(version_dirs, key=lambda x: x.get('name', ''), reverse=True)
+
+    selected_version = [None]  # Use list to allow modification in nested function
+
+    # Create dialog
+    parent = dialog_parent
+    if parent:
+        dialog = ctk.CTkToplevel(parent)
+        dialog.transient(parent)
+    else:
+        temp_root = tk.Tk()
+        temp_root.withdraw()
+        dialog = ctk.CTkToplevel(temp_root)
+
+    dialog.title(title)
+    dialog.geometry("400x400")
+    dialog.grab_set()
+
+    # Center dialog
+    if parent:
+        x = parent.winfo_x() + (parent.winfo_width() // 2) - 200
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 200
+        dialog.geometry(f"+{x}+{y}")
+
+    # Title
+    ctk.CTkLabel(dialog, text=title, font=("Helvetica", 16, "bold")).pack(pady=(20, 5))
+    ctk.CTkLabel(dialog, text=description, font=("Helvetica", 12)).pack(pady=(0, 10))
+
+    # Version list
+    list_frame = ctk.CTkScrollableFrame(dialog, width=350, height=250)
+    list_frame.pack(fill="both", expand=True, padx=20, pady=10)
+
+    version_var = tk.StringVar()
+
+    for ver in sorted_versions:
+        ver_name = ver.get('name', '')
+        rb = ctk.CTkRadioButton(list_frame, text=ver_name, variable=version_var, value=ver_name)
+        rb.pack(anchor="w", pady=2)
+
+    # Select first version by default
+    if sorted_versions:
+        version_var.set(sorted_versions[0].get('name', ''))
+
+    def on_ok():
+        selected_version[0] = version_var.get()
+        dialog.destroy()
+
+    def on_cancel():
+        dialog.destroy()
+
+    # Buttons
+    btn_frame = ctk.CTkFrame(dialog)
+    btn_frame.pack(fill="x", padx=20, pady=10)
+
+    ctk.CTkButton(btn_frame, text="OK", command=on_ok, width=100).pack(side="left", padx=5)
+    ctk.CTkButton(btn_frame, text="Cancel", command=on_cancel, width=100).pack(side="right", padx=5)
+
+    dialog.wait_window()
+
+    return selected_version[0]
 
 
 def process_component(component_name, component_key, config_key, default_system_type,

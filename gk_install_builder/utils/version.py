@@ -43,6 +43,10 @@ def get_component_version(system_type, config):
         version = config.get("pos_version", default_version)
         print(f"Matched POS system type, using version: {version}")
         return version
+    elif "OPOS-ONEX" in system_type.upper():
+        version = config.get("onex_pos_version", default_version)
+        print(f"Matched OneX POS system type, using version: {version}")
+        return version
     elif system_type in ["CSE-wdm", "GKR-WDM-CLOUD"]:
         version = config.get("wdm_version", default_version)
         print(f"Matched WDM system type, using version: {version}")

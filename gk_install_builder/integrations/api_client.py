@@ -176,6 +176,7 @@ class APIClient:
             # Initialize versions tracking
             versions = {
                 "POS": {"value": None, "source": None},
+                "ONEX-POS": {"value": None, "source": None},
                 "WDM": {"value": None, "source": None},
                 "FLOW-SERVICE": {"value": None, "source": None},
                 "LPA-SERVICE": {"value": None, "source": None},
@@ -251,6 +252,11 @@ class APIClient:
                                 if versions["POS"]["value"] is None or prop_id == "POSClient_Update_Version":
                                     versions["POS"] = {"value": value, "source": "FP (Modified)"}
                                     print(f"[TEST API]     -> Matched POS ({prop_id}): {value}")
+                            # OneX POS: try OneX_Version
+                            elif prop_id in ["OneX_Version", "OneX_Update_Version"] and value:
+                                if versions["ONEX-POS"]["value"] is None or prop_id == "OneX_Version":
+                                    versions["ONEX-POS"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched OneX POS ({prop_id}): {value}")
                             # WDM: try Version first, fallback to Update_Version
                             elif prop_id in ["WDM_Version", "WDM_Update_Version"] and value:
                                 if versions["WDM"]["value"] is None or prop_id == "WDM_Version":
@@ -324,6 +330,10 @@ class APIClient:
                             if prop_id in ["POSClient_Update_Version", "POSClient_Version"] and value and versions["POS"]["value"] is None:
                                 versions["POS"] = {"value": value, "source": "FPD (Default)"}
                                 print(f"[TEST API]     -> Matched POS ({prop_id}): {value}")
+                            # OneX POS: try OneX_Version
+                            elif prop_id in ["OneX_Version", "OneX_Update_Version"] and value and versions["ONEX-POS"]["value"] is None:
+                                versions["ONEX-POS"] = {"value": value, "source": "FPD (Default)"}
+                                print(f"[TEST API]     -> Matched OneX POS ({prop_id}): {value}")
                             # WDM: try Version first, fallback to Update_Version
                             elif prop_id in ["WDM_Version", "WDM_Update_Version"] and value and versions["WDM"]["value"] is None:
                                 versions["WDM"] = {"value": value, "source": "FPD (Default)"}
@@ -359,14 +369,14 @@ class APIClient:
                     result_text += f"❌ {component}: Not Found\n"
                     print(f"[TEST API] ❌ {component}: Not Found")
 
-            result_text += f"\n📊 Summary: {found_count}/5 components found"
+            result_text += f"\n📊 Summary: {found_count}/6 components found"
             result_text += f"\n🔍 Search Strategy: FP scope first, FPD scope for missing components"
 
             if found_count == 0:
                 result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
 
             print(f"[TEST API] " + "="*80)
-            print(f"[TEST API] SUMMARY: {found_count}/5 components found")
+            print(f"[TEST API] SUMMARY: {found_count}/6 components found")
             print(f"[TEST API] " + "="*80)
             messagebox.showinfo("API Test Results", result_text)
 
@@ -550,6 +560,7 @@ class APIClient:
             # Get system types from config
             system_types = {
                 "POS": self.config_manager.config.get("pos_system_type", "GKR-OPOS-CLOUD"),
+                "ONEX-POS": self.config_manager.config.get("onex_pos_system_type", "GKR-OPOS-ONEX-CLOUD"),
                 "WDM": self.config_manager.config.get("wdm_system_type", "CSE-wdm"),
                 "FLOW-SERVICE": self.config_manager.config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD"),
                 "LPA-SERVICE": self.config_manager.config.get("lpa_service_system_type", "CSE-lps-lpa"),
@@ -621,14 +632,14 @@ class APIClient:
                     result_text += f"❌ {component}: Not Found\n\n"
                     print(f"[CONFIG API] ❌ {component}: Not Found")
 
-            result_text += f"📊 Summary: {found_count}/5 components found"
+            result_text += f"📊 Summary: {found_count}/6 components found"
             result_text += f"\n🔍 API: Config-Service (versions/search)"
 
             if found_count == 0:
                 result_text += "\n\n⚠️ No component versions found"
 
             print(f"[CONFIG API] " + "="*80)
-            print(f"[CONFIG API] SUMMARY: {found_count}/5 components found")
+            print(f"[CONFIG API] SUMMARY: {found_count}/6 components found")
             print(f"[CONFIG API] " + "="*80)
             messagebox.showinfo("Config-Service API Test Results", result_text)
 

@@ -84,6 +84,7 @@ fi
 # Map ComponentType to systemName for matching in the API response
 declare -A system_name_map
 system_name_map["POS"]="${pos_system_type}"
+system_name_map["ONEX-POS"]="${onex_pos_system_type}"
 system_name_map["WDM"]="${wdm_system_type}"
 system_name_map["FLOW-SERVICE"]="${flow_service_system_type}"
 system_name_map["LPA-SERVICE"]="${lpa_service_system_type}"

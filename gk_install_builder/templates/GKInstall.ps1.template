@@ -1,6 +1,6 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
+    [ValidateSet('POS', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Optional: Override Store ID detection
@@ -200,6 +200,7 @@ function Select-Environment {
         # Determine station filename based on component type
         $station_filename = switch ($ComponentType) {
         'POS' { "POS.station" }
+        'ONEX-POS' { "ONEX.station" }
         'WDM' { "WDM.station" }
         'FLOW-SERVICE' { "FLOW-SERVICE.station" }
         'LPA-SERVICE' { "LPA.station" }
@@ -572,6 +573,16 @@ function Get-DefaultVersions {
                                 $versionSources["POS"] = "FP (Modified)"
                             }
                         }
+                        "OneX_Version" {
+                            $versions["ONEX-POS"] = $property.value
+                            $versionSources["ONEX-POS"] = "FP (Modified)"
+                        }
+                        "OneX_Update_Version" {
+                            if (-not $versions.ContainsKey("ONEX-POS")) {
+                                $versions["ONEX-POS"] = $property.value
+                                $versionSources["ONEX-POS"] = "FP (Modified)"
+                            }
+                        }
                         "WDM_Update_Version" {
                             $versions["WDM"] = $property.value
                             $versionSources["WDM"] = "FP (Modified)"
@@ -622,7 +633,7 @@ function Get-DefaultVersions {
         }
 
         # Step 2: For components not found in FP, try FPD scope (default versions)
-        $allComponents = @("POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE")
+        $allComponents = @("POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE")
         $missingComponents = $allComponents | Where-Object { -not $versions.ContainsKey($_) }
 
         if ($missingComponents.Count -gt 0) {
@@ -646,6 +657,18 @@ function Get-DefaultVersions {
                                 if (-not $versions.ContainsKey("POS")) {
                                     $versions["POS"] = $property.value
                                     $versionSources["POS"] = "FPD (Default)"
+                                }
+                            }
+                            "OneX_Version" {
+                                if (-not $versions.ContainsKey("ONEX-POS")) {
+                                    $versions["ONEX-POS"] = $property.value
+                                    $versionSources["ONEX-POS"] = "FPD (Default)"
+                                }
+                            }
+                            "OneX_Update_Version" {
+                                if (-not $versions.ContainsKey("ONEX-POS")) {
+                                    $versions["ONEX-POS"] = $property.value
+                                    $versionSources["ONEX-POS"] = "FPD (Default)"
                                 }
                             }
                             "WDM_Update_Version" {
@@ -845,6 +868,7 @@ $base_install_dir = "C:\gkretail"
 # Set component-specific configurations
 $systemType = switch ($ComponentType) {
     'POS' { "CSE-OPOS-CLOUD" }
+    'ONEX-POS' { "CSE-OPOS-ONEX-CLOUD" }
     'WDM' { "CSE-wdm" }
     'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
     'LPA-SERVICE' { "CSE-lps-lpa" }
@@ -855,6 +879,7 @@ $systemType = switch ($ComponentType) {
 # Set installation directory based on component type
 $install_dir = Join-Path $base_install_dir $(
     if ($ComponentType -eq 'POS') { "pos-full" }
+    elseif ($ComponentType -eq 'ONEX-POS') { "onex-pos" }
     elseif ($ComponentType -eq 'WDM') { "wdm" }
     elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
     elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
@@ -1196,6 +1221,7 @@ if ($UseDefaultVersions) {
         # Prepare system types hashtable
         $systemTypes = @{
             "POS" = "@POS_SYSTEM_TYPE@"
+            "ONEX-POS" = "@ONEX_POS_SYSTEM_TYPE@"
             "WDM" = "@WDM_SYSTEM_TYPE@"
             "FLOW-SERVICE" = "@FLOW_SERVICE_SYSTEM_TYPE@"
             "LPA-SERVICE" = "@LPA_SERVICE_SYSTEM_TYPE@"
@@ -1217,6 +1243,7 @@ if ($UseDefaultVersions) {
         # Fall back to hardcoded versions
         $component_version = switch ($systemType) {
             "CSE-OPOS-CLOUD" { "@POS_VERSION@" }
+            "CSE-OPOS-ONEX-CLOUD" { "@ONEX_POS_VERSION@" }
             "CSE-wdm" { "@WDM_VERSION@" }
             "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
             "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
@@ -1229,6 +1256,7 @@ if ($UseDefaultVersions) {
     # Set component-specific version if available
     $component_version = switch ($systemType) {
         "CSE-OPOS-CLOUD" { "@POS_VERSION@" }
+        "CSE-OPOS-ONEX-CLOUD" { "@ONEX_POS_VERSION@" }
         "CSE-wdm" { "@WDM_VERSION@" }
         "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
         "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }

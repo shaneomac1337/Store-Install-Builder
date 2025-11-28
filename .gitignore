@@ -58,3 +58,4 @@ Thumbs.db
 # Coop Sweden specific
 coop_*/
 store_ip_mapping.properties
+.claude/settings.local.json

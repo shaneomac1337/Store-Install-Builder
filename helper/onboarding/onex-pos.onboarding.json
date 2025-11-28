@@ -1,0 +1,8 @@
+{
+    "restrictions": {
+        "clientType": "opos-onex-cloud",
+        "tenantId": "001",
+        "lifespan": 86400,
+        "maxUsageCount": 10000
+    }
+}

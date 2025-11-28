@@ -214,16 +214,16 @@ class OfflinePackageCreator:
         
         # Helper function to update dependencies when components are toggled
         def update_dependencies():
-            # Check if any other application component (besides POS) is selected
+            # Check if any other application component (besides POS/OneX POS) is selected
             other_components_selected = (
-                self.include_wdm.get() or 
-                self.include_flow_service.get() or 
-                self.include_lpa_service.get() or 
+                self.include_wdm.get() or
+                self.include_flow_service.get() or
+                self.include_lpa_service.get() or
                 self.include_storehub_service.get()
             )
-            
-            # Handle POS separately - it only affects Java
-            if self.include_pos.get():
+
+            # Handle POS and OneX POS separately - they only affect Java
+            if self.include_pos.get() or self.include_onex_pos.get():
                 self.include_java.set(True)
             elif not other_components_selected:
                 # Only uncheck Java if no other components need it
@@ -262,7 +262,25 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         pos_checkbox.pack(side="left", pady=5, padx=10)
-        
+
+        # OneX POS component frame
+        onex_pos_component_frame = ctk.CTkFrame(self.components_frame)
+        onex_pos_component_frame.pack(fill="x", pady=5, padx=10)
+
+        # OneX POS checkbox
+        self.include_onex_pos = ctk.BooleanVar(value=False)
+        # Add trace to OneX POS variable
+        self.include_onex_pos.trace_add("write", lambda *args: update_dependencies())
+
+        onex_pos_checkbox = ctk.CTkCheckBox(
+            onex_pos_component_frame,
+            text="OneX POS",
+            variable=self.include_onex_pos,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        onex_pos_checkbox.pack(side="left", pady=5, padx=10)
+
         # WDM component frame
         wdm_component_frame = ctk.CTkFrame(self.components_frame)
         wdm_component_frame.pack(fill="x", pady=5, padx=10)
@@ -1579,10 +1597,11 @@ class OfflinePackageCreator:
                 return
                 
             # Check if at least one component is selected
-            if not (self.include_pos.get() or 
-                   self.include_wdm.get() or 
-                   self.include_flow_service.get() or 
-                   self.include_lpa_service.get() or 
+            if not (self.include_pos.get() or
+                   self.include_onex_pos.get() or
+                   self.include_wdm.get() or
+                   self.include_flow_service.get() or
+                   self.include_lpa_service.get() or
                    self.include_storehub_service.get() or
                    self.include_java.get() or
                    self.include_tomcat.get() or
@@ -1600,7 +1619,10 @@ class OfflinePackageCreator:
             
             if self.include_pos.get():
                 selected_components.append("POS")
-                
+
+            if self.include_onex_pos.get():
+                selected_components.append("ONEX-POS")
+
             if self.include_wdm.get():
                 selected_components.append("WDM")
             

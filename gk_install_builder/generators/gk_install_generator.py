@@ -88,6 +88,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         default_version = config.get("version", "v1.0.0")
         use_version_override = config.get("use_version_override", False)
         pos_version = config.get("pos_version", default_version)
+        onex_pos_version = config.get("onex_pos_version", default_version)
         wdm_version = config.get("wdm_version", default_version)
         flow_service_version = config.get("flow_service_version", default_version)
         lpa_service_version = config.get("lpa_service_version", default_version)
@@ -95,6 +96,7 @@ def generate_gk_install(output_dir, config, detection_manager,
 
         # Get system types from config
         pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
+        onex_pos_system_type = config.get("onex_pos_system_type", "GKR-OPOS-ONEX-CLOUD")
         wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
         flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
         lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
@@ -102,6 +104,7 @@ def generate_gk_install(output_dir, config, detection_manager,
 
         print(f"Using system types from config:")
         print(f"  POS System Type: {pos_system_type}")
+        print(f"  OneX POS System Type: {onex_pos_system_type}")
         print(f"  WDM System Type: {wdm_system_type}")
         print(f"  Flow Service System Type: {flow_service_system_type}")
         print(f"  LPA Service System Type: {lpa_service_system_type}")
@@ -139,11 +142,13 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("$base_install_dir = \"C:\\gkretail\"", f"$base_install_dir = \"{base_install_dir}\""),  # assignment line
                 ('"v1.0.0"', f'"{default_version}"'),
                 ("CSE-OPOS-CLOUD", pos_system_type),
+                ("CSE-OPOS-ONEX-CLOUD", onex_pos_system_type),
                 ("CSE-wdm", wdm_system_type),
                 ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
                 ("CSE-lps-lpa", lpa_service_system_type),
                 ("CSE-sh-cloud", storehub_service_system_type),
                 ("@POS_VERSION@", pos_version),
+                ("@ONEX_POS_VERSION@", onex_pos_version),
                 ("@WDM_VERSION@", wdm_version),
                 ("@FLOW_SERVICE_VERSION@", flow_service_version),
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
@@ -153,6 +158,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@VERSION_SOURCE@", version_source),
                 ("@FORM_USERNAME@", form_username),
                 ("@POS_SYSTEM_TYPE@", pos_system_type),
+                ("@ONEX_POS_SYSTEM_TYPE@", onex_pos_system_type),
                 ("@WDM_SYSTEM_TYPE@", wdm_system_type),
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
@@ -167,11 +173,13 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("/usr/local/gkretail", base_install_dir),
                 ('version="v1.0.0"', f'version="{default_version}"'),
                 ("CSE-OPOS-CLOUD", pos_system_type),
+                ("CSE-OPOS-ONEX-CLOUD", onex_pos_system_type),
                 ("CSE-wdm", wdm_system_type),
                 ("CSE-FLOWSERVICE-CLOUD", flow_service_system_type),
                 ("CSE-lps-lpa", lpa_service_system_type),
                 ("CSE-sh-cloud", storehub_service_system_type),
                 ("@POS_VERSION@", pos_version),
+                ("@ONEX_POS_VERSION@", onex_pos_version),
                 ("@WDM_VERSION@", wdm_version),
                 ("@FLOW_SERVICE_VERSION@", flow_service_version),
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
@@ -181,6 +189,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@VERSION_SOURCE@", version_source),
                 ("@FORM_USERNAME@", form_username),
                 ("@POS_SYSTEM_TYPE@", pos_system_type),
+                ("@ONEX_POS_SYSTEM_TYPE@", onex_pos_system_type),
                 ("@WDM_SYSTEM_TYPE@", wdm_system_type),
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),

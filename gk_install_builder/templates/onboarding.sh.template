@@ -209,6 +209,9 @@ case "$COMPONENT_TYPE" in
   'WDM')
     json_file="wdm.onboarding.json"
     ;;
+  'ONEX-POS')
+    json_file="onex-pos.onboarding.json"
+    ;;
   'FLOW-SERVICE')
     json_file="flow-service.onboarding.json"
     ;;

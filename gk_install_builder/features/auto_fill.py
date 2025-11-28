@@ -70,6 +70,7 @@ class AutoFillManager:
         if project_code:
             # Use the detected project code for system types
             pos_system_type = f"{project_code}-OPOS-CLOUD"
+            onex_pos_system_type = f"{project_code}-OPOS-ONEX-CLOUD"
             wdm_system_type = f"{project_code}-wdm"
             # FLOWSERVICE always uses GKR prefix (exception)
             flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
@@ -80,6 +81,7 @@ class AutoFillManager:
         else:
             # Default to CSE system types if no project code detected
             pos_system_type = "CSE-OPOS-CLOUD"
+            onex_pos_system_type = "CSE-OPOS-ONEX-CLOUD"
             wdm_system_type = "CSE-wdm"
             flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
             lpa_service_system_type = "CSE-lps-lpa"
@@ -121,6 +123,10 @@ class AutoFillManager:
         if self.config_manager.get_entry("pos_system_type"):
             self.config_manager.update_entry_value("pos_system_type", pos_system_type)
             print(f"Auto-filled POS system type: {pos_system_type}")
+
+        if self.config_manager.get_entry("onex_pos_system_type"):
+            self.config_manager.update_entry_value("onex_pos_system_type", onex_pos_system_type)
+            print(f"Auto-filled OneX POS system type: {onex_pos_system_type}")
 
         if self.config_manager.get_entry("wdm_system_type"):
             self.config_manager.update_entry_value("wdm_system_type", wdm_system_type)

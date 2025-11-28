@@ -118,6 +118,7 @@ class ConfigManager:
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override
             "pos_version": "v1.0.0",
+            "onex_pos_version": "v1.0.0",
             "wdm_version": "v1.0.0",
             "flow_service_version": "v1.0.0",
             "lpa_service_version": "v1.0.0",
@@ -127,6 +128,7 @@ class ConfigManager:
             "base_install_dir": "C:\\gkretail",  # Will be adjusted based on platform
             "tenant_id": "001",
             "pos_system_type": "",  # Will be dynamically set based on URL
+            "onex_pos_system_type": "",  # Will be dynamically set based on URL
             "wdm_system_type": "",  # Will be dynamically set based on URL
             "flow_service_system_type": "GKR-FLOWSERVICE-CLOUD",  # Default to GKR but still configurable
             "lpa_service_system_type": "",  # Will be dynamically set based on URL

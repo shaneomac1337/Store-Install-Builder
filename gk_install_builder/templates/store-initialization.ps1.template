@@ -86,6 +86,7 @@ $headers = @{
 # Map ComponentType to systemName for matching in the API response
 $systemNameMap = @{
     'POS' = '${pos_system_type}'
+    'ONEX-POS' = '${onex_pos_system_type}'
     'WDM' = '${wdm_system_type}'
     'FLOW-SERVICE' = '${flow_service_system_type}'
     'LPA-SERVICE' = '${lpa_service_system_type}'

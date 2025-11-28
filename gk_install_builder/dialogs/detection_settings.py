@@ -441,7 +441,7 @@ WorkstationID=101"""
         ).pack(anchor="w", padx=10, pady=5)
 
         # Create filename entries for each component
-        components = ["POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        components = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
         for component in components:
             row_frame = ctk.CTkFrame(filenames_frame)
             row_frame.pack(fill="x", padx=10, pady=2)

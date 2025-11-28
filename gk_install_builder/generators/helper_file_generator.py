@@ -34,6 +34,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
 
     # Get system types from config
     pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
+    onex_pos_system_type = config.get("onex_pos_system_type", "GKR-OPOS-ONEX-CLOUD")
     wdm_system_type = config.get("wdm_system_type", "CSE-wdm")
     flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
     lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
@@ -65,6 +66,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
 
         # Replace template variables
         template_content = template_content.replace("${pos_system_type}", pos_system_type)
+        template_content = template_content.replace("${onex_pos_system_type}", onex_pos_system_type)
         template_content = template_content.replace("${wdm_system_type}", wdm_system_type)
         template_content = template_content.replace("${flow_service_system_type}", flow_service_system_type)
         template_content = template_content.replace("${lpa_service_system_type}", lpa_service_system_type)

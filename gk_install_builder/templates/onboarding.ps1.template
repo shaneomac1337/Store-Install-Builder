@@ -146,6 +146,8 @@ try {
     # Determine JSON file based on ComponentType
     $jsonFile = if ($ComponentType -eq "WDM") {
         "wdm.onboarding.json"
+    } elseif ($ComponentType -eq "ONEX-POS") {
+        "onex-pos.onboarding.json"
     } elseif ($ComponentType -eq "FLOW-SERVICE") {
         "flow-service.onboarding.json"
     } elseif ($ComponentType -eq "LPA-SERVICE") {

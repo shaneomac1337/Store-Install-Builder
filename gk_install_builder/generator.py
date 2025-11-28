@@ -413,6 +413,7 @@ class ProjectGenerator:
         # Default JSON templates for different component types
         json_templates = {
             "pos.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "onex-pos.onboarding.json": '''{"restrictions":{"tenantId":"@TENANT_ID@","retailStoreId":"@STORE_ID@","workstationId":"@WORKSTATION_ID@","clientType":"opos-onex-cloud"}}''',
             "wdm.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
             "flow-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
             "lpa-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
@@ -467,7 +468,10 @@ class ProjectGenerator:
 
     def _ask_download_dependencies_only(self, component_type, parent=None, error_message=None):
         """Ask user if they want to download dependencies even if component files are not found"""
-        from .dialogs import ask_download_dependencies_only
+        try:
+            from .dialogs import ask_download_dependencies_only
+        except ImportError:
+            from dialogs.download_dialogs import ask_download_dependencies_only
         return ask_download_dependencies_only(component_type, parent or self.parent_window, error_message)
 
     def get_component_version(self, system_type, config):
@@ -571,6 +575,13 @@ class ProjectGenerator:
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window
+            )
+            process_component(
+                "ONEX-POS", "ONEX-POS", "onex_pos", "CSE-OPOS-ONEX-CLOUD",
+                selected_components, output_dir, config, self.get_component_version,
+                self.dsg_api_browser, prompt_for_file_selection,
+                files_to_download, dialog_parent, self.parent_window,
+                display_name="OneX POS Client"
             )
             process_component(
                 "WDM", "WDM", "wdm", "CSE-wdm",
@@ -867,7 +878,10 @@ class ProjectGenerator:
 
     def _ask_download_again(self, component_type, existing_files, parent=None):
         """Ask the user if they want to download files again when they already exist"""
-        from .dialogs import ask_download_again
+        try:
+            from .dialogs import ask_download_again
+        except ImportError:
+            from dialogs.download_dialogs import ask_download_again
         return ask_download_again(component_type, existing_files, parent or self.parent_window)
 
     def _show_info(self, title, message):

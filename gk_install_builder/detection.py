@@ -11,6 +11,7 @@ class DetectionManager:
             "base_directory": "",
             "custom_filenames": {
                 "POS": "POS.station",
+                "ONEX-POS": "ONEX.station",
                 "WDM": "WDM.station",
                 "FLOW-SERVICE": "FLOW-SERVICE.station",
                 "LPA-SERVICE": "LPA.station",
@@ -18,6 +19,7 @@ class DetectionManager:
             },
             "detection_files": {
                 "POS": "",
+                "ONEX-POS": "",
                 "WDM": "",
                 "FLOW-SERVICE": "",
                 "LPA-SERVICE": "",

@@ -87,7 +87,7 @@ class LauncherSettingsEditor:
         tab_view = ctk.CTkTabview(main_frame)
         tab_view.pack(fill="both", expand=True, padx=10, pady=10)
 
-        component_types = ["POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        component_types = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
 
         # Initialize settings dictionary
         self.settings = {}
@@ -182,6 +182,14 @@ class LauncherSettingsEditor:
             "keepFiles": "0"
         }
 
+        # OneX POS settings (same JMX ports as POS - mutually exclusive)
+        self.settings["ONEX-POS"] = {
+            "applicationJmxPort": "3333",
+            "updaterJmxPort": "4333",
+            "createShortcuts": "0",
+            "keepFiles": "0"
+        }
+
         # WDM settings
         self.settings["WDM"] = {
             "applicationServerHttpPort": "8080",
@@ -255,6 +263,7 @@ class LauncherSettingsEditor:
         # Load settings from existing templates
         template_files = {
             "POS": "launcher.pos.template",
+            "ONEX-POS": "launcher.onex-pos.template",
             "WDM": "launcher.wdm.template",
             "FLOW-SERVICE": "launcher.flow-service.template",
             "LPA-SERVICE": "launcher.lpa-service.template",

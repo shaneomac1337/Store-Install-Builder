@@ -101,6 +101,7 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
     """
     # Get settings from config
     pos_settings = config.get("pos_launcher_settings", {})
+    onex_pos_settings = config.get("onex_pos_launcher_settings", {})
     wdm_settings = config.get("wdm_launcher_settings", {})
     flow_service_settings = config.get("flow_service_launcher_settings", {})
     lpa_service_settings = config.get("lpa_service_launcher_settings", {})
@@ -109,6 +110,7 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
     # Print debug info
     print("Using launcher settings from config:")
     print(f"POS settings: {pos_settings}")
+    print(f"ONEX-POS settings: {onex_pos_settings}")
     print(f"WDM settings: {wdm_settings}")
     print(f"FLOW-SERVICE settings: {flow_service_settings}")
     print(f"LPA-SERVICE settings: {lpa_service_settings}")
@@ -117,6 +119,7 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
     # Define template files
     template_files = {
         "launcher.pos.template": pos_settings,
+        "launcher.onex-pos.template": onex_pos_settings,
         "launcher.wdm.template": wdm_settings,
         "launcher.flow-service.template": flow_service_settings,
         "launcher.lpa-service.template": lpa_service_settings,
@@ -177,6 +180,21 @@ def create_default_template(launchers_dir, filename):
 
     if filename == "launcher.pos.template":
         template_content = """# Launcher defaults for POS
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationJmxPort=
+updaterJmxPort=
+createShortcuts=0
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+hardware_package_local=
+"""
+    elif filename == "launcher.onex-pos.template":
+        template_content = """# Launcher defaults for OneX POS Client
 installdir=@INSTALL_DIR@
 identifierEncoded=@BASE64_TOKEN@
 applicationJmxPort=

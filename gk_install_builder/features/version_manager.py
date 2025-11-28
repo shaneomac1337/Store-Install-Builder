@@ -19,6 +19,7 @@ class VersionManager:
 
         # Version entry references
         self.pos_version_entry = None
+        self.onex_pos_version_entry = None
         self.wdm_version_entry = None
         self.flow_service_version_entry = None
         self.lpa_service_version_entry = None
@@ -119,11 +120,22 @@ class VersionManager:
         self.create_tooltip(self.pos_version_entry, "Example: v1.0.0")
         self.version_fields.extend([pos_label, self.pos_version_entry])
 
+        # OneX POS Version
+        onex_pos_label = ctk.CTkLabel(grid_frame, text="OneX POS Version:")
+        onex_pos_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        self.onex_pos_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.onex_pos_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.onex_pos_version_entry.insert(0, self.config_manager.config.get("onex_pos_version", project_version))
+        self.config_manager.register_entry("onex_pos_version", self.onex_pos_version_entry)
+        self.create_tooltip(onex_pos_label, "Version for OneX POS Client components")
+        self.create_tooltip(self.onex_pos_version_entry, "Example: v1.0.0")
+        self.version_fields.extend([onex_pos_label, self.onex_pos_version_entry])
+
         # WDM Version
         wdm_label = ctk.CTkLabel(grid_frame, text="WDM Version:")
-        wdm_label.grid(row=4, column=0, padx=10, pady=5, sticky="w")
+        wdm_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
         self.wdm_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.wdm_version_entry.grid(row=4, column=1, padx=10, pady=5, sticky="w")
+        self.wdm_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
         self.wdm_version_entry.insert(0, self.config_manager.config.get("wdm_version", project_version))
         self.config_manager.register_entry("wdm_version", self.wdm_version_entry)
         self.create_tooltip(wdm_label, "Version for WDM components (applies to all WDM system types)")
@@ -132,9 +144,9 @@ class VersionManager:
 
         # Flow Service Version
         flow_service_label = ctk.CTkLabel(grid_frame, text="Flow Service Version:")
-        flow_service_label.grid(row=5, column=0, padx=10, pady=5, sticky="w")
+        flow_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.flow_service_version_entry.grid(row=5, column=1, padx=10, pady=5, sticky="w")
+        self.flow_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
         self.flow_service_version_entry.insert(0, self.config_manager.config.get("flow_service_version", project_version))
         self.config_manager.register_entry("flow_service_version", self.flow_service_version_entry)
         self.create_tooltip(flow_service_label, "Version for Flow Service components")
@@ -143,9 +155,9 @@ class VersionManager:
 
         # LPA Service Version
         lpa_service_label = ctk.CTkLabel(grid_frame, text="LPA Service Version:")
-        lpa_service_label.grid(row=6, column=0, padx=10, pady=5, sticky="w")
+        lpa_service_label.grid(row=7, column=0, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.lpa_service_version_entry.grid(row=6, column=1, padx=10, pady=5, sticky="w")
+        self.lpa_service_version_entry.grid(row=7, column=1, padx=10, pady=5, sticky="w")
         self.lpa_service_version_entry.insert(0, self.config_manager.config.get("lpa_service_version", project_version))
         self.config_manager.register_entry("lpa_service_version", self.lpa_service_version_entry)
         self.create_tooltip(lpa_service_label, "Version for LPA Service components")
@@ -154,9 +166,9 @@ class VersionManager:
 
         # StoreHub Service Version
         storehub_service_label = ctk.CTkLabel(grid_frame, text="StoreHub Service Version:")
-        storehub_service_label.grid(row=7, column=0, padx=10, pady=5, sticky="w")
+        storehub_service_label.grid(row=8, column=0, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry = ctk.CTkEntry(grid_frame, width=200)
-        self.storehub_service_version_entry.grid(row=7, column=1, padx=10, pady=5, sticky="w")
+        self.storehub_service_version_entry.grid(row=8, column=1, padx=10, pady=5, sticky="w")
         self.storehub_service_version_entry.insert(0, self.config_manager.config.get("storehub_service_version", project_version))
         self.version_fields.extend([storehub_service_label, self.storehub_service_version_entry])
         self.config_manager.register_entry("storehub_service_version", self.storehub_service_version_entry)
@@ -187,6 +199,7 @@ class VersionManager:
         # Update entry states and values
         version_entries = [
             (self.pos_version_entry, "pos_version"),
+            (self.onex_pos_version_entry, "onex_pos_version"),
             (self.wdm_version_entry, "wdm_version"),
             (self.flow_service_version_entry, "flow_service_version"),
             (self.lpa_service_version_entry, "lpa_service_version"),
@@ -276,6 +289,7 @@ class VersionManager:
                 # List of component version entries to update
                 component_entries = [
                     (self.pos_version_entry, "pos_version"),
+                    (self.onex_pos_version_entry, "onex_pos_version"),
                     (self.wdm_version_entry, "wdm_version"),
                     (self.flow_service_version_entry, "flow_service_version"),
                     (self.lpa_service_version_entry, "lpa_service_version"),
