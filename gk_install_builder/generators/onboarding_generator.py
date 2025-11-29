@@ -56,6 +56,21 @@ def generate_onboarding_script(output_dir, config, templates_dir):
         form_username = config.get("eh_launchpad_username", "1001")
         tenant_id = config.get("tenant_id", "001")
 
+        # Get API version from config (default to "new" for 5.27+)
+        api_version = config.get("api_version", "new")
+
+        # Define onboarding API endpoint based on version
+        if api_version == "legacy":
+            onboarding_api = "/cims/services/rest/cims/v1/onboarding/tokens"
+        else:
+            onboarding_api = "/api/iam/cim/rest/v1/onboarding/tokens"
+
+        # Replace API endpoint based on version (common for both platforms)
+        content = content.replace(
+            '/api/iam/cim/rest/v1/onboarding/tokens',
+            onboarding_api
+        )
+
         # Replace configurations based on platform
         if platform == "Windows":
             # Windows-specific replacements

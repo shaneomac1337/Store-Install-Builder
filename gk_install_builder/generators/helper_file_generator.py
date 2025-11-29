@@ -42,6 +42,27 @@ def generate_store_init_script(output_dir, config, templates_dir):
     base_url = config.get("base_url", "test.cse.cloud4retail.co")
     tenant_id = config.get("tenant_id", "001")
 
+    # Get API version from config (default to "new" for 5.27+)
+    api_version = config.get("api_version", "new")
+
+    # Define API endpoint mappings for legacy (5.25) vs new (5.27+) APIs
+    if api_version == "legacy":
+        api_endpoints = {
+            "config_structure_search": "/config-service/services/rest/infrastructure/v1/structure/child-nodes/search",
+            "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/create",
+            "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
+            "business_unit": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/business-units",
+            "workstation_base": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/workstations",
+        }
+    else:  # new API (5.27+)
+        api_endpoints = {
+            "config_structure_search": "/api/config/services/rest/infrastructure/v1/structure/child-nodes/search",
+            "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/create",
+            "config_management": "/api/config/services/rest/config-management/v1/parameter-contents/plain",
+            "business_unit": "/api/business-unit/rest/v1/business-units",
+            "workstation_base": "/api/pos/master-data/rest/v1/workstations",
+        }
+
     # Get version information (same logic as in _generate_gk_install)
     default_version = config.get("version", "v1.0.0")
     use_version_override = config.get("use_version_override", False)
@@ -80,6 +101,31 @@ def generate_store_init_script(output_dir, config, templates_dir):
 
         # Add version replacement
         template_content = template_content.replace("@VERSION@", version)
+
+        # Replace API endpoints based on version (legacy vs new)
+        # Config-service endpoints
+        template_content = template_content.replace(
+            "/api/config/services/rest/infrastructure/v1/structure/child-nodes/search",
+            api_endpoints["config_structure_search"]
+        )
+        template_content = template_content.replace(
+            "/api/config/services/rest/infrastructure/v1/structure/create",
+            api_endpoints["config_structure_create"]
+        )
+        template_content = template_content.replace(
+            "/api/config/services/rest/config-management/v1/parameter-contents/plain",
+            api_endpoints["config_management"]
+        )
+        # Business unit endpoint
+        template_content = template_content.replace(
+            "/api/business-unit/rest/v1/business-units",
+            api_endpoints["business_unit"]
+        )
+        # Workstation endpoints
+        template_content = template_content.replace(
+            "/api/pos/master-data/rest/v1/workstations",
+            api_endpoints["workstation_base"]
+        )
 
         # Write the processed content to the destination file with Unix line endings
         with open(dst_script, 'w', newline='\n') as f:

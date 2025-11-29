@@ -290,7 +290,43 @@ class GKInstallBuilder:
         
         # Register the platform variable with config manager
         self.config_manager.register_entry("platform", self.platform_var)
-        
+
+        # Add API Version Selection
+        api_version_frame = ctk.CTkFrame(form_frame)
+        api_version_frame.pack(fill="x", padx=10, pady=5)
+
+        api_version_label = ctk.CTkLabel(api_version_frame, text="API Version:", width=150)
+        api_version_label.pack(side="left", padx=10)
+
+        # Create tooltip for API version
+        self.create_tooltip(api_version_label, "Select API version based on your cloud platform version.\nLegacy (5.25): Uses /cims/, /config-service/, /swee-sdc/ endpoints\nNew (5.27+): Uses /api/ prefix for all endpoints")
+
+        # Create a StringVar for the API version option
+        self.api_version_var = ctk.StringVar(value=self.config_manager.config.get("api_version", "new"))
+
+        # Create radio button frame for API version
+        api_radio_frame = ctk.CTkFrame(api_version_frame)
+        api_radio_frame.pack(side="left", padx=10)
+
+        legacy_api_radio = ctk.CTkRadioButton(
+            api_radio_frame,
+            text="Legacy (5.25)",
+            variable=self.api_version_var,
+            value="legacy"
+        )
+        legacy_api_radio.pack(side="left", padx=10)
+
+        new_api_radio = ctk.CTkRadioButton(
+            api_radio_frame,
+            text="New (5.27+)",
+            variable=self.api_version_var,
+            value="new"
+        )
+        new_api_radio.pack(side="left", padx=10)
+
+        # Register the API version variable with config manager
+        self.config_manager.register_entry("api_version", self.api_version_var)
+
         # Add Hostname Detection Toggle
         hostname_detection_frame = ctk.CTkFrame(form_frame)
         hostname_detection_frame.pack(fill="x", padx=10, pady=5)

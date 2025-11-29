@@ -111,7 +111,10 @@ class ConfigManager:
             
             # Platform Selection
             "platform": default_platform,  # Default platform (Windows or Linux)
-            
+
+            # API Version Selection
+            "api_version": "new",  # "legacy" for 5.25 and older, "new" for 5.27+
+
             # Installation Options
             "use_hostname_detection": True,  # Enable hostname detection by default
             

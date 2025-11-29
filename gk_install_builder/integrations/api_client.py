@@ -183,11 +183,22 @@ class APIClient:
                 "STOREHUB-SERVICE": {"value": None, "source": None}
             }
 
+            # Get API version from config (default to "new" for 5.27+)
+            api_version = self.config_manager.config.get("api_version", "new")
+            print(f"[TEST API] Using API version: {api_version}")
+
             # Step 1: Try FP scope first (modified/customized versions)
-            # Try multiple URL patterns as fallback
-            fp_urls = [
-                f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform",
-                f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+            # URL patterns based on API version
+            if api_version == "legacy":
+                # Legacy API (5.25 and older) - no /api prefix
+                fp_urls = [
+                    f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
+                ]
+            else:
+                # New API (5.27+) - with /api prefix, fallback to legacy
+                fp_urls = [
+                    f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform",
+                    f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FP&referenceId=platform"
             ]
 
             print(f"[TEST API] Step 2 of 3: Fetching FP scope...")
@@ -290,11 +301,18 @@ class APIClient:
                 loading_label.configure(text="Testing Employee Hub Function Pack API...\nFetching missing components (FPD scope)...\nPlease wait...")
                 loading_dialog.update()
 
-                # Try multiple URL patterns for FPD as well
-                fpd_urls = [
-                    f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform",
-                    f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
-                ]
+                # URL patterns for FPD based on API version
+                if api_version == "legacy":
+                    # Legacy API (5.25 and older) - no /api prefix
+                    fpd_urls = [
+                        f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+                    ]
+                else:
+                    # New API (5.27+) - with /api prefix, fallback to legacy
+                    fpd_urls = [
+                        f"https://{base_url}/api/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform",
+                        f"https://{base_url}/employee-hub-service/services/rest/v1/properties?scope=FPD&referenceId=platform"
+                    ]
 
                 fpd_response = None
                 fpd_success = False
@@ -370,7 +388,9 @@ class APIClient:
                     print(f"[TEST API] ❌ {component}: Not Found")
 
             result_text += f"\n📊 Summary: {found_count}/6 components found"
-            result_text += f"\n🔍 Search Strategy: FP scope first, FPD scope for missing components"
+            api_version_label = "Legacy (5.25)" if api_version == "legacy" else "New (5.27+)"
+            result_text += f"\n🔍 API: Function Pack ({api_version_label})"
+            result_text += f"\n📋 Strategy: FP scope first, FPD for missing"
 
             if found_count == 0:
                 result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
@@ -572,8 +592,17 @@ class APIClient:
             # Initialize versions tracking
             versions = {}
 
-            # API URL
-            api_url = f"https://{base_url}/api/config/services/rest/infrastructure/v1/versions/search"
+            # Get API version from config (default to "new" for 5.27+)
+            api_version = self.config_manager.config.get("api_version", "new")
+            print(f"[CONFIG API] Using API version: {api_version}")
+
+            # API URL based on version
+            if api_version == "legacy":
+                # Legacy API (5.25 and older)
+                api_url = f"https://{base_url}/config-service/services/rest/infrastructure/v1/versions/search"
+            else:
+                # New API (5.27+)
+                api_url = f"https://{base_url}/api/config/services/rest/infrastructure/v1/versions/search"
             print(f"[CONFIG API] API URL: {api_url}")
 
             # Fetch versions for each component
@@ -633,7 +662,8 @@ class APIClient:
                     print(f"[CONFIG API] ❌ {component}: Not Found")
 
             result_text += f"📊 Summary: {found_count}/6 components found"
-            result_text += f"\n🔍 API: Config-Service (versions/search)"
+            api_version_label = "Legacy (5.25)" if api_version == "legacy" else "New (5.27+)"
+            result_text += f"\n🔍 API: Config-Service ({api_version_label})"
 
             if found_count == 0:
                 result_text += "\n\n⚠️ No component versions found"

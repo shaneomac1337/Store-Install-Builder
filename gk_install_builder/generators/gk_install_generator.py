@@ -132,6 +132,53 @@ def generate_gk_install(output_dir, config, detection_manager,
         # Get form username (eh_launchpad_username)
         form_username = config.get("eh_launchpad_username", "1001")
 
+        # Get API version from config (default to "new" for 5.27+)
+        api_version = config.get("api_version", "new")
+        print(f"Using API version: {api_version}")
+
+        # Define API endpoint mappings for legacy (5.25) vs new (5.27+) APIs
+        # These will be used to replace URLs in all templates
+        if api_version == "legacy":
+            # Legacy API endpoints (5.25 and older)
+            api_endpoints = {
+                # Onboarding token API
+                "onboarding_api": "/cims/services/rest/cims/v1/onboarding/tokens",
+                # Config service APIs
+                "config_structure_search": "/config-service/services/rest/infrastructure/v1/structure/child-nodes/search",
+                "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/create",
+                "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
+                "config_versions_search": "/config-service/services/rest/infrastructure/v1/versions/search",
+                # Master data APIs (include tenant ID in URL for legacy)
+                "business_unit": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/business-units",
+                "workstation_base": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/workstations",
+                # Installation token URLs
+                "install_token_config_service": "/config-service",
+                "install_token_cims": "/cims",
+                "install_token_dsg": "/dsg/content/cep/SoftwarePackage",
+                # Employee Hub / Function Pack API (no /api prefix for legacy)
+                "employee_hub_service": "/employee-hub-service/services/rest/v1/properties",
+            }
+        else:
+            # New API endpoints (5.27+)
+            api_endpoints = {
+                # Onboarding token API
+                "onboarding_api": "/api/iam/cim/rest/v1/onboarding/tokens",
+                # Config service APIs
+                "config_structure_search": "/api/config/services/rest/infrastructure/v1/structure/child-nodes/search",
+                "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/create",
+                "config_management": "/api/config/services/rest/config-management/v1/parameter-contents/plain",
+                "config_versions_search": "/api/config/services/rest/infrastructure/v1/versions/search",
+                # Master data APIs (no tenant in URL for new API)
+                "business_unit": "/api/business-unit/rest/v1/business-units",
+                "workstation_base": "/api/pos/master-data/rest/v1/workstations",
+                # Installation token URLs
+                "install_token_config_service": "/api/config",
+                "install_token_cims": "/api/iam/cim/rest",
+                "install_token_dsg": "/api/digital-content/content/cep/SoftwarePackage",
+                # Employee Hub / Function Pack API (with /api prefix for new)
+                "employee_hub_service": "/api/employee-hub-service/services/rest/v1/properties",
+            }
+
         if platform == "Windows":
             # Windows-specific replacements
             replacements = [
@@ -163,7 +210,21 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
-                ("@TENANT_ID@", tenant_id)
+                ("@TENANT_ID@", tenant_id),
+                # API endpoint replacements (replace new API URLs with configured version)
+                ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/child-nodes/search", api_endpoints["config_structure_search"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/create", api_endpoints["config_structure_create"]),
+                ("/api/config/services/rest/config-management/v1/parameter-contents/plain", api_endpoints["config_management"]),
+                ("/api/config/services/rest/infrastructure/v1/versions/search", api_endpoints["config_versions_search"]),
+                ("/api/business-unit/rest/v1/business-units", api_endpoints["business_unit"]),
+                ("/api/pos/master-data/rest/v1/workstations", api_endpoints["workstation_base"]),
+                # Employee Hub / Function Pack API (template uses legacy format, replace with configured version)
+                ("/employee-hub-service/services/rest/v1/properties", api_endpoints["employee_hub_service"]),
+                # Installation token URL replacements
+                ("@Server@/api/config", f"@Server@{api_endpoints['install_token_config_service']}"),
+                ("@Server@/api/iam/cim/rest", f"@Server@{api_endpoints['install_token_cims']}"),
+                ("@DsgServer@/api/digital-content/content/cep/SoftwarePackage", f"@DsgServer@{api_endpoints['install_token_dsg']}")
             ]
 
         else:  # Linux
@@ -194,7 +255,21 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
-                ("@TENANT_ID@", tenant_id)
+                ("@TENANT_ID@", tenant_id),
+                # API endpoint replacements (replace new API URLs with configured version)
+                ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/child-nodes/search", api_endpoints["config_structure_search"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/create", api_endpoints["config_structure_create"]),
+                ("/api/config/services/rest/config-management/v1/parameter-contents/plain", api_endpoints["config_management"]),
+                ("/api/config/services/rest/infrastructure/v1/versions/search", api_endpoints["config_versions_search"]),
+                ("/api/business-unit/rest/v1/business-units", api_endpoints["business_unit"]),
+                ("/api/pos/master-data/rest/v1/workstations", api_endpoints["workstation_base"]),
+                # Employee Hub / Function Pack API (template uses legacy format, replace with configured version)
+                ("/employee-hub-service/services/rest/v1/properties", api_endpoints["employee_hub_service"]),
+                # Installation token URL replacements (Linux uses $server variable)
+                ("$server/api/config", f"$server{api_endpoints['install_token_config_service']}"),
+                ("$server/api/iam/cim/rest", f"$server{api_endpoints['install_token_cims']}"),
+                ("$dsg_server/api/digital-content/content/cep/SoftwarePackage", f"$dsg_server{api_endpoints['install_token_dsg']}")
             ]
 
         # Apply all replacements to the template
