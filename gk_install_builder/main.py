@@ -312,7 +312,8 @@ class GKInstallBuilder:
             api_radio_frame,
             text="Legacy (5.25)",
             variable=self.api_version_var,
-            value="legacy"
+            value="legacy",
+            command=lambda: self.config_manager.schedule_save()
         )
         legacy_api_radio.pack(side="left", padx=10)
 
@@ -320,7 +321,8 @@ class GKInstallBuilder:
             api_radio_frame,
             text="New (5.27+)",
             variable=self.api_version_var,
-            value="new"
+            value="new",
+            command=lambda: self.config_manager.schedule_save()
         )
         new_api_radio.pack(side="left", padx=10)
 
