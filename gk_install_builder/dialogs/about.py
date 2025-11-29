@@ -212,7 +212,7 @@ class AboutDialog:
 
         components_value = ctk.CTkLabel(
             components_frame,
-            text="POS, WDM, Flow Service,\nLPA, StoreHub",
+            text="POS, OneX POS, WDM,\nFlow Service, LPA, StoreHub",
             font=("Helvetica", 12),
             justify="left",
             anchor="w"
