@@ -82,7 +82,7 @@ urllib3.disable_warnings(InsecureRequestWarning)
 
 class DSGRestBrowser:
     """Browser for DSG REST API (replaces WebDAV)"""
-    def __init__(self, base_url, username=None, password=None, bearer_token=None):
+    def __init__(self, base_url, username=None, password=None, bearer_token=None, api_version="new"):
         if not base_url.startswith('http'):
             base_url = f'https://{base_url}'
         self.base_url = base_url.rstrip('/')
@@ -91,15 +91,20 @@ class DSGRestBrowser:
         self.bearer_token = bearer_token
         self.connected = False
         self.current_path = "/SoftwarePackage"
-        
+        self.api_version = api_version
+
         # Token refresh callback - set by parent to handle token regeneration
         self.token_refresh_callback = None
-        
-        # REST API endpoint
-        self.api_base = f"{self.base_url}/api/digital-content/services/rest/media/v1/files"
-        
+
+        # REST API endpoint based on API version
+        if api_version == "legacy":
+            self.api_base = f"{self.base_url}/dsg/services/rest/media/v1/files"
+        else:
+            self.api_base = f"{self.base_url}/api/digital-content/services/rest/media/v1/files"
+
         print("\nDSG REST API Client:")
         print(f"Base URL: {self.base_url}")
+        print(f"API Version: {api_version}")
         print(f"API Endpoint: {self.api_base}")
         print(f"Username: {self.username}")
 
@@ -303,9 +308,9 @@ class ProjectGenerator:
             ),
         )
 
-    def create_dsg_api_browser(self, base_url, username=None, password=None, bearer_token=None):
+    def create_dsg_api_browser(self, base_url, username=None, password=None, bearer_token=None, api_version="new"):
         """Create a new DSG REST API browser instance"""
-        self.dsg_api_browser = DSGRestBrowser(base_url, username, password, bearer_token)
+        self.dsg_api_browser = DSGRestBrowser(base_url, username, password, bearer_token, api_version)
         return self.dsg_api_browser
 
     def _get_session(self):
@@ -531,7 +536,8 @@ class ProjectGenerator:
                     config["base_url"],
                     config.get("dsg_api_username"),
                     config.get("dsg_api_password"),
-                    config.get("bearer_token")  # Add bearer token support
+                    config.get("bearer_token"),  # Add bearer token support
+                    config.get("api_version", "new")  # Legacy/New API version
                 )
                 success, message = self.dsg_api_browser.connect()
                 if not success:

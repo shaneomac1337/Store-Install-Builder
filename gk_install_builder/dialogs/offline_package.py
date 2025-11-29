@@ -1511,11 +1511,13 @@ class OfflinePackageCreator:
         self.window.update_idletasks()
         
         # Create DSG REST API browser instance
+        api_version = self.config_manager.config.get("api_version", "new")
         self.webdav = self.project_generator.create_dsg_api_browser(
             base_url,
             None,  # username not needed
             None,  # password not needed
-            bearer_token
+            bearer_token,
+            api_version  # Legacy/New API version
         )
         
         # Set up token refresh callback for automatic token renewal
