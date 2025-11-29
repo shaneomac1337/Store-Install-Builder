@@ -1,6 +1,6 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
+    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Optional: Override Store ID detection
@@ -59,7 +59,9 @@ $null = Register-EngineEvent -SourceIdentifier Console_CancelKeyPress -Action {
 $ErrorActionPreference = "Stop"
 
 # Map shortened component types to full names
-if ($ComponentType -eq 'LPA') {
+if ($ComponentType -eq 'ONEX') {
+    $ComponentType = 'ONEX-POS'
+} elseif ($ComponentType -eq 'LPA') {
     $ComponentType = 'LPA-SERVICE'
 } elseif ($ComponentType -eq 'SH') {
     $ComponentType = 'STOREHUB-SERVICE'
@@ -879,7 +881,7 @@ $systemType = switch ($ComponentType) {
 # Set installation directory based on component type
 $install_dir = Join-Path $base_install_dir $(
     if ($ComponentType -eq 'POS') { "pos-full" }
-    elseif ($ComponentType -eq 'ONEX-POS') { "onex-pos" }
+    elseif ($ComponentType -eq 'ONEX-POS') { "onex" }
     elseif ($ComponentType -eq 'WDM') { "wdm" }
     elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
     elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
@@ -1054,24 +1056,26 @@ if (-not $isUpdate) {
     $environments = Load-Environments
 
     if ($null -eq $environments -or $environments.environments.Count -eq 0) {
-        Write-Host "No environments.json found or it's empty" -ForegroundColor Yellow
-        Write-Host "Please select an environment manually for update mode" -ForegroundColor Yellow
+        Write-Host "No multi-environment configuration found, using extracted values from existing installation" -ForegroundColor Cyan
 
-        # Fallback to manual environment selection
-        $selectedEnv = Select-Environment -EnvAlias $Env -EnvName $EnvironmentName
-
-        if ($null -ne $selectedEnv) {
-            # Apply the selected environment configuration
-            Apply-EnvironmentConfig -Environment $selectedEnv -BaseUrlVar ([ref]$base_url)
-            Write-Host "Environment '$($selectedEnv.alias)' applied successfully"
+        # Use values extracted from station.properties with script defaults
+        if (![string]::IsNullOrEmpty($script:extractedBaseUrl)) {
+            $base_url = $script:extractedBaseUrl
+            Write-Host "Using base URL from station.properties: $base_url"
         } else {
-            Write-Host "Error: No environment selected. Update cannot proceed without environment configuration." -ForegroundColor Red
-            Write-Host "Please either:" -ForegroundColor Red
-            Write-Host "  1. Create environments.json with at least one environment, OR" -ForegroundColor Red
-            Write-Host "  2. Run in fresh install mode (delete existing installation)" -ForegroundColor Red
-            exit 1
+            Write-Host "Using script default base URL: $base_url"
         }
-    } else {
+
+        if (![string]::IsNullOrEmpty($script:extractedTenantId)) {
+            $tenantId = $script:extractedTenantId
+            $script:tenantId = $script:extractedTenantId
+            Write-Host "Using tenant ID from station.properties: $tenantId"
+        } else {
+            Write-Host "Using script default tenant ID: $tenantId"
+        }
+
+        Write-Host "Proceeding with update using script default credentials" -ForegroundColor Green
+    } elseif ($environments.environments.Count -gt 0) {
         # Try to match extracted base URL to configured environments
         if (![string]::IsNullOrEmpty($script:extractedBaseUrl)) {
             Write-Host "Attempting to match base URL '$script:extractedBaseUrl' to configured environments..."

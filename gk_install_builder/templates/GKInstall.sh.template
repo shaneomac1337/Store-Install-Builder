@@ -50,14 +50,14 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|WDM|FLOW-SERVICE|LPA|SH|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
       exit 1
       ;;
   esac
 done
 
 # Validate ComponentType
-valid_types=("POS" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE")
+valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE")
 valid=false
 for type in "${valid_types[@]}"; do
   if [ "$COMPONENT_TYPE" = "$type" ]; then
@@ -72,7 +72,9 @@ if [ "$valid" = false ]; then
 fi
 
 # Map shortened component types to full names
-if [ "$COMPONENT_TYPE" = "LPA" ]; then
+if [ "$COMPONENT_TYPE" = "ONEX" ]; then
+  COMPONENT_TYPE="ONEX-POS"
+elif [ "$COMPONENT_TYPE" = "LPA" ]; then
   COMPONENT_TYPE="LPA-SERVICE"
 elif [ "$COMPONENT_TYPE" = "SH" ]; then
   COMPONENT_TYPE="STOREHUB-SERVICE"
@@ -1081,7 +1083,7 @@ case "$COMPONENT_TYPE" in
     ;;
   'ONEX-POS')
     systemType="CSE-OPOS-ONEX-CLOUD"
-    install_dir="$base_install_dir/onex-pos"
+    install_dir="$base_install_dir/onex"
     ;;
   'WDM')
     systemType="CSE-wdm"
@@ -1281,26 +1283,25 @@ else
     fi
 
     if [ "$env_count" -eq 0 ]; then
-      echo -e "\033[1;33mEnvironments.json found but it's empty\033[0m"
-      echo -e "\033[1;33mPlease select an environment manually for update mode\033[0m"
+      echo -e "\033[1;36mNo multi-environment configuration found, using extracted values from existing installation\033[0m"
 
-      # Fallback to manual environment selection
-      if selected_env=$(select_environment "$environments" "$env_alias"); then
-        apply_environment_config "$selected_env"
-        if [ "$JQ_AVAILABLE" = true ]; then
-          env_alias_name=$(echo "$selected_env" | jq -r '.alias')
-        else
-          env_alias_name=$(json_extract "$selected_env" "alias")
-        fi
-        echo "Environment '$env_alias_name' applied successfully"
+      # Use values extracted from station.properties with script defaults
+      if [ -n "$extractedBaseUrl" ]; then
+        base_url="$extractedBaseUrl"
+        echo "Using base URL from station.properties: $base_url"
       else
-        echo -e "\033[1;31mError: No environment selected. Update cannot proceed without environment configuration.\033[0m"
-        echo -e "\033[1;31mPlease either:\033[0m"
-        echo -e "\033[1;31m  1. Create environments.json with at least one environment, OR\033[0m"
-        echo -e "\033[1;31m  2. Run in fresh install mode (delete existing installation)\033[0m"
-        exit 1
+        echo "Using script default base URL: $base_url"
       fi
-    else
+
+      if [ -n "$extractedTenantId" ]; then
+        tenant_id="$extractedTenantId"
+        echo "Using tenant ID from station.properties: $tenant_id"
+      else
+        echo "Using script default tenant ID: $tenant_id"
+      fi
+
+      echo -e "\033[1;32mProceeding with update using script default credentials\033[0m"
+    elif [ "$env_count" -gt 0 ]; then
       # Try to match extracted base URL to configured environments
       if [ -n "$extractedBaseUrl" ]; then
         echo "Attempting to match base URL '$extractedBaseUrl' to configured environments..."
@@ -1362,31 +1363,24 @@ else
       fi
     fi
   else
-    echo -e "\033[1;33mNo environments.json found\033[0m"
-    echo -e "\033[1;33mPlease select an environment manually for update mode\033[0m"
+    echo -e "\033[1;36mNo multi-environment configuration found, using extracted values from existing installation\033[0m"
 
-    # Attempt manual selection - will fail gracefully if no file exists
-    if selected_env=$(select_environment "" "$env_alias" 2>/dev/null); then
-      apply_environment_config "$selected_env"
-      if [ "$JQ_AVAILABLE" = true ]; then
-        env_alias_name=$(echo "$selected_env" | jq -r '.alias')
-      else
-        env_alias_name=$(json_extract "$selected_env" "alias")
-      fi
-      echo "Environment '$env_alias_name' applied successfully"
+    # Use values extracted from station.properties with script defaults
+    if [ -n "$extractedBaseUrl" ]; then
+      base_url="$extractedBaseUrl"
+      echo "Using base URL from station.properties: $base_url"
     else
-      echo -e "\033[1;31mError: No environment configuration available. Update cannot proceed.\033[0m"
-      echo -e "\033[1;31mPlease either:\033[0m"
-      echo -e "\033[1;31m  1. Create environments.json with at least one environment, OR\033[0m"
-      echo -e "\033[1;31m  2. Run in fresh install mode (delete existing installation)\033[0m"
-      exit 1
+      echo "Using script default base URL: $base_url"
     fi
-  fi
 
-  # Override tenant ID with value from station.properties if available
-  if [ -n "$extractedTenantId" ]; then
-    echo "Overriding tenant ID with value from station.properties: $extractedTenantId"
-    tenant_id="$extractedTenantId"
+    if [ -n "$extractedTenantId" ]; then
+      tenant_id="$extractedTenantId"
+      echo "Using tenant ID from station.properties: $extractedTenantId"
+    else
+      echo "Using script default tenant ID: $tenant_id"
+    fi
+
+    echo -e "\033[1;32mProceeding with update using script default credentials\033[0m"
   fi
 fi
 
