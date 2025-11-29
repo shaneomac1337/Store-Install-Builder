@@ -69,6 +69,7 @@ pytest tests/unit/test_config_management.py
    - Auto-save with 1-second debounce to reduce file I/O
    - Entry widget registration for automatic two-way data binding
    - Platform-specific default paths (Windows: `C:\gkretail`, Linux: `/usr/local/gkretail`)
+   - API version selection (`api_version`: `"legacy"` for 5.25, `"new"` for 5.27+)
 
 5. **Detection Manager** (`gk_install_builder/detection.py` - 393 lines)
    - Store/Workstation ID detection via hostname patterns or station files
@@ -231,6 +232,30 @@ Used in generator.py for file browsing:
 - Retry logic with new tokens
 - File/directory browsing capabilities
 
+### API Endpoint Versioning
+The application supports Legacy (5.25) and New (5.27+) API versions via `api_version` config setting:
+
+**Implementation Files:**
+- `config.py`: Stores `api_version` setting (`"legacy"` or `"new"`)
+- `main.py`: Radio buttons UI in Project Configuration section
+- `gk_install_generator.py`: API endpoint mapping dictionary for script generation
+- `helper_file_generator.py`: Store-initialization URL replacements
+- `onboarding_generator.py`: Onboarding API URL replacement
+- `api_client.py`: GUI API testing endpoint selection
+
+**API Endpoint Mapping:**
+
+| Service | Legacy (5.25) | New (5.27+) |
+|---------|---------------|-------------|
+| Onboarding | `/cims/...` | `/api/iam/cim/rest/...` |
+| Config-Service | `/config-service/...` | `/api/config/...` |
+| Business Unit | `/swee-sdc/tenants/{tid}/...` | `/api/business-unit/...` |
+| Workstation | `/swee-sdc/tenants/{tid}/...` | `/api/pos/master-data/...` |
+| Employee Hub | `/employee-hub-service/...` | `/api/employee-hub-service/...` |
+| DSG | `/dsg/...` | `/api/digital-content/...` |
+
+**Note**: Legacy master data endpoints include tenant ID in URL path; new API uses tenant via auth token.
+
 ## Code Style Guidelines (from .cursorrules)
 
 - Use CustomTkinter for all GUI elements; leverage scrollable frames and tooltips
@@ -312,6 +337,13 @@ Five-tier detection system ensures automation compatibility while supporting man
 
 ### Password Encoding Fixes
 Consistent base64 encoding between password generation and environment manager for AUTH token generation.
+
+### Legacy/New API Version Toggle (November 2025)
+Added radio button toggle in Project Configuration to switch between Legacy API (5.25) and New API (5.27+):
+- **UI**: Radio buttons in Project Configuration section (default: New API)
+- **Scope**: Affects all generated scripts, onboarding, store-initialization, and GUI API testing
+- **Files Modified**: `config.py`, `main.py`, `gk_install_generator.py`, `helper_file_generator.py`, `onboarding_generator.py`, `api_client.py`
+- **Use Case**: Supports deployments on older cloud platforms (5.25) while defaulting to newer API format (5.27+)
 
 ## Working with This Codebase
 

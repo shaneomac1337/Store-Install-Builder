@@ -21,6 +21,7 @@ The application supports **multi-environment deployments**, **automated CLI-base
 - **OAuth2 Integration**: Automatic token generation and caching for API authentication
 - **Password Management**: Integration with Pleasant Password Server (KeePass) for secure credential management
 - **Version Management**: Automatic version retrieval from Employee Hub Service API and Config-Service API with fallback defaults
+- **API Version Compatibility**: Toggle between Legacy API (5.25) and New API (5.27+) for different cloud platform versions
 - **Offline Package Generation**: Create self-contained installation packages for environments without internet access
 - **Certificate Management**: Import or generate SSL certificates (.p12) with password protection
 - **User-Friendly Interface**: Modern GUI built with CustomTkinter featuring a wizard-style interface for first-time users
@@ -405,6 +406,38 @@ Includes (when using multi-environment features):
 - Tenant IDs for each environment
 - Environment-specific detection patterns
 - OAuth2 token caching per environment
+
+### API Version Configuration
+
+The application supports two API versions to ensure compatibility with different cloud platform versions:
+
+**Toggle Location**: Project Configuration section (radio buttons)
+
+| Setting | Description |
+|---------|-------------|
+| **Legacy (5.25)** | For cloud platform versions 5.25 and older |
+| **New (5.27+)** | For cloud platform versions 5.27 and newer (default) |
+
+**API Endpoint Differences**:
+
+| Service | Legacy (5.25) | New (5.27+) |
+|---------|---------------|-------------|
+| Onboarding | `/cims/services/rest/cims/v1/...` | `/api/iam/cim/rest/v1/...` |
+| Config-Service | `/config-service/services/rest/...` | `/api/config/services/rest/...` |
+| Business Unit | `/swee-sdc/tenants/{tid}/services/rest/master-data/v1/business-units` | `/api/business-unit/rest/v1/business-units` |
+| Workstation | `/swee-sdc/tenants/{tid}/services/rest/master-data/v1/workstations` | `/api/pos/master-data/rest/v1/workstations` |
+| Employee Hub | `/employee-hub-service/services/rest/v1/properties` | `/api/employee-hub-service/services/rest/v1/properties` |
+| DSG | `/dsg/content/cep/SoftwarePackage` | `/api/digital-content/content/cep/SoftwarePackage` |
+
+**What This Affects**:
+- Generated installation scripts (GKInstall.ps1/sh)
+- Store-initialization scripts
+- Onboarding scripts
+- GUI API testing (Test Default Versions button)
+
+**When to Use Each Version**:
+- **Legacy (5.25)**: Existing installations on older platforms, migration scenarios
+- **New (5.27+)**: New installations, future-proof deployments, current platforms
 
 ## Detection System
 
