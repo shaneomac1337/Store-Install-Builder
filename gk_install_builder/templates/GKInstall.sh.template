@@ -1107,6 +1107,9 @@ case "$COMPONENT_TYPE" in
     ;;
 esac
 
+# Save the original script default base_url for validation in update mode
+script_default_base_url="$base_url"
+
 # Check if this is an update of an existing installation
 isUpdate=false
 if [ -d "$install_dir" ]; then
@@ -1276,9 +1279,15 @@ else
     if [ "$JQ_AVAILABLE" = true ]; then
       env_count=$(echo "$environments" | jq '.environments | length' 2>/dev/null || echo "0")
     else
-      # Simple check if environments array exists
-      if echo "$environments" | grep -q '"environments"'; then
-        env_count=1
+      # Check if environments array is empty without jq
+      if echo "$environments" | grep -qE '"environments"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]'; then
+        # Empty array: "environments": []
+        env_count=0
+      elif echo "$environments" | grep -q '"alias"'; then
+        # Has at least one environment (contains "alias" key)
+        env_count=$(echo "$environments" | grep -c '"alias"' || echo "0")
+      else
+        env_count=0
       fi
     fi
 
@@ -1287,6 +1296,28 @@ else
 
       # Use values extracted from station.properties with script defaults
       if [ -n "$extractedBaseUrl" ]; then
+        # Validate that extracted base URL matches script default
+        if [ "$extractedBaseUrl" != "$script_default_base_url" ]; then
+          echo -e "\033[1;31mWarning: Extracted base URL does not match script default\033[0m"
+          echo -e "\033[1;31m  Extracted from station.properties: $extractedBaseUrl\033[0m"
+          echo -e "\033[1;31m  Script default: $script_default_base_url\033[0m"
+          echo -e "\033[1;33m\nYou can either:\033[0m"
+          echo -e "\033[1;33m  1. Use an installation script generated for '$extractedBaseUrl', OR\033[0m"
+          echo -e "\033[1;33m  2. Configure environments in environments.json with matching base_url, OR\033[0m"
+          echo -e "\033[1;33m  3. Run in fresh install mode (delete existing installation), OR\033[0m"
+          echo -e "\033[1;33m  4. Proceed anyway (use only for GK QA environments)\033[0m"
+          echo ""
+          echo -e "\033[1;33mWARNING: Proceeding with mismatched URLs should only be used in GK QA environments\033[0m"
+          echo -e "\033[1;33m         where base URLs may differ (e.g., qa-gkr.cloud4retail.co vs qa.cloud4retail.co)\033[0m"
+          echo ""
+          read -p "Do you want to proceed anyway? (y/N): " response
+          if [[ "$response" =~ ^[Yy]$ ]]; then
+            echo -e "\033[1;33mProceeding with mismatched base URL...\033[0m"
+          else
+            echo -e "\033[1;31mUpdate cancelled.\033[0m"
+            exit 1
+          fi
+        fi
         base_url="$extractedBaseUrl"
         echo "Using base URL from station.properties: $base_url"
       else
@@ -1367,6 +1398,28 @@ else
 
     # Use values extracted from station.properties with script defaults
     if [ -n "$extractedBaseUrl" ]; then
+      # Validate that extracted base URL matches script default
+      if [ "$extractedBaseUrl" != "$script_default_base_url" ]; then
+        echo -e "\033[1;31mWarning: Extracted base URL does not match script default\033[0m"
+        echo -e "\033[1;31m  Extracted from station.properties: $extractedBaseUrl\033[0m"
+        echo -e "\033[1;31m  Script default: $script_default_base_url\033[0m"
+        echo -e "\033[1;33m\nYou can either:\033[0m"
+        echo -e "\033[1;33m  1. Use an installation script generated for '$extractedBaseUrl', OR\033[0m"
+        echo -e "\033[1;33m  2. Configure environments in environments.json with matching base_url, OR\033[0m"
+        echo -e "\033[1;33m  3. Run in fresh install mode (delete existing installation), OR\033[0m"
+        echo -e "\033[1;33m  4. Proceed anyway (use only for GK QA environments)\033[0m"
+        echo ""
+        echo -e "\033[1;33mWARNING: Proceeding with mismatched URLs should only be used in GK QA environments\033[0m"
+        echo -e "\033[1;33m         where base URLs may differ (e.g., qa-gkr.cloud4retail.co vs qa.cloud4retail.co)\033[0m"
+        echo ""
+        read -p "Do you want to proceed anyway? (y/N): " response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+          echo -e "\033[1;33mProceeding with mismatched base URL...\033[0m"
+        else
+          echo -e "\033[1;31mUpdate cancelled.\033[0m"
+          exit 1
+        fi
+      fi
       base_url="$extractedBaseUrl"
       echo "Using base URL from station.properties: $base_url"
     else

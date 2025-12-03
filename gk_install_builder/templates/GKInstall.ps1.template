@@ -889,6 +889,9 @@ $install_dir = Join-Path $base_install_dir $(
     else { "wdm" }
 )
 
+# Save the original script default base_url for validation in update mode
+$script:defaultBaseUrl = $base_url
+
 # Check if this is an update of an existing installation
 $isUpdate = $false
 if (Test-Path $install_dir) {
@@ -1060,6 +1063,28 @@ if (-not $isUpdate) {
 
         # Use values extracted from station.properties with script defaults
         if (![string]::IsNullOrEmpty($script:extractedBaseUrl)) {
+            # Validate that extracted base URL matches script default
+            if ($script:extractedBaseUrl -ne $script:defaultBaseUrl) {
+                Write-Host "Warning: Extracted base URL does not match script default" -ForegroundColor Red
+                Write-Host "  Extracted from station.properties: $script:extractedBaseUrl" -ForegroundColor Red
+                Write-Host "  Script default: $script:defaultBaseUrl" -ForegroundColor Red
+                Write-Host "`nYou can either:" -ForegroundColor Yellow
+                Write-Host "  1. Use an installation script generated for '$script:extractedBaseUrl', OR" -ForegroundColor Yellow
+                Write-Host "  2. Configure environments in environments.json with matching base_url, OR" -ForegroundColor Yellow
+                Write-Host "  3. Run in fresh install mode (delete existing installation), OR" -ForegroundColor Yellow
+                Write-Host "  4. Proceed anyway (use only for GK QA environments)" -ForegroundColor Yellow
+                Write-Host ""
+                Write-Host "WARNING: Proceeding with mismatched URLs should only be used in GK QA environments" -ForegroundColor Yellow
+                Write-Host "         where base URLs may differ (e.g., qa-gkr.cloud4retail.co vs qa.cloud4retail.co)" -ForegroundColor Yellow
+                Write-Host ""
+                $response = Read-Host "Do you want to proceed anyway? (y/N)"
+                if ($response -eq 'y' -or $response -eq 'Y') {
+                    Write-Host "Proceeding with mismatched base URL..." -ForegroundColor Yellow
+                } else {
+                    Write-Host "Update cancelled." -ForegroundColor Red
+                    exit 1
+                }
+            }
             $base_url = $script:extractedBaseUrl
             Write-Host "Using base URL from station.properties: $base_url"
         } else {
@@ -1092,8 +1117,8 @@ if (-not $isUpdate) {
             } else {
                 Write-Host "Error: No matching environment found for base URL: $script:extractedBaseUrl" -ForegroundColor Red
                 Write-Host "Available environments:" -ForegroundColor Yellow
-                foreach ($env in $environments.environments) {
-                    Write-Host "  - $($env.name) ($($env.alias)): $($env.base_url)" -ForegroundColor Yellow
+                foreach ($envItem in $environments.environments) {
+                    Write-Host "  - $($envItem.name) ($($envItem.alias)): $($envItem.base_url)" -ForegroundColor Yellow
                 }
                 Write-Host "`nPlease either:" -ForegroundColor Red
                 Write-Host "  1. Add an environment with base_url='$script:extractedBaseUrl' to environments.json, OR" -ForegroundColor Red
