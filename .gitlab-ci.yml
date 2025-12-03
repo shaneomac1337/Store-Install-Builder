@@ -1,0 +1,97 @@
+stages:
+  - build
+  - release
+
+variables:
+  VERSION:
+    description: "Version number (e.g., 5.25)"
+  BUILD:
+    description: "Build number (e.g., 06)"
+  TAG:
+    description: "Release tag (e.g., v5.25-b06)"
+
+# Windows Build Job
+build-windows:
+  stage: build
+  tags:
+    - windows
+    - shared-windows
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+  variables:
+    PLATFORM: windows-x64
+  before_script:
+    - python --version
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - pyinstaller StoreInstallBuilder.spec
+    - cd dist
+    - 7z a -mx=9 "../gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}.7z" "GK Install Builder"
+  artifacts:
+    name: "gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}"
+    paths:
+      - "gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}.7z"
+    expire_in: 7 days
+
+# Linux Build Job
+build-linux:
+  stage: build
+  image: python:3.14-slim
+  tags:
+    - linux
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+  variables:
+    PLATFORM: linux-x64
+  before_script:
+    - apt-get update
+    - apt-get install -y fonts-noto-color-emoji p7zip-full fontconfig binutils
+    - fc-cache -f -v
+    - python --version
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - pyinstaller StoreInstallBuilder.spec
+    - cd dist
+    - 7z a -mx=9 "../gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}.7z" "GK Install Builder"
+  artifacts:
+    name: "gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}"
+    paths:
+      - "gk-install-builder-v${VERSION}-b${BUILD}-${PLATFORM}.7z"
+    expire_in: 7 days
+
+# Create GitLab Release
+create-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  tags:
+    - linux
+  needs:
+    - job: build-windows
+      artifacts: true
+    - job: build-linux
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+  script:
+    - echo "Creating release ${TAG}"
+    - ls -la *.7z
+  release:
+    tag_name: "${TAG}"
+    name: "Release ${TAG}"
+    description: "GK Install Builder Release ${TAG}"
+    assets:
+      links:
+        - name: "gk-install-builder-v${VERSION}-b${BUILD}-windows-x64.7z"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/gk-install-builder-v${VERSION}-b${BUILD}-windows-x64.7z"
+          link_type: package
+        - name: "gk-install-builder-v${VERSION}-b${BUILD}-linux-x64.7z"
+          url: "${CI_PROJECT_URL}/-/jobs/${CI_JOB_ID}/artifacts/file/gk-install-builder-v${VERSION}-b${BUILD}-linux-x64.7z"
+          link_type: package
