@@ -1529,7 +1529,7 @@ if [ "$use_default_versions" = true ]; then
       echo "[DEBUG] Token URL: $token_url"
       echo "[DEBUG] Making OAuth token request..."
       
-      response=$(curl -s -X POST "$token_url" \
+      response=$(curl -s -k -X POST "$token_url" \
         -H "Authorization: Basic $auth_string" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         -d "$form_data")
@@ -2414,7 +2414,7 @@ if [ "$offline_mode" = false ]; then
   # Try using curl with progress bar first
   if command -v curl >/dev/null 2>&1; then
     echo "Using curl for download with progress bar..."
-    if curl -L --progress-bar -o "Launcher.run" "$download_url"; then
+    if curl -k -L --progress-bar -o "Launcher.run" "$download_url"; then
       if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
         echo "Successfully downloaded Launcher.run using curl"
       else
