@@ -2014,12 +2014,16 @@ fi
 
 # Initialize variables for Store Number and Workstation ID
 storeNumber=""
-workstationId="${workstationId}"
 
-# Priority 0: If CLI provided both values, skip detection
+# Preserve CLI values - these have highest priority (Priority 0)
+cliStoreId="${storeId}"
+cliWorkstationId="${workstationId}"
+
+# Priority 0: If CLI provided both values, skip detection entirely
 hostnameDetected=false
-if [ -n "$storeId" ] && [ -n "$workstationId" ]; then
-  storeNumber="$storeId"
+if [ -n "$cliStoreId" ] && [ -n "$cliWorkstationId" ]; then
+  storeNumber="$cliStoreId"
+  workstationId="$cliWorkstationId"
   echo "Both Store ID and Workstation ID provided via CLI - skipping detection"
   hostnameDetected=true
 fi
@@ -2106,6 +2110,20 @@ if [ "$isUpdate" = false ]; then
       echo "Workstation ID already provided: $workstationId"
     fi
   fi
+fi
+
+# Priority 0: CLI values always override detected values
+if [ -n "$cliStoreId" ]; then
+  if [ "$storeNumber" != "$cliStoreId" ]; then
+    echo "CLI Override: Using Store ID '$cliStoreId' (detected: '$storeNumber')"
+  fi
+  storeNumber="$cliStoreId"
+fi
+if [ -n "$cliWorkstationId" ]; then
+  if [ "$workstationId" != "$cliWorkstationId" ]; then
+    echo "CLI Override: Using Workstation ID '$cliWorkstationId' (detected: '$workstationId')"
+  fi
+  workstationId="$cliWorkstationId"
 fi
 
 # Print final results

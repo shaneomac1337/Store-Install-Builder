@@ -1631,14 +1631,18 @@ if ([string]::IsNullOrEmpty($hs)) {
 $storeNumber = if (![string]::IsNullOrEmpty($storeId)) { $storeId } else { "" }
 $workstationId = if (![string]::IsNullOrEmpty($WorkstationId)) { $WorkstationId } else { "" }
 
+# Preserve CLI values - these have highest priority (Priority 0)
+$cliStoreId = $storeId
+$cliWorkstationId = $WorkstationId
+
 # Priority 0: Check if values provided via CLI parameters
-if (![string]::IsNullOrEmpty($storeId)) {
-    $storeNumber = $storeId
+if (![string]::IsNullOrEmpty($cliStoreId)) {
+    $storeNumber = $cliStoreId
     Write-Host "Using Store ID from CLI parameter: $storeNumber"
 }
 
-if (![string]::IsNullOrEmpty($WorkstationId)) {
-    $workstationId = $WorkstationId
+if (![string]::IsNullOrEmpty($cliWorkstationId)) {
+    $workstationId = $cliWorkstationId
     Write-Host "Using Workstation ID from CLI parameter: $workstationId"
 }
 
@@ -1706,6 +1710,20 @@ if (-not $isUpdate) {
             Write-Host "Workstation ID already provided: $workstationId"
         }
     }
+}
+
+# Priority 0: CLI values always override detected values
+if (![string]::IsNullOrEmpty($cliStoreId)) {
+    if ($storeNumber -ne $cliStoreId) {
+        Write-Host "CLI Override: Using Store ID '$cliStoreId' (detected: '$storeNumber')"
+    }
+    $storeNumber = $cliStoreId
+}
+if (![string]::IsNullOrEmpty($cliWorkstationId)) {
+    if ($workstationId -ne $cliWorkstationId) {
+        Write-Host "CLI Override: Using Workstation ID '$cliWorkstationId' (detected: '$workstationId')"
+    }
+    $workstationId = $cliWorkstationId
 }
 
 # Print final results
