@@ -643,11 +643,11 @@ else
           echo "Using fallback version from config: $version"
         fi
 
-        # Get HTTPS port for RCS (default 8180)
-        rcs_https_port="${rcs_https_port:-8180}"
+        # Get HTTP port for RCS (default 8180)
+        rcs_http_port="${rcs_http_port:-8180}"
 
-        # Build the RCS URL
-        rcs_url="https://${hostname}:${rcs_https_port}/rcs"
+        # Build the RCS URL (uses HTTP, not HTTPS)
+        rcs_url="http://${hostname}:${rcs_http_port}/rcs"
 
         # Create processed copy if it doesn't exist
         if [ ! -f "$processed_update_config_path" ]; then
@@ -674,8 +674,8 @@ else
 
         echo ""
         echo "RCS API CALL DETAILS:"
-        echo "URL: $config_url"
-        echo "RCS URL: $rcs_url"
+        echo "Config API URL: $config_url"
+        echo "RCS Service URL: $rcs_url"
         echo "Structure Unique Name: $structure_unique_name"
         echo "System Name: $current_system_name"
         echo "System Version: $version"
