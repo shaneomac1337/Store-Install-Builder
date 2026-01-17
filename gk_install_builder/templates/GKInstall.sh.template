@@ -2354,6 +2354,9 @@ case "$COMPONENT_TYPE" in
   'POS')
     template_file="$launchers_path/launcher.pos.template"
     ;;
+  'ONEX-POS')
+    template_file="$launchers_path/launcher.onex-pos.template"
+    ;;
   'WDM')
     template_file="$launchers_path/launcher.wdm.template"
     ;;
@@ -2365,6 +2368,9 @@ case "$COMPONENT_TYPE" in
     ;;
   'STOREHUB-SERVICE')
     template_file="$launchers_path/launcher.storehub-service.template"
+    ;;
+  'RCS-SERVICE')
+    template_file="$launchers_path/launcher.rcs-service.template"
     ;;
   *)
     template_file="$launchers_path/launcher.wdm.template"

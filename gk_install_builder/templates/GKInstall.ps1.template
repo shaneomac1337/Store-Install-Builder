@@ -1969,8 +1969,10 @@ if (-Not (Test-Path $launchersPath)) {
 }
 
 # Select the appropriate template file
-$templateFile = if ($ComponentType -eq 'POS') { 
-    Join-Path $launchersPath "launcher.pos.template" 
+$templateFile = if ($ComponentType -eq 'POS') {
+    Join-Path $launchersPath "launcher.pos.template"
+} elseif ($ComponentType -eq 'ONEX-POS') {
+    Join-Path $launchersPath "launcher.onex-pos.template"
 } elseif ($ComponentType -eq 'WDM') {
     Join-Path $launchersPath "launcher.wdm.template"
 } elseif ($ComponentType -eq 'FLOW-SERVICE') {
@@ -1979,8 +1981,10 @@ $templateFile = if ($ComponentType -eq 'POS') {
     Join-Path $launchersPath "launcher.lpa-service.template"
 } elseif ($ComponentType -eq 'STOREHUB-SERVICE') {
     Join-Path $launchersPath "launcher.storehub-service.template"
-} else { 
-    Join-Path $launchersPath "launcher.wdm.template" 
+} elseif ($ComponentType -eq 'RCS-SERVICE') {
+    Join-Path $launchersPath "launcher.rcs-service.template"
+} else {
+    Join-Path $launchersPath "launcher.wdm.template"
 }
 
 if (-not (Test-Path $templateFile)) {
