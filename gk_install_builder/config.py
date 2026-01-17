@@ -126,7 +126,8 @@ class ConfigManager:
             "flow_service_version": "v1.0.0",
             "lpa_service_version": "v1.0.0",
             "storehub_service_version": "v1.0.0",
-            
+            "rcs_version": "v1.0.0",
+
             # Installation Configuration
             "base_install_dir": "C:\\gkretail",  # Will be adjusted based on platform
             "tenant_id": "001",
@@ -136,6 +137,7 @@ class ConfigManager:
             "flow_service_system_type": "GKR-FLOWSERVICE-CLOUD",  # Default to GKR but still configurable
             "lpa_service_system_type": "",  # Will be dynamically set based on URL
             "storehub_service_system_type": "",  # Will be dynamically set based on URL
+            "rcs_system_type": "",  # Will be dynamically set based on URL
             "firebird_server_path": default_firebird_path,
             "firebird_driver_path_local": default_jaybird_path,
             

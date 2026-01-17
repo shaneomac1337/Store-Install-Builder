@@ -50,14 +50,14 @@ while [ $# -gt 0 ]; do
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments]"
       exit 1
       ;;
   esac
 done
 
 # Validate ComponentType
-valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE")
+valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE" "RCS" "RCS-SERVICE")
 valid=false
 for type in "${valid_types[@]}"; do
   if [ "$COMPONENT_TYPE" = "$type" ]; then
@@ -78,6 +78,8 @@ elif [ "$COMPONENT_TYPE" = "LPA" ]; then
   COMPONENT_TYPE="LPA-SERVICE"
 elif [ "$COMPONENT_TYPE" = "SH" ]; then
   COMPONENT_TYPE="STOREHUB-SERVICE"
+elif [ "$COMPONENT_TYPE" = "RCS" ]; then
+  COMPONENT_TYPE="RCS-SERVICE"
 fi
 
 # Clean up any stale access token from previous runs
@@ -444,6 +446,7 @@ select_environment() {
     'FLOW-SERVICE') station_filename="FLOW-SERVICE.station" ;;
     'LPA-SERVICE') station_filename="LPA.station" ;;
     'STOREHUB-SERVICE') station_filename="SH.station" ;;
+    'RCS-SERVICE') station_filename="RCS.station" ;;
   esac
   
   if [ -n "$station_filename" ]; then
@@ -1101,6 +1104,10 @@ case "$COMPONENT_TYPE" in
     systemType="CSE-sh-cloud"
     install_dir="$base_install_dir/storehub-service"
     ;;
+  'RCS-SERVICE')
+    systemType="@RCS_SYSTEM_TYPE@"
+    install_dir="$base_install_dir/rcs"
+    ;;
   *)
     systemType="CSE-OPOS-CLOUD"
     install_dir="$base_install_dir/wdm"
@@ -1635,6 +1642,9 @@ if [ "$use_default_versions" = true ]; then
       "CSE-sh-cloud")
         component_version="@STOREHUB_SERVICE_VERSION@"
         ;;
+      "@RCS_SYSTEM_TYPE@")
+        component_version="@RCS_VERSION@"
+        ;;
       *)
         component_version=""
         ;;
@@ -1661,6 +1671,9 @@ else
       ;;
     "CSE-sh-cloud")
       component_version="@STOREHUB_SERVICE_VERSION@"
+      ;;
+    "@RCS_SYSTEM_TYPE@")
+      component_version="@RCS_VERSION@"
       ;;
     *)
       component_version=""

@@ -91,6 +91,7 @@ $systemNameMap = @{
     'FLOW-SERVICE' = '${flow_service_system_type}'
     'LPA-SERVICE' = '${lpa_service_system_type}'
     'STOREHUB-SERVICE' = '${storehub_service_system_type}'
+    'RCS-SERVICE' = '${rcs_system_type}'
 }
 
 # Get the systemName for the current component (used for creation if workstation doesn't exist)
@@ -537,6 +538,7 @@ try {
                 'LPA-SERVICE' { 'LPAS' }
                 'STOREHUB-SERVICE' { 'SHS' }
                 'FLOW-SERVICE' { 'EDGE' }
+                'RCS-SERVICE' { 'RCS' }
                 'POS' { 'POS' }
                 'WDM' { 'EDGE' }
                 default { 'POS' }

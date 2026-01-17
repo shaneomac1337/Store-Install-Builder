@@ -89,6 +89,7 @@ system_name_map["WDM"]="${wdm_system_type}"
 system_name_map["FLOW-SERVICE"]="${flow_service_system_type}"
 system_name_map["LPA-SERVICE"]="${lpa_service_system_type}"
 system_name_map["STOREHUB-SERVICE"]="${storehub_service_system_type}"
+system_name_map["RCS-SERVICE"]="${rcs_system_type}"
 
 # Get the systemName for the current component (used for creation if workstation doesn't exist)
 current_system_name="${system_name_map[$COMPONENT_TYPE]}"
@@ -674,6 +675,9 @@ if [ "$ws_response" = "HTTP_ERROR" ]; then
         ;;
       'FLOW-SERVICE')
         type_code="EDGE"
+        ;;
+      'RCS-SERVICE')
+        type_code="RCS"
         ;;
       'POS')
         type_code="POS"

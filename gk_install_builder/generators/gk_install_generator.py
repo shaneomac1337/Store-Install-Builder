@@ -93,6 +93,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         flow_service_version = config.get("flow_service_version", default_version)
         lpa_service_version = config.get("lpa_service_version", default_version)
         storehub_service_version = config.get("storehub_service_version", default_version)
+        rcs_version = config.get("rcs_version", default_version)
 
         # Get system types from config
         pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
@@ -101,6 +102,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
         lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
         storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
+        rcs_system_type = config.get("rcs_system_type", "GKR-Resource-Cache-Service")
 
         print(f"Using system types from config:")
         print(f"  POS System Type: {pos_system_type}")
@@ -109,6 +111,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         print(f"  Flow Service System Type: {flow_service_system_type}")
         print(f"  LPA Service System Type: {lpa_service_system_type}")
         print(f"  StoreHub Service System Type: {storehub_service_system_type}")
+        print(f"  RCS System Type: {rcs_system_type}")
 
         # Common replacements for both Windows and Linux
         replacements = []
@@ -200,6 +203,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_VERSION@", flow_service_version),
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
                 ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
+                ("@RCS_VERSION@", rcs_version),
                 ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                 ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
                 ("@VERSION_SOURCE@", version_source),
@@ -210,6 +214,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
+                ("@RCS_SYSTEM_TYPE@", rcs_system_type),
                 ("@TENANT_ID@", tenant_id),
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
@@ -245,6 +250,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_VERSION@", flow_service_version),
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
                 ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
+                ("@RCS_VERSION@", rcs_version),
                 ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                 ("@USE_DEFAULT_VERSIONS@", "true" if config.get("use_default_versions", False) else "false"),
                 ("@VERSION_SOURCE@", version_source),
@@ -255,6 +261,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@FLOW_SERVICE_SYSTEM_TYPE@", flow_service_system_type),
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
+                ("@RCS_SYSTEM_TYPE@", rcs_system_type),
                 ("@TENANT_ID@", tenant_id),
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),

@@ -221,6 +221,9 @@ case "$COMPONENT_TYPE" in
   'STOREHUB-SERVICE')
     json_file="storehub-service.onboarding.json"
     ;;
+  'RCS-SERVICE')
+    json_file="rcs-service.onboarding.json"
+    ;;
   *)
     json_file="pos.onboarding.json"
     ;;

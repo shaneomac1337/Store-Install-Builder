@@ -616,7 +616,14 @@ class ProjectGenerator:
                 files_to_download, dialog_parent, self.parent_window,
                 display_name="StoreHub Service"
             )
-            
+            process_component(
+                "RCS", "RCS-SERVICE", "rcs", "GKR-Resource-Cache-Service",
+                selected_components, output_dir, config, self.get_component_version,
+                self.dsg_api_browser, prompt_for_file_selection,
+                files_to_download, dialog_parent, self.parent_window,
+                display_name="RCS Service"
+            )
+
             # If no files to download, return
             if not files_to_download:
                 return False, "No files were selected for download"

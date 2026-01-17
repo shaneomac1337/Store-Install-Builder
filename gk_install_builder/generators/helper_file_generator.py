@@ -39,6 +39,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
     flow_service_system_type = config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD")
     lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
     storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
+    rcs_system_type = config.get("rcs_system_type", "GKR-Resource-Cache-Service")
     base_url = config.get("base_url", "test.cse.cloud4retail.co")
     tenant_id = config.get("tenant_id", "001")
 
@@ -92,6 +93,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
         template_content = template_content.replace("${flow_service_system_type}", flow_service_system_type)
         template_content = template_content.replace("${lpa_service_system_type}", lpa_service_system_type)
         template_content = template_content.replace("${storehub_service_system_type}", storehub_service_system_type)
+        template_content = template_content.replace("${rcs_system_type}", rcs_system_type)
         template_content = template_content.replace("${base_url}", base_url)
         template_content = template_content.replace("${tenant_id}", tenant_id)
 

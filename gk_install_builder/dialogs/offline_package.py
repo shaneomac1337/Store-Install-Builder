@@ -219,7 +219,8 @@ class OfflinePackageCreator:
                 self.include_wdm.get() or
                 self.include_flow_service.get() or
                 self.include_lpa_service.get() or
-                self.include_storehub_service.get()
+                self.include_storehub_service.get() or
+                self.include_rcs_service.get()
             )
 
             # Handle POS and OneX POS separately - they only affect Java
@@ -352,7 +353,25 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         storehub_service_checkbox.pack(side="left", pady=5, padx=10)
-        
+
+        # RCS Service component frame
+        rcs_service_component_frame = ctk.CTkFrame(self.components_frame)
+        rcs_service_component_frame.pack(fill="x", pady=5, padx=10)
+
+        # RCS Service checkbox
+        self.include_rcs_service = ctk.BooleanVar(value=False)
+        # Add trace to RCS Service variable
+        self.include_rcs_service.trace_add("write", lambda *args: update_dependencies())
+
+        rcs_service_checkbox = ctk.CTkCheckBox(
+            rcs_service_component_frame,
+            text="RCS Service",
+            variable=self.include_rcs_service,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        rcs_service_checkbox.pack(side="left", pady=5, padx=10)
+
         # Call update_dependencies to set initial state based on default selections
         # Removed: update_dependencies()
         
@@ -1605,6 +1624,7 @@ class OfflinePackageCreator:
                    self.include_flow_service.get() or
                    self.include_lpa_service.get() or
                    self.include_storehub_service.get() or
+                   self.include_rcs_service.get() or
                    self.include_java.get() or
                    self.include_tomcat.get() or
                    self.include_jaybird.get()):
@@ -1636,7 +1656,10 @@ class OfflinePackageCreator:
                 
             if self.include_storehub_service.get():
                 selected_components.append("STOREHUB-SERVICE")
-            
+
+            if self.include_rcs_service.get():
+                selected_components.append("RCS-SERVICE")
+
             # Update config with platform dependencies
             self.config_manager.config["platform_dependencies"] = platform_dependencies
             

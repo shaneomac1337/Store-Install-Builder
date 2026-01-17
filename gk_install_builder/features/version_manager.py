@@ -24,6 +24,7 @@ class VersionManager:
         self.flow_service_version_entry = None
         self.lpa_service_version_entry = None
         self.storehub_service_version_entry = None
+        self.rcs_version_entry = None
 
         # Checkbox variables
         self.version_override_var = None
@@ -175,6 +176,17 @@ class VersionManager:
         self.create_tooltip(storehub_service_label, "Version for StoreHub Service components")
         self.create_tooltip(self.storehub_service_version_entry, "Example: v1.0.0")
 
+        # RCS Service Version
+        rcs_label = ctk.CTkLabel(grid_frame, text="RCS Service Version:")
+        rcs_label.grid(row=9, column=0, padx=10, pady=5, sticky="w")
+        self.rcs_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.rcs_version_entry.grid(row=9, column=1, padx=10, pady=5, sticky="w")
+        self.rcs_version_entry.insert(0, self.config_manager.config.get("rcs_version", project_version))
+        self.version_fields.extend([rcs_label, self.rcs_version_entry])
+        self.config_manager.register_entry("rcs_version", self.rcs_version_entry)
+        self.create_tooltip(rcs_label, "Version for RCS Service components")
+        self.create_tooltip(self.rcs_version_entry, "Example: v1.0.0")
+
         # Register the checkboxes with config manager
         self.config_manager.register_entry("use_version_override", self.version_override_var)
         self.config_manager.register_entry("use_default_versions", self.use_default_versions_var)
@@ -203,7 +215,8 @@ class VersionManager:
             (self.wdm_version_entry, "wdm_version"),
             (self.flow_service_version_entry, "flow_service_version"),
             (self.lpa_service_version_entry, "lpa_service_version"),
-            (self.storehub_service_version_entry, "storehub_service_version")
+            (self.storehub_service_version_entry, "storehub_service_version"),
+            (self.rcs_version_entry, "rcs_version")
         ]
 
         for entry, config_key in version_entries:
@@ -293,7 +306,8 @@ class VersionManager:
                     (self.wdm_version_entry, "wdm_version"),
                     (self.flow_service_version_entry, "flow_service_version"),
                     (self.lpa_service_version_entry, "lpa_service_version"),
-                    (self.storehub_service_version_entry, "storehub_service_version")
+                    (self.storehub_service_version_entry, "storehub_service_version"),
+                    (self.rcs_version_entry, "rcs_version")
                 ]
 
                 # Update each component version field

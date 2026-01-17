@@ -17,7 +17,8 @@ HELPER_STRUCTURE = {
         "launcher.wdm.template",
         "launcher.flow-service.template",
         "launcher.lpa-service.template",
-        "launcher.storehub-service.template"
+        "launcher.storehub-service.template",
+        "launcher.rcs-service.template"
     ],
     "onboarding": [
         "pos.onboarding.json",
@@ -25,7 +26,8 @@ HELPER_STRUCTURE = {
         "wdm.onboarding.json",
         "flow-service.onboarding.json",
         "lpa-service.onboarding.json",
-        "storehub-service.onboarding.json"
+        "storehub-service.onboarding.json",
+        "rcs-service.onboarding.json"
     ],
     "tokens": [
         "basic_auth_password.txt",
@@ -163,6 +165,26 @@ tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
 
+LAUNCHER_TEMPLATE_RCS_SERVICE = """# Launcher defaults for RCS Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+
 # Map launcher filenames to their templates
 LAUNCHER_TEMPLATES = {
     "launcher.pos.template": LAUNCHER_TEMPLATE_POS,
@@ -170,5 +192,6 @@ LAUNCHER_TEMPLATES = {
     "launcher.wdm.template": LAUNCHER_TEMPLATE_WDM,
     "launcher.flow-service.template": LAUNCHER_TEMPLATE_FLOW_SERVICE,
     "launcher.lpa-service.template": LAUNCHER_TEMPLATE_LPA_SERVICE,
-    "launcher.storehub-service.template": LAUNCHER_TEMPLATE_STOREHUB_SERVICE
+    "launcher.storehub-service.template": LAUNCHER_TEMPLATE_STOREHUB_SERVICE,
+    "launcher.rcs-service.template": LAUNCHER_TEMPLATE_RCS_SERVICE
 }

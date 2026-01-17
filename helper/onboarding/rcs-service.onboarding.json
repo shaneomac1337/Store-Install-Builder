@@ -1,0 +1,8 @@
+{
+    "restrictions": {
+        "clientType": "rcs",
+        "tenantId": "001",
+        "lifespan": 86400,
+        "maxUsageCount": 10000
+    }
+}

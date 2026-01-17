@@ -76,6 +76,7 @@ class AutoFillManager:
             flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
             lpa_service_system_type = f"{project_code}-lps-lpa"
             storehub_service_system_type = f"{project_code}-sh-cloud"
+            rcs_system_type = f"{project_code}-Resource-Cache-Service"
 
             print(f"Setting system types based on detected project code: {project_code}")
         else:
@@ -86,6 +87,7 @@ class AutoFillManager:
             flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
             lpa_service_system_type = "CSE-lps-lpa"
             storehub_service_system_type = "CSE-sh-cloud"
+            rcs_system_type = "GKR-Resource-Cache-Service"
 
         # Update project name entry if it's empty and we extracted a valid name
         if extracted_project_name and self.config_manager.get_entry("project_name") and not self.config_manager.get_entry("project_name").get():
@@ -143,6 +145,10 @@ class AutoFillManager:
         if self.config_manager.get_entry("storehub_service_system_type"):
             self.config_manager.update_entry_value("storehub_service_system_type", storehub_service_system_type)
             print(f"Auto-filled StoreHub Service system type: {storehub_service_system_type}")
+
+        if self.config_manager.get_entry("rcs_system_type"):
+            self.config_manager.update_entry_value("rcs_system_type", rcs_system_type)
+            print(f"Auto-filled RCS system type: {rcs_system_type}")
 
         # Set the base install directory only if other values were updated
         base_dir_entry = self.config_manager.get_entry("base_install_dir")

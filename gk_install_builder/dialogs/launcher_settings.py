@@ -87,7 +87,7 @@ class LauncherSettingsEditor:
         tab_view = ctk.CTkTabview(main_frame)
         tab_view.pack(fill="both", expand=True, padx=10, pady=10)
 
-        component_types = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE"]
+        component_types = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
 
         # Initialize settings dictionary
         self.settings = {}
@@ -232,6 +232,16 @@ class LauncherSettingsEditor:
             "firebirdServerPort": "3050",
             "firebirdServerUser": "SYSDBA",
             "firebirdServerPassword": "masterkey",
+            "keepFiles": "0"
+        }
+
+        # RCS Service settings
+        self.settings["RCS-SERVICE"] = {
+            "applicationServerHttpPort": "8180",
+            "applicationServerHttpsPort": "8543",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "updaterJmxPort": "4333",
             "keepFiles": "0"
         }
 

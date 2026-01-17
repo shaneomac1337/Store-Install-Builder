@@ -154,6 +154,8 @@ try {
         "lpa-service.onboarding.json"
     } elseif ($ComponentType -eq "STOREHUB-SERVICE") {
         "storehub-service.onboarding.json"
+    } elseif ($ComponentType -eq "RCS-SERVICE") {
+        "rcs-service.onboarding.json"
     } else {
         "pos.onboarding.json"
     }

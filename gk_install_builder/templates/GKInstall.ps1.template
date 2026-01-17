@@ -1,6 +1,6 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE')]
+    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE', 'RCS', 'RCS-SERVICE')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Optional: Override Store ID detection
@@ -65,6 +65,8 @@ if ($ComponentType -eq 'ONEX') {
     $ComponentType = 'LPA-SERVICE'
 } elseif ($ComponentType -eq 'SH') {
     $ComponentType = 'STOREHUB-SERVICE'
+} elseif ($ComponentType -eq 'RCS') {
+    $ComponentType = 'RCS-SERVICE'
 }
 
 # Clean up any stale access token from previous runs
@@ -207,6 +209,7 @@ function Select-Environment {
         'FLOW-SERVICE' { "FLOW-SERVICE.station" }
         'LPA-SERVICE' { "LPA.station" }
         'STOREHUB-SERVICE' { "SH.station" }
+        'RCS-SERVICE' { "RCS.station" }
         default { $null }
     }
     
@@ -635,7 +638,7 @@ function Get-DefaultVersions {
         }
 
         # Step 2: For components not found in FP, try FPD scope (default versions)
-        $allComponents = @("POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE")
+        $allComponents = @("POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE")
         $missingComponents = $allComponents | Where-Object { -not $versions.ContainsKey($_) }
 
         if ($missingComponents.Count -gt 0) {
@@ -875,6 +878,7 @@ $systemType = switch ($ComponentType) {
     'FLOW-SERVICE' { "CSE-FLOWSERVICE-CLOUD" }
     'LPA-SERVICE' { "CSE-lps-lpa" }
     'STOREHUB-SERVICE' { "CSE-sh-cloud" }
+    'RCS-SERVICE' { "@RCS_SYSTEM_TYPE@" }
     default { "CSE-OPOS-CLOUD" }
 }
 
@@ -886,6 +890,7 @@ $install_dir = Join-Path $base_install_dir $(
     elseif ($ComponentType -eq 'FLOW-SERVICE') { "flow-service" }
     elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
     elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "storehub-service" }
+    elseif ($ComponentType -eq 'RCS-SERVICE') { "rcs" }
     else { "wdm" }
 )
 
@@ -1255,6 +1260,7 @@ if ($UseDefaultVersions) {
             "FLOW-SERVICE" = "@FLOW_SERVICE_SYSTEM_TYPE@"
             "LPA-SERVICE" = "@LPA_SERVICE_SYSTEM_TYPE@"
             "STOREHUB-SERVICE" = "@STOREHUB_SERVICE_SYSTEM_TYPE@"
+            "RCS-SERVICE" = "@RCS_SYSTEM_TYPE@"
         }
         
         $defaultVersions = Get-DefaultVersions-ConfigService -BaseUrl $base_url -TenantId $tenantId -SystemTypes $systemTypes
@@ -1277,6 +1283,7 @@ if ($UseDefaultVersions) {
             "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
             "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
             "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
+            "@RCS_SYSTEM_TYPE@" { "@RCS_VERSION@" }
             default { "" }
         }
     }
@@ -1290,6 +1297,7 @@ if ($UseDefaultVersions) {
         "CSE-FLOWSERVICE-CLOUD" { "@FLOW_SERVICE_VERSION@" }
         "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
         "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
+        "@RCS_SYSTEM_TYPE@" { "@RCS_VERSION@" }
         default { "" }
     }
 }

@@ -106,6 +106,7 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
     flow_service_settings = config.get("flow_service_launcher_settings", {})
     lpa_service_settings = config.get("lpa_service_launcher_settings", {})
     storehub_service_settings = config.get("storehub_service_launcher_settings", {})
+    rcs_service_settings = config.get("rcs_service_launcher_settings", {})
 
     # Print debug info
     print("Using launcher settings from config:")
@@ -115,6 +116,7 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
     print(f"FLOW-SERVICE settings: {flow_service_settings}")
     print(f"LPA-SERVICE settings: {lpa_service_settings}")
     print(f"STOREHUB-SERVICE settings: {storehub_service_settings}")
+    print(f"RCS-SERVICE settings: {rcs_service_settings}")
 
     # Define template files
     template_files = {
@@ -123,7 +125,8 @@ def generate_launcher_templates(launchers_dir, config, launcher_templates):
         "launcher.wdm.template": wdm_settings,
         "launcher.flow-service.template": flow_service_settings,
         "launcher.lpa-service.template": lpa_service_settings,
-        "launcher.storehub-service.template": storehub_service_settings
+        "launcher.storehub-service.template": storehub_service_settings,
+        "launcher.rcs-service.template": rcs_service_settings
     }
 
     # We'll use templates directly from code instead of trying to find them on disk
@@ -285,6 +288,26 @@ firebird_driver_path_local=@FIREBIRD_DRIVER_PATH_LOCAL@
 firebirdServerPort=3050
 firebirdServerUser=SYSDBA
 firebirdServerPassword=masterkey
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+    elif filename == "launcher.rcs-service.template":
+        template_content = """# Launcher defaults for RCS Service
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
 identifierExpert=@OFFLINE_MODE@
 useLocalFiles=@OFFLINE_MODE@
 keepFiles=0
