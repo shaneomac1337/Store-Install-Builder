@@ -491,6 +491,95 @@ try {
             } else {
                 Write-Host "Skipping configuration update - not a StoreHub component"
             }
+
+            # Only proceed with configuration update for RCS components
+            if ($ComponentType -eq 'RCS-SERVICE') {
+                # Update the configuration using update_config.json from the rcs directory
+                $rcsDir = Join-Path $initPath "rcs"
+                $updateConfigPath = Join-Path $rcsDir "update_config.json"
+                $processedUpdateConfigPath = Join-Path $rcsDir "update_config_processed.json"
+
+                # Check if GKInstall already created a processed version with dynamic version
+                if (Test-Path $processedUpdateConfigPath) {
+                    Write-Host "Using processed RCS configuration with dynamic version from GKInstall..."
+                    Write-Host "Processed config found at: $processedUpdateConfigPath"
+                    $updateConfigJson = Get-Content -Path $processedUpdateConfigPath -Raw
+                } elseif (Test-Path $updateConfigPath) {
+                    Write-Host "Updating RCS configuration using update_config.json..."
+                    $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
+                } else {
+                    Write-Host "Warning: RCS update_config.json not found at: $updateConfigPath"
+                }
+
+                if ($updateConfigJson) {
+                    # Get hostname
+                    $hostname = $env:COMPUTERNAME
+                    if ([string]::IsNullOrEmpty($hostname)) {
+                        $hostname = "localhost"
+                    }
+
+                    # Get version from parameter or fallback to config
+                    if (-Not [string]::IsNullOrEmpty($Version)) {
+                        $version = $Version
+                        Write-Host "Using dynamic version from parameter: $version"
+                    } else {
+                        $version = "@RCS_VERSION@"
+                        Write-Host "Using fallback version from config: $version"
+                    }
+
+                    # Get HTTPS port for RCS (default 8180)
+                    $rcsHttpsPort = if ($env:rcs_https_port) { $env:rcs_https_port } else { "8180" }
+
+                    # Build the RCS URL
+                    $rcsUrl = "https://${hostname}:${rcsHttpsPort}/rcs"
+
+                    # Create or update the processed copy for making replacements
+                    if (-Not (Test-Path $processedUpdateConfigPath)) {
+                        $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                        Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
+                    }
+
+                    # Replace placeholders in the processed copy
+                    $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw
+                    $processedContent = $processedContent -replace '@STRUCTURE_UNIQUE_NAME@', $structureUniqueName
+                    $processedContent = $processedContent -replace '@SYSTEM_NAME@', $currentSystemName
+                    $processedContent = $processedContent -replace '@SYSTEM_VERSION@', $version
+                    $processedContent = $processedContent -replace '@RCS_URL@', $rcsUrl
+                    $processedContent = $processedContent -replace '@EH_LAUNCHPAD_USERNAME@', '${eh_launchpad_username}'
+
+                    # Write the updated content to the processed file
+                    $processedContent | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                    Write-Host "Updated processed file with all required values"
+
+                    # Make the API call to update the configuration
+                    $configUrl = "https://$base_url/api/config/services/rest/config-management/v1/parameter-contents/plain"
+
+                    try {
+                        Write-Host "`nRCS API CALL DETAILS:" -ForegroundColor Cyan
+                        Write-Host "URL: $configUrl" -ForegroundColor Cyan
+                        Write-Host "RCS URL: $rcsUrl" -ForegroundColor Cyan
+                        Write-Host "Structure Unique Name: $structureUniqueName" -ForegroundColor Cyan
+                        Write-Host "System Name: $currentSystemName" -ForegroundColor Cyan
+                        Write-Host "System Version: $version" -ForegroundColor Cyan
+                        Write-Host "`nActual Request Content:" -ForegroundColor Green
+                        Write-Host $processedContent -ForegroundColor Green
+                        Write-Host "`n"
+
+                        # Make the API call
+                        $configResponse = Invoke-RestMethod -Uri $configUrl -Method Post -Headers $headers -Body $processedContent -ContentType "application/json; variant=Plain; charset=UTF-8"
+                        Write-Host "Successfully updated RCS configuration" -ForegroundColor Green
+                    } catch {
+                        Write-Host "Error updating RCS configuration: $_" -ForegroundColor Red
+                        if ($_.Exception.Response) {
+                            $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+                            $reader.BaseStream.Position = 0
+                            $reader.DiscardBufferedData()
+                            $responseBody = $reader.ReadToEnd()
+                            Write-Host "Response body: $responseBody" -ForegroundColor Red
+                        }
+                    }
+                }
+            }
         } catch {
             Write-Host "Error retrieving store information: $_"
             if ($_.Exception.Response) {

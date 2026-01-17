@@ -606,6 +606,98 @@ else
     else
       echo "Skipping configuration update - not a StoreHub component"
     fi
+
+    # Only proceed with configuration update for RCS components
+    if [ "$COMPONENT_TYPE" = "RCS-SERVICE" ]; then
+      # Update the configuration using update_config.json from the rcs directory
+      rcs_dir="$init_path/rcs"
+      update_config_path="$rcs_dir/update_config.json"
+      processed_update_config_path="$rcs_dir/update_config_processed.json"
+
+      # Create rcs directory if it doesn't exist
+      mkdir -p "$rcs_dir"
+
+      # Check if GKInstall already created a processed version with dynamic version
+      if [ -f "$processed_update_config_path" ]; then
+        echo "Using processed RCS configuration with dynamic version from GKInstall..."
+        echo "Processed config found at: $processed_update_config_path"
+        update_config_json=$(cat "$processed_update_config_path")
+      elif [ -f "$update_config_path" ]; then
+        echo "Updating RCS configuration using update_config.json..."
+        update_config_json=$(cat "$update_config_path")
+      else
+        echo "Warning: RCS update_config.json not found at: $update_config_path"
+        update_config_json=""
+      fi
+
+      if [ -n "$update_config_json" ]; then
+        # Get hostname
+        hostname=$(hostname 2>/dev/null || echo "localhost")
+
+        # Get version from parameter or fallback to config
+        if [ -n "$VERSION" ]; then
+          version="$VERSION"
+          echo "Using dynamic version from parameter: $version"
+        else
+          version="@RCS_VERSION@"
+          echo "Using fallback version from config: $version"
+        fi
+
+        # Get HTTPS port for RCS (default 8180)
+        rcs_https_port="${rcs_https_port:-8180}"
+
+        # Build the RCS URL
+        rcs_url="https://${hostname}:${rcs_https_port}/rcs"
+
+        # Create processed copy if it doesn't exist
+        if [ ! -f "$processed_update_config_path" ]; then
+          echo "$update_config_json" > "$processed_update_config_path"
+          echo "Created processed copy of update_config.json at: $processed_update_config_path"
+        fi
+
+        # Read and process the config
+        processed_content=$(cat "$processed_update_config_path")
+
+        # Replace placeholders using sed
+        processed_content=$(echo "$processed_content" | sed "s|@STRUCTURE_UNIQUE_NAME@|$structure_unique_name|g")
+        processed_content=$(echo "$processed_content" | sed "s|@SYSTEM_NAME@|$current_system_name|g")
+        processed_content=$(echo "$processed_content" | sed "s|@SYSTEM_VERSION@|$version|g")
+        processed_content=$(echo "$processed_content" | sed "s|@RCS_URL@|$rcs_url|g")
+        processed_content=$(echo "$processed_content" | sed "s|@EH_LAUNCHPAD_USERNAME@|${eh_launchpad_username}|g")
+
+        # Write the updated content to the processed file
+        echo "$processed_content" > "$processed_update_config_path"
+        echo "Updated processed file with all required values"
+
+        # Make the API call to update the configuration
+        config_url="https://$base_url/api/config/services/rest/config-management/v1/parameter-contents/plain"
+
+        echo ""
+        echo "RCS API CALL DETAILS:"
+        echo "URL: $config_url"
+        echo "RCS URL: $rcs_url"
+        echo "Structure Unique Name: $structure_unique_name"
+        echo "System Name: $current_system_name"
+        echo "System Version: $version"
+        echo ""
+        echo "Actual Request Content:"
+        echo "$processed_content"
+        echo ""
+
+        # Make the API call
+        config_response=$(curl -s -X POST "$config_url" \
+          "${headers[@]}" \
+          -H "Content-Type: application/json; variant=Plain; charset=UTF-8" \
+          -d "$processed_content")
+
+        if [ $? -eq 0 ]; then
+          echo "Successfully updated RCS configuration"
+        else
+          echo "Error updating RCS configuration"
+          echo "Response: $config_response"
+        fi
+      fi
+    fi
   else
     echo "Error retrieving store information"
     echo "Response: $store_response"

@@ -343,6 +343,49 @@ def create_init_json_files(helper_dir, config):
         f.write(update_config_json_content)
     print(f"  Created StoreHub config file: {file_path}")
 
+    # Create RCS directory and config
+    rcs_dir = os.path.join(init_dir, "rcs")
+    os.makedirs(rcs_dir, exist_ok=True)
+
+    # Get RCS system name from config
+    rcs_system_name = config.get("rcs_system_type", "GKR-Resource-Cache-Service")
+
+    # Get RCS version from config
+    rcs_version = "v1.0.0"  # Default version
+    if config.get("use_version_override", False):
+        rcs_version = config.get("rcs_version", "v1.0.0")
+    else:
+        rcs_version = config.get("rcs_version", "v1.0.0")
+
+    # Create update_config.json template for RCS
+    rcs_update_config_json_content = '''{
+  "levelDescriptor": {
+    "structureUniqueName": "@STRUCTURE_UNIQUE_NAME@"
+  },
+  "systemDescriptor": {
+    "systemName": "''' + rcs_system_name + '''",
+    "systemVersionList": [
+      {
+        "name": "@SYSTEM_VERSION@"
+      }
+    ]
+  },
+  "user": "''' + (username if username else "@EH_LAUNCHPAD_USERNAME@") + '''",
+  "parameterValueChangeList": [
+    {
+      "name": "system.properties",
+      "url": "rcs.url",
+      "value": "@RCS_URL@"
+    }
+  ]
+}'''
+
+    # Write update_config.json file for RCS
+    rcs_file_path = os.path.join(rcs_dir, "update_config.json")
+    with open(rcs_file_path, 'w', encoding='utf-8') as f:
+        f.write(rcs_update_config_json_content)
+    print(f"  Created RCS config file: {rcs_file_path}")
+
 
 def modify_json_files(helper_dir, config, replace_urls_in_json_func):
     """
@@ -427,6 +470,23 @@ def modify_json_files(helper_dir, config, replace_urls_in_json_func):
                     print(f"  Modified storehub file: update_config.json")
                 except Exception as e:
                     print(f"  Warning: Failed to modify update_config.json: {str(e)}")
+
+            # Update rcs/update_config.json
+            rcs_config_path = os.path.join(init_dir, "rcs", "update_config.json")
+            if os.path.exists(rcs_config_path):
+                try:
+                    with open(rcs_config_path, 'r') as f:
+                        data = json.loads(f.read())
+
+                    # Update user field
+                    if "user" in data:
+                        data["user"] = username
+
+                    with open(rcs_config_path, 'w') as f:
+                        json.dump(data, f, indent=2)
+                    print(f"  Modified rcs file: update_config.json")
+                except Exception as e:
+                    print(f"  Warning: Failed to modify rcs update_config.json: {str(e)}")
 
         # 3. Modify JSON files in structure directory
         structure_dir = os.path.join(helper_dir, "structure")
