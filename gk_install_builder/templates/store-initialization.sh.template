@@ -643,11 +643,8 @@ else
           echo "Using fallback version from config: $version"
         fi
 
-        # Get HTTP port for RCS (default 8180)
-        rcs_http_port="${rcs_http_port:-8180}"
-
-        # Build the RCS URL (uses HTTP, not HTTPS)
-        rcs_url="http://${hostname}:${rcs_http_port}/rcs"
+        # Build the RCS URL (uses HTTP, port from launcher settings)
+        rcs_url="http://${hostname}:@RCS_HTTP_PORT@/rcs"
 
         # Create processed copy if it doesn't exist
         if [ ! -f "$processed_update_config_path" ]; then

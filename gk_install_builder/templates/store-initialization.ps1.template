@@ -527,11 +527,8 @@ try {
                         Write-Host "Using fallback version from config: $version"
                     }
 
-                    # Get HTTP port for RCS (default 8180)
-                    $rcsHttpPort = if ($env:rcs_http_port) { $env:rcs_http_port } else { "8180" }
-
-                    # Build the RCS URL (uses HTTP, not HTTPS)
-                    $rcsUrl = "http://${hostname}:${rcsHttpPort}/rcs"
+                    # Build the RCS URL (uses HTTP, port from launcher settings)
+                    $rcsUrl = "http://${hostname}:@RCS_HTTP_PORT@/rcs"
 
                     # Create or update the processed copy for making replacements
                     if (-Not (Test-Path $processedUpdateConfigPath)) {

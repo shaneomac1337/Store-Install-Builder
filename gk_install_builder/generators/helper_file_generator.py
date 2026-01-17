@@ -101,6 +101,11 @@ def generate_store_init_script(output_dir, config, templates_dir):
         user_id = config.get("eh_launchpad_username", "1001")
         template_content = template_content.replace("${user_id}", user_id)
 
+        # Add RCS HTTP port from launcher settings (default 8180)
+        rcs_launcher_settings = config.get("rcs_service_launcher_settings", {})
+        rcs_http_port = rcs_launcher_settings.get("applicationServerHttpPort", "8180")
+        template_content = template_content.replace("@RCS_HTTP_PORT@", rcs_http_port)
+
         # Add version replacement
         template_content = template_content.replace("@VERSION@", version)
 
