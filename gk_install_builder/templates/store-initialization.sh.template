@@ -319,6 +319,9 @@ else
             POS)
               station_name="POS Client $WORKSTATION_ID"
               ;;
+            ONEX-POS)
+              station_name="One X Client $WORKSTATION_ID"
+              ;;
             WDM)
               station_name="Wall Device Manager"
               ;;
@@ -330,6 +333,9 @@ else
               ;;
             STOREHUB-SERVICE)
               station_name="StoreHub"
+              ;;
+            RCS-SERVICE)
+              station_name="Resource Cache Service"
               ;;
             *)
               station_name="POS Client $WORKSTATION_ID"
