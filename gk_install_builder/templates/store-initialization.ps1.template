@@ -366,16 +366,9 @@ try {
                 $updateConfigPath = Join-Path $storehubDir "update_config.json"
                 $processedUpdateConfigPath = Join-Path $storehubDir "update_config_processed.json"
 
-                # Check if GKInstall already created a processed version with dynamic version
-                if (Test-Path $processedUpdateConfigPath) {
-                    Write-Host "Using processed StoreHub configuration with dynamic version from GKInstall..."
-                    Write-Host "Processed config found at: $processedUpdateConfigPath"
-                    # Read the already processed config
-                    $updateConfigJson = Get-Content -Path $processedUpdateConfigPath -Raw
-                } elseif (Test-Path $updateConfigPath) {
+                # Always read from original template (ensures fresh placeholders)
+                if (Test-Path $updateConfigPath) {
                     Write-Host "Updating StoreHub configuration using update_config.json..."
-
-                    # Read the update_config.json template
                     $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
                 } else {
                     Write-Host "Warning: StoreHub update_config.json not found at: $updateConfigPath"
@@ -397,13 +390,9 @@ try {
                         Write-Host "Using fallback version from config: $version"
                     }
                     
-                    # Create or update the processed copy for making replacements
-                    if (-Not (Test-Path $processedUpdateConfigPath)) {
-                        $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
-                        Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
-                    } else {
-                        Write-Host "Using existing processed copy at: $processedUpdateConfigPath"
-                    }
+                    # Always recreate processed copy from original template (ensures fresh placeholders)
+                    $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                    Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
 
                     # Replace placeholders in the processed copy
                     $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw
@@ -499,12 +488,8 @@ try {
                 $updateConfigPath = Join-Path $rcsDir "update_config.json"
                 $processedUpdateConfigPath = Join-Path $rcsDir "update_config_processed.json"
 
-                # Check if GKInstall already created a processed version with dynamic version
-                if (Test-Path $processedUpdateConfigPath) {
-                    Write-Host "Using processed RCS configuration with dynamic version from GKInstall..."
-                    Write-Host "Processed config found at: $processedUpdateConfigPath"
-                    $updateConfigJson = Get-Content -Path $processedUpdateConfigPath -Raw
-                } elseif (Test-Path $updateConfigPath) {
+                # Always read from original template (ensures fresh placeholders)
+                if (Test-Path $updateConfigPath) {
                     Write-Host "Updating RCS configuration using update_config.json..."
                     $updateConfigJson = Get-Content -Path $updateConfigPath -Raw
                 } else {
@@ -530,11 +515,9 @@ try {
                     # Build the RCS URL (uses HTTP, port from launcher settings)
                     $rcsUrl = "http://${hostname}:@RCS_HTTP_PORT@/rcs"
 
-                    # Create or update the processed copy for making replacements
-                    if (-Not (Test-Path $processedUpdateConfigPath)) {
-                        $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
-                        Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
-                    }
+                    # Always recreate processed copy from original template (ensures fresh placeholders)
+                    $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
+                    Write-Host "Created processed copy of update_config.json at: $processedUpdateConfigPath"
 
                     # Replace placeholders in the processed copy
                     $processedContent = Get-Content -Path $processedUpdateConfigPath -Raw

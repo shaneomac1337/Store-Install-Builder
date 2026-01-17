@@ -478,14 +478,9 @@ else
       # Create storehub directory if it doesn't exist
       mkdir -p "$storehub_dir"
 
-      # Check if GKInstall already created a processed version with dynamic version
-      if [ -f "$processed_update_config_path" ]; then
-        echo "Using processed StoreHub configuration with dynamic version from GKInstall..."
-        echo "Processed config found at: $processed_update_config_path"
-      elif [ -f "$update_config_path" ]; then
+      # Always recreate processed copy from original template (ensures fresh placeholders)
+      if [ -f "$update_config_path" ]; then
         echo "Updating StoreHub configuration using update_config.json..."
-
-        # Create a processed copy of update_config.json
         cp "$update_config_path" "$processed_update_config_path"
         echo "Created processed copy of update_config.json at: $processed_update_config_path"
       else
@@ -617,12 +612,8 @@ else
       # Create rcs directory if it doesn't exist
       mkdir -p "$rcs_dir"
 
-      # Check if GKInstall already created a processed version with dynamic version
-      if [ -f "$processed_update_config_path" ]; then
-        echo "Using processed RCS configuration with dynamic version from GKInstall..."
-        echo "Processed config found at: $processed_update_config_path"
-        update_config_json=$(cat "$processed_update_config_path")
-      elif [ -f "$update_config_path" ]; then
+      # Always read from original template (ensures fresh placeholders)
+      if [ -f "$update_config_path" ]; then
         echo "Updating RCS configuration using update_config.json..."
         update_config_json=$(cat "$update_config_path")
       else
@@ -646,11 +637,9 @@ else
         # Build the RCS URL (uses HTTP, port from launcher settings)
         rcs_url="http://${hostname}:@RCS_HTTP_PORT@/rcs"
 
-        # Create processed copy if it doesn't exist
-        if [ ! -f "$processed_update_config_path" ]; then
-          echo "$update_config_json" > "$processed_update_config_path"
-          echo "Created processed copy of update_config.json at: $processed_update_config_path"
-        fi
+        # Always recreate processed copy from original template (ensures fresh placeholders)
+        echo "$update_config_json" > "$processed_update_config_path"
+        echo "Created processed copy of update_config.json at: $processed_update_config_path"
 
         # Read and process the config
         processed_content=$(cat "$processed_update_config_path")
