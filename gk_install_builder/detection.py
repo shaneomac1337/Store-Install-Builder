@@ -344,7 +344,7 @@ if (-not $hostnameDetected -and $fileDetectionEnabled) {{
             }}
             
             # Validate extracted values
-            if ($storeNumber -and $workstationId -match '^\d+$') {{
+            if ($storeNumber -and $workstationId -match '^\\d+$') {{
                 # Set hostnameDetected to true using script scope
                 $script:hostnameDetected = $true
                 Write-Host "Successfully detected values from file:"
