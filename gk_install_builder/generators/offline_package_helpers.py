@@ -791,3 +791,64 @@ def process_component(component_name, component_key, config_key, default_system_
     except Exception as e:
         print(f"Error accessing {display_name} version directory: {e}")
         raise
+
+
+def process_onex_ui_package(selected_components, output_dir, config, get_component_version_callback,
+                            dsg_api_browser, files_to_download):
+    """
+    Process the OneX UI package download (platform-specific zip).
+
+    Downloads the onex-ui-{version}-{platform}.zip file from the same DSG path
+    as the OneX POS installer, placing it in the same offline_package_ONEX-POS directory.
+
+    Args:
+        selected_components: List of selected components
+        output_dir: Output directory path
+        config: Configuration dictionary
+        get_component_version_callback: Callback to get component version
+        dsg_api_browser: DSG API browser instance
+        files_to_download: List to append download tasks to
+    """
+    if "ONEX-POS-UI" not in selected_components:
+        return
+
+    print("\nProcessing OneX UI package...")
+
+    # Reuse the same system type and version as OneX POS
+    system_type = config.get("onex_pos_system_type", "CSE-OPOS-ONEX-CLOUD")
+    version_to_use = get_component_version_callback(system_type, config)
+    component_dir = os.path.join(output_dir, "offline_package_ONEX-POS")
+    os.makedirs(component_dir, exist_ok=True)
+
+    # Determine platform suffix
+    platform_type = config.get("platform", "Windows")
+    if platform_type.lower() == "linux":
+        platform_suffix = "-linux.zip"
+    else:
+        platform_suffix = "-windows.zip"
+
+    version_path = f"/SoftwarePackage/{system_type}/{version_to_use}"
+    print(f"Looking for OneX UI package in: {version_path}")
+
+    try:
+        files = dsg_api_browser.list_directories(version_path)
+
+        # Filter for the platform-specific UI zip
+        ui_files = [f for f in files if f.get('name', '').startswith('onex-ui-')
+                     and f.get('name', '').endswith(platform_suffix)]
+
+        if not ui_files:
+            print(f"Warning: No OneX UI package found matching *{platform_suffix} in {version_path}")
+            return
+
+        # Auto-select the single matching file
+        ui_file = ui_files[0]
+        file_name = ui_file['name']
+        remote_path = f"{version_path}/{file_name}"
+        local_path = os.path.join(component_dir, file_name)
+
+        print(f"Found OneX UI package: {file_name}")
+        files_to_download.append((remote_path, local_path, file_name, "OneX POS Client"))
+
+    except Exception as e:
+        print(f"Error accessing OneX UI package: {e}")

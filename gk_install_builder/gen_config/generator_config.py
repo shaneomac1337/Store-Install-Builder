@@ -40,6 +40,15 @@ HELPER_STRUCTURE = {
                 "update_config.json"
             ]
         }
+    ],
+    "overrides": [
+        "installer_overrides.pos.xml",
+        "installer_overrides.onex-pos.xml",
+        "installer_overrides.wdm.xml",
+        "installer_overrides.flow-service.xml",
+        "installer_overrides.lpa-service.xml",
+        "installer_overrides.storehub-service.xml",
+        "installer_overrides.rcs-service.xml"
     ]
 }
 
@@ -76,6 +85,7 @@ keepFiles=0
 jre_package_version_local=@JRE_VERSION@
 jre_package_local=@JRE_PACKAGE@
 installer_package_local=@INSTALLER_PACKAGE@
+userInterface_package_local=@UI_PACKAGE@
 hardware_package_local=
 """
 
@@ -184,6 +194,28 @@ installer_package_local=@INSTALLER_PACKAGE@
 tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
+
+# Map component names to their override output filenames
+OVERRIDE_COMPONENT_FILES = {
+    "POS": "installer_overrides.pos.xml",
+    "ONEX-POS": "installer_overrides.onex-pos.xml",
+    "WDM": "installer_overrides.wdm.xml",
+    "FLOW-SERVICE": "installer_overrides.flow-service.xml",
+    "LPA-SERVICE": "installer_overrides.lpa-service.xml",
+    "STOREHUB-SERVICE": "installer_overrides.storehub-service.xml",
+    "RCS-SERVICE": "installer_overrides.rcs-service.xml",
+}
+
+# Map override output filenames to source template filenames
+OVERRIDE_TEMPLATE_MAP = {
+    "installer_overrides.pos.xml": "installer_overrides_POS.xml",
+    "installer_overrides.onex-pos.xml": "installer_overrides_OneX.xml",
+    "installer_overrides.wdm.xml": "installer_overrides_WDM.xml",
+    "installer_overrides.flow-service.xml": "installer_overrides_Services.xml",
+    "installer_overrides.lpa-service.xml": "installer_overrides_Services.xml",
+    "installer_overrides.storehub-service.xml": "installer_overrides_StoreHub.xml",
+    "installer_overrides.rcs-service.xml": "installer_overrides_Services.xml",
+}
 
 # Map launcher filenames to their templates
 LAUNCHER_TEMPLATES = {

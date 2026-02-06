@@ -375,14 +375,10 @@ class GKInstallBuilder:
             "When enabled, the installation script will try to extract store ID and workstation ID from station files on disk.\n"
             "When disabled, file detection will not be attempted as a fallback.")
 
-        # Register both detection variables with config manager
+        # Register detection variables with config manager
         self.config_manager.register_entry("use_hostname_detection", self.hostname_detection_var)
         self.config_manager.register_entry("file_detection_enabled", self.file_detection_var)
-        
-        # Add an information label to explain the fallback behavior
 
-
-        
         # Add Detection Settings button
         detection_settings_btn = ctk.CTkButton(
             hostname_detection_frame,
@@ -466,7 +462,94 @@ class GKInstallBuilder:
             "Scripts will automatically detect the correct environment based on CLI parameter,\n"
             "hostname detection, or file detection. Perfect for multi-tenant deployments!"
         )
-        
+
+        # Installer Overrides section
+        overrides_frame = ctk.CTkFrame(form_frame)
+        overrides_frame.pack(fill="x", padx=10, pady=5)
+
+        overrides_label = ctk.CTkLabel(
+            overrides_frame,
+            text="Installer Overrides:",
+            width=150
+        )
+        overrides_label.pack(side="left", padx=10)
+
+        self.installer_overrides_var = ctk.BooleanVar(value=self.config_manager.config.get("installer_overrides_enabled", True))
+        installer_overrides_checkbox = ctk.CTkCheckBox(
+            overrides_frame,
+            text="Include installer overrides",
+            variable=self.installer_overrides_var,
+            onvalue=True,
+            offvalue=False,
+            command=self.on_installer_overrides_changed
+        )
+        installer_overrides_checkbox.pack(side="left", padx=10)
+        self.create_tooltip(installer_overrides_checkbox,
+            "When enabled, installer override XML files are included in the output package.\n"
+            "Use the checkboxes below to configure which installation steps are skipped.\n"
+            "You can edit the XMLs in helper/overrides/ after generation.")
+
+        self.config_manager.register_entry("installer_overrides_enabled", self.installer_overrides_var)
+
+        overrides_configure_btn = ctk.CTkButton(
+            overrides_frame,
+            text="Configure",
+            width=100,
+            command=self.open_overrides_settings
+        )
+        overrides_configure_btn.pack(side="left", padx=10)
+        self.create_tooltip(overrides_configure_btn,
+            "Select which components should receive installer override files.")
+
+        # Override property checkboxes (sub-options)
+        override_props_frame = ctk.CTkFrame(form_frame)
+        override_props_frame.pack(fill="x", padx=10, pady=(0, 5))
+
+        spacer = ctk.CTkLabel(override_props_frame, text="", width=150)
+        spacer.pack(side="left", padx=10)
+
+        override_props = self.config_manager.config.get("installer_overrides_properties", {
+            "check-alive": True, "start-application": False, "start-updater": False,
+        })
+
+        self.override_check_alive_var = ctk.BooleanVar(value=override_props.get("check-alive", True))
+        check_alive_cb = ctk.CTkCheckBox(
+            override_props_frame,
+            text="Skip health check (check-alive)",
+            variable=self.override_check_alive_var,
+            onvalue=True, offvalue=False,
+            command=self.on_override_properties_changed
+        )
+        check_alive_cb.pack(side="left", padx=10)
+        self.create_tooltip(check_alive_cb, "Skip the health check during component installation.")
+
+        self.override_start_app_var = ctk.BooleanVar(value=override_props.get("start-application", False))
+        start_app_cb = ctk.CTkCheckBox(
+            override_props_frame,
+            text="Skip start application",
+            variable=self.override_start_app_var,
+            onvalue=True, offvalue=False,
+            command=self.on_override_properties_changed
+        )
+        start_app_cb.pack(side="left", padx=10)
+        self.create_tooltip(start_app_cb, "Skip starting the application after installation.")
+
+        self.remove_overrides_var = ctk.BooleanVar(value=self.config_manager.config.get("remove_overrides_after_install", False))
+        remove_overrides_cb = ctk.CTkCheckBox(
+            override_props_frame,
+            text="Remove overrides after install",
+            variable=self.remove_overrides_var,
+            onvalue=True, offvalue=False,
+            command=self.on_remove_overrides_changed
+        )
+        remove_overrides_cb.pack(side="left", padx=10)
+        self.create_tooltip(remove_overrides_cb,
+            "Remove the installer overrides folder after installation completes.\n"
+            "If overrides are kept, Employee Hub update logic will also apply them\n"
+            "(e.g. skipping check-alive, start-application) on future updates.\n"
+            "Enable this to only use overrides for the initial install.")
+        self.config_manager.register_entry("remove_overrides_after_install", self.remove_overrides_var)
+
         # Only create other sections if not first run
         if not self.is_first_run:
             self.create_remaining_sections()
@@ -573,7 +656,7 @@ class GKInstallBuilder:
                 
                 # Register entry with config manager
                 self.config_manager.register_entry(config_key, entry)
-            
+
             # Ensure base install directory is set
             base_dir_entry = self.config_manager.get_entry("base_install_dir")
             firebird_path_entry = self.config_manager.get_entry("firebird_server_path")
@@ -1406,6 +1489,103 @@ class GKInstallBuilder:
                                                 label.configure(text_color="green" if self.hostname_detection_var.get() else "red")
                                                 pass
 
+
+    def on_installer_overrides_changed(self):
+        """Handler for when installer overrides checkbox is changed"""
+        self.config_manager.config["installer_overrides_enabled"] = self.installer_overrides_var.get()
+        self.config_manager.schedule_save()
+
+    def on_override_properties_changed(self):
+        """Handler for when override property checkboxes are changed"""
+        self.config_manager.config["installer_overrides_properties"] = {
+            "check-alive": self.override_check_alive_var.get(),
+            "start-application": self.override_start_app_var.get(),
+        }
+        self.config_manager.schedule_save()
+
+    def on_remove_overrides_changed(self):
+        """Handler for when remove overrides after install checkbox is changed"""
+        self.config_manager.config["remove_overrides_after_install"] = self.remove_overrides_var.get()
+        self.config_manager.schedule_save()
+
+    def open_overrides_settings(self):
+        """Open dialog to configure per-component installer overrides"""
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Installer Override Settings")
+        dialog.geometry("400x380")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.after(100, lambda: dialog.grab_set())
+
+        # Header
+        header = ctk.CTkLabel(dialog, text="Select components for installer overrides",
+                              font=ctk.CTkFont(size=14, weight="bold"))
+        header.pack(pady=(15, 5))
+
+        desc = ctk.CTkLabel(dialog, text="Override files skip the health check (check-alive)\nduring component installation.",
+                            font=ctk.CTkFont(size=12), text_color="gray")
+        desc.pack(pady=(0, 10))
+
+        # Get current per-component settings
+        components = self.config_manager.config.get("installer_overrides_components", {})
+        default_all = {
+            "POS": True, "ONEX-POS": True, "WDM": True,
+            "FLOW-SERVICE": True, "LPA-SERVICE": True,
+            "STOREHUB-SERVICE": True, "RCS-SERVICE": True,
+        }
+        for k, v in default_all.items():
+            components.setdefault(k, v)
+
+        # Component display names
+        display_names = {
+            "POS": "POS",
+            "ONEX-POS": "OneX POS",
+            "WDM": "WDM",
+            "FLOW-SERVICE": "Flow Service",
+            "LPA-SERVICE": "LPA Service",
+            "STOREHUB-SERVICE": "StoreHub Service",
+            "RCS-SERVICE": "RCS Service",
+        }
+
+        # Create checkboxes
+        comp_vars = {}
+        frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        frame.pack(padx=20, pady=5, fill="x")
+
+        for comp_key in default_all:
+            var = ctk.BooleanVar(value=components.get(comp_key, True))
+            comp_vars[comp_key] = var
+            cb = ctk.CTkCheckBox(frame, text=display_names[comp_key], variable=var)
+            cb.pack(anchor="w", pady=3, padx=10)
+
+        # Select All / Deselect All buttons
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(pady=5)
+
+        def select_all():
+            for v in comp_vars.values():
+                v.set(True)
+
+        def deselect_all():
+            for v in comp_vars.values():
+                v.set(False)
+
+        ctk.CTkButton(btn_frame, text="Select All", width=100, command=select_all).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Deselect All", width=100, command=deselect_all).pack(side="left", padx=5)
+
+        # Save / Cancel buttons
+        action_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        action_frame.pack(pady=(10, 15))
+
+        def save_and_close():
+            result = {k: v.get() for k, v in comp_vars.items()}
+            self.config_manager.config["installer_overrides_components"] = result
+            self.config_manager.schedule_save()
+            dialog.destroy()
+
+        ctk.CTkButton(action_frame, text="Save", width=100, command=save_and_close).pack(side="left", padx=5)
+        ctk.CTkButton(action_frame, text="Cancel", width=100, fg_color="gray",
+                       command=dialog.destroy).pack(side="left", padx=5)
 
     def _safe_grab_set(self, window):
         """Safely set grab on a window, handling potential Linux visibility issues"""

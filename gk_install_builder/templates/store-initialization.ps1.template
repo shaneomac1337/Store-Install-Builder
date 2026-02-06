@@ -215,14 +215,8 @@ try {
                 # Path to the create structure template
                 $createStructureTemplate = ""
 
-                # Set the appropriate template path based on component type
-                switch ($ComponentType) {
-                    'POS' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
-                    'WDM' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
-                    'FLOW-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
-                    'LPA-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
-                    'STOREHUB-SERVICE' { $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json" }
-                }
+                # Set the template path (same template for all component types)
+                $createStructureTemplate = Join-Path $basePath "helper\structure\create_structure.json"
                     
                     if (-Not (Test-Path $createStructureTemplate)) {
                         Write-Host "Warning: Create structure template not found at: $createStructureTemplate"
@@ -292,7 +286,7 @@ try {
                         $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
                         
                         # Make the API call to create the structure
-                        $structureCreateUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/create"
+                        $structureCreateUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/nodes"
                         
                         Write-Host "Creating workstation using API: $structureCreateUrl"
                         
@@ -482,7 +476,8 @@ try {
             }
 
             # Only proceed with configuration update for RCS components
-            if ($ComponentType -eq 'RCS-SERVICE') {
+            $rcsSkipUrlConfig = "@RCS_SKIP_URL_CONFIG@"
+            if ($ComponentType -eq 'RCS-SERVICE' -and $rcsSkipUrlConfig -ne "true") {
                 # Update the configuration using update_config.json from the rcs directory
                 $rcsDir = Join-Path $initPath "rcs"
                 $updateConfigPath = Join-Path $rcsDir "update_config.json"
@@ -513,7 +508,7 @@ try {
                     }
 
                     # Build the RCS URL (uses HTTP, port from launcher settings)
-                    $rcsUrl = "http://${hostname}:@RCS_HTTP_PORT@/rcs"
+                    $rcsUrl = "@RCS_PROTOCOL@://${hostname}:@RCS_PORT@/rcs"
 
                     # Always recreate processed copy from original template (ensures fresh placeholders)
                     $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline
@@ -559,6 +554,8 @@ try {
                         }
                     }
                 }
+            } elseif ($ComponentType -eq 'RCS-SERVICE' -and $rcsSkipUrlConfig -eq "true") {
+                Write-Host "Skipping RCS URL configuration (disabled in launcher settings)"
             }
         } catch {
             Write-Host "Error retrieving store information: $_"

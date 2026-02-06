@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<project name="installer_overrides_services" basedir="./" xmlns:if="ant:if" xmlns:unless="ant:unless">
+
+  <!--
+    ================================================================================
+    GK Software Simplified Installer - Store Services Override Configuration
+    ================================================================================
+    Applies to these components (all share same 22 targets):
+      - Checkin Service      (checkin-service.xml)
+      - Flow Service         (flow-service.xml)
+      - Fuel Service         (fuel-service.xml)
+      - Gate Adapter         (gate-adapter.xml)
+      - LPA Service          (lpa-service.xml)
+      - Resource Cache       (resource-cache-service.xml)
+      - Store MQTT Broker    (store-mqtt-broker-service.xml)
+
+    File Location: ${INSTALL_PATH}/installer/overrides/installer_overrides.xml
+    ================================================================================
+  -->
+
+  <!-- HEALTH CHECK -->
+  <property name="override.check-alive" value="@OVERRIDE_CHECK_ALIVE@" />
+  <property name="override.check-before-update" value="false" />
+
+  <!-- STOP OPERATIONS -->
+  <property name="override.stop-application" value="false" />
+  <property name="override.stop-updater" value="false" />
+
+  <!-- INSTALLATION -->
+  <property name="override.install-application" value="false" />
+  <property name="override.install-addonpacks" value="false" />
+  <property name="override.install-updater" value="false" />
+
+  <!-- UPDATE -->
+  <property name="override.update-application" value="false" />
+  <property name="override.update-addonpacks" value="false" />
+  <property name="override.update-updater" value="false" />
+
+  <!-- CONFIGURATION -->
+  <property name="override.station-configuration-update" value="false" />
+  <property name="override.onboard" value="false" />
+
+  <!-- BACKUP -->
+  <property name="override.backup-application" value="false" />
+  <property name="override.backup-updater" value="false" />
+
+  <!-- RESTORE/REVERT -->
+  <property name="override.revert-installation-logic" value="false" />
+  <property name="override.restore-application" value="false" />
+  <property name="override.restore-updater" value="false" />
+
+  <!-- START -->
+  <property name="override.start-application" value="@OVERRIDE_START_APPLICATION@" />
+  <property name="override.start-updater" value="false" />
+
+  <!-- CLEANUP -->
+  <property name="override.cleanup-installer-content" value="false" />
+  <property name="override.prepare-addonpacks-reports" value="false" />
+
+  <!-- Custom check-alive override implementation -->
+  <target name="check-alive-override" extensionOf="check-alive-ext-default">
+    <echo if:true="${override.check-alive}" message="=== CHECK-ALIVE SKIPPED (Service custom override) ===" />
+    <echo unless:true="${override.check-alive}" message="=== CHECK-ALIVE NOT SKIPPED (Service custom override) ===" />
+  </target>
+
+  <!-- Custom start-application override implementation -->
+  <target name="start-application-override" extensionOf="start-application-ext-default">
+    <echo if:true="${override.start-application}" message="=== START-APPLICATION SKIPPED (Service custom override) ===" />
+    <echo unless:true="${override.start-application}" message="=== START-APPLICATION NOT SKIPPED (Service custom override) ===" />
+  </target>
+
+</project>

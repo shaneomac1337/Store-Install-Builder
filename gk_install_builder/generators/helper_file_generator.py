@@ -50,7 +50,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
     if api_version == "legacy":
         api_endpoints = {
             "config_structure_search": "/config-service/services/rest/infrastructure/v1/structure/child-nodes/search",
-            "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/create",
+            "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/nodes",
             "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
             "business_unit": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/business-units",
             "workstation_base": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/workstations",
@@ -58,7 +58,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
     else:  # new API (5.27+)
         api_endpoints = {
             "config_structure_search": "/api/config/services/rest/infrastructure/v1/structure/child-nodes/search",
-            "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/create",
+            "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/nodes",
             "config_management": "/api/config/services/rest/config-management/v1/parameter-contents/plain",
             "business_unit": "/api/business-unit/rest/v1/business-units",
             "workstation_base": "/api/pos/master-data/rest/v1/workstations",
@@ -101,10 +101,21 @@ def generate_store_init_script(output_dir, config, templates_dir):
         user_id = config.get("eh_launchpad_username", "1001")
         template_content = template_content.replace("${user_id}", user_id)
 
-        # Add RCS HTTP port from launcher settings (default 8180)
+        # Add RCS protocol and port from launcher settings
         rcs_launcher_settings = config.get("rcs_service_launcher_settings", {})
-        rcs_http_port = rcs_launcher_settings.get("applicationServerHttpPort", "8180")
-        template_content = template_content.replace("@RCS_HTTP_PORT@", rcs_http_port)
+        rcs_use_https = config.get("rcs_use_https", False)
+        if rcs_use_https:
+            rcs_protocol = "https"
+            rcs_port = rcs_launcher_settings.get("applicationServerHttpsPort", "8543")
+        else:
+            rcs_protocol = "http"
+            rcs_port = rcs_launcher_settings.get("applicationServerHttpPort", "8180")
+        template_content = template_content.replace("@RCS_PROTOCOL@", rcs_protocol)
+        template_content = template_content.replace("@RCS_PORT@", rcs_port)
+
+        # Add RCS skip URL config flag
+        rcs_skip_url = config.get("rcs_skip_url_config", False)
+        template_content = template_content.replace("@RCS_SKIP_URL_CONFIG@", "true" if rcs_skip_url else "false")
 
         # Add version replacement
         template_content = template_content.replace("@VERSION@", version)
@@ -116,7 +127,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
             api_endpoints["config_structure_search"]
         )
         template_content = template_content.replace(
-            "/api/config/services/rest/infrastructure/v1/structure/create",
+            "/api/config/services/rest/infrastructure/v1/structure/nodes",
             api_endpoints["config_structure_create"]
         )
         template_content = template_content.replace(
@@ -208,14 +219,14 @@ def create_component_files(helper_dir):
     print(f"  Created directory: {structure_dir}")
 
     # Create create_structure.json template for all components
+    # Uses parentNode/newNode format for structure/nodes endpoint
     create_structure_json = '''{
-    "tenant": {
-        "tenantId": "@TENANT_ID@"
+    "parentNode": {
+        "tenantId": "@TENANT_ID@",
+        "retailStoreId": "@RETAIL_STORE_ID@",
+        "systemName": "GKR-Store"
     },
-    "store": {
-        "retailStoreId": "@RETAIL_STORE_ID@"
-    },
-    "station": {
+    "newNode": {
         "systemName": "@SYSTEM_TYPE@",
         "workstationId": "@WORKSTATION_ID@",
         "name": "@STATION_NAME@"
@@ -518,6 +529,66 @@ def modify_json_files(helper_dir, config, replace_urls_in_json_func):
         print(f"  Warning: Error modifying JSON files: {str(e)}")
 
 
+def generate_override_files(helper_dir, config, templates_dir):
+    """
+    Generate installer override XML files for each component
+
+    Args:
+        helper_dir: Helper directory where override files will be created
+        config: Configuration dictionary
+        templates_dir: Directory containing template files
+    """
+    if not config.get("installer_overrides_enabled", True):
+        print("  Installer overrides disabled, skipping override file generation.")
+        return
+
+    try:
+        from ..gen_config.generator_config import OVERRIDE_TEMPLATE_MAP, OVERRIDE_COMPONENT_FILES
+    except ImportError:
+        from gen_config.generator_config import OVERRIDE_TEMPLATE_MAP, OVERRIDE_COMPONENT_FILES
+
+    # Determine which output files are enabled based on per-component settings
+    component_settings = config.get("installer_overrides_components", {})
+    enabled_files = set()
+    for comp_name, output_file in OVERRIDE_COMPONENT_FILES.items():
+        if component_settings.get(comp_name, True):
+            enabled_files.add(output_file)
+
+    if not enabled_files:
+        print("  All component overrides disabled, skipping override file generation.")
+        return
+
+    overrides_dir = os.path.join(helper_dir, "overrides")
+    os.makedirs(overrides_dir, exist_ok=True)
+
+    overrides_src_dir = os.path.join(templates_dir, "overrides")
+
+    # Build replacement map from override properties config
+    override_props = config.get("installer_overrides_properties", {
+        "check-alive": True, "start-application": False,
+    })
+    replacements = {
+        "@OVERRIDE_CHECK_ALIVE@": str(override_props.get("check-alive", True)).lower(),
+        "@OVERRIDE_START_APPLICATION@": str(override_props.get("start-application", False)).lower(),
+    }
+
+    for output_name, template_name in OVERRIDE_TEMPLATE_MAP.items():
+        if output_name not in enabled_files:
+            continue
+        src_path = os.path.join(overrides_src_dir, template_name)
+        dst_path = os.path.join(overrides_dir, output_name)
+        if os.path.exists(src_path):
+            with open(src_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            for placeholder, value in replacements.items():
+                content = content.replace(placeholder, value)
+            with open(dst_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"  Created override file: {output_name}")
+        else:
+            print(f"  Warning: Override template not found: {src_path}")
+
+
 def copy_helper_files(output_dir, config, script_dir, helper_structure, launcher_templates):
     """
     Copy helper files to output directory
@@ -580,6 +651,9 @@ def copy_helper_files(output_dir, config, script_dir, helper_structure, launcher
                 # Modify JSON files with the correct URLs and tenant_id
                 modify_json_files(helper_dst, config, replace_urls_in_json)
 
+                # Generate installer override files
+                generate_override_files(helper_dst, config, templates_dir)
+
                 print(f"Successfully created helper files at {helper_dst}")
                 return
 
@@ -637,6 +711,9 @@ def copy_helper_files(output_dir, config, script_dir, helper_structure, launcher
 
         # Modify JSON files with the correct URLs and tenant_id
         modify_json_files(helper_dst, config, replace_urls_in_json)
+
+        # Generate installer override files
+        generate_override_files(helper_dst, config, templates_dir)
 
         print(f"Successfully copied helper files to {helper_dst}")
 

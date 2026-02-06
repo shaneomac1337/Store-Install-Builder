@@ -20,7 +20,8 @@ from .offline_package_helpers import (
     create_progress_dialog,
     prompt_for_file_selection,
     process_platform_dependency,
-    process_component
+    process_component,
+    process_onex_ui_package
 )
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     'create_progress_dialog',
     'prompt_for_file_selection',
     'process_platform_dependency',
-    'process_component'
+    'process_component',
+    'process_onex_ui_package'
 ]

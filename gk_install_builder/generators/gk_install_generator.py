@@ -148,7 +148,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 "onboarding_api": "/cims/services/rest/cims/v1/onboarding/tokens",
                 # Config service APIs
                 "config_structure_search": "/config-service/services/rest/infrastructure/v1/structure/child-nodes/search",
-                "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/create",
+                "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/nodes",
                 "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
                 "config_versions_search": "/config-service/services/rest/infrastructure/v1/versions/search",
                 # Master data APIs (include tenant ID in URL for legacy)
@@ -168,7 +168,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 "onboarding_api": "/api/iam/cim/rest/v1/onboarding/tokens",
                 # Config service APIs
                 "config_structure_search": "/api/config/services/rest/infrastructure/v1/structure/child-nodes/search",
-                "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/create",
+                "config_structure_create": "/api/config/services/rest/infrastructure/v1/structure/nodes",
                 "config_management": "/api/config/services/rest/config-management/v1/parameter-contents/plain",
                 "config_versions_search": "/api/config/services/rest/infrastructure/v1/versions/search",
                 # Master data APIs (no tenant in URL for new API)
@@ -219,7 +219,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
                 ("/api/config/services/rest/infrastructure/v1/structure/child-nodes/search", api_endpoints["config_structure_search"]),
-                ("/api/config/services/rest/infrastructure/v1/structure/create", api_endpoints["config_structure_create"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/nodes", api_endpoints["config_structure_create"]),
                 ("/api/config/services/rest/config-management/v1/parameter-contents/plain", api_endpoints["config_management"]),
                 ("/api/config/services/rest/infrastructure/v1/versions/search", api_endpoints["config_versions_search"]),
                 ("/api/business-unit/rest/v1/business-units", api_endpoints["business_unit"]),
@@ -266,7 +266,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
                 ("/api/config/services/rest/infrastructure/v1/structure/child-nodes/search", api_endpoints["config_structure_search"]),
-                ("/api/config/services/rest/infrastructure/v1/structure/create", api_endpoints["config_structure_create"]),
+                ("/api/config/services/rest/infrastructure/v1/structure/nodes", api_endpoints["config_structure_create"]),
                 ("/api/config/services/rest/config-management/v1/parameter-contents/plain", api_endpoints["config_management"]),
                 ("/api/config/services/rest/infrastructure/v1/versions/search", api_endpoints["config_versions_search"]),
                 ("/api/business-unit/rest/v1/business-units", api_endpoints["business_unit"]),
@@ -286,6 +286,10 @@ def generate_gk_install(output_dir, config, detection_manager,
         # Replace FILE_DETECTION_ENABLED placeholder
         file_detection_enabled = detection_manager.is_file_detection_enabled()
         template = template.replace("@FILE_DETECTION_ENABLED@", "True" if file_detection_enabled else "False")
+
+        # Replace REMOVE_OVERRIDES_AFTER_INSTALL placeholder
+        remove_overrides = config.get("remove_overrides_after_install", False)
+        template = template.replace("@REMOVE_OVERRIDES_AFTER_INSTALL@", "true" if remove_overrides else "false")
 
         # Apply custom regex if available and hostname detection is enabled
         if use_hostname_detection and "detection_config" in config and "hostname_detection" in config["detection_config"]:

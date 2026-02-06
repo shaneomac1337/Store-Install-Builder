@@ -243,6 +243,14 @@ class OfflinePackageCreator:
                 self.include_jaybird.set(True)
             else:
                 self.include_jaybird.set(False)
+
+            # Handle OneX UI sub-option - disable when OneX POS is unchecked
+            if hasattr(self, 'onex_ui_checkbox'):
+                if self.include_onex_pos.get():
+                    self.onex_ui_checkbox.configure(state="normal")
+                else:
+                    self.include_onex_ui.set(False)
+                    self.onex_ui_checkbox.configure(state="disabled")
         
         # POS component frame
         pos_component_frame = ctk.CTkFrame(self.components_frame)
@@ -281,6 +289,20 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         onex_pos_checkbox.pack(side="left", pady=5, padx=10)
+
+        # OneX UI sub-option frame (indented under OneX POS)
+        onex_ui_frame = ctk.CTkFrame(self.components_frame)
+        onex_ui_frame.pack(fill="x", pady=0, padx=10)
+
+        self.include_onex_ui = ctk.BooleanVar(value=False)
+        self.onex_ui_checkbox = ctk.CTkCheckBox(
+            onex_ui_frame,
+            text="Include OneX UI package",
+            variable=self.include_onex_ui,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        self.onex_ui_checkbox.pack(side="left", pady=2, padx=30)
 
         # WDM component frame
         wdm_component_frame = ctk.CTkFrame(self.components_frame)
@@ -1644,6 +1666,8 @@ class OfflinePackageCreator:
 
             if self.include_onex_pos.get():
                 selected_components.append("ONEX-POS")
+                if self.include_onex_ui.get():
+                    selected_components.append("ONEX-POS-UI")
 
             if self.include_wdm.get():
                 selected_components.append("WDM")

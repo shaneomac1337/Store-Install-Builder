@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<project name="installer_overrides_addon" basedir="./" xmlns:if="ant:if" xmlns:unless="ant:unless">
+
+  <!--
+    ================================================================================
+    GK Software Simplified Installer - Addon Components Override Configuration
+    ================================================================================
+    Applies to these components (reduced target set - 9 targets):
+      - Addon POS                (addon-pos.xml)
+      - Addon Tomcat Onpremise   (addon-tomcat-onpremise.xml)
+      - Addon Tomcat Selfservice (addon-tomcat-selfservice.xml)
+
+    NOTE: Addon components have FEWER targets than service components.
+          They do NOT have: updater operations, onboard, station-configuration-update,
+          revert-installation-logic, cleanup-installer-content
+
+    UNIQUE to addons: backup-addonpacks, restore-addonpacks
+
+    File Location: ${INSTALL_PATH}/installer/overrides/installer_overrides.xml
+    ================================================================================
+  -->
+
+  <!-- HEALTH CHECK -->
+  <property name="override.check-alive" value="@OVERRIDE_CHECK_ALIVE@" />
+  <property name="override.check-before-update" value="false" />  <!-- Only in addon-pos -->
+
+  <!-- STOP OPERATIONS -->
+  <property name="override.stop-application" value="false" />
+  <!-- NOTE: No stop-updater for addons -->
+
+  <!-- UPDATE (Addons only have update-addonpacks, no install/update-application) -->
+  <property name="override.update-addonpacks" value="false" />
+
+  <!-- BACKUP (Addon-specific) -->
+  <property name="override.backup-addonpacks" value="false" />
+
+  <!-- RESTORE (Addon-specific) -->
+  <property name="override.restore-addonpacks" value="false" />
+
+  <!-- START -->
+  <property name="override.start-application" value="@OVERRIDE_START_APPLICATION@" />
+  <!-- NOTE: No start-updater for addons -->
+
+  <!-- CLEANUP -->
+  <property name="override.prepare-addonpacks-reports" value="false" />
+
+  <!-- Custom check-alive override implementation -->
+  <target name="check-alive-override" extensionOf="check-alive-ext-default">
+    <echo if:true="${override.check-alive}" message="=== CHECK-ALIVE SKIPPED (Addon custom override) ===" />
+    <echo unless:true="${override.check-alive}" message="=== CHECK-ALIVE NOT SKIPPED (Addon custom override) ===" />
+  </target>
+
+  <!-- Custom start-application override implementation -->
+  <target name="start-application-override" extensionOf="start-application-ext-default">
+    <echo if:true="${override.start-application}" message="=== START-APPLICATION SKIPPED (Addon custom override) ===" />
+    <echo unless:true="${override.start-application}" message="=== START-APPLICATION NOT SKIPPED (Addon custom override) ===" />
+  </target>
+
+</project>

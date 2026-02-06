@@ -117,6 +117,23 @@ class ConfigManager:
 
             # Installation Options
             "use_hostname_detection": True,  # Enable hostname detection by default
+            "installer_overrides_enabled": True,  # Include installer override XMLs (skip health check)
+            "installer_overrides_components": {
+                "POS": True,
+                "ONEX-POS": True,
+                "WDM": True,
+                "FLOW-SERVICE": True,
+                "LPA-SERVICE": True,
+                "STOREHUB-SERVICE": True,
+                "RCS-SERVICE": True,
+            },
+            "installer_overrides_properties": {
+                "check-alive": True,
+                "start-application": False,
+            },
+            "remove_overrides_after_install": False,  # Remove override XMLs from install dir after installation
+            "rcs_use_https": False,  # Use HTTPS protocol and HTTPS port for RCS URL (default: HTTP)
+            "rcs_skip_url_config": False,  # Skip setting the RCS URL in store-initialization
             
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override

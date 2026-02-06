@@ -10,6 +10,9 @@ param(
     [string]$Env,  # Environment alias for multi-environment support (e.g., P, DEV, Q-001)
     [Alias('Environment')]
     [string]$EnvironmentName,  # Alternative parameter name for -Environment
+    [switch]$noOverrides,  # Skip deploying installer override files
+    [switch]$skipCheckAlive,  # Override: skip check-alive even if XML says otherwise
+    [switch]$skipStartApplication,  # Override: skip start-application even if XML says otherwise
     [switch]$ListEnvironments  # List available environments and exit
 )
 
@@ -406,8 +409,8 @@ function Update-HelperJsonTenantId {
             # Then handle actual JSON values
             try {
                 $jsonContent = $content | ConvertFrom-Json
-                if ($jsonContent.tenant) {
-                    $jsonContent.tenant.tenantId = $TenantId
+                if ($jsonContent.parentNode) {
+                    $jsonContent.parentNode.tenantId = $TenantId
                 }
                 if (![string]::IsNullOrWhiteSpace($Username) -and ($jsonContent.PSObject.Properties.Name -contains 'user')) {
                     $jsonContent.user = $Username
@@ -1555,12 +1558,23 @@ if ($offline.IsPresent) {
             $has_installer_jar = $true
             Write-Host "Found installer JAR: $($jar_files[0].Name)"
         }
-        
+
+        # Look for OneX UI package zip in the component directory
+        $ui_package_files = @(Get-ChildItem -Path (Join-Path $package_dir "onex-ui-*.zip") -ErrorAction SilentlyContinue)
+        $ui_package = $null
+        $has_ui_package = $false
+
+        if ($ui_package_files.Count -gt 0) {
+            $ui_package = $ui_package_files[0].FullName
+            $has_ui_package = $true
+            Write-Host "Found OneX UI package: $($ui_package_files[0].Name)"
+        }
+
         # Initialize required files with Launcher.exe
         $required_files = @(
             (Join-Path $package_dir "Launcher.exe")
         )
-        
+
         # Process JRE files if available
         if ($jre_files.Count -gt 0) {
             $jre_file = $jre_files[0].FullName
@@ -1570,7 +1584,7 @@ if ($offline.IsPresent) {
         } else {
             Write-Host "No JRE/Java package found for $ComponentType."
         }
-        
+
         # Process Tomcat files if available
         if ($tomcat_files.Count -gt 0) {
             $tomcat_file = $tomcat_files[0].FullName
@@ -1580,10 +1594,15 @@ if ($offline.IsPresent) {
         } else {
             Write-Host "No Tomcat package found for $ComponentType."
         }
-        
+
         # Add installer.jar to required files if it exists
         if ($has_installer_jar) {
             $required_files += $installer_jar
+        }
+
+        # Add UI package to required files if it exists
+        if ($has_ui_package) {
+            $required_files += $ui_package
         }
     }
 
@@ -1622,6 +1641,28 @@ if ($isUpdate -and $offline_mode -and $has_installer_jar) {
         Write-Host "Successfully copied installer JAR for offline update"
     } catch {
         Write-Host "Warning: Failed to copy installer JAR for offline update: $_"
+    }
+}
+
+# If this is an update in offline mode and we have a UI package, copy it to the temp directory
+if ($isUpdate -and $offline_mode -and $has_ui_package) {
+    $installerTempDir = Join-Path $install_dir "installer\temp"
+
+    # Create the temp directory if it doesn't exist
+    if (-not (Test-Path $installerTempDir)) {
+        Write-Host "Creating installer temp directory: $installerTempDir"
+        New-Item -ItemType Directory -Path $installerTempDir -Force | Out-Null
+    }
+
+    # Copy the UI package to the temp directory
+    $uiPackageName = [System.IO.Path]::GetFileName($ui_package)
+    $uiPackageDest = Join-Path $installerTempDir $uiPackageName
+    Write-Host "Copying OneX UI package for offline update: $ui_package -> $uiPackageDest"
+    try {
+        Copy-Item -Path $ui_package -Destination $uiPackageDest -Force
+        Write-Host "Successfully copied OneX UI package for offline update"
+    } catch {
+        Write-Host "Warning: Failed to copy OneX UI package for offline update: $_"
     }
 }
 
@@ -2000,6 +2041,7 @@ if ($offline_mode) { $offline_mode_value = "1" } else { $offline_mode_value = "0
 if ($offline_mode -and -not [string]::IsNullOrEmpty($jre_version)) { $jre_version_value = $jre_version } else { $jre_version_value = "" }
 if ($offline_mode -and $jre_files.Count -gt 0) { $jre_package_value = $jre_files[0].FullName } else { $jre_package_value = "" }
 if ($offline_mode -and $has_installer_jar) { $installer_package_value = $installer_jar } else { $installer_package_value = "" }
+if ($offline_mode -and $has_ui_package) { $ui_package_value = $ui_package } else { $ui_package_value = "" }
 
 # Replace placeholders with actual values
 $replacements = @{
@@ -2009,6 +2051,7 @@ $replacements = @{
     '@JRE_VERSION@' = $jre_version_value
     '@JRE_PACKAGE@' = $jre_package_value
     '@INSTALLER_PACKAGE@' = $installer_package_value
+    '@UI_PACKAGE@' = $ui_package_value
     '@SSL_PATH@' = $ssl_path
     '@SSL_PASSWORD@' = $ssl_password
     '@FIREBIRD_SERVER_PATH@' = $firebird_server_path
@@ -2036,6 +2079,48 @@ foreach ($key in $replacements.Keys) {
 Write-Host "Writing launcher properties to file..."
 Set-Content -Path "launcher.properties" -Value $launcherProps -Force
 Write-Host "Launcher properties file created successfully. Launcher will use this for configuration."
+
+# Deploy installer override file
+$removeOverridesAfterInstall = "@REMOVE_OVERRIDES_AFTER_INSTALL@"
+if ($noOverrides) {
+    Write-Host "Skipping installer overrides (--noOverrides flag specified)"
+} else {
+    $overridesDir = Join-Path $PSScriptRoot "helper\overrides"
+    $overrideFile = switch ($ComponentType) {
+        'POS'              { "installer_overrides.pos.xml" }
+        'ONEX-POS'         { "installer_overrides.onex-pos.xml" }
+        'WDM'              { "installer_overrides.wdm.xml" }
+        'FLOW-SERVICE'     { "installer_overrides.flow-service.xml" }
+        'LPA-SERVICE'      { "installer_overrides.lpa-service.xml" }
+        'STOREHUB-SERVICE' { "installer_overrides.storehub-service.xml" }
+        'RCS-SERVICE'      { "installer_overrides.rcs-service.xml" }
+        default            { $null }
+    }
+    if ($overrideFile) {
+        $overrideSource = Join-Path $overridesDir $overrideFile
+        if (Test-Path $overrideSource) {
+            $overrideDest = Join-Path $install_dir "installer\overrides"
+            New-Item -ItemType Directory -Path $overrideDest -Force | Out-Null
+            $overrideXmlPath = Join-Path $overrideDest "installer_overrides.xml"
+            Copy-Item -Path $overrideSource -Destination $overrideXmlPath -Force
+            Write-Host "Deployed installer override file to: $overrideXmlPath"
+
+            # Apply CLI overrides to the deployed XML
+            if ($skipCheckAlive -or $skipStartApplication) {
+                $xmlContent = Get-Content -Path $overrideXmlPath -Raw
+                if ($skipCheckAlive) {
+                    $xmlContent = $xmlContent -replace '("override\.check-alive" value=")false(")', '${1}true${2}'
+                    Write-Host "CLI Override: check-alive set to true (will be skipped)"
+                }
+                if ($skipStartApplication) {
+                    $xmlContent = $xmlContent -replace '("override\.start-application" value=")false(")', '${1}true${2}'
+                    Write-Host "CLI Override: start-application set to true (will be skipped)"
+                }
+                $xmlContent | Set-Content -Path $overrideXmlPath -NoNewline
+            }
+        }
+    }
+}
 
 # Download or use local Launcher
 if (-not $offline_mode) {
@@ -2169,10 +2254,19 @@ while ($elapsed -lt $maxWaitTime) {
                 if ($finalLogContent -match "Installation finished") {
                     Write-Host "Installation completed successfully!"
                     Write-Host "Installation directory: $install_dir"
-                    
+
+                    # Remove installer overrides if configured
+                    if ($removeOverridesAfterInstall -eq "true") {
+                        $overrideDest = Join-Path $install_dir "installer\overrides"
+                        if (Test-Path $overrideDest) {
+                            Remove-Item -Path $overrideDest -Recurse -Force
+                            Write-Host "Removed installer overrides folder: $overrideDest"
+                        }
+                    }
+
                     # Component-specific completion messages
                     Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
-                    
+
                     # Cleanup: Move generated files to a results directory
                     $resultsDir = "results_$ComponentType"
                     Write-Host "Performing cleanup - Moving generated files to $resultsDir directory..."
@@ -2566,10 +2660,19 @@ while ($elapsed -lt $maxWaitTime) {
             if ($logContent -match "Installation finished") {
                 Write-Host "Installation completed successfully!"
                 Write-Host "Installation directory: $install_dir"
-                
+
+                # Remove installer overrides if configured
+                if ($removeOverridesAfterInstall -eq "true") {
+                    $overrideDest = Join-Path $install_dir "installer\overrides"
+                    if (Test-Path $overrideDest) {
+                        Remove-Item -Path $overrideDest -Recurse -Force
+                        Write-Host "Removed installer overrides folder: $overrideDest"
+                    }
+                }
+
                 # Component-specific completion messages
                 Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
-                
+
                 # Cleanup: Move generated files to a results directory
                 $resultsDir = "results_$ComponentType"
                 Write-Host "Performing cleanup - Moving generated files to $resultsDir directory..."

@@ -75,6 +75,16 @@ def create_config(**overrides) -> Dict:
         "include_storehub_service": False,
         "use_hostname_detection": False,
         "use_file_detection": False,
+        "installer_overrides_enabled": True,
+        "installer_overrides_components": {
+            "POS": True, "ONEX-POS": True, "WDM": True,
+            "FLOW-SERVICE": True, "LPA-SERVICE": True,
+            "STOREHUB-SERVICE": True, "RCS-SERVICE": True,
+        },
+        "installer_overrides_properties": {
+            "check-alive": True,
+            "start-application": False,
+        },
         "certificate_path": "",
         "environments": [],
         "eh_launchpad_username": "1001",

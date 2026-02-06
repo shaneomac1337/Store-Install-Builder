@@ -146,6 +146,52 @@ class LauncherSettingsEditor:
 
                 row += 1
 
+            # Add RCS HTTPS checkbox to the RCS-SERVICE tab
+            if component_type == "RCS-SERVICE":
+                separator = ctk.CTkFrame(scrollable_settings, height=2, fg_color="gray50")
+                separator.grid(row=row, column=0, sticky="ew", padx=5, pady=10)
+                row += 1
+
+                https_frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
+                https_frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
+
+                self.rcs_use_https_var = ctk.BooleanVar(
+                    value=self.config_manager.config.get("rcs_use_https", False)
+                )
+                rcs_https_cb = ctk.CTkCheckBox(
+                    https_frame,
+                    text="Use HTTPS for RCS URL",
+                    variable=self.rcs_use_https_var,
+                    onvalue=True, offvalue=False
+                )
+                rcs_https_cb.pack(side="left", padx=10, pady=5)
+                create_tooltip(rcs_https_cb,
+                    "Use HTTPS protocol and HTTPS port for the RCS service URL.\n"
+                    "When enabled, the store-initialization script will configure\n"
+                    "RCS with https://<hostname>:<httpsPort>/rcs instead of\n"
+                    "http://<hostname>:<httpPort>/rcs.",
+                    parent_window=self.window)
+
+                skip_url_frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
+                skip_url_frame.grid(row=row + 1, column=0, sticky="ew", padx=5, pady=5)
+
+                self.rcs_skip_url_var = ctk.BooleanVar(
+                    value=self.config_manager.config.get("rcs_skip_url_config", False)
+                )
+                rcs_skip_url_cb = ctk.CTkCheckBox(
+                    skip_url_frame,
+                    text="Don't set RCS URL",
+                    variable=self.rcs_skip_url_var,
+                    onvalue=True, offvalue=False
+                )
+                rcs_skip_url_cb.pack(side="left", padx=10, pady=5)
+                create_tooltip(rcs_skip_url_cb,
+                    "Skip setting the RCS URL during store initialization.\n"
+                    "When enabled, the store-initialization script will not\n"
+                    "make the API call to configure the rcs.url property\n"
+                    "in Config-Service.",
+                    parent_window=self.window)
+
         # Add buttons at the bottom
         button_frame = ctk.CTkFrame(main_frame)
         button_frame.pack(fill="x", padx=10, pady=10)
@@ -326,6 +372,12 @@ class LauncherSettingsEditor:
             print(f"Saving {config_key} settings:")
             for k, v in component_settings.items():
                 print(f"  {k}: {v}")
+
+        # Save RCS settings
+        if hasattr(self, 'rcs_use_https_var'):
+            self.config_manager.config["rcs_use_https"] = self.rcs_use_https_var.get()
+        if hasattr(self, 'rcs_skip_url_var'):
+            self.config_manager.config["rcs_skip_url_config"] = self.rcs_skip_url_var.get()
 
         # Save config
         self.config_manager.save_config()

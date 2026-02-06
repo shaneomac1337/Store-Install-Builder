@@ -209,6 +209,7 @@ keepFiles=0
 jre_package_version_local=@JRE_VERSION@
 jre_package_local=@JRE_PACKAGE@
 installer_package_local=@INSTALLER_PACKAGE@
+userInterface_package_local=@UI_PACKAGE@
 hardware_package_local=
 """
     elif filename == "launcher.wdm.template":

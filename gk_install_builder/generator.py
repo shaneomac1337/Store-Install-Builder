@@ -46,7 +46,8 @@ try:
         create_progress_dialog,
         prompt_for_file_selection,
         process_platform_dependency,
-        process_component
+        process_component,
+        process_onex_ui_package
     )
 except ImportError:
     # Fall back to direct imports when run from gk_install_builder directory
@@ -74,7 +75,8 @@ except ImportError:
         create_progress_dialog,
         prompt_for_file_selection,
         process_platform_dependency,
-        process_component
+        process_component,
+        process_onex_ui_package
     )
 
 # Disable insecure request warnings
@@ -588,6 +590,10 @@ class ProjectGenerator:
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
                 display_name="OneX POS Client"
+            )
+            process_onex_ui_package(
+                selected_components, output_dir, config, self.get_component_version,
+                self.dsg_api_browser, files_to_download
             )
             process_component(
                 "WDM", "WDM", "wdm", "CSE-wdm",

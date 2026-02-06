@@ -272,18 +272,8 @@ else
         # Path to the create structure template
         create_structure_template=""
         
-        # Set the appropriate template path based on component type
-        if [ "$COMPONENT_TYPE" = "POS" ]; then
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-        elif [ "$COMPONENT_TYPE" = "WDM" ]; then
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-        elif [ "$COMPONENT_TYPE" = "FLOW-SERVICE" ]; then
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-        elif [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-        elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-        fi
+        # Set the template path (same template for all component types)
+        create_structure_template="$PWD/helper/structure/create_structure.json"
         
         if [ ! -f "$create_structure_template" ]; then
           echo "Warning: Create structure template not found at: $create_structure_template"
@@ -378,7 +368,7 @@ else
           echo "Saved processed template to: $processed_template_path"
           
           # Make the API call to create the structure
-          structure_create_url="https://$base_url/api/config/services/rest/infrastructure/v1/structure/create"
+          structure_create_url="https://$base_url/api/config/services/rest/infrastructure/v1/structure/nodes"
           
           echo "Creating workstation using API: $structure_create_url"
           echo "Request data: $(cat "$processed_template_path")"
@@ -603,7 +593,8 @@ else
     fi
 
     # Only proceed with configuration update for RCS components
-    if [ "$COMPONENT_TYPE" = "RCS-SERVICE" ]; then
+    rcs_skip_url_config="@RCS_SKIP_URL_CONFIG@"
+    if [ "$COMPONENT_TYPE" = "RCS-SERVICE" ] && [ "$rcs_skip_url_config" != "true" ]; then
       # Update the configuration using update_config.json from the rcs directory
       rcs_dir="$init_path/rcs"
       update_config_path="$rcs_dir/update_config.json"
@@ -635,7 +626,7 @@ else
         fi
 
         # Build the RCS URL (uses HTTP, port from launcher settings)
-        rcs_url="http://${hostname}:@RCS_HTTP_PORT@/rcs"
+        rcs_url="@RCS_PROTOCOL@://${hostname}:@RCS_PORT@/rcs"
 
         # Always recreate processed copy from original template (ensures fresh placeholders)
         echo "$update_config_json" > "$processed_update_config_path"
@@ -683,6 +674,8 @@ else
           echo "Response: $config_response"
         fi
       fi
+    elif [ "$COMPONENT_TYPE" = "RCS-SERVICE" ] && [ "$rcs_skip_url_config" = "true" ]; then
+      echo "Skipping RCS URL configuration (disabled in launcher settings)"
     fi
   else
     echo "Error retrieving store information"
