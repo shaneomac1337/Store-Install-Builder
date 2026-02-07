@@ -5,6 +5,7 @@ This module contains functions for processing PowerShell and Bash templates,
 specifically for replacing hostname detection regex patterns.
 """
 
+
 import re
 
 

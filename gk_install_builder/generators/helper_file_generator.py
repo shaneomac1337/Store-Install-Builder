@@ -554,11 +554,21 @@ def generate_override_files(helper_dir, config, templates_dir):
         if component_settings.get(comp_name, True):
             enabled_files.add(output_file)
 
+    overrides_dir = os.path.join(helper_dir, "overrides")
+
     if not enabled_files:
         print("  All component overrides disabled, skipping override file generation.")
+        # Remove stale overrides directory from previous runs
+        if os.path.exists(overrides_dir):
+            import shutil
+            shutil.rmtree(overrides_dir)
+            print("  Removed stale overrides directory.")
         return
 
-    overrides_dir = os.path.join(helper_dir, "overrides")
+    # Clean overrides directory to remove files from previously enabled components
+    if os.path.exists(overrides_dir):
+        for f in os.listdir(overrides_dir):
+            os.remove(os.path.join(overrides_dir, f))
     os.makedirs(overrides_dir, exist_ok=True)
 
     overrides_src_dir = os.path.join(templates_dir, "overrides")

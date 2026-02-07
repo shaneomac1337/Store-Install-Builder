@@ -1618,6 +1618,9 @@ if [ "$use_default_versions" = true ]; then
       'STOREHUB-SERVICE')
         system_name="@STOREHUB_SERVICE_SYSTEM_TYPE@"
         ;;
+      'RCS-SERVICE')
+        system_name="@RCS_SYSTEM_TYPE@"
+        ;;
       *)
         system_name=""
         ;;
@@ -2511,7 +2514,7 @@ if [ "$no_overrides" = true ]; then
     echo "Skipping installer overrides (--noOverrides flag specified)"
 else
     overrides_dir="$script_dir/helper/overrides"
-    case "$component_type" in
+    case "$COMPONENT_TYPE" in
         POS)              override_file="installer_overrides.pos.xml" ;;
         ONEX-POS)         override_file="installer_overrides.onex-pos.xml" ;;
         WDM)              override_file="installer_overrides.wdm.xml" ;;
