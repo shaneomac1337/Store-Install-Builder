@@ -537,16 +537,21 @@ def generate_gk_install(output_dir, config, detection_manager,
             using_base_dir = str(detection_manager.is_using_base_directory()).lower()
             using_custom_paths = "false" if using_base_dir == "true" else "true"
             base_dir_value = detection_manager.get_base_directory().replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_BASE_DIR"
-            pos_file = detection_manager.detection_config["detection_files"]["POS"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            wdm_file = detection_manager.detection_config["detection_files"]["WDM"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            flow_file = detection_manager.detection_config["detection_files"]["FLOW-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            lpa_file = detection_manager.detection_config["detection_files"]["LPA-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            sh_file = detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"].replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            det_files = detection_manager.detection_config.get("detection_files", {})
+            pos_file = det_files.get("POS", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            onex_file = det_files.get("ONEX-POS", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            wdm_file = det_files.get("WDM", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            flow_file = det_files.get("FLOW-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            lpa_file = det_files.get("LPA-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            sh_file = det_files.get("STOREHUB-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            rcs_file = det_files.get("RCS-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             pos_filename = detection_manager.get_custom_filename("POS") if file_detection_enabled else "NEVER_MATCH.station"
+            onex_filename = detection_manager.get_custom_filename("ONEX-POS") if file_detection_enabled else "NEVER_MATCH.station"
             wdm_filename = detection_manager.get_custom_filename("WDM") if file_detection_enabled else "NEVER_MATCH.station"
             flow_filename = detection_manager.get_custom_filename("FLOW-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             lpa_filename = detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             sh_filename = detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
+            rcs_filename = detection_manager.get_custom_filename("RCS-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
 
             # Build the comprehensive station detection code
             # This includes both base directory and custom paths modes
@@ -563,10 +568,12 @@ def generate_gk_install(output_dir, config, detection_manager,
             $basePath = "{base_dir_value}"
             $customFilenames = @{{
                 "POS" = "{pos_filename}";
+                "ONEX-POS" = "{onex_filename}";
                 "WDM" = "{wdm_filename}";
                 "FLOW-SERVICE" = "{flow_filename}";
                 "LPA-SERVICE" = "{lpa_filename}";
-                "STOREHUB-SERVICE" = "{sh_filename}"
+                "STOREHUB-SERVICE" = "{sh_filename}";
+                "RCS-SERVICE" = "{rcs_filename}"
             }}
 
             # Get the appropriate station file for the current component
@@ -580,10 +587,12 @@ def generate_gk_install(output_dir, config, detection_manager,
             # Use custom paths approach
             $customPaths = @{{
                 "POS" = "{pos_file}";
+                "ONEX-POS" = "{onex_file}";
                 "WDM" = "{wdm_file}";
                 "FLOW-SERVICE" = "{flow_file}";
                 "LPA-SERVICE" = "{lpa_file}";
-                "STOREHUB-SERVICE" = "{sh_file}"
+                "STOREHUB-SERVICE" = "{sh_file}";
+                "RCS-SERVICE" = "{rcs_file}"
             }}
 
             # Get the appropriate station file path for the current component
@@ -769,16 +778,21 @@ def generate_gk_install(output_dir, config, detection_manager,
             # Get the detection configuration values
             using_base_dir_bool = str(detection_manager.is_using_base_directory())
             base_dir_value = detection_manager.get_base_directory() if file_detection_enabled else "NEVER_MATCH_BASE_DIR"
-            pos_file = detection_manager.detection_config["detection_files"]["POS"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            wdm_file = detection_manager.detection_config["detection_files"]["WDM"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            flow_file = detection_manager.detection_config["detection_files"]["FLOW-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            lpa_file = detection_manager.detection_config["detection_files"]["LPA-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
-            sh_file = detection_manager.detection_config["detection_files"]["STOREHUB-SERVICE"] if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            det_files = detection_manager.detection_config.get("detection_files", {})
+            pos_file = det_files.get("POS", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            onex_file = det_files.get("ONEX-POS", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            wdm_file = det_files.get("WDM", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            flow_file = det_files.get("FLOW-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            lpa_file = det_files.get("LPA-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            sh_file = det_files.get("STOREHUB-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            rcs_file = det_files.get("RCS-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             pos_filename = detection_manager.get_custom_filename("POS") if file_detection_enabled else "NEVER_MATCH.station"
+            onex_filename = detection_manager.get_custom_filename("ONEX-POS") if file_detection_enabled else "NEVER_MATCH.station"
             wdm_filename = detection_manager.get_custom_filename("WDM") if file_detection_enabled else "NEVER_MATCH.station"
             flow_filename = detection_manager.get_custom_filename("FLOW-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             lpa_filename = detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             sh_filename = detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
+            rcs_filename = detection_manager.get_custom_filename("RCS-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
 
             # Build the comprehensive station detection code for Linux
             station_detection_code = f'''
@@ -794,10 +808,12 @@ if [ "$useBaseDirectory" = "True" ]; then
     basePath="{base_dir_value}"
     declare -A customFilenames
     customFilenames["POS"]="{pos_filename}"
+    customFilenames["ONEX-POS"]="{onex_filename}"
     customFilenames["WDM"]="{wdm_filename}"
     customFilenames["FLOW-SERVICE"]="{flow_filename}"
     customFilenames["LPA-SERVICE"]="{lpa_filename}"
     customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
+    customFilenames["RCS-SERVICE"]="{rcs_filename}"
 
     # Get the appropriate station file for the current component
     stationFileName="${{customFilenames[$componentType]}}"
@@ -810,10 +826,12 @@ else
     # Use custom paths approach
     declare -A customPaths
     customPaths["POS"]="{pos_file}"
+    customPaths["ONEX-POS"]="{onex_file}"
     customPaths["WDM"]="{wdm_file}"
     customPaths["FLOW-SERVICE"]="{flow_file}"
     customPaths["LPA-SERVICE"]="{lpa_file}"
     customPaths["STOREHUB-SERVICE"]="{sh_file}"
+    customPaths["RCS-SERVICE"]="{rcs_file}"
 
     # Get the appropriate station file path for the current component
     stationFilePath="${{customPaths[$componentType]}}"

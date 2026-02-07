@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Script directory (used for locating helper files)
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # Parse command line arguments
 offline=false
 COMPONENT_TYPE="POS"
@@ -2544,6 +2547,8 @@ else
                     echo "CLI Override: start-application set to true (will be skipped)"
                 fi
             fi
+        else
+            echo "Warning: Override source file not found: $override_source"
         fi
     fi
 fi

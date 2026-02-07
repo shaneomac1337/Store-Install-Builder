@@ -1512,7 +1512,7 @@ class GKInstallBuilder:
         """Open dialog to configure per-component installer overrides"""
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("Installer Override Settings")
-        dialog.geometry("400x380")
+        dialog.geometry("420x420")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.after(100, lambda: dialog.grab_set())

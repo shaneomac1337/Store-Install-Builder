@@ -15,7 +15,8 @@ class DetectionManager:
                 "WDM": "WDM.station",
                 "FLOW-SERVICE": "FLOW-SERVICE.station",
                 "LPA-SERVICE": "LPA.station",
-                "STOREHUB-SERVICE": "SH.station"
+                "STOREHUB-SERVICE": "SH.station",
+                "RCS-SERVICE": "RCS.station"
             },
             "detection_files": {
                 "POS": "",
@@ -23,7 +24,8 @@ class DetectionManager:
                 "WDM": "",
                 "FLOW-SERVICE": "",
                 "LPA-SERVICE": "",
-                "STOREHUB-SERVICE": ""
+                "STOREHUB-SERVICE": "",
+                "RCS-SERVICE": ""
             },
             "hostname_detection": {
                 "windows_regex": r"^([0-9]{4})-([0-9]{3})$",

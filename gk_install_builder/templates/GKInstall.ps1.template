@@ -2118,6 +2118,8 @@ if ($noOverrides) {
                 }
                 $xmlContent | Set-Content -Path $overrideXmlPath -NoNewline
             }
+        } else {
+            Write-Host "Warning: Override source file not found: $overrideSource"
         }
     }
 }
