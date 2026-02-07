@@ -72,11 +72,11 @@ class AutoFillManager:
             pos_system_type = f"{project_code}-OPOS-CLOUD"
             onex_pos_system_type = f"{project_code}-OPOS-ONEX-CLOUD"
             wdm_system_type = f"{project_code}-wdm"
-            # FLOWSERVICE always uses GKR prefix (exception)
+            # FLOWSERVICE and RCS always use GKR prefix (exception)
             flow_service_system_type = "GKR-FLOWSERVICE-CLOUD"
             lpa_service_system_type = f"{project_code}-lps-lpa"
             storehub_service_system_type = f"{project_code}-sh-cloud"
-            rcs_system_type = f"{project_code}-Resource-Cache-Service"
+            rcs_system_type = "GKR-Resource-Cache-Service"
 
             print(f"Setting system types based on detected project code: {project_code}")
         else:
