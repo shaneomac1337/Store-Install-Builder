@@ -154,7 +154,27 @@ class OfflinePackageCreator:
         # Components frame
         self.components_frame = ctk.CTkFrame(self.offline_package_frame)
         self.components_frame.pack(fill="x", padx=10, pady=5)
-        
+
+        # Dictionary to hold inline version entry fields keyed by config key
+        self.version_entries = {}
+
+        # Helper to determine the pre-fill version for a component
+        def get_prefill_version(config_key):
+            config = self.config_manager.config
+            default_ver = config.get("version", "v1.0.0")
+            if config.get("use_version_override", False):
+                return config.get(config_key, default_ver)
+            return default_ver
+
+        # Helper to add a version entry field to a component frame
+        def add_version_entry(parent_frame, config_key):
+            version_entry = ctk.CTkEntry(parent_frame, width=120, height=28)
+            version_entry.insert(0, get_prefill_version(config_key))
+            version_entry.pack(side="right", padx=(0, 10))
+            version_label = ctk.CTkLabel(parent_frame, text="Version:", font=("Helvetica", 11))
+            version_label.pack(side="right", padx=(5, 0))
+            self.version_entries[config_key] = version_entry
+
         # Platform dependencies section
         platform_section_frame = ctk.CTkFrame(self.components_frame)
         platform_section_frame.pack(fill="x", pady=5, padx=10)
@@ -271,6 +291,7 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         pos_checkbox.pack(side="left", pady=5, padx=10)
+        add_version_entry(pos_component_frame, "pos_version")
 
         # OneX POS component frame
         onex_pos_component_frame = ctk.CTkFrame(self.components_frame)
@@ -289,6 +310,7 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         onex_pos_checkbox.pack(side="left", pady=5, padx=10)
+        add_version_entry(onex_pos_component_frame, "onex_pos_version")
 
         # OneX UI sub-option frame (indented under OneX POS)
         onex_ui_frame = ctk.CTkFrame(self.components_frame)
@@ -321,7 +343,8 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         wdm_checkbox.pack(side="left", pady=5, padx=10)
-        
+        add_version_entry(wdm_component_frame, "wdm_version")
+
         # Flow Service component frame
         flow_service_component_frame = ctk.CTkFrame(self.components_frame)
         flow_service_component_frame.pack(fill="x", pady=5, padx=10)
@@ -339,7 +362,8 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         flow_service_checkbox.pack(side="left", pady=5, padx=10)
-        
+        add_version_entry(flow_service_component_frame, "flow_service_version")
+
         # LPA Service component frame
         lpa_service_component_frame = ctk.CTkFrame(self.components_frame)
         lpa_service_component_frame.pack(fill="x", pady=5, padx=10)
@@ -357,7 +381,8 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         lpa_service_checkbox.pack(side="left", pady=5, padx=10)
-        
+        add_version_entry(lpa_service_component_frame, "lpa_service_version")
+
         # StoreHub Service component frame
         storehub_service_component_frame = ctk.CTkFrame(self.components_frame)
         storehub_service_component_frame.pack(fill="x", pady=5, padx=10)
@@ -375,6 +400,7 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         storehub_service_checkbox.pack(side="left", pady=5, padx=10)
+        add_version_entry(storehub_service_component_frame, "storehub_service_version")
 
         # RCS Service component frame
         rcs_service_component_frame = ctk.CTkFrame(self.components_frame)
@@ -393,6 +419,7 @@ class OfflinePackageCreator:
             checkbox_height=20
         )
         rcs_service_checkbox.pack(side="left", pady=5, padx=10)
+        add_version_entry(rcs_service_component_frame, "rcs_version")
 
         # Call update_dependencies to set initial state based on default selections
         # Removed: update_dependencies()
@@ -1684,9 +1711,18 @@ class OfflinePackageCreator:
             if self.include_rcs_service.get():
                 selected_components.append("RCS-SERVICE")
 
+            # Update config with inline version values before creating package
+            for config_key, entry in self.version_entries.items():
+                value = entry.get().strip()
+                if value:
+                    self.config_manager.config[config_key] = value
+
+            # Ensure version override is enabled so per-component versions are used
+            self.config_manager.config["use_version_override"] = True
+
             # Update config with platform dependencies
             self.config_manager.config["platform_dependencies"] = platform_dependencies
-            
+
             # Create offline package
             success, message = self.project_generator.prepare_offline_package(
                 self.config_manager.config,

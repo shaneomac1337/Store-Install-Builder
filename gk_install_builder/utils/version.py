@@ -63,6 +63,10 @@ def get_component_version(system_type, config):
         version = config.get("storehub_service_version", default_version)
         print(f"Matched StoreHub Service system type, using version: {version}")
         return version
+    elif system_type == "GKR-Resource-Cache-Service":
+        version = config.get("rcs_version", default_version)
+        print(f"Matched RCS system type, using version: {version}")
+        return version
     else:
         print(f"No match found for system type, using default version: {default_version}")
         return default_version

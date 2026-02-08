@@ -499,10 +499,12 @@ class ProjectGenerator:
 
             # Get component-specific versions
             pos_version = config.get("pos_version", default_version)
+            onex_pos_version = config.get("onex_pos_version", default_version)
             wdm_version = config.get("wdm_version", default_version)
             flow_service_version = config.get("flow_service_version", default_version)
             lpa_service_version = config.get("lpa_service_version", default_version)
             storehub_service_version = config.get("storehub_service_version", default_version)
+            rcs_version = config.get("rcs_version", default_version)
 
             # Get platform dependencies
             platform_dependencies = config.get("platform_dependencies", {})
@@ -512,10 +514,12 @@ class ProjectGenerator:
             print(f"Default version: {default_version}")
             print(f"Version override enabled: {use_version_override}")
             print(f"POS version: {pos_version}")
+            print(f"OneX POS version: {onex_pos_version}")
             print(f"WDM version: {wdm_version}")
             print(f"Flow Service version: {flow_service_version}")
             print(f"LPA Service version: {lpa_service_version}")
             print(f"StoreHub Service version: {storehub_service_version}")
+            print(f"RCS version: {rcs_version}")
             print(f"Selected components: {selected_components}")
             print(f"Platform dependencies: {platform_dependencies}")
 

@@ -4,6 +4,8 @@ Unit tests for version management functionality
 import pytest
 from unittest.mock import Mock, MagicMock
 
+from gk_install_builder.utils.version import get_component_version
+
 
 class TestVersionManagement:
     """Test version management and synchronization"""
@@ -126,3 +128,60 @@ class TestVersionManagement:
         assert "WDM" not in components_to_manage
         assert "FLOW" in components_to_manage
         assert len(components_to_manage) == 2
+
+
+class TestGetComponentVersion:
+    """Test get_component_version() from utils/version.py"""
+
+    def _make_config(self, override=True, **kwargs):
+        """Helper to build a config dict with version override and per-component versions."""
+        config = {"version": "v5.29.0", "use_version_override": override}
+        config.update(kwargs)
+        return config
+
+    @pytest.mark.parametrize("system_type,config_key", [
+        ("GKR-OPOS-CLOUD", "pos_version"),
+        ("CSE-OPOS-CLOUD", "pos_version"),
+        ("CSE-wdm", "wdm_version"),
+        ("GKR-WDM-CLOUD", "wdm_version"),
+        ("GKR-FLOWSERVICE-CLOUD", "flow_service_version"),
+        ("CSE-lps-lpa", "lpa_service_version"),
+        ("CSE-sh-cloud", "storehub_service_version"),
+        ("GKR-Resource-Cache-Service", "rcs_version"),
+    ])
+    def test_override_returns_component_version(self, system_type, config_key):
+        """Each system type returns its per-component version when override is enabled."""
+        config = self._make_config(**{config_key: "v2.0.0"})
+        assert get_component_version(system_type, config) == "v2.0.0"
+
+    def test_onex_pos_system_type(self):
+        """OneX POS matches via substring check on 'OPOS-ONEX'."""
+        config = self._make_config(onex_pos_version="v3.1.0")
+        assert get_component_version("GKR-OPOS-ONEX-CLOUD", config) == "v3.1.0"
+
+    def test_rcs_returns_correct_version(self):
+        """RCS system type returns rcs_version, not the default."""
+        config = self._make_config(rcs_version="v2.0.0")
+        assert get_component_version("GKR-Resource-Cache-Service", config) == "v2.0.0"
+
+    def test_override_disabled_returns_default(self):
+        """When override is disabled, all system types return the default version."""
+        config = self._make_config(override=False, pos_version="v2.0.0", rcs_version="v2.0.0")
+        assert get_component_version("GKR-OPOS-CLOUD", config) == "v5.29.0"
+        assert get_component_version("GKR-Resource-Cache-Service", config) == "v5.29.0"
+
+    def test_unknown_system_type_returns_default(self):
+        """Unknown system types fall back to the default version."""
+        config = self._make_config()
+        assert get_component_version("UNKNOWN-TYPE", config) == "v5.29.0"
+
+    def test_empty_system_type_returns_default(self):
+        """Empty or None system type returns the default version."""
+        config = self._make_config()
+        assert get_component_version("", config) == "v5.29.0"
+        assert get_component_version(None, config) == "v5.29.0"
+
+    def test_missing_component_version_falls_back_to_default(self):
+        """If a per-component version key is missing, falls back to default."""
+        config = self._make_config()  # no rcs_version key
+        assert get_component_version("GKR-Resource-Cache-Service", config) == "v5.29.0"
