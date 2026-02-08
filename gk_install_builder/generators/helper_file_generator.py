@@ -199,6 +199,15 @@ def create_password_files(helper_dir, config):
             # Create .default backup for factory defaults
             shutil.copy(form_password_path, f"{form_password_path}.default")
 
+        # Create form username file (using eh_launchpad_username)
+        form_username = config.get("eh_launchpad_username", "")
+        if form_username:
+            form_username_path = os.path.join(tokens_dir, "form_username.txt")
+            with open(form_username_path, 'w') as f:
+                f.write(form_username)
+            # Create .default backup for factory defaults
+            shutil.copy(form_username_path, f"{form_username_path}.default")
+
     except Exception as e:
         raise Exception(f"Failed to create password files: {str(e)}")
 

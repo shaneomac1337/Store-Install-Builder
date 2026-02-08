@@ -518,74 +518,102 @@ select_environment() {
     return 1
   fi
   
-  echo "Available environments:" >&2
+  # Build arrays of environment details for numbered selection
+  local env_count=0
+  local env_aliases=()
+  local env_names=()
+  local env_urls=()
+
   if [ "$JQ_AVAILABLE" = true ]; then
-    local env_list=$(echo "$environments" | jq -r '.environments[] | "\(.alias) - \(.name)"' 2>/dev/null)
-    if [ -n "$env_list" ]; then
-      echo "$env_list" >&2
-    else
+    env_count=$(echo "$environments" | jq '.environments | length' 2>/dev/null)
+    if [ "$env_count" -eq 0 ] 2>/dev/null; then
       echo "No valid environments found" >&2
       return 1
     fi
+    for (( i=0; i<env_count; i++ )); do
+      env_aliases+=("$(echo "$environments" | jq -r ".environments[$i].alias" 2>/dev/null)")
+      env_names+=("$(echo "$environments" | jq -r ".environments[$i].name" 2>/dev/null)")
+      env_urls+=("$(echo "$environments" | jq -r ".environments[$i].base_url" 2>/dev/null)")
+    done
   else
-    # Simple fallback list
-    local found_envs=false
+    # Fallback: parse JSON without jq - collect fields per object block
+    local cur_alias="" cur_name="" cur_url=""
+    local in_object=false
     while IFS= read -r line; do
+      # Detect start of an environment object (line containing alias)
       if [[ "$line" =~ \"alias\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
-        found_envs=true
-        local alias="${BASH_REMATCH[1]}"
-        # Try to find name on next few lines
-        local block="$line"
-        for i in {1..5}; do
-          read -r next_line || break
-          block+="$next_line"
-          if [[ "$next_line" =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
-            local name="${BASH_REMATCH[1]}"
-            echo "$alias - $name" >&2
-            break
-          fi
-        done
+        # If we were already tracking an object, save it before starting new one
+        if [ "$in_object" = true ] && [ -n "$cur_alias" ]; then
+          env_aliases+=("$cur_alias")
+          env_names+=("${cur_name:-$cur_alias}")
+          env_urls+=("${cur_url:-}")
+          env_count=$((env_count + 1))
+        fi
+        cur_alias="${BASH_REMATCH[1]}"
+        cur_name=""
+        cur_url=""
+        in_object=true
+      fi
+      if [ "$in_object" = true ]; then
+        if [[ "$line" =~ \"name\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+          cur_name="${BASH_REMATCH[1]}"
+        fi
+        if [[ "$line" =~ \"base_url\"[[:space:]]*:[[:space:]]*\"([^\"]*)\" ]]; then
+          cur_url="${BASH_REMATCH[1]}"
+        fi
       fi
     done <<< "$environments"
-    
-    if [ "$found_envs" = false ]; then
+    # Save the last object
+    if [ "$in_object" = true ] && [ -n "$cur_alias" ]; then
+      env_aliases+=("$cur_alias")
+      env_names+=("${cur_name:-$cur_alias}")
+      env_urls+=("${cur_url:-}")
+      env_count=$((env_count + 1))
+    fi
+
+    if [ "$env_count" -eq 0 ]; then
       echo "No valid environments found" >&2
       return 1
     fi
   fi
+
+  # Display numbered list (matching Windows behavior)
+  echo "[3] Interactive Selection: Please choose an environment" >&2
+  echo "" >&2
+  echo "  [0] Use Default (from main configuration)" >&2
+  for (( i=0; i<env_count; i++ )); do
+    echo "  [$((i+1))] ${env_aliases[$i]} - ${env_names[$i]} (${env_urls[$i]})" >&2
+  done
   echo "" >&2
 
-  # Validation loop - keep asking until valid alias or Enter (skip)
+  # Validation loop - keep asking until valid number
   while true; do
-    read -p "Enter environment alias (or press Enter to skip): " user_env
+    read -p "Enter number (0 for default, 1-${env_count} for environment): " selection
 
-    # If empty (user pressed Enter), skip environment selection
-    if [ -z "$user_env" ]; then
-      echo "No environment selected, using script defaults" >&2
-      echo "" >&2
-      return 1
-    fi
+    # Check if input is a valid number
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+      if [ "$selection" -eq 0 ]; then
+        echo "    [OK] Using default configuration" >&2
+        return 1
+      fi
+      if [ "$selection" -ge 1 ] && [ "$selection" -le "$env_count" ]; then
+        local idx=$((selection - 1))
+        local selected_alias="${env_aliases[$idx]}"
+        echo "    [OK] Selected: ${env_names[$idx]} (${env_urls[$idx]})" >&2
 
-    # Try to select the environment
-    local selected=""
-    if [ "$JQ_AVAILABLE" = true ]; then
-      selected=$(echo "$environments" | jq --arg alias "$user_env" '.environments[] | select(.alias == $alias)')
-    else
-      selected=$(json_select_by_alias "$environments" "$user_env")
-    fi
+        # Retrieve the full environment JSON object
+        local selected=""
+        if [ "$JQ_AVAILABLE" = true ]; then
+          selected=$(echo "$environments" | jq --arg alias "$selected_alias" '.environments[] | select(.alias == $alias)')
+        else
+          selected=$(json_select_by_alias "$environments" "$selected_alias")
+        fi
 
-    # Check if we found a match
-    if [ -n "$selected" ]; then
-      # Valid alias - return the selected environment
-      echo "$selected"
-      return 0
-    else
-      # Invalid alias - show error and loop
-      echo "Error: Environment alias '$user_env' not found. Please try again." >&2
-      echo "Available environments:" >&2
-      list_environments "$environments"
-      echo "" >&2
+        echo "$selected"
+        return 0
+      fi
     fi
+    echo "Invalid selection, please try again." >&2
   done
 }
 

@@ -320,7 +320,7 @@ function Apply-EnvironmentConfig {
     }
     
     # Update tenant_id in all helper JSON files
-    Update-HelperJsonTenantId -TenantId $script:tenantId -Username $script:env_form_username
+    Update-HelperJsonTenantId -TenantId $script:tenantId -Username $Environment.eh_launchpad_username
     
     Write-Host "[OK] Environment configuration applied"
     Write-Host "===================================`n"
@@ -1191,11 +1191,14 @@ if ($UseDefaultVersions) {
             $basicAuthPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($basicAuthPasswordEncoded))
             $formPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($formPasswordEncoded))
             
-            # Use environment-specific username if available, otherwise use template default
-            if ($script:env_form_username) {
-                $formUsername = $script:env_form_username
+            # Read username from file (written by environment application), fallback to template default
+            $formUsernamePath = Join-Path $tokensPath "form_username.txt"
+            if (Test-Path $formUsernamePath) {
+                $formUsername = (Get-Content $formUsernamePath -Raw).Trim()
+                Write-Host "[DEBUG] Form username from file: $formUsername"
             } else {
                 $formUsername = "@FORM_USERNAME@"
+                Write-Host "[DEBUG] Form username from template: $formUsername"
             }
 
             Write-Host "[DEBUG] Form username: $formUsername"
@@ -1252,11 +1255,11 @@ if ($UseDefaultVersions) {
     Write-Host "Using VersionSource: $VersionSource"
     
     if ($VersionSource -eq "CONFIG") {
-        # Use Config-Service API
+        # Use Config-Service API - fetch only the relevant component
         Write-Host "Fetching versions from Config-Service..."
-        
-        # Prepare system types hashtable
-        $systemTypes = @{
+
+        # Determine system name for the current component
+        $allSystemTypes = @{
             "POS" = "@POS_SYSTEM_TYPE@"
             "ONEX-POS" = "@ONEX_POS_SYSTEM_TYPE@"
             "WDM" = "@WDM_SYSTEM_TYPE@"
@@ -1265,7 +1268,14 @@ if ($UseDefaultVersions) {
             "STOREHUB-SERVICE" = "@STOREHUB_SERVICE_SYSTEM_TYPE@"
             "RCS-SERVICE" = "@RCS_SYSTEM_TYPE@"
         }
-        
+
+        if ($allSystemTypes.ContainsKey($ComponentType)) {
+            $systemTypes = @{ $ComponentType = $allSystemTypes[$ComponentType] }
+        } else {
+            $systemTypes = @{}
+            Write-Host "Warning: Unknown component type '$ComponentType' for Config-Service lookup"
+        }
+
         $defaultVersions = Get-DefaultVersions-ConfigService -BaseUrl $base_url -TenantId $tenantId -SystemTypes $systemTypes
     } else {
         # Use Function Pack (FP/FPD) API (default)
