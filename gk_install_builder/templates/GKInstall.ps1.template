@@ -1365,6 +1365,7 @@ if ($ComponentType -eq 'WDM') {
 # Add component-specific package directory check
 $package_dir = if ($ComponentType -eq 'LPA-SERVICE') { "offline_package_LPA" }
                elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "offline_package_SH" }
+               elseif ($ComponentType -eq 'RCS-SERVICE') { "offline_package_RCS" }
                else { "offline_package_$ComponentType" }
 
 # Update offline mode checks

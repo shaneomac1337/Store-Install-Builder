@@ -1781,6 +1781,8 @@ if [ "$COMPONENT_TYPE" = "LPA-SERVICE" ]; then
   package_dir="offline_package_LPA"
 elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
   package_dir="offline_package_SH"
+elif [ "$COMPONENT_TYPE" = "RCS-SERVICE" ]; then
+  package_dir="offline_package_RCS"
 else
   package_dir="offline_package_$COMPONENT_TYPE"
 fi
