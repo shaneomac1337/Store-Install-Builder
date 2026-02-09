@@ -13,7 +13,8 @@ param(
     [switch]$noOverrides,  # Skip deploying installer override files
     [switch]$skipCheckAlive,  # Override: skip check-alive even if XML says otherwise
     [switch]$skipStartApplication,  # Override: skip start-application even if XML says otherwise
-    [switch]$ListEnvironments  # List available environments and exit
+    [switch]$ListEnvironments,  # List available environments and exit
+    [string]$rcsUrl  # Optional: RCS URL for installation token (e.g., http://10.63.2.215:8080/rcs)
 )
 
 # Create a unique log filename based on timestamp
@@ -1917,6 +1918,11 @@ $installationToken = $installationToken.Replace('@DsgServer@', $dsg_server)
 $installationToken = $installationToken.Replace('@SYSTEM_TYPE@', $systemType)
 $installationToken = $installationToken.Replace('@ONBOARDING_TOKEN@', $onboardingToken)
 $installationToken = $installationToken.Replace('@TenantId@', $tenantId)
+
+# Append RCS URL to installation token if provided
+if ($rcsUrl) {
+    $installationToken += "`nrcs.url=$rcsUrl"
+}
 
 Set-Content -Path "installationtoken.txt" -Value $installationToken
 

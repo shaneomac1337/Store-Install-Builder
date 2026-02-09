@@ -18,6 +18,7 @@ list_environments=false  # --list-environments
 no_overrides=false   # --noOverrides: skip deploying installer override files
 skip_check_alive=false       # --skipCheckAlive: override check-alive to true
 skip_start_application=false # --skipStartApplication: override start-application to true
+rcs_url=""                   # --rcsUrl: RCS Service URL for installation token
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -66,9 +67,13 @@ while [ $# -gt 0 ]; do
       skip_start_application=true
       shift
       ;;
+    --rcsUrl)
+      rcs_url="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
       exit 1
       ;;
   esac
@@ -2329,6 +2334,11 @@ station.systemType=$systemType
 onboarding.token=$onboardingToken
 dsg.url=https://$dsg_server/api/digital-content/content/cep/SoftwarePackage
 EOF
+
+# Append RCS URL to installation token if provided
+if [ -n "$rcs_url" ]; then
+  echo "rcs.url=$rcs_url" >> "installationtoken.txt"
+fi
 
 # Create base64 token - ensure it's a single line without line breaks
 base64Token=$(base64 -w 0 installationtoken.txt)

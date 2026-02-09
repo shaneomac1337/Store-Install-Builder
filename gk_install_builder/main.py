@@ -618,7 +618,7 @@ class GKInstallBuilder:
                 "Flow Service System Type": "Type of Flow Service (e.g., 'CSE-FlowService')",
                 "LPA Service System Type": "Type of LPA Service (e.g., 'CSE-LPA-Service')",
                 "StoreHub Service System Type": "Type of StoreHub Service (e.g., 'CSE-StoreHub-Service')",
-                "RCS System Type": "Type of RCS Service (e.g., 'GKR-Resource-Cache-Service')",
+                "RCS System Type": "Type of RCS Service (e.g., 'GKR-Resource-Cache-Service').\nUse --rcsUrl <url> in GKInstall script to enable RCS downloading.",
                 "WDM System Type": "Type of Wall Device Manager (e.g., 'CSE-wdm')",
                 "Firebird Server Path": "Path to the Firebird server (e.g., '/opt/firebird')",
             }
