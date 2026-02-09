@@ -3314,7 +3314,11 @@ while [ $elapsed -lt $max_wait_time ]; do
     fi
   else
     if [ "$offline_mode" = false ]; then
-      echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from $base_url DSG"
+      if [ -n "$rcs_url" ] && [ "$rcs_url" != "autodetect" ]; then
+        echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from RCS ($rcs_url)"
+      else
+        echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from $base_url DSG"
+      fi
     else
       echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed)"
     fi

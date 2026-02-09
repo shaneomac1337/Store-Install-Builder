@@ -3010,7 +3010,11 @@ while ($elapsed -lt $maxWaitTime) {
         }
     } else {
         $waitMessage = if (-not $offline.IsPresent) {
-            "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from $base_url DSG"
+            if ($rcsUrl -and $rcsUrl -ne "autodetect") {
+                "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from RCS ($rcsUrl)"
+            } else {
+                "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from $base_url DSG"
+            }
         } else {
             "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed)"
         }
