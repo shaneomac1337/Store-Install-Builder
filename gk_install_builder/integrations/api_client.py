@@ -166,7 +166,7 @@ class APIClient:
             # Prepare headers for API requests
             headers = {
                 "authorization": f"Bearer {bearer_token}",
-                "gk-tenant-id": "001",
+                "gk-tenant-id": self.config_manager.config.get("tenant_id", "001"),
                 "Referer": f"https://{base_url}/employee-hub/app/index.html"
             }
             print(f"[TEST API] Headers prepared (token length: {len(bearer_token)})")
@@ -487,7 +487,8 @@ class APIClient:
             print(f"[TOKEN GEN] Form data (encoded): {form_data[:100]}...")
 
             # Make OAuth token request
-            token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
+            tenant_id = self.config_manager.config.get("tenant_id", "001")
+            token_url = f"https://{base_url}/auth-service/tenants/{tenant_id}/oauth/token"
             print(f"[TOKEN GEN] Token URL: {token_url}")
             print(f"[TOKEN GEN] Auth header: Basic {auth_b64[:50]}...")
 

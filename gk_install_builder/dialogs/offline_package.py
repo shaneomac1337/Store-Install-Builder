@@ -1800,7 +1800,8 @@ class OfflinePackageCreator:
             form_data = '&'.join(encoded_pairs)
             
             # Make OAuth token request
-            token_url = f"https://{base_url}/auth-service/tenants/001/oauth/token"
+            tenant_id = self.config_manager.config.get("tenant_id", "001")
+            token_url = f"https://{base_url}/auth-service/tenants/{tenant_id}/oauth/token"
             headers = {
                 'Authorization': f'Basic {auth_b64}',
                 'Content-Type': 'application/x-www-form-urlencoded'
