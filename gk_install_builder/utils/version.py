@@ -38,32 +38,36 @@ def get_component_version(system_type, config):
     print(f"\nDetermining version for system type: {system_type}")
     print(f"Version override enabled: {use_version_override}")
 
-    # Match against the exact system type names
-    if system_type in ["GKR-OPOS-CLOUD", "CSE-OPOS-CLOUD"]:
-        version = config.get("pos_version", default_version)
-        print(f"Matched POS system type, using version: {version}")
-        return version
-    elif "OPOS-ONEX" in system_type.upper():
+    # Match against system type using substring matching to support any project code prefix
+    # (e.g., GKR-sh-cloud, CSE-sh-cloud, ABC-sh-cloud all match StoreHub)
+    st = system_type.upper()
+
+    # Check OneX POS first since it also contains "OPOS"
+    if "OPOS-ONEX" in st:
         version = config.get("onex_pos_version", default_version)
         print(f"Matched OneX POS system type, using version: {version}")
         return version
-    elif system_type in ["CSE-wdm", "GKR-WDM-CLOUD"]:
+    elif "OPOS" in st:
+        version = config.get("pos_version", default_version)
+        print(f"Matched POS system type, using version: {version}")
+        return version
+    elif "WDM" in st:
         version = config.get("wdm_version", default_version)
         print(f"Matched WDM system type, using version: {version}")
         return version
-    elif system_type == "GKR-FLOWSERVICE-CLOUD":
+    elif "FLOWSERVICE" in st:
         version = config.get("flow_service_version", default_version)
         print(f"Matched Flow Service system type, using version: {version}")
         return version
-    elif system_type == "CSE-lps-lpa":
+    elif "LPS-LPA" in st:
         version = config.get("lpa_service_version", default_version)
         print(f"Matched LPA Service system type, using version: {version}")
         return version
-    elif system_type == "CSE-sh-cloud":
+    elif "SH-CLOUD" in st:
         version = config.get("storehub_service_version", default_version)
         print(f"Matched StoreHub Service system type, using version: {version}")
         return version
-    elif system_type == "GKR-Resource-Cache-Service":
+    elif "RESOURCE-CACHE-SERVICE" in st:
         version = config.get("rcs_version", default_version)
         print(f"Matched RCS system type, using version: {version}")
         return version

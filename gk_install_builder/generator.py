@@ -47,7 +47,9 @@ try:
         prompt_for_file_selection,
         process_platform_dependency,
         process_component,
-        process_onex_ui_package
+        process_onex_ui_package,
+        fetch_installer_properties,
+        build_installer_preferences
     )
 except ImportError:
     # Fall back to direct imports when run from gk_install_builder directory
@@ -76,7 +78,9 @@ except ImportError:
         prompt_for_file_selection,
         process_platform_dependency,
         process_component,
-        process_onex_ui_package
+        process_onex_ui_package,
+        fetch_installer_properties,
+        build_installer_preferences
     )
 
 # Disable insecure request warnings
@@ -556,21 +560,53 @@ class ProjectGenerator:
             download_errors = []
             # Collect all files to download first
             files_to_download = []
-            
+
+            # Pre-scan: fetch installer.properties from selected component version directories
+            print("\n=== Pre-scanning for installer.properties ===")
+            all_installer_properties = {}
+            component_version_map = {
+                "POS": ("pos", "CSE-OPOS-CLOUD"),
+                "ONEX-POS": ("onex_pos", "CSE-OPOS-ONEX-CLOUD"),
+                "WDM": ("wdm", "CSE-wdm"),
+                "FLOW-SERVICE": ("flow_service", "GKR-FLOWSERVICE-CLOUD"),
+                "LPA-SERVICE": ("lpa_service", "CSE-lps-lpa"),
+                "STOREHUB-SERVICE": ("storehub_service", "CSE-sh-cloud"),
+                "RCS-SERVICE": ("rcs", "GKR-Resource-Cache-Service"),
+            }
+
+            for comp_key, (cfg_key, default_sys_type) in component_version_map.items():
+                if comp_key in selected_components:
+                    system_type = config.get(f"{cfg_key}_system_type") or default_sys_type
+                    version_to_use = self.get_component_version(system_type, config)
+                    version_path = f"/SoftwarePackage/{system_type}/{version_to_use}"
+                    props = fetch_installer_properties(self.dsg_api_browser, version_path)
+                    if props:
+                        all_installer_properties[version_path] = props
+
+            installer_preferences = build_installer_preferences(all_installer_properties, config)
+
+            if all_installer_properties:
+                print(f"[INSTALLER PROPS] Pre-scan complete: found properties in {len(all_installer_properties)} component(s)")
+            else:
+                print("[INSTALLER PROPS] Pre-scan complete: no installer.properties found in any component")
+            print("=== End pre-scan ===\n")
+
             # Process platform dependencies
             process_platform_dependency(
                 "Java", "JAVA", "/SoftwarePackage/Java", "zip",
                 platform_dependencies, self.dsg_api_browser,
                 self._ask_download_again, dialog_parent,
                 output_dir, files_to_download, download_errors,
-                prompt_for_file_selection, config
+                prompt_for_file_selection, config,
+                installer_preferences=installer_preferences
             )
             process_platform_dependency(
                 "Tomcat", "TOMCAT", "/SoftwarePackage/Tomcat", "zip",
                 platform_dependencies, self.dsg_api_browser,
                 self._ask_download_again, dialog_parent,
                 output_dir, files_to_download, download_errors,
-                prompt_for_file_selection, config
+                prompt_for_file_selection, config,
+                installer_preferences=installer_preferences
             )
             process_platform_dependency(
                 "Jaybird", "JAYBIRD", "/SoftwarePackage/Drivers", "jar",
@@ -578,60 +614,69 @@ class ProjectGenerator:
                 self._ask_download_again, dialog_parent,
                 output_dir, files_to_download, download_errors,
                 prompt_for_file_selection, config,
-                file_filter=lambda files: [f for f in files if f.get('name', '').endswith('.jar')]
+                file_filter=lambda files: [f for f in files if f.get('name', '').endswith('.jar')],
+                installer_preferences=installer_preferences
             )
-            
+
             # Process application components
             process_component(
                 "POS", "POS", "pos", "CSE-OPOS-CLOUD",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
-                files_to_download, dialog_parent, self.parent_window
+                files_to_download, dialog_parent, self.parent_window,
+                installer_preferences=installer_preferences
             )
             process_component(
                 "ONEX-POS", "ONEX-POS", "onex_pos", "CSE-OPOS-ONEX-CLOUD",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
-                display_name="OneX POS Client"
+                display_name="OneX POS Client",
+                installer_preferences=installer_preferences
             )
             process_onex_ui_package(
                 selected_components, output_dir, config, self.get_component_version,
-                self.dsg_api_browser, files_to_download
+                self.dsg_api_browser, files_to_download,
+                installer_preferences=installer_preferences
             )
             process_component(
                 "WDM", "WDM", "wdm", "CSE-wdm",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
-                files_to_download, dialog_parent, self.parent_window
+                files_to_download, dialog_parent, self.parent_window,
+                installer_preferences=installer_preferences
             )
             process_component(
                 "FLOW-SERVICE", "FLOW-SERVICE", "flow_service", "GKR-FLOWSERVICE-CLOUD",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
-                display_name="Flow Service"
+                display_name="Flow Service",
+                installer_preferences=installer_preferences
             )
             process_component(
                 "LPA", "LPA-SERVICE", "lpa_service", "CSE-lps-lpa",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
-                display_name="LPA Service"
+                display_name="LPA Service",
+                installer_preferences=installer_preferences
             )
             process_component(
                 "SH", "STOREHUB-SERVICE", "storehub_service", "CSE-sh-cloud",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
-                display_name="StoreHub Service"
+                display_name="StoreHub Service",
+                installer_preferences=installer_preferences
             )
             process_component(
                 "RCS", "RCS-SERVICE", "rcs", "GKR-Resource-Cache-Service",
                 selected_components, output_dir, config, self.get_component_version,
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
-                display_name="RCS Service"
+                display_name="RCS Service",
+                installer_preferences=installer_preferences
             )
 
             # If no files to download, return

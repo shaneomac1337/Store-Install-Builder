@@ -8,9 +8,174 @@ method to improve modularity and reduce file size.
 import os
 import time
 import re
+import requests
 import customtkinter as ctk
 import tkinter as tk
 import sys
+
+
+def fetch_installer_properties(dsg_api_browser, version_path):
+    """
+    Fetch and parse installer.properties from a component version directory.
+
+    Looks for 'installer.properties' in the given version_path on the DSG API,
+    downloads it, and parses it as a key=value property file.
+
+    Args:
+        dsg_api_browser: DSGRestBrowser instance (must be connected)
+        version_path: Full API path, e.g. '/SoftwarePackage/CSE-OPOS-CLOUD/v5.29.0'
+
+    Returns:
+        dict: Parsed key-value pairs from the file. Empty dict if not found or on error.
+    """
+    try:
+        files = dsg_api_browser.list_directories(version_path)
+
+        props_file = None
+        for f in files:
+            if not f.get('is_directory', False) and f.get('name', '') == 'installer.properties':
+                props_file = f
+                break
+
+        if not props_file:
+            print(f"[INSTALLER PROPS] WARNING: installer.properties not found in {version_path}")
+            return {}
+
+        print(f"[INSTALLER PROPS] Found installer.properties in {version_path}")
+
+        file_path = f"{version_path}/installer.properties"
+        file_url = dsg_api_browser.get_file_url(file_path)
+
+        def make_request():
+            return requests.get(
+                file_url,
+                headers=dsg_api_browser._get_headers(),
+                verify=False,
+                timeout=(10, 30)
+            )
+
+        response = dsg_api_browser._handle_api_request(make_request)
+        content = response.text
+
+        properties = {}
+        for line in content.splitlines():
+            line = line.strip()
+            if not line or line.startswith('#') or line.startswith('!'):
+                continue
+            if '=' in line:
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if key:
+                    properties[key] = value
+                    print(f"[INSTALLER PROPS]   {key} = {value}")
+
+        print(f"[INSTALLER PROPS] Parsed {len(properties)} properties from {version_path}")
+        return properties
+
+    except Exception as e:
+        print(f"[INSTALLER PROPS] WARNING: Failed to fetch installer.properties from {version_path}: {e}")
+        return {}
+
+
+def build_installer_preferences(all_properties, config):
+    """
+    Build a unified installer preferences dictionary from installer.properties
+    collected from multiple components.
+
+    Resolves platform-specific values based on the config platform setting.
+
+    Args:
+        all_properties: dict mapping component version_path to its parsed properties dict
+        config: Configuration dictionary (used for platform detection)
+
+    Returns:
+        dict with keys:
+            'java_file': preferred Java filename or None
+            'java_path': full Java relative path or None
+            'tomcat_file': preferred Tomcat filename or None
+            'tomcat_path': full Tomcat relative path or None
+            'jaybird_file': preferred Jaybird filename or None
+            'jaybird_path': full Jaybird relative path or None
+            'installer_paths': dict mapping version_path -> preferred installer filename
+            'onex_ui_file': preferred OneX UI filename or None
+            'onex_ui_path': full OneX UI relative path or None
+            'source_component': which component the Java preference came from
+    """
+    platform_type = config.get("platform", "Windows").lower()
+
+    preferences = {
+        'java_file': None,
+        'java_path': None,
+        'tomcat_file': None,
+        'tomcat_path': None,
+        'jaybird_file': None,
+        'jaybird_path': None,
+        'installer_paths': {},
+        'onex_ui_file': None,
+        'onex_ui_path': None,
+        'source_component': None,
+    }
+
+    for version_path, props in all_properties.items():
+        # Extract Java preference (first component that specifies it wins)
+        if preferences['java_file'] is None:
+            java_key = f"java_{platform_type}" if platform_type in ("windows", "linux") else "java_windows"
+            if java_key in props:
+                java_full_path = props[java_key]
+                if '/' in java_full_path:
+                    parts = java_full_path.split('/')
+                    preferences['java_file'] = parts[-1]
+                    preferences['java_path'] = java_full_path
+                else:
+                    preferences['java_file'] = java_full_path
+                    preferences['java_path'] = java_full_path
+                preferences['source_component'] = version_path
+                print(f"[INSTALLER PROPS] Pre-selecting Java: {preferences['java_file']} (from {version_path})")
+
+        # Extract Tomcat preference (first component that specifies it wins)
+        if preferences['tomcat_file'] is None:
+            if 'tomcat' in props:
+                tomcat_full_path = props['tomcat']
+                if '/' in tomcat_full_path:
+                    parts = tomcat_full_path.split('/')
+                    preferences['tomcat_file'] = parts[-1]
+                    preferences['tomcat_path'] = tomcat_full_path
+                else:
+                    preferences['tomcat_file'] = tomcat_full_path
+                    preferences['tomcat_path'] = tomcat_full_path
+                print(f"[INSTALLER PROPS] Pre-selecting Tomcat: {preferences['tomcat_file']} (from {version_path})")
+
+        # Extract Jaybird/Firebird driver preference (first component that specifies it wins)
+        if preferences['jaybird_file'] is None:
+            if 'firebird_driver_path' in props:
+                jaybird_full_path = props['firebird_driver_path']
+                if '/' in jaybird_full_path:
+                    parts = jaybird_full_path.split('/')
+                    preferences['jaybird_file'] = parts[-1]
+                    preferences['jaybird_path'] = jaybird_full_path
+                else:
+                    preferences['jaybird_file'] = jaybird_full_path
+                    preferences['jaybird_path'] = jaybird_full_path
+                print(f"[INSTALLER PROPS] Pre-selecting Jaybird: {preferences['jaybird_file']} (from {version_path})")
+
+        # Extract installer_path preference (per-component)
+        if 'installer_path' in props:
+            installer_full_path = props['installer_path']
+            installer_filename = installer_full_path.split('/')[-1] if '/' in installer_full_path else installer_full_path
+            preferences['installer_paths'][version_path] = installer_filename
+            print(f"[INSTALLER PROPS] Pre-selecting installer: {installer_filename} (for {version_path})")
+
+        # Extract OneX UI preference (first component that specifies it wins)
+        if preferences['onex_ui_file'] is None:
+            onex_key = f"onex_ui_{platform_type}" if platform_type in ("windows", "linux", "mac") else "onex_ui_windows"
+            if onex_key in props:
+                onex_full_path = props[onex_key]
+                preferences['onex_ui_file'] = onex_full_path.split('/')[-1] if '/' in onex_full_path else onex_full_path
+                preferences['onex_ui_path'] = onex_full_path
+                print(f"[INSTALLER PROPS] Pre-selecting OneX UI: {preferences['onex_ui_file']} (from {version_path})")
+
+    return preferences
 
 
 def download_file_thread(remote_path, local_path, file_name, component_type,
@@ -168,7 +333,8 @@ def create_progress_dialog(parent, total_files):
 
 
 def prompt_for_file_selection(files, component_type, dialog_parent, parent_window,
-                               title=None, description=None, file_type=None, config=None):
+                               title=None, description=None, file_type=None, config=None,
+                               preferred_files=None):
     """
     Prompt user to select files from a list when multiple files are found
 
@@ -192,6 +358,10 @@ def prompt_for_file_selection(files, component_type, dialog_parent, parent_windo
     # Use custom title and description if provided
     title = title or f"Select {component_type} Installer"
     description = description or f"Please select which installer(s) you want to download:"
+
+    # Add note when installer.properties preferences are active
+    if preferred_files:
+        description += "\n(Pre-selected based on installer.properties)"
 
     # Filter for appropriate file types
     if file_type == "zip":
@@ -423,8 +593,12 @@ def prompt_for_file_selection(files, component_type, dialog_parent, parent_windo
         # Default to not selected
         default_selected = False
 
+        # HIGHEST PRIORITY: installer.properties preference
+        if preferred_files and file['name'] in preferred_files:
+            default_selected = True
+            print(f"[INSTALLER PROPS] Pre-selecting '{file['name']}' (from installer.properties)")
         # For Java files, select based on platform
-        if component_type and 'Java' in component_type:
+        elif component_type and 'Java' in component_type:
             platform = config.get("platform", "Windows")
             file_name = file['name'].lower()
 
@@ -543,7 +717,7 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
                                 ask_download_again_callback, dialog_parent,
                                 output_dir, files_to_download, download_errors,
                                 prompt_for_file_selection_callback, config,
-                                file_filter=None):
+                                file_filter=None, installer_preferences=None):
     """
     Process a platform dependency download (Java, Tomcat, Jaybird)
 
@@ -562,6 +736,7 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
         prompt_for_file_selection_callback: Callback to prompt for file selection
         config: Configuration dictionary
         file_filter: Optional filter function for files
+        installer_preferences: Preferences from installer.properties (optional)
     """
     if not platform_dependencies.get(dep_key, False):
         return
@@ -599,16 +774,42 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
 
         print(f"Direct {file_extension} files: {len(direct_files)}, Version directories: {len(version_dirs)}")
 
-        # If we have version directories but no direct files, let user select a version first
-        if not direct_files and version_dirs:
-            print(f"No direct {file_extension} files found, prompting user to select version directory...")
+        # Check if installer.properties specifies a preferred file for this dependency
+        preferred_file = None
+        if installer_preferences:
+            if dep_name == "Java" and installer_preferences.get('java_file'):
+                preferred_file = installer_preferences['java_file']
+                print(f"[INSTALLER PROPS] Preferred Java file: {preferred_file}")
+            elif dep_name == "Tomcat" and installer_preferences.get('tomcat_file'):
+                preferred_file = installer_preferences['tomcat_file']
+                print(f"[INSTALLER PROPS] Preferred Tomcat file: {preferred_file}")
+            elif dep_name == "Jaybird" and installer_preferences.get('jaybird_file'):
+                preferred_file = installer_preferences['jaybird_file']
+                print(f"[INSTALLER PROPS] Preferred Jaybird file: {preferred_file}")
 
-            # Create a simple dialog to select version directory
-            selected_version = _prompt_for_version_selection(
-                version_dirs, dep_name, dialog_parent,
-                f"Select {dep_name} Version",
-                f"Please select which {dep_name} version to download:"
-            )
+        # If we have version directories but no direct files, need to select a version
+        if not direct_files and version_dirs:
+            selected_version = None
+
+            # Try to auto-select version directory from installer.properties Java path
+            if preferred_file:
+                version_match = re.search(r'(\d+\.\d+\.\d+(?:_\d+)?)', preferred_file)
+                if version_match:
+                    target_version = version_match.group(1)
+                    for vd in version_dirs:
+                        if target_version in vd.get('name', ''):
+                            selected_version = vd['name']
+                            print(f"[INSTALLER PROPS] Auto-selected version directory '{selected_version}' from Java filename version {target_version}")
+                            break
+
+            if not selected_version:
+                # Fall back to user selection (existing behavior)
+                print(f"No direct {file_extension} files found, prompting user to select version directory...")
+                selected_version = _prompt_for_version_selection(
+                    version_dirs, dep_name, dialog_parent,
+                    f"Select {dep_name} Version",
+                    f"Please select which {dep_name} version to download:"
+                )
 
             if not selected_version:
                 print(f"No {dep_name} version selected")
@@ -623,7 +824,7 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
             # Update api_path for the download
             api_path = version_path
 
-        # Prompt user to select files
+        # Prompt user to select files (with installer.properties preference if available)
         selected_files = prompt_for_file_selection_callback(
             files,
             dep_name,
@@ -632,7 +833,8 @@ def process_platform_dependency(dep_name, dep_key, api_path, file_extension,
             title=f"Select {dep_name} Files",
             description=f"Please select which {dep_name} {'driver' if dep_key == 'JAYBIRD' else 'files'} to download:",
             file_type=file_extension,
-            config=config
+            config=config,
+            preferred_files=[preferred_file] if preferred_file else None
         )
 
         # Add selected files to download list
@@ -722,7 +924,8 @@ def _prompt_for_version_selection(version_dirs, dep_name, dialog_parent, title, 
 def process_component(component_name, component_key, config_key, default_system_type,
                       selected_components, output_dir, config, get_component_version_callback,
                       dsg_api_browser, prompt_for_file_selection_callback,
-                      files_to_download, dialog_parent, parent_window, display_name=None):
+                      files_to_download, dialog_parent, parent_window, display_name=None,
+                      installer_preferences=None):
     """
     Process an application component download
 
@@ -741,6 +944,7 @@ def process_component(component_name, component_key, config_key, default_system_
         dialog_parent: Preferred parent window for dialogs
         parent_window: Fallback parent window
         display_name: Optional display name (defaults to component_name)
+        installer_preferences: Preferences from installer.properties (optional)
     """
     if component_key not in selected_components:
         return
@@ -752,7 +956,7 @@ def process_component(component_name, component_key, config_key, default_system_
     os.makedirs(component_dir, exist_ok=True)
 
     # Determine system type and version
-    system_type = config.get(f"{config_key}_system_type", default_system_type)
+    system_type = config.get(f"{config_key}_system_type") or default_system_type
     version_to_use = get_component_version_callback(system_type, config)
 
     print(f"Using system type: {system_type}")
@@ -766,13 +970,21 @@ def process_component(component_name, component_key, config_key, default_system_
         files = dsg_api_browser.list_directories(version_path)
         print(f"Found files: {files}")
 
-        # Prompt user to select files
+        # Check if installer.properties specifies a preferred installer
+        preferred_installer = None
+        if installer_preferences and installer_preferences.get('installer_paths'):
+            preferred_installer = installer_preferences['installer_paths'].get(version_path)
+            if preferred_installer:
+                print(f"[INSTALLER PROPS] Preferred installer for {display_name}: {preferred_installer}")
+
+        # Prompt user to select files (with installer.properties preference if available)
         selected_files = prompt_for_file_selection_callback(
             files, display_name, dialog_parent, parent_window,
             title=f"Select {display_name} Installer",
             description=f"Please select which {display_name} installer(s) you want to download:",
             file_type=None,
-            config=config
+            config=config,
+            preferred_files=[preferred_installer] if preferred_installer else None
         )
 
         # Add selected files to download list
@@ -794,7 +1006,7 @@ def process_component(component_name, component_key, config_key, default_system_
 
 
 def process_onex_ui_package(selected_components, output_dir, config, get_component_version_callback,
-                            dsg_api_browser, files_to_download):
+                            dsg_api_browser, files_to_download, installer_preferences=None):
     """
     Process the OneX UI package download (platform-specific zip).
 
@@ -808,6 +1020,7 @@ def process_onex_ui_package(selected_components, output_dir, config, get_compone
         get_component_version_callback: Callback to get component version
         dsg_api_browser: DSG API browser instance
         files_to_download: List to append download tasks to
+        installer_preferences: Preferences from installer.properties (optional)
     """
     if "ONEX-POS-UI" not in selected_components:
         return
@@ -815,7 +1028,7 @@ def process_onex_ui_package(selected_components, output_dir, config, get_compone
     print("\nProcessing OneX UI package...")
 
     # Reuse the same system type and version as OneX POS
-    system_type = config.get("onex_pos_system_type", "CSE-OPOS-ONEX-CLOUD")
+    system_type = config.get("onex_pos_system_type") or "CSE-OPOS-ONEX-CLOUD"
     version_to_use = get_component_version_callback(system_type, config)
     component_dir = os.path.join(output_dir, "offline_package_ONEX-POS")
     os.makedirs(component_dir, exist_ok=True)
@@ -833,16 +1046,29 @@ def process_onex_ui_package(selected_components, output_dir, config, get_compone
     try:
         files = dsg_api_browser.list_directories(version_path)
 
-        # Filter for the platform-specific UI zip
-        ui_files = [f for f in files if f.get('name', '').startswith('onex-ui-')
-                     and f.get('name', '').endswith(platform_suffix)]
+        ui_file = None
 
-        if not ui_files:
+        # Try installer.properties preference first
+        preferred_onex_ui = None
+        if installer_preferences and installer_preferences.get('onex_ui_file'):
+            preferred_onex_ui = installer_preferences['onex_ui_file']
+            matching = [f for f in files if f.get('name', '') == preferred_onex_ui]
+            if matching:
+                ui_file = matching[0]
+                print(f"[INSTALLER PROPS] Using preferred OneX UI file: {ui_file['name']}")
+            else:
+                print(f"[INSTALLER PROPS] WARNING: Preferred OneX UI '{preferred_onex_ui}' not found, falling back to platform detection")
+
+        # Fallback: existing platform-suffix logic
+        if not ui_file:
+            ui_files = [f for f in files if f.get('name', '').startswith('onex-ui-')
+                         and f.get('name', '').endswith(platform_suffix)]
+            if ui_files:
+                ui_file = ui_files[0]
+
+        if not ui_file:
             print(f"Warning: No OneX UI package found matching *{platform_suffix} in {version_path}")
             return
-
-        # Auto-select the single matching file
-        ui_file = ui_files[0]
         file_name = ui_file['name']
         remote_path = f"{version_path}/{file_name}"
         local_path = os.path.join(component_dir, file_name)

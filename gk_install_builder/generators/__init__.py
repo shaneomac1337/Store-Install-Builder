@@ -21,7 +21,9 @@ from .offline_package_helpers import (
     prompt_for_file_selection,
     process_platform_dependency,
     process_component,
-    process_onex_ui_package
+    process_onex_ui_package,
+    fetch_installer_properties,
+    build_installer_preferences
 )
 
 __all__ = [
@@ -43,5 +45,7 @@ __all__ = [
     'prompt_for_file_selection',
     'process_platform_dependency',
     'process_component',
-    'process_onex_ui_package'
+    'process_onex_ui_package',
+    'fetch_installer_properties',
+    'build_installer_preferences'
 ]
