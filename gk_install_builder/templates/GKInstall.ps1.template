@@ -40,6 +40,121 @@ function Stop-TranscriptSafely {
     }
 }
 
+# Consolidated cleanup function for moving installation files to target directory
+function Invoke-InstallationCleanup {
+    param(
+        [string]$TargetDir,
+        [switch]$RemoveOverrides,
+        [string]$Message = "Performing cleanup"
+    )
+
+    Write-Host "$Message - Moving generated files to $TargetDir directory..."
+
+    # Remove installer overrides if requested
+    if ($RemoveOverrides -and $removeOverridesAfterInstall -eq "true") {
+        $overrideDest = Join-Path $install_dir "installer\overrides"
+        if (Test-Path $overrideDest) {
+            Remove-Item -Path $overrideDest -Recurse -Force
+            Write-Host "Removed installer overrides folder: $overrideDest"
+        }
+    }
+
+    # Create target directory
+    if (-not (Test-Path $TargetDir)) {
+        New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
+    }
+
+    # Stop transcript (3 attempts with delays)
+    Write-Host "Making multiple attempts to stop the transcript before cleanup..."
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 1
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 1
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 2
+
+    # List of files to move
+    $filesToMove = @(
+        "installationtoken.txt",
+        "installationtoken.base64",
+        "launcher.properties",
+        "onboarding.token",
+        "Launcher.exe"
+    )
+
+    # Add log files
+    $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
+    if ($additionalFiles) {
+        foreach ($f in $additionalFiles) {
+            $filesToMove += $f.FullName
+        }
+    }
+
+    # Add JSON files from current directory only
+    $jsonFiles = @()
+    $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
+    if ($jsonFiles.Count -gt 0) {
+        Write-Host "Found $($jsonFiles.Count) JSON files to move"
+        foreach ($jsonFile in $jsonFiles) {
+            $filesToMove += $jsonFile.FullName
+        }
+    } else {
+        Write-Host "No JSON files need to be cleaned up"
+    }
+
+    # Move each file to target directory
+    foreach ($file in $filesToMove) {
+        if (Test-Path $file) {
+            if ($file -like "*\helper\*") { continue }
+            $destFile = Join-Path $TargetDir (Split-Path -Leaf $file)
+            try {
+                Copy-Item -Path $file -Destination $destFile -Force
+                Write-Host "Moved: $file to $destFile"
+                Remove-Item -Path $file -Force
+            } catch {
+                Write-Host "Warning: Could not process $file to $TargetDir directory: $_"
+            }
+        }
+    }
+
+    # Second round of transcript stop
+    Write-Host "Performing final transcript stop and log file cleanup..."
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 1
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 1
+    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
+    Start-Sleep -Seconds 2
+
+    # Copy console log file to target directory
+    if (Test-Path $logFile) {
+        $destLogFile = Join-Path $TargetDir $logFile
+        try {
+            Start-Sleep -Seconds 3
+            Write-Host "Copying log file: $logFile to $destLogFile"
+            Copy-Item -Path $logFile -Destination $destLogFile -Force
+            Write-Host "Console output log copied to: $destLogFile"
+            try {
+                Write-Host "Attempting to remove original log file..."
+                Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
+                Write-Host "Original log file removed successfully."
+            } catch {
+                Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
+            }
+        } catch {
+            Write-Host "Warning: Could not copy log file to $TargetDir directory: $_"
+        }
+    }
+
+    Write-Host "Cleanup completed. Files have been moved to $TargetDir directory."
+
+    # Delete access token
+    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+    if (Test-Path $tokenPath) {
+        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # Trap for terminating errors (exceptions)
 trap {
     Stop-TranscriptSafely
@@ -2313,438 +2428,20 @@ $firstLog = $true
 Write-Host "Waiting for installation to complete..."
 Write-Host "Monitoring log: $installerLogPath"
 
+$completionStatus = "unknown"
+
 while ($elapsed -lt $maxWaitTime) {
-    # Check if launcher is still running
-    if ($launcherProcess.HasExited) {
-        Write-Host "Launcher process has exited with code: $($launcherProcess.ExitCode)"
-        Write-Host "Continuing to monitor logs for 5 seconds..."
-        
-        $postExitTime = 5
-        while ($postExitTime -gt 0) {
-            if (Test-Path $installerLogPath) {
-                try {
-                    # Read new lines from the log
-                    $currentContent = Get-Content $installerLogPath -ErrorAction Stop
-                    
-                    if ($currentContent.Count -gt $lastLineNumber) {
-                        $newLines = $currentContent[$lastLineNumber..($currentContent.Count-1)]
-                        foreach ($line in $newLines) {
-                            Write-Host "LOG: $line"
-                        }
-                        $lastLineNumber = $currentContent.Count
-                    }
-                }
-                catch {
-                    Write-Host "Error reading log file: $_"
-                }
-            }
-            
-            Write-Host -NoNewline "`rTime remaining for log monitoring: $postExitTime seconds..."
-            Start-Sleep -Seconds 1
-            $postExitTime--
-        }
-        Write-Host "`nCompleting installation..."
-        
-        # Final log check
-        if (Test-Path $installerLogPath) {
-            try {
-                $finalLogContent = Get-Content $installerLogPath -ErrorAction Stop | Select-Object -Last 20
-                if ($finalLogContent -match "Installation finished") {
-                    Write-Host "Installation completed successfully!"
-                    Write-Host "Installation directory: $install_dir"
-
-                    # Remove installer overrides if configured
-                    if ($removeOverridesAfterInstall -eq "true") {
-                        $overrideDest = Join-Path $install_dir "installer\overrides"
-                        if (Test-Path $overrideDest) {
-                            Remove-Item -Path $overrideDest -Recurse -Force
-                            Write-Host "Removed installer overrides folder: $overrideDest"
-                        }
-                    }
-
-                    # Component-specific completion messages
-                    Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
-
-                    # Cleanup: Move generated files to a results directory
-                    $resultsDir = "results_$ComponentType"
-                    Write-Host "Performing cleanup - Moving generated files to $resultsDir directory..."
-                    
-                    # Create the results directory if it doesn't exist
-                    if (-not (Test-Path $resultsDir)) {
-                        New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
-                    }
-                    
-                    # Multiple attempts to ensure transcript is stopped
-                    Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 1
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 1
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 2
-                    
-                    # List of files to move
-                    $filesToMove = @(
-                        "installationtoken.txt",
-                        "installationtoken.base64",
-                        "launcher.properties",
-                        "onboarding.token",
-                        "Launcher.exe"
-                    )
-                    
-                    # Add additional files specific to the installation - but only if they exist
-                    $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-                    if ($additionalFiles) {
-                        foreach ($logFile in $additionalFiles) {
-                            $filesToMove += $logFile.FullName
-                        }
-                    }
-                    
-                    # Find all JSON files in the current directory and helper subdirectories
-                    $jsonFiles = @()
-                    # Only include JSON files in the current directory, not in helper
-                    $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-                    
-                    if ($jsonFiles.Count -gt 0) {
-                        Write-Host "Found $($jsonFiles.Count) JSON files to move"
-                        foreach ($jsonFile in $jsonFiles) {
-                            $filesToMove += $jsonFile.FullName
-                        }
-                    } else {
-                        Write-Host "No JSON files need to be cleaned up"
-                    }
-
-                    # Move each file to the results directory
-                    foreach ($file in $filesToMove) {
-                        if (Test-Path $file) {
-                            # Skip any files in helper directory
-                            if ($file -like "*\helper\*") {
-                                continue
-                            }
-                            
-                            # Process only files in current directory
-                            $destFile = Join-Path $resultsDir (Split-Path -Leaf $file)
-                            
-                            try {
-                                # Copy first, then remove to ensure successful copy
-                                Copy-Item -Path $file -Destination $destFile -Force
-                                Write-Host "Moved: $file to $destFile"
-                                Remove-Item -Path $file -Force
-                            } catch {
-                                Write-Host "Warning: Could not process $file to results directory: $_"
-                            }
-                        }
-                    }
-                    
-                    # Final attempt to stop transcript and handle log file as last step
-                    Write-Host "Performing final transcript stop and log file cleanup..."
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 1
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 1
-                    try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                    Start-Sleep -Seconds 2
-                    
-                    # Move log file to results directory if it exists
-                    if (Test-Path $logFile) {
-                        $destLogFile = Join-Path $resultsDir $logFile
-                        try {
-                            Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-                            Write-Host "Copying log file: $logFile to $destLogFile"
-                            Copy-Item -Path $logFile -Destination $destLogFile -Force
-                            Write-Host "Console output log copied to: $destLogFile"
-                            
-                            # Try to remove original but don't fail if it can't be deleted
-                            try {
-                                Write-Host "Attempting to remove original log file..."
-                                Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-                                Write-Host "Original log file removed successfully."
-                            } catch {
-                                Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-                            }
-                        } catch {
-                            Write-Host "Warning: Could not copy log file to results directory: $_"
-                        }
-                    }
-
-                    Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-
-                    # Final cleanup operations before exiting
-                    Write-Host "Executing final cleanup before exit..."
-
-                    # Clean up access token
-                    $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-                    if (Test-Path $tokenPath) {
-                        Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-                    }
-
-                    [System.GC]::Collect()  # Force garbage collection
-                    Start-Sleep -Seconds 1  # Give GC time to work
-
-                    exit 0
-                }
-                elseif ($finalLogContent -match "Installation failed") {
-                    Write-Host "Installation failed. Please check the logs at: $installerLogPath"
-                    exit 1
-                }
-            }
-            catch {
-                Write-Host "Error reading final log state: $_"
-            }
-        }
-        
-        # If we couldn't determine status from logs, use process exit code
-        if ($launcherProcess.ExitCode -eq 0) {
-            Write-Host "Launcher completed successfully based on exit code."
-            Write-Host "Installation directory: $install_dir"
-            
-            # Cleanup: Move generated files to a results directory
-            $resultsDir = "results_$ComponentType"
-            Write-Host "Performing cleanup - Moving generated files to $resultsDir directory..."
-            
-            # Create the results directory if it doesn't exist
-            if (-not (Test-Path $resultsDir)) {
-                New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
-            }
-            
-            # Multiple attempts to ensure transcript is stopped
-            Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 2
-            
-            # List of files to move
-            $filesToMove = @(
-                "installationtoken.txt",
-                "installationtoken.base64",
-                "launcher.properties",
-                "onboarding.token",
-                "Launcher.exe"
-            )
-            
-            # Add additional files specific to the installation - but only if they exist
-            $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-            if ($additionalFiles) {
-                foreach ($logFile in $additionalFiles) {
-                    $filesToMove += $logFile.FullName
-                }
-            }
-            
-            # Find all JSON files in the current directory and helper subdirectories
-            $jsonFiles = @()
-            # Only include JSON files in the current directory, not in helper
-            $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-            
-            if ($jsonFiles.Count -gt 0) {
-                Write-Host "Found $($jsonFiles.Count) JSON files to move"
-                foreach ($jsonFile in $jsonFiles) {
-                    $filesToMove += $jsonFile.FullName
-                }
-            } else {
-                Write-Host "No JSON files need to be cleaned up"
-            }
-
-            # Move each file to the results directory
-            foreach ($file in $filesToMove) {
-                if (Test-Path $file) {
-                    # Skip any files in helper directory
-                    if ($file -like "*\helper\*") {
-                        continue
-                    }
-                    
-                    # Process only files in current directory
-                    $destFile = Join-Path $resultsDir (Split-Path -Leaf $file)
-                    
-                    try {
-                        # Copy first, then remove to ensure successful copy
-                        Copy-Item -Path $file -Destination $destFile -Force
-                        Write-Host "Moved: $file to $destFile"
-                        Remove-Item -Path $file -Force
-                    } catch {
-                        Write-Host "Warning: Could not process $file to results directory: $_"
-                    }
-                }
-            }
-            
-            # Final attempt to stop transcript and handle log file as last step
-            Write-Host "Performing final transcript stop and log file cleanup..."
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 2
-            
-            # Move log file to results directory if it exists
-            if (Test-Path $logFile) {
-                $destLogFile = Join-Path $resultsDir $logFile
-                try {
-                    Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-                    Write-Host "Copying log file: $logFile to $destLogFile"
-                    Copy-Item -Path $logFile -Destination $destLogFile -Force
-                    Write-Host "Console output log copied to: $destLogFile"
-                    
-                    # Try to remove original but don't fail if it can't be deleted
-                    try {
-                        Write-Host "Attempting to remove original log file..."
-                        Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-                        Write-Host "Original log file removed successfully."
-                    } catch {
-                        Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-                    }
-                } catch {
-                    Write-Host "Warning: Could not copy log file to results directory: $_"
-                }
-            }
-
-            # Clean up access token
-            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-            if (Test-Path $tokenPath) {
-                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-            }
-
-            exit 0
-        } else {
-            Write-Host "Launcher failed with exit code: $($launcherProcess.ExitCode)"
-            Write-Host "Please check the logs at: $installerLogPath"
-            
-            # Cleanup for failed installation - move files to errors directory
-            $errorsDir = "errors_$ComponentType"
-            Write-Host "Performing cleanup for failed installation - Moving files to $errorsDir directory..."
-            
-            # Create the errors directory if it doesn't exist
-            if (-not (Test-Path $errorsDir)) {
-                New-Item -ItemType Directory -Path $errorsDir -Force | Out-Null
-            }
-            
-            # Multiple attempts to ensure transcript is stopped
-            Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 2
-            
-            # List of files to move
-            $filesToMove = @(
-                "installationtoken.txt",
-                "installationtoken.base64",
-                "launcher.properties",
-                "onboarding.token",
-                "Launcher.exe"
-            )
-            
-            # Add additional files specific to the installation - but only if they exist
-            $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-            if ($additionalFiles) {
-                foreach ($logFile in $additionalFiles) {
-                    $filesToMove += $logFile.FullName
-                }
-            }
-            
-            # Find all JSON files in the current directory and helper subdirectories
-            $jsonFiles = @()
-            # Only include JSON files in the current directory, not in helper
-            $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-            
-            if ($jsonFiles.Count -gt 0) {
-                Write-Host "Found $($jsonFiles.Count) JSON files to move"
-                foreach ($jsonFile in $jsonFiles) {
-                    $filesToMove += $jsonFile.FullName
-                }
-            } else {
-                Write-Host "No JSON files need to be cleaned up"
-            }
-
-            # Move each file to the errors directory
-            foreach ($file in $filesToMove) {
-                if (Test-Path $file) {
-                    # Skip any files in helper directory
-                    if ($file -like "*\helper\*") {
-                        continue
-                    }
-                    
-                    # Process only files in current directory
-                    $destFile = Join-Path $errorsDir (Split-Path -Leaf $file)
-                    
-                    try {
-                        # Copy first, then remove to ensure successful copy
-                        Copy-Item -Path $file -Destination $destFile -Force
-                        Write-Host "Moved: $file to $destFile"
-                        Remove-Item -Path $file -Force
-                    } catch {
-                        Write-Host "Warning: Could not process $file to errors directory: $_"
-                    }
-                }
-            }
-            
-            # Final attempt to stop transcript and handle log file as last step
-            Write-Host "Performing final transcript stop and log file cleanup..."
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 2
-            
-            # Move log file to errors directory if it exists
-            if (Test-Path $logFile) {
-                $destLogFile = Join-Path $errorsDir $logFile
-                try {
-                    Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-                    Write-Host "Copying log file: $logFile to $destLogFile"
-                    Copy-Item -Path $logFile -Destination $destLogFile -Force
-                    Write-Host "Console output log copied to: $destLogFile"
-                    
-                    # Try to remove original but don't fail if it can't be deleted
-                    try {
-                        Write-Host "Attempting to remove original log file..."
-                        Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-                        Write-Host "Original log file removed successfully."
-                    } catch {
-                        Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-                    }
-                } catch {
-                    Write-Host "Warning: Could not copy log file to errors directory: $_"
-                }
-            }
-            
-            Write-Host "Cleanup completed. Failed installation files have been moved to $errorsDir directory."
-            
-            # Final attempt to stop transcript before exit
-            Write-Host "Performing final transcript stop before exit..."
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 1
-            try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-            Start-Sleep -Seconds 2
-
-            # Clean up access token
-            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-            if (Test-Path $tokenPath) {
-                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-            }
-
-            exit 1
-        }
-    }
-
     if (Test-Path $installerLogPath) {
-        try {
-            # First time we see the log file
-            if ($firstLog) {
-                Write-Host "Log file created at: $installerLogPath"
-                $firstLog = $false
-            }
+        # First time we see the log file
+        if ($firstLog) {
+            Write-Host "Log file created at: $installerLogPath"
+            $firstLog = $false
+        }
 
+        try {
             # Read new lines from the log
             $currentContent = Get-Content $installerLogPath -ErrorAction Stop
-            
+
             if ($currentContent.Count -gt $lastLineNumber) {
                 $newLines = $currentContent[$lastLineNumber..($currentContent.Count-1)]
                 foreach ($line in $newLines) {
@@ -2753,256 +2450,15 @@ while ($elapsed -lt $maxWaitTime) {
                 $lastLineNumber = $currentContent.Count
             }
 
-            # Check for completion
+            # Check last 20 lines for completion markers
             $logContent = $currentContent | Select-Object -Last 20
             if ($logContent -match "Installation finished") {
-                Write-Host "Installation completed successfully!"
-                Write-Host "Installation directory: $install_dir"
-
-                # Remove installer overrides if configured
-                if ($removeOverridesAfterInstall -eq "true") {
-                    $overrideDest = Join-Path $install_dir "installer\overrides"
-                    if (Test-Path $overrideDest) {
-                        Remove-Item -Path $overrideDest -Recurse -Force
-                        Write-Host "Removed installer overrides folder: $overrideDest"
-                    }
-                }
-
-                # Component-specific completion messages
-                Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
-
-                # Cleanup: Move generated files to a results directory
-                $resultsDir = "results_$ComponentType"
-                Write-Host "Performing cleanup - Moving generated files to $resultsDir directory..."
-                
-                # Create the results directory if it doesn't exist
-                if (-not (Test-Path $resultsDir)) {
-                    New-Item -ItemType Directory -Path $resultsDir -Force | Out-Null
-                }
-                
-                # Multiple attempts to ensure transcript is stopped
-                Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 2
-                
-                # List of files to move
-                $filesToMove = @(
-                    "installationtoken.txt",
-                    "installationtoken.base64",
-                    "launcher.properties",
-                    "onboarding.token",
-                    "Launcher.exe"
-                )
-                
-                # Add additional files specific to the installation - but only if they exist
-                $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-                if ($additionalFiles) {
-                    foreach ($logFile in $additionalFiles) {
-                        $filesToMove += $logFile.FullName
-                    }
-                }
-                
-                # Find all JSON files in the current directory and helper subdirectories
-                $jsonFiles = @()
-                # Only include JSON files in the current directory, not in helper
-                $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-                
-                if ($jsonFiles.Count -gt 0) {
-                    Write-Host "Found $($jsonFiles.Count) JSON files to move"
-                    foreach ($jsonFile in $jsonFiles) {
-                        $filesToMove += $jsonFile.FullName
-                    }
-                } else {
-                    Write-Host "No JSON files need to be cleaned up"
-                }
-
-                # Move each file to the results directory
-                foreach ($file in $filesToMove) {
-                    if (Test-Path $file) {
-                        # Skip any files in helper directory
-                        if ($file -like "*\helper\*") {
-                            continue
-                        }
-                        
-                        # Process only files in current directory
-                        $destFile = Join-Path $resultsDir (Split-Path -Leaf $file)
-                        
-                        try {
-                            # Copy first, then remove to ensure successful copy
-                            Copy-Item -Path $file -Destination $destFile -Force
-                            Write-Host "Moved: $file to $destFile"
-                            Remove-Item -Path $file -Force
-                        } catch {
-                            Write-Host "Warning: Could not process $file to results directory: $_"
-                        }
-                    }
-                }
-                
-                # Final attempt to stop transcript and handle log file as last step
-                Write-Host "Performing final transcript stop and log file cleanup..."
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 2
-                
-                # Move log file to results directory if it exists
-                if (Test-Path $logFile) {
-                    $destLogFile = Join-Path $resultsDir $logFile
-                    try {
-                        Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-                        Write-Host "Copying log file: $logFile to $destLogFile"
-                        Copy-Item -Path $logFile -Destination $destLogFile -Force
-                        Write-Host "Console output log copied to: $destLogFile"
-                        
-                        # Try to remove original but don't fail if it can't be deleted
-                        try {
-                            Write-Host "Attempting to remove original log file..."
-                            Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-                            Write-Host "Original log file removed successfully."
-                        } catch {
-                            Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-                        }
-                    } catch {
-                        Write-Host "Warning: Could not copy log file to results directory: $_"
-                    }
-                }
-                
-                Write-Host "Cleanup completed. Installation files have been moved to $resultsDir directory."
-
-                # Final cleanup operations before exiting
-                Write-Host "Executing final cleanup before exit..."
-
-                # Clean up access token
-                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-                if (Test-Path $tokenPath) {
-                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-                }
-
-                [System.GC]::Collect()  # Force garbage collection
-                Start-Sleep -Seconds 1  # Give GC time to work
-
-                exit 0
+                $completionStatus = "finished"
+                break
             }
             elseif ($logContent -match "Installation failed") {
-                Write-Host "Installation failed. Please check the logs at: $installerLogPath"
-                
-                # Cleanup for failed installation - move files to errors directory
-                $errorsDir = "errors_$ComponentType"
-                Write-Host "Performing cleanup for failed installation - Moving files to $errorsDir directory..."
-                
-                # Create the errors directory if it doesn't exist
-                if (-not (Test-Path $errorsDir)) {
-                    New-Item -ItemType Directory -Path $errorsDir -Force | Out-Null
-                }
-                
-                # Multiple attempts to ensure transcript is stopped
-                Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 2
-                
-                # List of files to move
-                $filesToMove = @(
-                    "installationtoken.txt",
-                    "installationtoken.base64",
-                    "launcher.properties",
-                    "onboarding.token",
-                    "Launcher.exe"
-                )
-                
-                # Add additional files specific to the installation - but only if they exist
-                $additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-                if ($additionalFiles) {
-                    foreach ($logFile in $additionalFiles) {
-                        $filesToMove += $logFile.FullName
-                    }
-                }
-                
-                # Find all JSON files in the current directory and helper subdirectories
-                $jsonFiles = @()
-                # Only include JSON files in the current directory, not in helper
-                $jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-                
-                if ($jsonFiles.Count -gt 0) {
-                    Write-Host "Found $($jsonFiles.Count) JSON files to move"
-                    foreach ($jsonFile in $jsonFiles) {
-                        $filesToMove += $jsonFile.FullName
-                    }
-                } else {
-                    Write-Host "No JSON files need to be cleaned up"
-                }
-
-                # Move each file to the errors directory
-                foreach ($file in $filesToMove) {
-                    if (Test-Path $file) {
-                        # Skip any files in helper directory
-                        if ($file -like "*\helper\*") {
-                            continue
-                        }
-                        
-                        # Process only files in current directory
-                        $destFile = Join-Path $errorsDir (Split-Path -Leaf $file)
-                        
-                        try {
-                            # Copy first, then remove to ensure successful copy
-                            Copy-Item -Path $file -Destination $destFile -Force
-                            Write-Host "Moved: $file to $destFile"
-                            Remove-Item -Path $file -Force
-                        } catch {
-                            Write-Host "Warning: Could not process $file to errors directory: $_"
-                        }
-                    }
-                }
-                
-                # Final attempt to stop transcript and handle log file as last step
-                Write-Host "Performing final transcript stop and log file cleanup..."
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 1
-                try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-                Start-Sleep -Seconds 2
-                
-                # Move log file to errors directory if it exists
-                if (Test-Path $logFile) {
-                    $destLogFile = Join-Path $errorsDir $logFile
-                    try {
-                        Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-                        Write-Host "Copying log file: $logFile to $destLogFile"
-                        Copy-Item -Path $logFile -Destination $destLogFile -Force
-                        Write-Host "Console output log copied to: $destLogFile"
-                        
-                        # Try to remove original but don't fail if it can't be deleted
-                        try {
-                            Write-Host "Attempting to remove original log file..."
-                            Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-                            Write-Host "Original log file removed successfully."
-                        } catch {
-                            Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-                        }
-                    } catch {
-                        Write-Host "Warning: Could not copy log file to errors directory: $_"
-                    }
-                }
-
-                Write-Host "Cleanup completed. Failed installation files have been moved to $errorsDir directory."
-
-                # Clean up access token
-                $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-                if (Test-Path $tokenPath) {
-                    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-                }
-
-                exit 1
+                $completionStatus = "failed"
+                break
             }
         }
         catch {
@@ -3019,155 +2475,129 @@ while ($elapsed -lt $maxWaitTime) {
             "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed)"
         }
         Write-Host $waitMessage
-        
+
         $logWaitElapsed += $checkInterval
         if ($logWaitElapsed -ge $maxLogWaitTime) {
             Write-Host "Error: Timeout waiting for installer log file to be created after $($maxLogWaitTime / 60) minutes"
             Write-Host "Expected log path: $installerLogPath"
-            # Try to kill launcher process if it's still running
-            if ($launcherProcess.HasExited -eq $false) {
-                Write-Host "Terminating launcher process..."
-                $launcherProcess.Kill()
-            }
-
-            # Clean up access token
-            $tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-            if (Test-Path $tokenPath) {
-                Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-            }
-
-            Stop-TranscriptSafely
-            exit 1
+            $completionStatus = "log_wait_timeout"
+            break
         }
     }
-    
+
+    # Check if launcher has exited
+    if ($launcherProcess.HasExited) {
+        Write-Host "Launcher process has exited with code: $($launcherProcess.ExitCode)"
+        Write-Host "Continuing to monitor logs for 5 seconds..."
+
+        # 5-second post-exit monitoring
+        $postExitTime = 5
+        while ($postExitTime -gt 0) {
+            if (Test-Path $installerLogPath) {
+                try {
+                    $currentContent = Get-Content $installerLogPath -ErrorAction Stop
+                    if ($currentContent.Count -gt $lastLineNumber) {
+                        $newLines = $currentContent[$lastLineNumber..($currentContent.Count-1)]
+                        foreach ($line in $newLines) {
+                            Write-Host "LOG: $line"
+                        }
+                        $lastLineNumber = $currentContent.Count
+                    }
+                }
+                catch {
+                    Write-Host "Error reading log file: $_"
+                }
+            }
+            Write-Host -NoNewline "`rTime remaining for log monitoring: $postExitTime seconds..."
+            Start-Sleep -Seconds 1
+            $postExitTime--
+        }
+        Write-Host "`nCompleting installation..."
+
+        # Final log check after launcher exit
+        if (Test-Path $installerLogPath) {
+            try {
+                $finalLogContent = Get-Content $installerLogPath -ErrorAction Stop | Select-Object -Last 20
+                if ($finalLogContent -match "Installation finished") {
+                    $completionStatus = "finished"
+                }
+                elseif ($finalLogContent -match "Installation failed") {
+                    $completionStatus = "failed"
+                }
+                else {
+                    $completionStatus = "launcher_exited"
+                }
+            }
+            catch {
+                Write-Host "Error reading final log state: $_"
+                $completionStatus = "launcher_exited"
+            }
+        } else {
+            $completionStatus = "launcher_exited"
+        }
+        break
+    }
+
     Start-Sleep -Seconds $checkInterval
     $elapsed += $checkInterval
-    
+
     # Show progress less frequently
     if ($elapsed % 30 -eq 0) {
         Write-Host "Installation in progress... ($(${elapsed}/60) minutes elapsed)"
     }
 }
 
-# Try to kill launcher process if it's still running after timeout
+# If loop ended without setting status, it's a timeout
+if ($completionStatus -eq "unknown") {
+    $completionStatus = "timeout"
+}
+
+# ============================================================================
+# SINGLE DECISION POINT - Determine success or failure
+# ============================================================================
+
+# Kill launcher if still running
 if (-not $launcherProcess.HasExited) {
-    Write-Host "Terminating launcher process due to timeout..."
+    Write-Host "Terminating launcher process..."
     $launcherProcess.Kill()
 }
 
-Write-Host "Warning: Installation timeout reached after 2 hours. Please check the installation logs at: $installerLogPath"
-Write-Host "Installation directory: $install_dir"
-
-# Cleanup for timeout failure
-$errorsDir = "errors_$ComponentType"
-Write-Host "Performing cleanup for timed out installation - Moving files to $errorsDir directory..."
-
-# Create the errors directory if it doesn't exist
-if (-not (Test-Path $errorsDir)) {
-    New-Item -ItemType Directory -Path $errorsDir -Force | Out-Null
-}
-
-# Multiple attempts to ensure transcript is stopped
-Write-Host "Making multiple attempts to stop the transcript before cleanup..."
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 1
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 1
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 2
-
-# List of files to move
-$filesToMove = @(
-    "installationtoken.txt",
-    "installationtoken.base64",
-    "launcher.properties",
-    "onboarding.token",
-    "Launcher.exe"
-)
-
-# Add additional files specific to the installation - but only if they exist
-$additionalFiles = Get-ChildItem -Path "." -Filter "*.log" -File -ErrorAction SilentlyContinue
-if ($additionalFiles) {
-    foreach ($logFile in $additionalFiles) {
-        $filesToMove += $logFile.FullName
+if ($completionStatus -eq "finished") {
+    # "Installation finished" found - but check FULL log for revert-installation-logic
+    $fullLogContent = Get-Content $installerLogPath -Raw -ErrorAction SilentlyContinue
+    if ($fullLogContent -and $fullLogContent -match "revert-installation-logic") {
+        Write-Host "INSTALLATION FAILED - The installer executed revert-installation-logic and rolled back all changes." -ForegroundColor Red
+        Write-Host "The installation was NOT successful. Please check the logs at: $installerLogPath" -ForegroundColor Red
+        Invoke-InstallationCleanup -TargetDir "errors_$ComponentType" -RemoveOverrides -Message "Installation was reverted"
+        exit 1
     }
-}
 
-# Find all JSON files in the current directory and helper subdirectories
-$jsonFiles = @()
-# Only include JSON files in the current directory, not in helper
-$jsonFiles += Get-ChildItem -Path "." -Filter "*.json" -File -Depth 0 -ErrorAction SilentlyContinue
-
-if ($jsonFiles.Count -gt 0) {
-    Write-Host "Found $($jsonFiles.Count) JSON files to move"
-    foreach ($jsonFile in $jsonFiles) {
-        $filesToMove += $jsonFile.FullName
-    }
+    Write-Host "Installation completed successfully!"
+    Write-Host "Installation directory: $install_dir"
+    Write-Host "$ComponentType installation has been completed successfully." -ForegroundColor Green
+    Invoke-InstallationCleanup -TargetDir "results_$ComponentType" -RemoveOverrides -Message "Installation successful"
+    [System.GC]::Collect()
+    Start-Sleep -Seconds 1
+    exit 0
 } else {
-    Write-Host "No JSON files need to be cleaned up"
-}
-
-# Move each file to the errors directory
-foreach ($file in $filesToMove) {
-    if (Test-Path $file) {
-        # Skip any files in helper directory
-        if ($file -like "*\helper\*") {
-            continue
+    # All failure scenarios
+    switch ($completionStatus) {
+        "failed" {
+            Write-Host "Installation failed. Please check the logs at: $installerLogPath"
         }
-        
-        # Process only files in current directory
-        $destFile = Join-Path $errorsDir (Split-Path -Leaf $file)
-        
-        try {
-            # Copy first, then remove to ensure successful copy
-            Copy-Item -Path $file -Destination $destFile -Force
-            Write-Host "Moved: $file to $destFile"
-            Remove-Item -Path $file -Force
-        } catch {
-            Write-Host "Warning: Could not process $file to errors directory: $_"
+        "launcher_exited" {
+            Write-Host "Launcher exited without completing installation (exit code: $($launcherProcess.ExitCode))."
+            Write-Host "Please check the logs at: $installerLogPath"
+        }
+        "log_wait_timeout" {
+            # Message already printed in loop
+        }
+        "timeout" {
+            Write-Host "Warning: Installation timeout reached after 2 hours. Please check the installation logs at: $installerLogPath"
+            Write-Host "Installation directory: $install_dir"
         }
     }
+    Invoke-InstallationCleanup -TargetDir "errors_$ComponentType" -RemoveOverrides -Message "Installation $completionStatus"
+    Stop-TranscriptSafely
+    exit 1
 }
-
-# Final attempt to stop transcript and handle log file as last step
-Write-Host "Performing final transcript stop and log file cleanup..."
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 1
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 1
-try { Stop-Transcript -ErrorAction SilentlyContinue } catch {}
-Start-Sleep -Seconds 2
-
-# Move log file to errors directory if it exists
-if (Test-Path $logFile) {
-    $destLogFile = Join-Path $errorsDir $logFile
-    try {
-        Start-Sleep -Seconds 3  # Longer pause to ensure file handle is fully released
-        Write-Host "Copying log file: $logFile to $destLogFile"
-        Copy-Item -Path $logFile -Destination $destLogFile -Force
-        Write-Host "Console output log copied to: $destLogFile"
-        
-        # Try to remove original but don't fail if it can't be deleted
-        try {
-            Write-Host "Attempting to remove original log file..."
-            Remove-Item -Path $logFile -Force -ErrorAction SilentlyContinue
-            Write-Host "Original log file removed successfully."
-        } catch {
-            Write-Host "Note: Original log file will be cleaned up when PowerShell session ends."
-        }
-    } catch {
-        Write-Host "Warning: Could not copy log file to errors directory: $_"
-    }
-}
-
-Write-Host "Cleanup completed. Timed out installation files have been moved to $errorsDir directory."
-
-# Clean up access token
-$tokenPath = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-if (Test-Path $tokenPath) {
-    Remove-Item -Path $tokenPath -Force -ErrorAction SilentlyContinue
-}
-
-Stop-TranscriptSafely
-exit 1 
