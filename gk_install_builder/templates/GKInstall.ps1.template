@@ -14,7 +14,8 @@ param(
     [switch]$skipCheckAlive,  # Override: skip check-alive even if XML says otherwise
     [switch]$skipStartApplication,  # Override: skip start-application even if XML says otherwise
     [switch]$ListEnvironments,  # List available environments and exit
-    [string]$rcsUrl  # Optional: RCS URL for installation token (e.g., http://10.63.2.215:8080/rcs)
+    [string]$rcsUrl,  # Optional: RCS URL for installation token (e.g., http://10.63.2.215:8080/rcs)
+    [string]$SslPassword  # Optional: SSL certificate password (override via SSL_PASSWORD env var)
 )
 
 # Create a unique log filename based on timestamp
@@ -1447,8 +1448,8 @@ $tomcat_file = ""
 
 # Set WDM SSL settings based on base install directory
 $security_dir = Join-Path $base_install_dir "security"
-# We'll find the actual certificate file dynamically later
-$ssl_password = "changeit"
+# SSL password - overridable via -SslPassword parameter or SSL_PASSWORD environment variable
+$ssl_password = if ($SslPassword) { $SslPassword } elseif ($env:SSL_PASSWORD) { $env:SSL_PASSWORD } else { "@DEFAULT_SSL_PASSWORD@" }
 
 # For StoreHub, set the Firebird server path
 $firebird_server_path = "@FIREBIRD_SERVER_PATH@"

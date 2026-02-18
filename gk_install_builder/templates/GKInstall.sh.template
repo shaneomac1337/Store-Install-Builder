@@ -19,6 +19,7 @@ no_overrides=false   # --noOverrides: skip deploying installer override files
 skip_check_alive=false       # --skipCheckAlive: override check-alive to true
 skip_start_application=false # --skipStartApplication: override start-application to true
 rcs_url=""                   # --rcsUrl: RCS Service URL for installation token
+ssl_password="${SSL_PASSWORD:-@DEFAULT_SSL_PASSWORD@}"  # SSL certificate password (override via SSL_PASSWORD env var)
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -1831,8 +1832,6 @@ tomcat_file=""
 
 # Set WDM SSL settings based on base install directory
 security_dir="$base_install_dir/security"
-# We'll find the actual certificate file dynamically later
-ssl_password="changeit"
 
 # For StoreHub, set the Firebird server path
 firebird_server_path="@FIREBIRD_SERVER_PATH@"
