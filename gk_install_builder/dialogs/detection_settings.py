@@ -134,6 +134,7 @@ class DetectionSettingsDialog:
         ctk.CTkLabel(
             tab,
             text="Installation scripts automatically detect the correct environment (P, DEV, Q-001, etc.) for multi-tenant deployments.",
+            font=("Helvetica", 11),
             wraplength=650
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
@@ -164,23 +165,43 @@ class DetectionSettingsDialog:
             ).pack(anchor="w", padx=5, pady=(5, 2))
 
             for env in environments[:5]:  # Show first 5
-                env_text = f"  • {env.get('alias', 'N/A'):10} - {env.get('name', 'N/A'):25} ({env.get('base_url', 'N/A')})"
+                env_row = ctk.CTkFrame(env_list_frame, fg_color="transparent")
+                env_row.pack(fill="x", padx=5, pady=1)
+
                 ctk.CTkLabel(
-                    env_list_frame,
-                    text=env_text,
-                    font=("Courier", 10),
-                    text_color="gray70",
+                    env_row,
+                    text=env.get('alias', 'N/A'),
+                    font=("Helvetica", 11, "bold"),
+                    text_color="#e0e0e0",
+                    width=80,
                     anchor="w"
-                ).pack(anchor="w", padx=5, pady=1)
+                ).pack(side="left", padx=(10, 5))
+
+                ctk.CTkLabel(
+                    env_row,
+                    text=env.get('name', 'N/A'),
+                    font=("Helvetica", 11),
+                    text_color="#c0c0c0",
+                    width=180,
+                    anchor="w"
+                ).pack(side="left", padx=(0, 5))
+
+                ctk.CTkLabel(
+                    env_row,
+                    text=env.get('base_url', 'N/A'),
+                    font=("Helvetica", 10),
+                    text_color="#909090",
+                    anchor="w"
+                ).pack(side="left", padx=(0, 5))
 
             if env_count > 5:
                 ctk.CTkLabel(
                     env_list_frame,
-                    text=f"  ... and {env_count - 5} more",
-                    font=("Courier", 10),
-                    text_color="gray50",
+                    text=f"... and {env_count - 5} more",
+                    font=("Helvetica", 10),
+                    text_color="#909090",
                     anchor="w"
-                ).pack(anchor="w", padx=5, pady=1)
+                ).pack(anchor="w", padx=15, pady=1)
 
             # Link to environment manager
             ctk.CTkButton(
@@ -195,6 +216,7 @@ class DetectionSettingsDialog:
             ctk.CTkLabel(
                 count_frame,
                 text="No environments configured. Configure environments in the Environment Manager.",
+                font=("Helvetica", 11),
                 text_color="orange",
                 wraplength=600
             ).pack(anchor="w", padx=10, pady=5)
@@ -214,37 +236,51 @@ class DetectionSettingsDialog:
 
         if hostname_env_enabled:
             priorities = [
-                ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
-                ("2️⃣ Hostname Detection", "Extracts environment prefix from hostname", "Parses first character from hostname (e.g., 'P1234-101' → 'P')"),
-                ("3️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
-                ("4️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
+                ("1", "CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
+                ("2", "Hostname Detection", "Extracts environment prefix from hostname", "Parses first character from hostname (e.g., 'P1234-101' -> 'P')"),
+                ("3", "File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
+                ("4", "Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
             ]
         else:
             priorities = [
-                ("1️⃣ CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
-                ("2️⃣ File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
-                ("3️⃣ Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
+                ("1", "CLI Parameter", "-Env <alias> or -Environment <name>", "User explicitly specifies environment via command line"),
+                ("2", "File Detection", "Environment=<alias> in .station files", "Reads environment alias from station files (e.g., POS.station, WDM.station)"),
+                ("3", "Manual Input", "User prompt", "If all detection methods fail, user is prompted to select environment")
             ]
 
-        for priority, method, description in priorities:
+        for number, title, method, description in priorities:
             priority_item_frame = ctk.CTkFrame(priority_frame)
-            priority_item_frame.pack(fill="x", padx=10, pady=3)
+            priority_item_frame.pack(fill="x", padx=10, pady=4)
 
+            # Number badge - fixed width, bold, distinct color
             ctk.CTkLabel(
                 priority_item_frame,
-                text=priority,
+                text=number,
+                font=("Helvetica", 12, "bold"),
+                text_color="#ffffff",
+                fg_color="#4a9eff",
+                corner_radius=4,
+                width=28,
+                height=28,
+                anchor="center"
+            ).pack(side="left", padx=(8, 10), pady=6)
+
+            # Title label
+            ctk.CTkLabel(
+                priority_item_frame,
+                text=title,
                 font=("Helvetica", 11, "bold"),
-                width=150,
+                width=140,
                 anchor="w"
-            ).pack(side="left", padx=5)
+            ).pack(side="left", padx=(0, 8))
 
             detail_frame = ctk.CTkFrame(priority_item_frame, fg_color="transparent")
-            detail_frame.pack(side="left", fill="x", expand=True, padx=5)
+            detail_frame.pack(side="left", fill="x", expand=True, padx=(0, 8), pady=4)
 
             ctk.CTkLabel(
                 detail_frame,
                 text=method,
-                font=("Courier", 10),
+                font=("Consolas", 11) if method != "User prompt" else ("Helvetica", 11),
                 text_color="#4a9eff",
                 anchor="w"
             ).pack(anchor="w")
@@ -252,8 +288,8 @@ class DetectionSettingsDialog:
             ctk.CTkLabel(
                 detail_frame,
                 text=description,
-                font=("Helvetica", 9),
-                text_color="gray60",
+                font=("Helvetica", 10),
+                text_color="#b0b0b0",
                 anchor="w"
             ).pack(anchor="w")
 
@@ -278,9 +314,9 @@ Environment=P"""
 
         ctk.CTkLabel(
             env_format_frame,
-            text="💡 Tip: Add 'Environment=<alias>' line to your station files for automatic environment detection!",
-            font=("Helvetica", 10),
-            text_color="#4a9eff",
+            text="Tip: Add 'Environment=<alias>' line to your station files for automatic environment detection!",
+            font=("Helvetica", 11, "italic"),
+            text_color="#6ab4ff",
             wraplength=630
         ).pack(anchor="w", padx=10, pady=(5, 10))
 
@@ -291,14 +327,16 @@ Environment=P"""
         ctk.CTkLabel(
             tab,
             text="Configure file-based detection to extract store IDs and workstation IDs from station files.",
+            font=("Helvetica", 11),
             wraplength=650
         ).pack(anchor="w", padx=10, pady=(10, 5))
 
         ctk.CTkLabel(
             tab,
             text="File detection is used as a fallback when hostname detection fails or is disabled.",
+            font=("Helvetica", 11),
             wraplength=650,
-            text_color="gray70",
+            text_color="#b0b0b0",
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
         # Enable/disable detection checkbox
@@ -330,8 +368,8 @@ Environment=P"""
         explanation_label = ctk.CTkLabel(
             enable_frame,
             text=explanation_text,
-            text_color="gray70",
-            font=("Helvetica", 10),
+            text_color="#b0b0b0",
+            font=("Helvetica", 11),
             wraplength=650,
             justify="left"
         )
@@ -348,12 +386,21 @@ Environment=P"""
         ).pack(anchor="w", padx=10, pady=5)
 
         example_text = """StoreID=1234
-WorkstationID=101"""
+WorkstationID=101
+Environment=P"""
 
-        example_textbox = ctk.CTkTextbox(format_frame, height=50, width=650)
+        example_textbox = ctk.CTkTextbox(format_frame, height=70, width=650)
         example_textbox.pack(fill="x", padx=10, pady=5)
         example_textbox.insert("1.0", example_text)
         example_textbox.configure(state="disabled")
+
+        ctk.CTkLabel(
+            format_frame,
+            text="Tip: The 'Environment' line is optional and used for multi-environment auto-detection.",
+            font=("Helvetica", 11, "italic"),
+            text_color="#6ab4ff",
+            wraplength=630
+        ).pack(anchor="w", padx=10, pady=(2, 8))
 
         # Path approach selection
         ctk.CTkLabel(
@@ -437,20 +484,22 @@ WorkstationID=101"""
         ctk.CTkLabel(
             filenames_frame,
             text="Customize Station File Names (optional):",
-            font=("Helvetica", 11)
-        ).pack(anchor="w", padx=10, pady=5)
+            font=("Helvetica", 11, "bold"),
+            text_color="#b0b0b0"
+        ).pack(anchor="w", padx=10, pady=(8, 5))
 
         # Create filename entries for each component
         components = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
         for component in components:
-            row_frame = ctk.CTkFrame(filenames_frame)
+            row_frame = ctk.CTkFrame(filenames_frame, fg_color="transparent")
             row_frame.pack(fill="x", padx=10, pady=2)
 
             ctk.CTkLabel(
                 row_frame,
                 text=f"{component}:",
-                width=120
-            ).pack(side="left", padx=10)
+                width=160,
+                anchor="e"
+            ).pack(side="left", padx=(10, 5))
 
             entry = ctk.CTkEntry(row_frame, width=200)
             entry.pack(side="left", padx=10)
@@ -469,14 +518,15 @@ WorkstationID=101"""
 
         # Create path entries for each component
         for component in components:
-            row_frame = ctk.CTkFrame(self.custom_paths_frame)
-            row_frame.pack(fill="x", padx=10, pady=5)
+            row_frame = ctk.CTkFrame(self.custom_paths_frame, fg_color="transparent")
+            row_frame.pack(fill="x", padx=10, pady=3)
 
             ctk.CTkLabel(
                 row_frame,
                 text=f"{component}:",
-                width=120
-            ).pack(side="left", padx=10)
+                width=160,
+                anchor="e"
+            ).pack(side="left", padx=(10, 5))
 
             entry = ctk.CTkEntry(row_frame, width=400)
             entry.pack(side="left", padx=10)
@@ -500,6 +550,7 @@ WorkstationID=101"""
         ctk.CTkLabel(
             tab_regex,
             text="Configure regex patterns for extracting store IDs and workstation IDs from computer hostnames.",
+            font=("Helvetica", 11),
             wraplength=650
         ).pack(anchor="w", padx=10, pady=(10, 5))
 
@@ -521,8 +572,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             hostname_status_frame,
             text="You can change this setting in the main interface under 'Project Configuration'",
-            text_color="gray70",
-            font=("Helvetica", 10)
+            text_color="#b0b0b0",
+            font=("Helvetica", 11)
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
         # Add regex engine information
@@ -540,7 +591,7 @@ WorkstationID=101"""
             regex_info_frame,
             text="Linux: Uses POSIX Extended regex (grep -E). No lookahead/lookbehind, no \\d/\\w. Use [0-9] for digits.",
             text_color="#FF8C00",  # Orange color
-            font=("Helvetica", 10),
+            font=("Helvetica", 11),
             justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 2))
 
@@ -548,7 +599,7 @@ WorkstationID=101"""
             regex_info_frame,
             text="Windows: PowerShell uses .NET/Perl-style regex. Supports \\d, \\w, lookahead.",
             text_color="#FF8C00",  # Orange color
-            font=("Helvetica", 10),
+            font=("Helvetica", 11),
             justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 5))
 
@@ -582,8 +633,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             env_detection_frame,
             text="Automatically extracts environment prefix (e.g., 'P', 'Q', 'DEV') from hostname like P1234-101",
-            text_color="gray70",
-            font=("Helvetica", 10),
+            text_color="#b0b0b0",
+            font=("Helvetica", 11),
             wraplength=650,
             justify="left"
         ).pack(anchor="w", padx=10, pady=(0, 5))
@@ -591,8 +642,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             env_detection_frame,
             text="When enabled, hostname regex is automatically set to 3-group pattern:",
-            text_color="gray70",
-            font=("Helvetica", 10, "bold"),
+            text_color="#b0b0b0",
+            font=("Helvetica", 11, "bold"),
             wraplength=650,
             justify="left"
         ).pack(anchor="w", padx=10, pady=(0, 2))
@@ -604,8 +655,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             groups_info,
             text="• Group 1: Environment prefix (e.g., 'P', 'Q', 'DEV')\n• Group 2: Store ID (e.g., '1234')\n• Group 3: Workstation ID (e.g., '101')",
-            text_color="gray70",
-            font=("Helvetica", 9),
+            text_color="#b0b0b0",
+            font=("Helvetica", 10),
             justify="left",
             anchor="w"
         ).pack(anchor="w")
@@ -624,18 +675,18 @@ WorkstationID=101"""
 
         ctk.CTkLabel(
             examples_frame,
-            text="^([A-Z]+)([0-9]+)-([0-9]+)$  →  P1234-101\n^([A-Z]+)-([0-9]+)-([0-9]+)$  →  P-1234-101",
-            text_color="gray60",
-            font=("Courier", 9),
+            text="^([A-Z]+)([0-9]+)-([0-9]+)$  -->  P1234-101\n^([A-Z]+)-([0-9]+)-([0-9]+)$  -->  P-1234-101",
+            text_color="#b0b0b0",
+            font=("Consolas", 10),
             justify="left",
             anchor="w"
         ).pack(anchor="w")
 
         ctk.CTkLabel(
             env_detection_frame,
-            text="💡 Tip: Toggle the checkbox to automatically switch between 2-group and 3-group regex patterns",
-            text_color="#4a9eff",
-            font=("Helvetica", 10),
+            text="Tip: Toggle the checkbox to automatically switch between 2-group and 3-group regex patterns",
+            text_color="#6ab4ff",
+            font=("Helvetica", 11, "italic"),
             wraplength=650,
             justify="left"
         ).pack(anchor="w", padx=10, pady=(5, 10))
@@ -654,8 +705,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             self.group_mapping_frame,
             text="Configure which regex capture group corresponds to each value.",
-            text_color="gray70",
-            font=("Helvetica", 9),
+            text_color="#b0b0b0",
+            font=("Helvetica", 10),
             wraplength=650
         ).pack(anchor="w", padx=10, pady=(0, 5))
 
@@ -688,8 +739,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             self.env_group_frame,
             text="(e.g., P, Q, DEV)",
-            text_color="gray60",
-            font=("Helvetica", 9)
+            text_color="#909090",
+            font=("Helvetica", 10)
         ).pack(side="left", padx=(10, 0))
 
         # Store group dropdown
@@ -714,8 +765,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             store_group_frame,
             text="(e.g., 1234)",
-            text_color="gray60",
-            font=("Helvetica", 9)
+            text_color="#909090",
+            font=("Helvetica", 10)
         ).pack(side="left", padx=(10, 0))
 
         # Workstation group dropdown
@@ -740,16 +791,16 @@ WorkstationID=101"""
         ctk.CTkLabel(
             ws_group_frame,
             text="(e.g., 101)",
-            text_color="gray60",
-            font=("Helvetica", 9)
+            text_color="#909090",
+            font=("Helvetica", 10)
         ).pack(side="left", padx=(10, 0))
 
         # Example note
         ctk.CTkLabel(
             self.group_mapping_frame,
             text="Example: For hostname '1234-P-101' with regex '^([0-9]+)-([A-Z])-([0-9]+)$', set Environment=2, Store=1, Workstation=3",
-            text_color="#4a9eff",
-            font=("Helvetica", 9),
+            text_color="#6ab4ff",
+            font=("Helvetica", 10),
             wraplength=650,
             justify="left"
         ).pack(anchor="w", padx=10, pady=(5, 5))
@@ -769,6 +820,7 @@ WorkstationID=101"""
         ctk.CTkLabel(
             regex_frame,
             text="Customize the regular expressions used to extract Store ID and Workstation ID from hostnames.",
+            font=("Helvetica", 11),
             wraplength=650
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
@@ -786,6 +838,7 @@ WorkstationID=101"""
         ctk.CTkLabel(
             note_frame,
             text="1. First group captures the Store ID/Number\n2. Second group captures the Workstation ID (usually 3 digits but can be different)",
+            font=("Helvetica", 11),
             justify="left"
         ).pack(anchor="w", padx=20, pady=(0, 5))
 
@@ -872,8 +925,8 @@ WorkstationID=101"""
         ctk.CTkLabel(
             platform_frame,
             text=f"Example {platform} hostname: {'POS-P0001-002' if platform == 'Windows' else 'pos-p0001-002'}",
-            font=("Helvetica", 10),
-            text_color="#95A5A6"
+            font=("Helvetica", 11),
+            text_color="#b0b0b0"
         ).pack(anchor="w", padx=10, pady=(0, 10))
 
         # Results frame
@@ -920,7 +973,7 @@ WorkstationID=101"""
                 if perl_regex_detected:
                     results_text.configure(state="normal")
                     results_text.delete("1.0", "end")
-                    results_text.insert("1.0", "❌ Perl/PCRE-style regex detected!\n\nPerl/PCRE regex syntax (e.g. /pattern/, named groups, Unicode classes, \\d, \\w, \\s, etc.) is not supported for Linux detection or POSIX grep.\nPlease use standard POSIX-compatible regex syntax, e.g. [0-9], [A-Za-z], etc.")
+                    results_text.insert("1.0", "[ERROR] Perl/PCRE-style regex detected!\n\nPerl/PCRE regex syntax (e.g. /pattern/, named groups, Unicode classes, \\d, \\w, \\s, etc.) is not supported for Linux detection or POSIX grep.\nPlease use standard POSIX-compatible regex syntax, e.g. [0-9], [A-Za-z], etc.")
                     results_text.configure(state="disabled")
                     return
 
@@ -945,11 +998,11 @@ WorkstationID=101"""
 
             if result["success"]:
                 # Success case
-                results_text.insert("1.0", f"✅ Match successful!\n\n")
+                results_text.insert("1.0", f"[OK] Match successful!\n\n")
 
                 # Check if environment was extracted (3 groups)
                 if "environment" in result and result["environment"]:
-                    results_text.insert("end", f"🌎 Environment: {result['environment']}\n")
+                    results_text.insert("end", f"Environment: {result['environment']}\n")
                     results_text.insert("end", "(3-group regex detected)\n\n")
 
                 if platform == "windows":
@@ -958,11 +1011,11 @@ WorkstationID=101"""
                         results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
                     if "is_valid_store" in result:
-                        valid_indicator = "✅" if result["is_valid_store"] else "❌"
+                        valid_indicator = "[OK]" if result["is_valid_store"] else "[FAIL]"
                         results_text.insert("end", f"{valid_indicator} Store ID format: " +
                                              ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
                     if "is_valid_ws" in result:
-                        valid_indicator = "✅" if result["is_valid_ws"] else "❌"
+                        valid_indicator = "[OK]" if result["is_valid_ws"] else "[FAIL]"
                         results_text.insert("end", f"{valid_indicator} Workstation ID format: " +
                                              ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
                 else:
@@ -971,16 +1024,16 @@ WorkstationID=101"""
                     results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
                     # Add validation results
                     if "is_valid_store" in result:
-                        valid_indicator = "✅" if result["is_valid_store"] else "❌"
+                        valid_indicator = "[OK]" if result["is_valid_store"] else "[FAIL]"
                         results_text.insert("end", f"{valid_indicator} Store ID format: " +
                                              ("Valid" if result["is_valid_store"] else "Invalid") + "\n")
                     if "is_valid_ws" in result:
-                        valid_indicator = "✅" if result["is_valid_ws"] else "❌"
+                        valid_indicator = "[OK]" if result["is_valid_ws"] else "[FAIL]"
                         results_text.insert("end", f"{valid_indicator} Workstation ID format: " +
                                              ("Valid" if result["is_valid_ws"] else "Invalid") + "\n")
             else:
                 # Failure case
-                results_text.insert("1.0", f"❌ Regex did not match!\n\n")
+                results_text.insert("1.0", f"[FAIL] Regex did not match!\n\n")
                 if "error" in result:
                     results_text.insert("end", f"Error: {result['error']}\n")
                 else:
@@ -995,7 +1048,7 @@ WorkstationID=101"""
                 results_text = self.linux_results_text
             results_text.configure(state="normal")
             results_text.delete("1.0", "end")
-            results_text.insert("1.0", f"❌ Error testing regex!\n\n{str(e)}")
+            results_text.insert("1.0", f"[ERROR] Error testing regex!\n\n{str(e)}")
             results_text.configure(state="disabled")
 
     def _open_environment_manager(self):
