@@ -7,8 +7,8 @@
     from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
     --SystemNameOverride and --WorkstationNameOverride parameters.
 
-    Hostname format: {StorePrefix}TILL{TillNumber}
-    Example: A319TILL01 -> Store A319, Till 01
+    Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
+    Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
 
 .EXAMPLE
     .\PVH-GKInstall.ps1
@@ -50,10 +50,12 @@ param(
 # ============================================================
 # CONFIGURABLE HOSTNAME PATTERN
 # Adjust this regex if the hostname format changes.
-# Production format: {4-char prefix}TILL{2-digit number}  e.g., A319TILL01, F00ETILL02
+# Production format: [CC-]{4-char prefix}TILL{2-digit number}[T]
+#   e.g., DE-A319TILL01, DE-A319TILL01T, A319TILL01
+# Optional country prefix (CC-) is ignored. Optional trailing T (test env) is ignored.
 # Capture groups: (1) store prefix (4 chars), (2) till number (2 digits)
 # ============================================================
-$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})$'
+$hostnamePattern = '^(?:[A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})T?$'
 
 # ============================================================
 # 1. GET HOSTNAME
@@ -80,11 +82,11 @@ if ($hostname -match $hostnamePattern) {
 } else {
     Write-Host ""
     Write-Host "[PVH] ERROR: Hostname '$hostname' does not match expected pattern." -ForegroundColor Red
-    Write-Host "[PVH] Expected format: {StorePrefix}TILL{TillNumber}" -ForegroundColor Red
-    Write-Host "[PVH] Examples: A319TILL01, F00ETILL02, AL00TILL03" -ForegroundColor Red
+    Write-Host "[PVH] Expected format: [CC-]{StorePrefix}TILL{TillNumber}[T]" -ForegroundColor Red
+    Write-Host "[PVH] Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01" -ForegroundColor Red
     Write-Host "[PVH] Pattern: $hostnamePattern" -ForegroundColor Red
     Write-Host ""
-    Write-Host "[PVH] To test with a different hostname, use: -HostnameOverride 'A319TILL01'" -ForegroundColor Yellow
+    Write-Host "[PVH] To test with a different hostname, use: -HostnameOverride 'DE-A319TILL01'" -ForegroundColor Yellow
     exit 1
 }
 
@@ -142,7 +144,7 @@ $onexSystemName = $fatSystemName -replace 'FAT', 'ONEX-CLOUD'
 # 5. DERIVE WORKSTATION ID AND NAME
 # ============================================================
 $workstationId   = 100 + $tillNumber                          # TILL01 -> 101
-$workstationName = "${storePrefix}_OneXPOS${tillNumber}"      # A319_OneXPOS1
+$workstationName = "${storePrefix}TILL$('{0:D2}' -f $tillNumber)"  # A319TILL01
 
 # ============================================================
 # 6. DISPLAY SUMMARY
@@ -164,37 +166,39 @@ Write-Host ""
 # ============================================================
 # 7. BUILD GKINSTALL ARGUMENTS
 # ============================================================
-$gkInstallArgs = @(
-    '-ComponentType', $ComponentType
-    '-storeId', $storePrefix
-    '-WorkstationId', $workstationId
-    '-SystemNameOverride', $onexSystemName
-    '-WorkstationNameOverride', $workstationName
-)
+$gkInstallArgs = @{
+    ComponentType           = $ComponentType
+    storeId                 = $storePrefix
+    WorkstationId           = $workstationId
+    SystemNameOverride      = $onexSystemName
+    WorkstationNameOverride = $workstationName
+}
 
 # Pass through optional parameters that were explicitly specified
-if ($offline)                                { $gkInstallArgs += '-offline' }
-if ($PSBoundParameters.ContainsKey('base_url'))           { $gkInstallArgs += '-base_url';            $gkInstallArgs += $base_url }
-if ($PSBoundParameters.ContainsKey('UseDefaultVersions')) { $gkInstallArgs += '-UseDefaultVersions';  $gkInstallArgs += $UseDefaultVersions }
-if ($PSBoundParameters.ContainsKey('VersionSource'))      { $gkInstallArgs += '-VersionSource';       $gkInstallArgs += $VersionSource }
-if ($PSBoundParameters.ContainsKey('Env'))                { $gkInstallArgs += '-Env';                 $gkInstallArgs += $Env }
-if ($PSBoundParameters.ContainsKey('EnvironmentName'))    { $gkInstallArgs += '-EnvironmentName';     $gkInstallArgs += $EnvironmentName }
-if ($noOverrides)                                         { $gkInstallArgs += '-noOverrides' }
-if ($skipCheckAlive)                                      { $gkInstallArgs += '-skipCheckAlive' }
-if ($skipStartApplication)                                { $gkInstallArgs += '-skipStartApplication' }
-if ($ListEnvironments)                                    { $gkInstallArgs += '-ListEnvironments' }
-if ($PSBoundParameters.ContainsKey('rcsUrl'))             { $gkInstallArgs += '-rcsUrl';              $gkInstallArgs += $rcsUrl }
-if ($PSBoundParameters.ContainsKey('SslPassword'))        { $gkInstallArgs += '-SslPassword';         $gkInstallArgs += $SslPassword }
-if ($PSBoundParameters.ContainsKey('VersionOverride'))    { $gkInstallArgs += '-VersionOverride';     $gkInstallArgs += $VersionOverride }
+if ($offline)                                             { $gkInstallArgs['offline']              = $true }
+if ($PSBoundParameters.ContainsKey('base_url'))           { $gkInstallArgs['base_url']             = $base_url }
+if ($PSBoundParameters.ContainsKey('UseDefaultVersions')) { $gkInstallArgs['UseDefaultVersions']   = $UseDefaultVersions }
+if ($PSBoundParameters.ContainsKey('VersionSource'))      { $gkInstallArgs['VersionSource']        = $VersionSource }
+if ($PSBoundParameters.ContainsKey('Env'))                { $gkInstallArgs['Env']                  = $Env }
+if ($PSBoundParameters.ContainsKey('EnvironmentName'))    { $gkInstallArgs['EnvironmentName']      = $EnvironmentName }
+if ($noOverrides)                                         { $gkInstallArgs['noOverrides']          = $true }
+if ($skipCheckAlive)                                      { $gkInstallArgs['skipCheckAlive']       = $true }
+if ($skipStartApplication)                                { $gkInstallArgs['skipStartApplication'] = $true }
+if ($ListEnvironments)                                    { $gkInstallArgs['ListEnvironments']     = $true }
+if ($PSBoundParameters.ContainsKey('rcsUrl'))             { $gkInstallArgs['rcsUrl']               = $rcsUrl }
+if ($PSBoundParameters.ContainsKey('SslPassword'))        { $gkInstallArgs['SslPassword']          = $SslPassword }
+if ($PSBoundParameters.ContainsKey('VersionOverride'))    { $gkInstallArgs['VersionOverride']      = $VersionOverride }
 
 # ============================================================
 # 8. EXECUTE GKINSTALL (or dry-run)
 # ============================================================
 $gkInstallPath = Join-Path $PSScriptRoot "GKInstall.ps1"
 
+$argsDisplay = ($gkInstallArgs.GetEnumerator() | ForEach-Object { "-$($_.Key) $($_.Value)" }) -join ' '
+
 if ($WhatIfPreference) {
     Write-Host "[PVH] DRY RUN - Would execute:" -ForegroundColor Yellow
-    Write-Host "  $gkInstallPath $($gkInstallArgs -join ' ')" -ForegroundColor Yellow
+    Write-Host "  $gkInstallPath $argsDisplay" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "[PVH] Dry run complete. No changes were made." -ForegroundColor Yellow
     exit 0
@@ -207,7 +211,7 @@ if (-not (Test-Path $gkInstallPath)) {
 }
 
 Write-Host "[PVH] Calling GKInstall.ps1..."
-Write-Host "[PVH] Command: GKInstall.ps1 $($gkInstallArgs -join ' ')"
+Write-Host "[PVH] Command: GKInstall.ps1 $argsDisplay"
 Write-Host ""
 
 & $gkInstallPath @gkInstallArgs

@@ -20,11 +20,15 @@ PVH is migrating from `PVH-OPOS-FAT-*` to `PVH-OPOS-ONEX-CLOUD-*` system types. 
 ## Key Design Decisions
 
 ### Hostname Parsing
-- **Current regex**: `^([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})$`
-- Based on production data analysis of 1,112 workstations
+- **Confirmed production format**: `[CC-]{4-char prefix}TILL{2-digit}[T]`
+  - `CC-` = optional country code prefix (e.g., `DE-`), ignored
+  - Trailing `T` = optional test environment marker, ignored
+  - Examples: `DE-A319TILL01`, `DE-A319TILL01T`, `A319TILL01`
+- **PS1 regex**: `^(?:[A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})T?$`
+- **SH regex**: `^([A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})(T?)$`
+  - Bash ERE doesn't support non-capturing groups, so capture indices are shifted (store=2, till=3)
 - All production prefixes are exactly 4 chars (letter + 3 alphanumeric)
 - Till numbers always 2 digits (01-15 range observed)
-- Regex is configurable at top of each script (line 56 in PS1, line 28 in SH)
 
 ### Workstation Derivation
 - **Workstation ID**: `100 + till_number` (TILL01 -> 101)
@@ -42,15 +46,14 @@ PVH is migrating from `PVH-OPOS-FAT-*` to `PVH-OPOS-ONEX-CLOUD-*` system types. 
 
 ## Pending Items (Waiting on Colleague)
 
-### 1. Hostname Format Confirmation
-- Current assumption based on prod DB data: `{4-char}TILL{2-digit}` e.g., `A319TILL01`
-- Need colleague with machine access to confirm actual COMPUTERNAME / hostname
-- If format differs, update regex in PS1 line 56 and SH line 28
+### 1. Hostname Format ~~Confirmation~~ CONFIRMED
+- **Confirmed**: Production format is `[CC-]{4-char}TILL{2-digit}[T]` e.g., `DE-A319TILL01`
+- Country prefix (`DE-`) is ignored, trailing `T` (test env) is ignored
+- Regex updated in both scripts to handle all variants
 
 ### 2. Workstation Naming Convention
-- Current: `A319_OneXPOS1` (matches typical GK convention)
-- PVH may prefer keeping `A319TILL01` as the workstation name
-- If so, change one line in each script:
+- **Decision: Use hostname format** (`A319TILL01`) — PVH prefers keeping the hostname as the workstation name
+- Scripts need updating: change from `{prefix}_OneXPOS{till}` to `{prefix}TILL{till:02d}`
   - PS1:145 -> `$workstationName = "${storePrefix}TILL$('{0:D2}' -f $tillNumber)"`
   - SH:182 -> `workstation_name="${store_prefix}TILL${till_number}"`
 
@@ -95,6 +98,8 @@ copy pvh_store_mapping_prod.properties pvh_store_mapping.properties
 ## Git State
 
 - Branch: `feature/pvh-customization`
-- Initial commit: `2de8b37` (wrapper scripts, mapping, README, gitignore)
-- Uncommitted changes: hostname regex update (removed country suffix), queries.sql, README update, .gitignore update, .properties.example update
-- These uncommitted changes should be committed once hostname format is confirmed
+- Commits:
+  - `2de8b37` - Initial wrapper scripts, mapping, README, gitignore
+  - `53ec7a7` - Production hostname format update, SQL queries, README/gitignore/.properties.example updates
+  - `554a4d6` - Added `--SystemNameOverride` and `--WorkstationNameOverride` to generated install scripts
+- Working tree: clean
