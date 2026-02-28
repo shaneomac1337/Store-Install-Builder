@@ -16,7 +16,9 @@ param(
     [switch]$ListEnvironments,  # List available environments and exit
     [string]$rcsUrl,  # Optional: RCS URL for installation token (e.g., http://10.63.2.215:8080/rcs)
     [string]$SslPassword,  # Optional: SSL certificate password (override via SSL_PASSWORD env var)
-    [string]$VersionOverride  # Optional: Override component version (e.g., v5.27.1 or 5.27.1)
+    [string]$VersionOverride,  # Optional: Override component version (e.g., v5.27.1 or 5.27.1)
+    [string]$SystemNameOverride,  # Optional: Override system name for Store Manager API
+    [string]$WorkstationNameOverride  # Optional: Override workstation name (e.g., A319_OneXPOS1)
 )
 
 # Create a unique log filename based on timestamp
@@ -1979,7 +1981,22 @@ if (-not $isUpdate) {
                 }
 
                 # Pass the values collected from hostname or user input with the dynamic version
-                & $storeInitScript -ComponentType $ComponentType -base_url $base_url -StoreId $storeNumber -WorkstationId $workstationId -Version $component_version
+                $storeInitArgs = @{
+                    ComponentType = $ComponentType
+                    base_url = $base_url
+                    StoreId = $storeNumber
+                    WorkstationId = $workstationId
+                    Version = $component_version
+                }
+                if (![string]::IsNullOrEmpty($SystemNameOverride)) {
+                    $storeInitArgs['SystemNameOverride'] = $SystemNameOverride
+                    Write-Host "Passing SystemNameOverride to store-initialization: $SystemNameOverride"
+                }
+                if (![string]::IsNullOrEmpty($WorkstationNameOverride)) {
+                    $storeInitArgs['WorkstationNameOverride'] = $WorkstationNameOverride
+                    Write-Host "Passing WorkstationNameOverride to store-initialization: $WorkstationNameOverride"
+                }
+                & $storeInitScript @storeInitArgs
                 if ($LASTEXITCODE -eq 0) {
                     Write-Host "Store initialization completed successfully"
                 } else {

@@ -21,6 +21,8 @@ skip_start_application=false # --skipStartApplication: override start-applicatio
 rcs_url=""                   # --rcsUrl: RCS Service URL for installation token
 ssl_password="${SSL_PASSWORD:-@DEFAULT_SSL_PASSWORD@}"  # SSL certificate password (override via SSL_PASSWORD env var)
 cli_version_override=""  # --VersionOverride: Override component version (highest priority)
+cli_system_name_override=""  # --SystemNameOverride: Override system name for Store Manager API
+cli_workstation_name_override=""  # --WorkstationNameOverride: Override workstation name
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -77,9 +79,17 @@ while [ $# -gt 0 ]; do
       cli_version_override="$2"
       shift 2
       ;;
+    --SystemNameOverride|--systemnameoverride|--systemNameOverride)
+      cli_system_name_override="$2"
+      shift 2
+      ;;
+    --WorkstationNameOverride|--workstationnameoverride|--workstationNameOverride)
+      cli_workstation_name_override="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
       exit 1
       ;;
   esac
@@ -2389,7 +2399,16 @@ if [ "$isUpdate" = false ]; then
         fi
 
         # Call the store initialization script with the dynamic version
-        if ! "$store_init_script" --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version"; then
+        store_init_args=(--ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version")
+        if [ -n "$cli_system_name_override" ]; then
+          store_init_args+=(--SystemNameOverride "$cli_system_name_override")
+          echo "Passing SystemNameOverride to store-initialization: $cli_system_name_override"
+        fi
+        if [ -n "$cli_workstation_name_override" ]; then
+          store_init_args+=(--WorkstationNameOverride "$cli_workstation_name_override")
+          echo "Passing WorkstationNameOverride to store-initialization: $cli_workstation_name_override"
+        fi
+        if ! "$store_init_script" "${store_init_args[@]}"; then
           echo "Error during store initialization"
           exit 1
         fi

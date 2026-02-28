@@ -39,6 +39,8 @@ base_url=""
 STORE_ID=""
 WORKSTATION_ID=""
 VERSION=""
+SYSTEM_NAME_OVERRIDE=""
+WORKSTATION_NAME_OVERRIDE=""
 
 # Initialize StoreHub wait tracking variable
 storehub_wait_complete=0
@@ -66,9 +68,17 @@ while [ $# -gt 0 ]; do
       VERSION="$2"
       shift 2
       ;;
+    --SystemNameOverride)
+      SYSTEM_NAME_OVERRIDE="$2"
+      shift 2
+      ;;
+    --WorkstationNameOverride)
+      WORKSTATION_NAME_OVERRIDE="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>]"
+      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>]"
       exit 1
       ;;
   esac
@@ -77,7 +87,7 @@ done
 # Verify all required parameters are provided
 if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z "$WORKSTATION_ID" ]; then
   echo "Error: All parameters are required"
-  echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id> [--Version <version>]"
+  echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id> [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>]"
   exit 1
 fi
 
@@ -100,6 +110,17 @@ if [ -z "$current_system_name" ]; then
 fi
 
 echo "Template systemName: $current_system_name for component: $COMPONENT_TYPE"
+
+# Apply SystemNameOverride if provided via CLI
+if [ -n "$SYSTEM_NAME_OVERRIDE" ]; then
+  if [ "$current_system_name" != "$SYSTEM_NAME_OVERRIDE" ]; then
+    echo "CLI Override: Using system name '$SYSTEM_NAME_OVERRIDE' (template: '$current_system_name')"
+  else
+    echo "CLI system name matches template: $SYSTEM_NAME_OVERRIDE"
+  fi
+  current_system_name="$SYSTEM_NAME_OVERRIDE"
+fi
+
 echo "Note: Will search by workstation ID (unique per store) and use actual system name if found"
 
 # Paths
@@ -331,7 +352,17 @@ else
               station_name="POS Client $WORKSTATION_ID"
               ;;
           esac
-          
+
+          # Apply WorkstationNameOverride if provided via CLI
+          if [ -n "$WORKSTATION_NAME_OVERRIDE" ]; then
+            if [ "$station_name" != "$WORKSTATION_NAME_OVERRIDE" ]; then
+              echo "CLI Override: Using workstation name '$WORKSTATION_NAME_OVERRIDE' (default: '$station_name')"
+            else
+              echo "CLI workstation name matches default: $WORKSTATION_NAME_OVERRIDE"
+            fi
+            station_name="$WORKSTATION_NAME_OVERRIDE"
+          fi
+
           # Get tenant ID from environment or use default
           tenant_id=${tenant_id:-"${tenant_id}"}
           

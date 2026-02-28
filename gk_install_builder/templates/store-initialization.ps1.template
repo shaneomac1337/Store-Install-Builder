@@ -8,7 +8,11 @@ param (
     [Parameter(Mandatory=$true)]
     [string]$WorkstationId,
     [Parameter(Mandatory=$false)]
-    [string]$Version
+    [string]$Version,
+    [Parameter(Mandatory=$false)]
+    [string]$SystemNameOverride,
+    [Parameter(Mandatory=$false)]
+    [string]$WorkstationNameOverride
 )
 
 # Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
@@ -103,6 +107,17 @@ if (-Not $currentSystemName) {
 }
 
 Write-Host "Template systemName: $currentSystemName for component: $ComponentType"
+
+# Apply SystemNameOverride if provided via CLI
+if (![string]::IsNullOrEmpty($SystemNameOverride)) {
+    if ($currentSystemName -ne $SystemNameOverride) {
+        Write-Host "CLI Override: Using system name '$SystemNameOverride' (template: '$currentSystemName')"
+    } else {
+        Write-Host "CLI system name matches template: $SystemNameOverride"
+    }
+    $currentSystemName = $SystemNameOverride
+}
+
 Write-Host "Note: Will search by workstation ID (unique per store) and use actual system name if found"
 
 try {
@@ -264,7 +279,17 @@ try {
                             'RCS-SERVICE' { "Resource Cache Service" }
                             default { "POS Client $WorkstationId" }
                         }
-                        
+
+                        # Apply WorkstationNameOverride if provided via CLI
+                        if (![string]::IsNullOrEmpty($WorkstationNameOverride)) {
+                            if ($stationName -ne $WorkstationNameOverride) {
+                                Write-Host "CLI Override: Using workstation name '$WorkstationNameOverride' (default: '$stationName')"
+                            } else {
+                                Write-Host "CLI workstation name matches default: $WorkstationNameOverride"
+                            }
+                            $stationName = $WorkstationNameOverride
+                        }
+
                         # Get tenant ID from environment or use default
                         $tenantId = if ($env:tenant_id) { $env:tenant_id } else { "${tenant_id}" }
                         
