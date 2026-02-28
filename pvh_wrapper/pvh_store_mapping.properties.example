@@ -8,16 +8,24 @@
 # Example: A319=PVH-OPOS-FAT-EN_GB-TH-FULL
 #   -> SystemNameOverride becomes PVH-OPOS-ONEX-CLOUD-EN_GB-TH-FULL
 
-# --- Austria ---
+# --- Austria (DE_AT) ---
+# A143=PVH-OPOS-FAT-DE_AT-CK-FULL
 # A179=PVH-OPOS-FAT-DE_AT-CK-FULL
 # A200=PVH-OPOS-FAT-DE_AT-TH-FULL
 
-# --- Germany ---
+# --- Germany (DE_DE) ---
 # A135=PVH-OPOS-FAT-DE_DE-CK-FULL
 # A221=PVH-OPOS-FAT-DE_DE-TH-FULL
 
-# --- United Kingdom ---
+# --- United Kingdom (EN_GB) ---
 # A319=PVH-OPOS-FAT-EN_GB-TH-FULL
 # A320=PVH-OPOS-FAT-EN_GB-CK-FULL
 
+# --- Netherlands (NL_NL) ---
+# AL00=PVH-OPOS-FAT-NL_NL-TH-FULL
+
+# --- France (FR_FR) ---
+# F00E=PVH-OPOS-FAT-FR_FR-TH-FULL
+
 # Add your stores below:
+# Generate from production DB using queries in queries.sql
