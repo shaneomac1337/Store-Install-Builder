@@ -25,23 +25,22 @@ PVH is migrating from `PVH-OPOS-FAT-*` to `PVH-OPOS-ONEX-CLOUD-*` system types. 
 The wrapper parses the machine hostname to detect store and till information.
 
 ```
-{StorePrefix}TILL{TillNumber}-{CountrySuffix}
+{StorePrefix}TILL{TillNumber}
 ```
 
 | Part | Example | Description |
 |------|---------|-------------|
-| StorePrefix | `A319` | Store identifier (1 letter + 2-3 alphanumeric chars) |
+| StorePrefix | `A319` | 4-character store identifier (1 letter + 3 alphanumeric chars) |
 | TILL | `TILL` | Literal separator |
 | TillNumber | `01` | Two-digit till number |
-| CountrySuffix | `BE` | Country code (available for future use) |
 
-**Full example**: `A319TILL01-BE`
+**Examples**: `A319TILL01`, `F00ETILL02`, `AL00TILL03`, `A179TILL15`
 
 The hostname regex is configurable at the top of each script if the format differs.
 
 ## How It Works
 
-1. **Parse hostname** -> extract store prefix (`A319`), till number (`01`), country (`BE`)
+1. **Parse hostname** -> extract store prefix (`A319`), till number (`01`)
 2. **Look up** the store's FAT system type from the mapping file -> `PVH-OPOS-FAT-EN_GB-TH-FULL`
 3. **Transform** `FAT` to `ONEX-CLOUD` -> `PVH-OPOS-ONEX-CLOUD-EN_GB-TH-FULL`
 4. **Derive workstation**:
@@ -67,7 +66,7 @@ The hostname regex is configurable at the top of each script if the format diffe
 .\PVH-GKInstall.ps1 -WhatIf
 
 # Test with a different hostname
-.\PVH-GKInstall.ps1 -HostnameOverride "A319TILL01-BE" -WhatIf
+.\PVH-GKInstall.ps1 -HostnameOverride "A319TILL01" -WhatIf
 
 # Pass through any GKInstall parameter
 .\PVH-GKInstall.ps1 -VersionOverride "v5.27.1" -base_url "prod.pvh.cloud4retail.co"
@@ -89,7 +88,7 @@ The hostname regex is configurable at the top of each script if the format diffe
 ./PVH-GKInstall.sh --dry-run
 
 # Test with a different hostname
-./PVH-GKInstall.sh --hostname-override "A319TILL01-BE" --dry-run
+./PVH-GKInstall.sh --hostname-override "A319TILL01" --dry-run
 
 # Pass through any GKInstall parameter
 ./PVH-GKInstall.sh --VersionOverride "v5.27.1" --base_url "prod.pvh.cloud4retail.co"
@@ -121,12 +120,12 @@ The hostname regex is defined at the top of each script:
 
 ```powershell
 # PowerShell
-$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{2,3})TILL(\d{2})-(\w+)$'
+$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})$'
 ```
 
 ```bash
 # Bash
-HOSTNAME_PATTERN='^([A-Za-z][A-Za-z0-9]{2,3})TILL([0-9]{2})-([A-Za-z]+)$'
+HOSTNAME_PATTERN='^([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})$'
 ```
 
-Modify these patterns if the hostname format differs from the expected `{StorePrefix}TILL{TillNumber}-{CountrySuffix}` convention.
+Modify these patterns if the hostname format differs from the expected `{StorePrefix}TILL{TillNumber}` convention.

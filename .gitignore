@@ -64,6 +64,8 @@ QA/
 
 # PVH wrapper customer data
 pvh_wrapper/pvh_store_mapping.properties
+pvh_wrapper/pvh_store_mapping_prod.properties
+pvh_wrapper/prod_csv.csv
 
 Ahold/installscript_GK.zip
 Ahold/test.ahd.cloud4retail.co/certificate.p12
