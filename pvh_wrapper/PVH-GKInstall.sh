@@ -6,8 +6,8 @@
 # from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.sh with the correct
 # --SystemNameOverride and --WorkstationNameOverride parameters.
 #
-# Hostname format: {StorePrefix}TILL{TillNumber}
-# Example: A319TILL01 -> Store A319, Till 01
+# Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
+# Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
 #
 # Usage:
 #   ./PVH-GKInstall.sh                        # Auto-detect everything
@@ -22,10 +22,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ============================================================
 # CONFIGURABLE HOSTNAME PATTERN
 # Adjust this regex if the hostname format changes.
-# Production format: {4-char prefix}TILL{2-digit number}  e.g., A319TILL01, F00ETILL02
-# Capture groups: (1) store prefix (4 chars), (2) till number (2 digits)
+# Production format: [CC-]{4-char prefix}TILL{2-digit number}[T]
+#   e.g., DE-A319TILL01, DE-A319TILL01T, A319TILL01
+# Optional country prefix (CC-) is ignored. Optional trailing T (test env) is ignored.
+# Capture groups: (1) country prefix or empty, (2) store prefix (4 chars), (3) till number (2 digits), (4) T or empty
 # ============================================================
-HOSTNAME_PATTERN='^([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})$'
+HOSTNAME_PATTERN='^([A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})(T?)$'
 
 # ============================================================
 # DEFAULTS
@@ -104,18 +106,18 @@ echo "[PVH] Hostname: $pvh_hostname"
 # 2. PARSE HOSTNAME
 # ============================================================
 if [[ "$pvh_hostname" =~ $HOSTNAME_PATTERN ]]; then
-    store_prefix="${BASH_REMATCH[1]}"
-    till_number="${BASH_REMATCH[2]}"
+    store_prefix="${BASH_REMATCH[2]}"
+    till_number="${BASH_REMATCH[3]}"
     # Strip leading zeros for arithmetic
     till_number_int=$((10#$till_number))
 else
     echo ""
     echo "[PVH] ERROR: Hostname '$pvh_hostname' does not match expected pattern." >&2
-    echo "[PVH] Expected format: {StorePrefix}TILL{TillNumber}" >&2
-    echo "[PVH] Examples: A319TILL01, F00ETILL02, AL00TILL03" >&2
+    echo "[PVH] Expected format: [CC-]{StorePrefix}TILL{TillNumber}[T]" >&2
+    echo "[PVH] Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01" >&2
     echo "[PVH] Pattern: $HOSTNAME_PATTERN" >&2
     echo "" >&2
-    echo "[PVH] To test with a different hostname, use: --hostname-override 'A319TILL01'" >&2
+    echo "[PVH] To test with a different hostname, use: --hostname-override 'DE-A319TILL01'" >&2
     exit 1
 fi
 
@@ -179,7 +181,7 @@ onex_system_name="${fat_system_name//FAT/ONEX-CLOUD}"
 # 5. DERIVE WORKSTATION ID AND NAME
 # ============================================================
 workstation_id=$((100 + till_number_int))                      # TILL01 -> 101
-workstation_name="${store_prefix}_OneXPOS${till_number_int}"    # A319_OneXPOS1
+workstation_name="${store_prefix}TILL$(printf '%02d' "$till_number_int")"  # A319TILL01
 
 # ============================================================
 # 6. DISPLAY SUMMARY
