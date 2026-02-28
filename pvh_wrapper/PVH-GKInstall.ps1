@@ -7,8 +7,8 @@
     from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
     --SystemNameOverride and --WorkstationNameOverride parameters.
 
-    Hostname format: {StorePrefix}TILL{TillNumber}-{CountrySuffix}
-    Example: A319TILL01-BE -> Store A319, Till 01, Country BE
+    Hostname format: {StorePrefix}TILL{TillNumber}
+    Example: A319TILL01 -> Store A319, Till 01
 
 .EXAMPLE
     .\PVH-GKInstall.ps1
@@ -50,9 +50,10 @@ param(
 # ============================================================
 # CONFIGURABLE HOSTNAME PATTERN
 # Adjust this regex if the hostname format changes.
-# Capture groups: (1) store prefix, (2) till number, (3) country suffix
+# Production format: {4-char prefix}TILL{2-digit number}  e.g., A319TILL01, F00ETILL02
+# Capture groups: (1) store prefix (4 chars), (2) till number (2 digits)
 # ============================================================
-$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{2,3})TILL(\d{2})-(\w+)$'
+$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})$'
 
 # ============================================================
 # 1. GET HOSTNAME
@@ -74,21 +75,20 @@ Write-Host "[PVH] Hostname: $hostname"
 # 2. PARSE HOSTNAME
 # ============================================================
 if ($hostname -match $hostnamePattern) {
-    $storePrefix   = $Matches[1]
-    $tillNumber    = [int]$Matches[2]
-    $countrySuffix = $Matches[3]
+    $storePrefix = $Matches[1]
+    $tillNumber  = [int]$Matches[2]
 } else {
     Write-Host ""
     Write-Host "[PVH] ERROR: Hostname '$hostname' does not match expected pattern." -ForegroundColor Red
-    Write-Host "[PVH] Expected format: {StorePrefix}TILL{TillNumber}-{CountrySuffix}" -ForegroundColor Red
-    Write-Host "[PVH] Examples: A319TILL01-BE, A179TILL03-AT, AL00TILL02-NL" -ForegroundColor Red
+    Write-Host "[PVH] Expected format: {StorePrefix}TILL{TillNumber}" -ForegroundColor Red
+    Write-Host "[PVH] Examples: A319TILL01, F00ETILL02, AL00TILL03" -ForegroundColor Red
     Write-Host "[PVH] Pattern: $hostnamePattern" -ForegroundColor Red
     Write-Host ""
-    Write-Host "[PVH] To test with a different hostname, use: -HostnameOverride 'A319TILL01-BE'" -ForegroundColor Yellow
+    Write-Host "[PVH] To test with a different hostname, use: -HostnameOverride 'A319TILL01'" -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "[PVH] Parsed -> Store: $storePrefix | Till: $tillNumber | Country: $countrySuffix"
+Write-Host "[PVH] Parsed -> Store: $storePrefix | Till: $tillNumber"
 
 # ============================================================
 # 3. READ MAPPING FILE
@@ -153,7 +153,6 @@ Write-Host " Resolved Values:" -ForegroundColor Cyan
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host "  Store ID:           $storePrefix"
 Write-Host "  Till Number:        $tillNumber"
-Write-Host "  Country:            $countrySuffix"
 Write-Host "  FAT System Name:    $fatSystemName"
 Write-Host "  ONEX System Name:   $onexSystemName" -ForegroundColor Green
 Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
