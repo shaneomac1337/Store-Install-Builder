@@ -1,0 +1,23 @@
+# PVH Store System Type Mapping
+# Format: store_prefix=FAT_system_type
+# The wrapper auto-transforms FAT -> ONEX-CLOUD in the system type string.
+# Lines starting with # are comments.
+#
+# Copy this file to pvh_store_mapping.properties and fill in your store data.
+#
+# Example: A319=PVH-OPOS-FAT-EN_GB-TH-FULL
+#   -> SystemNameOverride becomes PVH-OPOS-ONEX-CLOUD-EN_GB-TH-FULL
+
+# --- Austria ---
+# A179=PVH-OPOS-FAT-DE_AT-CK-FULL
+# A200=PVH-OPOS-FAT-DE_AT-TH-FULL
+
+# --- Germany ---
+# A135=PVH-OPOS-FAT-DE_DE-CK-FULL
+# A221=PVH-OPOS-FAT-DE_DE-TH-FULL
+
+# --- United Kingdom ---
+# A319=PVH-OPOS-FAT-EN_GB-TH-FULL
+# A320=PVH-OPOS-FAT-EN_GB-CK-FULL
+
+# Add your stores below:

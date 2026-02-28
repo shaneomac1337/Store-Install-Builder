@@ -61,6 +61,10 @@ store_ip_mapping.properties
 .claude/settings.local.json
 .claude/
 QA/
+
+# PVH wrapper customer data
+pvh_wrapper/pvh_store_mapping.properties
+
 Ahold/installscript_GK.zip
 Ahold/test.ahd.cloud4retail.co/certificate.p12
 Ahold/test.ahd.cloud4retail.co/GKInstall.sh

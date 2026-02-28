@@ -1,0 +1,222 @@
+<#
+.SYNOPSIS
+    PVH wrapper for GKInstall.ps1 - auto-detects store, system type, and workstation from hostname.
+
+.DESCRIPTION
+    Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
+    from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
+    --SystemNameOverride and --WorkstationNameOverride parameters.
+
+    Hostname format: {StorePrefix}TILL{TillNumber}-{CountrySuffix}
+    Example: A319TILL01-BE -> Store A319, Till 01, Country BE
+
+.EXAMPLE
+    .\PVH-GKInstall.ps1
+    # Auto-detects everything from hostname
+
+.EXAMPLE
+    .\PVH-GKInstall.ps1 -ComponentType ONEX-POS -offline
+    # Auto-detects store/workstation, passes through -ComponentType and -offline
+
+.EXAMPLE
+    .\PVH-GKInstall.ps1 -WhatIf
+    # Dry-run: shows parsed values without executing GKInstall
+#>
+
+[CmdletBinding(SupportsShouldProcess)]
+param(
+    # GKInstall parameters (pass-through)
+    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE', 'RCS', 'RCS-SERVICE')]
+    [string]$ComponentType = 'ONEX-POS',
+    [switch]$offline,
+    [string]$base_url,
+    [bool]$UseDefaultVersions,
+    [string]$VersionSource,
+    [string]$Env,
+    [string]$EnvironmentName,
+    [switch]$noOverrides,
+    [switch]$skipCheckAlive,
+    [switch]$skipStartApplication,
+    [switch]$ListEnvironments,
+    [string]$rcsUrl,
+    [string]$SslPassword,
+    [string]$VersionOverride,
+
+    # PVH-specific parameters
+    [string]$MappingFile = "pvh_store_mapping.properties",
+    [string]$HostnameOverride  # Override hostname for testing
+)
+
+# ============================================================
+# CONFIGURABLE HOSTNAME PATTERN
+# Adjust this regex if the hostname format changes.
+# Capture groups: (1) store prefix, (2) till number, (3) country suffix
+# ============================================================
+$hostnamePattern = '^([A-Za-z][A-Za-z0-9]{2,3})TILL(\d{2})-(\w+)$'
+
+# ============================================================
+# 1. GET HOSTNAME
+# ============================================================
+if ($HostnameOverride) {
+    $hostname = $HostnameOverride
+    Write-Host "[PVH] Using hostname override: $hostname" -ForegroundColor Yellow
+} else {
+    $hostname = $env:COMPUTERNAME
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host " PVH GKInstall Wrapper" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "[PVH] Hostname: $hostname"
+
+# ============================================================
+# 2. PARSE HOSTNAME
+# ============================================================
+if ($hostname -match $hostnamePattern) {
+    $storePrefix   = $Matches[1]
+    $tillNumber    = [int]$Matches[2]
+    $countrySuffix = $Matches[3]
+} else {
+    Write-Host ""
+    Write-Host "[PVH] ERROR: Hostname '$hostname' does not match expected pattern." -ForegroundColor Red
+    Write-Host "[PVH] Expected format: {StorePrefix}TILL{TillNumber}-{CountrySuffix}" -ForegroundColor Red
+    Write-Host "[PVH] Examples: A319TILL01-BE, A179TILL03-AT, AL00TILL02-NL" -ForegroundColor Red
+    Write-Host "[PVH] Pattern: $hostnamePattern" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "[PVH] To test with a different hostname, use: -HostnameOverride 'A319TILL01-BE'" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "[PVH] Parsed -> Store: $storePrefix | Till: $tillNumber | Country: $countrySuffix"
+
+# ============================================================
+# 3. READ MAPPING FILE
+# ============================================================
+$mappingPath = Join-Path $PSScriptRoot $MappingFile
+
+if (-not (Test-Path $mappingPath)) {
+    Write-Host ""
+    Write-Host "[PVH] ERROR: Mapping file not found: $mappingPath" -ForegroundColor Red
+    Write-Host "[PVH] Create the file with store-to-system-type mappings." -ForegroundColor Red
+    Write-Host "[PVH] Format: STORE_PREFIX=PVH-OPOS-FAT-LOCALE-BRAND-TYPE" -ForegroundColor Red
+    Write-Host "[PVH] Example: A319=PVH-OPOS-FAT-EN_GB-TH-FULL" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "[PVH] See pvh_store_mapping.properties.example for a template." -ForegroundColor Yellow
+    exit 1
+}
+
+$mapping = @{}
+foreach ($line in Get-Content $mappingPath) {
+    $line = $line.Trim()
+    if ($line -and -not $line.StartsWith('#')) {
+        $parts = $line -split '=', 2
+        if ($parts.Count -eq 2) {
+            $mapping[$parts[0].Trim()] = $parts[1].Trim()
+        }
+    }
+}
+
+Write-Host "[PVH] Loaded $($mapping.Count) store mappings from $MappingFile"
+
+# ============================================================
+# 4. LOOKUP STORE + TRANSFORM FAT -> ONEX-CLOUD
+# ============================================================
+$fatSystemName = $mapping[$storePrefix]
+
+if (-not $fatSystemName) {
+    Write-Host ""
+    Write-Host "[PVH] ERROR: Store '$storePrefix' not found in mapping file." -ForegroundColor Red
+    Write-Host "[PVH] Available stores:" -ForegroundColor Yellow
+    $mapping.Keys | Sort-Object | ForEach-Object {
+        Write-Host "  $_  =  $($mapping[$_])" -ForegroundColor Gray
+    }
+    Write-Host ""
+    Write-Host "[PVH] Add the store to $mappingPath and try again." -ForegroundColor Yellow
+    exit 1
+}
+
+$onexSystemName = $fatSystemName -replace 'FAT', 'ONEX-CLOUD'
+
+# ============================================================
+# 5. DERIVE WORKSTATION ID AND NAME
+# ============================================================
+$workstationId   = 100 + $tillNumber                          # TILL01 -> 101
+$workstationName = "${storePrefix}_OneXPOS${tillNumber}"      # A319_OneXPOS1
+
+# ============================================================
+# 6. DISPLAY SUMMARY
+# ============================================================
+Write-Host ""
+Write-Host "----------------------------------------" -ForegroundColor Cyan
+Write-Host " Resolved Values:" -ForegroundColor Cyan
+Write-Host "----------------------------------------" -ForegroundColor Cyan
+Write-Host "  Store ID:           $storePrefix"
+Write-Host "  Till Number:        $tillNumber"
+Write-Host "  Country:            $countrySuffix"
+Write-Host "  FAT System Name:    $fatSystemName"
+Write-Host "  ONEX System Name:   $onexSystemName" -ForegroundColor Green
+Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
+Write-Host "  Workstation Name:   $workstationName" -ForegroundColor Green
+Write-Host "  Component Type:     $ComponentType"
+Write-Host "----------------------------------------" -ForegroundColor Cyan
+Write-Host ""
+
+# ============================================================
+# 7. BUILD GKINSTALL ARGUMENTS
+# ============================================================
+$gkInstallArgs = @(
+    '-ComponentType', $ComponentType
+    '-storeId', $storePrefix
+    '-WorkstationId', $workstationId
+    '-SystemNameOverride', $onexSystemName
+    '-WorkstationNameOverride', $workstationName
+)
+
+# Pass through optional parameters that were explicitly specified
+if ($offline)                                { $gkInstallArgs += '-offline' }
+if ($PSBoundParameters.ContainsKey('base_url'))           { $gkInstallArgs += '-base_url';            $gkInstallArgs += $base_url }
+if ($PSBoundParameters.ContainsKey('UseDefaultVersions')) { $gkInstallArgs += '-UseDefaultVersions';  $gkInstallArgs += $UseDefaultVersions }
+if ($PSBoundParameters.ContainsKey('VersionSource'))      { $gkInstallArgs += '-VersionSource';       $gkInstallArgs += $VersionSource }
+if ($PSBoundParameters.ContainsKey('Env'))                { $gkInstallArgs += '-Env';                 $gkInstallArgs += $Env }
+if ($PSBoundParameters.ContainsKey('EnvironmentName'))    { $gkInstallArgs += '-EnvironmentName';     $gkInstallArgs += $EnvironmentName }
+if ($noOverrides)                                         { $gkInstallArgs += '-noOverrides' }
+if ($skipCheckAlive)                                      { $gkInstallArgs += '-skipCheckAlive' }
+if ($skipStartApplication)                                { $gkInstallArgs += '-skipStartApplication' }
+if ($ListEnvironments)                                    { $gkInstallArgs += '-ListEnvironments' }
+if ($PSBoundParameters.ContainsKey('rcsUrl'))             { $gkInstallArgs += '-rcsUrl';              $gkInstallArgs += $rcsUrl }
+if ($PSBoundParameters.ContainsKey('SslPassword'))        { $gkInstallArgs += '-SslPassword';         $gkInstallArgs += $SslPassword }
+if ($PSBoundParameters.ContainsKey('VersionOverride'))    { $gkInstallArgs += '-VersionOverride';     $gkInstallArgs += $VersionOverride }
+
+# ============================================================
+# 8. EXECUTE GKINSTALL (or dry-run)
+# ============================================================
+$gkInstallPath = Join-Path $PSScriptRoot "GKInstall.ps1"
+
+if ($WhatIfPreference) {
+    Write-Host "[PVH] DRY RUN - Would execute:" -ForegroundColor Yellow
+    Write-Host "  $gkInstallPath $($gkInstallArgs -join ' ')" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "[PVH] Dry run complete. No changes were made." -ForegroundColor Yellow
+    exit 0
+}
+
+if (-not (Test-Path $gkInstallPath)) {
+    Write-Host "[PVH] ERROR: GKInstall.ps1 not found at: $gkInstallPath" -ForegroundColor Red
+    Write-Host "[PVH] Place GKInstall.ps1 in the same directory as this wrapper." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "[PVH] Calling GKInstall.ps1..."
+Write-Host "[PVH] Command: GKInstall.ps1 $($gkInstallArgs -join ' ')"
+Write-Host ""
+
+& $gkInstallPath @gkInstallArgs
+$exitCode = $LASTEXITCODE
+
+if ($exitCode -ne 0) {
+    Write-Host ""
+    Write-Host "[PVH] GKInstall.ps1 exited with code: $exitCode" -ForegroundColor Red
+}
+
+exit $exitCode
