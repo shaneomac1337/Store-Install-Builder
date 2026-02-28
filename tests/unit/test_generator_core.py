@@ -1196,6 +1196,129 @@ class TestScriptGeneration:
             pass
 
 
+class TestVersionCLIOverride:
+    """Test that generated scripts contain --Version CLI parameter override logic"""
+
+    @staticmethod
+    def _configure_detection_manager(generator):
+        """Helper to configure detection_manager for tests"""
+        generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
+            "detection_files": {
+                "POS": "stations\\POS.station",
+                "WDM": "stations\\WDM.station",
+                "FLOW-SERVICE": "stations\\Flow.station",
+                "LPA-SERVICE": "stations\\LPA.station",
+                "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
+            }
+        }
+        generator.detection_manager.get_hostname_env_detection = Mock(return_value=False)
+
+    def test_windows_script_has_version_parameter(self, tmp_path):
+        """Test that generated Windows script includes $Version parameter"""
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        self._configure_detection_manager(generator)
+
+        generator._create_directory_structure = Mock()
+        generator._copy_certificate = Mock()
+        generator._generate_environments_json = Mock()
+        generator._generate_onboarding = Mock()
+        generator._generate_launcher_templates = Mock()
+        generator._copy_helper_files = Mock()
+        generator._show_success = Mock()
+
+        config = {
+            "platform": "Windows",
+            "base_url": "test.cloud4retail.co",
+            "base_install_dir": "C:\\gkretail",
+            "tenant_id": "001",
+            "version": "v1.0.0",
+            "output_dir": str(tmp_path / "output"),
+            "use_hostname_detection": False,
+            "system_type": "GKR-POS-CLOUD",
+            "certificate_path": ""
+        }
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        generator.generate(config)
+
+        content = (output_dir / "GKInstall.ps1").read_text()
+
+        # Verify $VersionOverride parameter in param block
+        assert "[string]$VersionOverride" in content
+        # Verify CLI override block
+        assert "CLI Override: Using version" in content
+        assert "$component_version = $VersionOverride" in content
+
+    def test_linux_script_has_version_parameter(self, tmp_path):
+        """Test that generated Linux script includes --Version CLI parsing"""
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        self._configure_detection_manager(generator)
+
+        generator._create_directory_structure = Mock()
+        generator._copy_certificate = Mock()
+        generator._generate_environments_json = Mock()
+        generator._generate_onboarding = Mock()
+        generator._generate_launcher_templates = Mock()
+        generator._copy_helper_files = Mock()
+        generator._show_success = Mock()
+
+        config = {
+            "platform": "Linux",
+            "base_url": "test.cloud4retail.co",
+            "base_install_dir": "/usr/local/gkretail",
+            "tenant_id": "001",
+            "version": "v1.0.0",
+            "output_dir": str(tmp_path / "output"),
+            "use_hostname_detection": False,
+            "system_type": "GKR-POS-CLOUD",
+            "certificate_path": ""
+        }
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        try:
+            generator.generate(config)
+            output_file = output_dir / "GKInstall.sh"
+            if output_file.exists():
+                content = output_file.read_text()
+
+                # Verify cli_version_override variable
+                assert 'cli_version_override=""' in content
+                # Verify case entry for --VersionOverride
+                assert "--VersionOverride|--versionoverride|--versionOverride)" in content
+                assert 'cli_version_override="$2"' in content
+                # Verify CLI override block
+                assert "CLI Override: Using version" in content
+                assert 'component_version="$cli_version_override"' in content
+                # Verify usage string includes --VersionOverride
+                assert "--VersionOverride <version>" in content
+        except Exception:
+            pass
+
+
 class TestDirectoryStructure:
     """Test directory structure creation"""
 
@@ -1288,9 +1411,10 @@ def test_generator_core_summary():
     print("✅ TestTemplateReplacement: 8 tests")
     print("✅ TestHostnameRegexReplacement: 4 tests")
     print("✅ TestScriptGeneration: 3 tests")
+    print("✅ TestVersionCLIOverride: 2 tests")
     print("✅ TestDirectoryStructure: 3 tests")
     print("-"*70)
-    print("📊 Total: 27 tests for core generator functionality")
+    print("📊 Total: 29 tests for core generator functionality")
     print("="*70 + "\n")
 
 

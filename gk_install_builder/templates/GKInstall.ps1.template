@@ -15,7 +15,8 @@ param(
     [switch]$skipStartApplication,  # Override: skip start-application even if XML says otherwise
     [switch]$ListEnvironments,  # List available environments and exit
     [string]$rcsUrl,  # Optional: RCS URL for installation token (e.g., http://10.63.2.215:8080/rcs)
-    [string]$SslPassword  # Optional: SSL certificate password (override via SSL_PASSWORD env var)
+    [string]$SslPassword,  # Optional: SSL certificate password (override via SSL_PASSWORD env var)
+    [string]$VersionOverride  # Optional: Override component version (e.g., v5.27.1 or 5.27.1)
 )
 
 # Create a unique log filename based on timestamp
@@ -1438,6 +1439,16 @@ if ([string]::IsNullOrEmpty($component_version)) {
     Write-Host "No specific version found, using default version: $component_version"
 } else {
     Write-Host "Using component version: $component_version"
+}
+
+# Priority 0: CLI --VersionOverride parameter always overrides resolved version
+if (![string]::IsNullOrEmpty($VersionOverride)) {
+    if ($component_version -ne $VersionOverride) {
+        Write-Host "CLI Override: Using version '$VersionOverride' (resolved: '$component_version')"
+    } else {
+        Write-Host "CLI version matches resolved version: $VersionOverride"
+    }
+    $component_version = $VersionOverride
 }
 
 # Initialize offline variables
