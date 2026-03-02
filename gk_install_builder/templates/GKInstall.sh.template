@@ -1270,37 +1270,15 @@ esac
 script_default_base_url="$base_url"
 
 # Check if this is an update of an existing installation
+# Uses station.properties as the definitive signal for an existing valid installation
 isUpdate=false
 if [ -d "$install_dir" ]; then
-    # Check for log folders
-    logPath="$install_dir/log"
-    logsPath="$install_dir/logs"
-
-    # Determine which log folder exists
-    logFolderPath=""
-    if [ -d "$logPath" ]; then
-        logFolderPath="$logPath"
-    elif [ -d "$logsPath" ]; then
-        logFolderPath="$logsPath"
-    fi
-
-    # If a log folder exists, check for recent activity (last 7 days)
-    if [ -n "$logFolderPath" ]; then
-        echo "Found existing installation at $install_dir with log folder at $logFolderPath"
-
-        # Get files modified in the last 7 days
-        recentFiles=$(find "$logFolderPath" -type f -mtime -7 2>/dev/null)
-        recentFileCount=$(echo "$recentFiles" | grep -v '^$' | wc -l)
-
-        if [ $recentFileCount -gt 0 ]; then
-            echo "Found $recentFileCount recently modified log files (within 7 days)"
-            echo "This appears to be an active installation. Performing update instead of full installation."
-            isUpdate=true
-        else
-            echo "No recent activity found in logs. Performing full installation."
-        fi
+    station_props_check="$install_dir/station.properties"
+    if [ -f "$station_props_check" ]; then
+        echo "Found existing station.properties at $station_props_check. Performing update instead of full installation."
+        isUpdate=true
     else
-        echo "No log folder found. Performing full installation."
+        echo "No station.properties found in $install_dir. Performing full installation."
     fi
 else
     echo "Installation directory does not exist. Performing full installation."
