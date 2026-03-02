@@ -4,7 +4,7 @@
 #
 # Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
 # from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.sh with the correct
-# --SystemNameOverride and --WorkstationNameOverride parameters.
+# --SystemNameOverride, --WorkstationNameOverride, --StructureUniqueNameOverride, and -y parameters.
 #
 # Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
 # Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
@@ -65,10 +65,15 @@ while [ $# -gt 0 ]; do
             PASSTHROUGH_ARGS+=("$1")
             shift
             ;;
-        --storeId|--StoreID|--workstationId|--WorkstationID|--SystemNameOverride|--WorkstationNameOverride)
+        --storeId|--StoreID|--workstationId|--WorkstationID|--SystemNameOverride|--WorkstationNameOverride|--StructureUniqueNameOverride)
             # Skip these - the wrapper sets them automatically
             echo "[PVH] WARNING: Ignoring $1 (set automatically by wrapper)" >&2
             shift 2
+            ;;
+        -y|--yes)
+            # Skip - the wrapper always passes -y
+            echo "[PVH] WARNING: Ignoring $1 (set automatically by wrapper)" >&2
+            shift
             ;;
         --UseDefaultVersions|--noOverrides|--skipCheckAlive|--skipStartApplication|--list-environments)
             PASSTHROUGH_ARGS+=("$1")
@@ -196,6 +201,8 @@ echo "  FAT System Name:    $fat_system_name"
 echo "  ONEX System Name:   $onex_system_name"
 echo "  Workstation ID:     $workstation_id"
 echo "  Workstation Name:   $workstation_name"
+echo "  Structure Name:     $onex_system_name"
+echo "  Auto-Confirm:       Yes (-y)"
 echo "  Component Type:     $COMPONENT_TYPE"
 echo "----------------------------------------"
 echo ""
@@ -208,6 +215,8 @@ gkinstall_args=(
     --workstationId "$workstation_id"
     --SystemNameOverride "$onex_system_name"
     --WorkstationNameOverride "$workstation_name"
+    --StructureUniqueNameOverride "$onex_system_name"
+    -y
 )
 
 # Append all pass-through arguments

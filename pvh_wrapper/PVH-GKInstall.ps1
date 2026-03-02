@@ -5,7 +5,7 @@
 .DESCRIPTION
     Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
     from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
-    --SystemNameOverride and --WorkstationNameOverride parameters.
+    --SystemNameOverride, --WorkstationNameOverride, --StructureUniqueNameOverride, and -y parameters.
 
     Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
     Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
@@ -159,6 +159,8 @@ Write-Host "  FAT System Name:    $fatSystemName"
 Write-Host "  ONEX System Name:   $onexSystemName" -ForegroundColor Green
 Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
 Write-Host "  Workstation Name:   $workstationName" -ForegroundColor Green
+Write-Host "  Structure Name:     $onexSystemName" -ForegroundColor Green
+Write-Host "  Auto-Confirm:       Yes (-y)" -ForegroundColor Green
 Write-Host "  Component Type:     $ComponentType"
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host ""
@@ -167,11 +169,13 @@ Write-Host ""
 # 7. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 $gkInstallArgs = @{
-    ComponentType           = $ComponentType
-    storeId                 = $storePrefix
-    WorkstationId           = $workstationId
-    SystemNameOverride      = $onexSystemName
-    WorkstationNameOverride = $workstationName
+    ComponentType                = $ComponentType
+    storeId                      = $storePrefix
+    WorkstationId                = $workstationId
+    SystemNameOverride           = $onexSystemName
+    WorkstationNameOverride      = $workstationName
+    StructureUniqueNameOverride  = $onexSystemName
+    y                            = $true
 }
 
 # Pass through optional parameters that were explicitly specified
