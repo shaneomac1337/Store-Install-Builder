@@ -14,7 +14,9 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$WorkstationNameOverride,
     [Parameter(Mandatory=$false)]
-    [string]$StructureUniqueNameOverride
+    [string]$StructureUniqueNameOverride,
+    [Parameter(Mandatory=$false)]
+    [switch]$y
 )
 
 # Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
@@ -224,7 +226,12 @@ try {
                 Write-Host "Workstation $WorkstationId does not exist in the store structure."
 
                 # Ask the user if they want to create the workstation
-                $createChoice = Read-Host "Do you want to create this workstation? (y/n)"
+                if ($y) {
+                    $createChoice = "y"
+                    Write-Host "Auto-confirming workstation creation (-y flag)"
+                } else {
+                    $createChoice = Read-Host "Do you want to create this workstation? (y/n)"
+                }
 
                 if ($createChoice -match "^[Yy]$") {
                     Write-Host "Creating workstation structure..."

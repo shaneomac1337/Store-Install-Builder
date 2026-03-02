@@ -1,0 +1,713 @@
+<div>
+  <div style="border-left: 4.0px solid rgb(40,167,69);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <span style="background: rgb(40,167,69);color: white;padding: 6.0px 14.0px;border-radius: 20.0px;font-weight: bold;font-size: 14.0px;">LATEST</span>
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b06 - March 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>New CLI override parameters, SSL password control, post-install reliability, Detection Settings readability</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">CLI Override Parameters (Generated Scripts)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Four new CLI parameters have been added to the generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> scripts. All parameters are optional and take highest priority (Priority 0) over any other resolved value, making them well-suited for wrapper scripts and automated pipelines.</p>
+    <ul>
+      <li>
+        <strong><code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--VersionOverride</code></strong> — Overrides the component version resolved by the script at runtime. Accepts both prefixed (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v5.27.1</code>) and plain (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">5.27.1</code>) version strings. Supported on both PowerShell and Bash.</li>
+      <li>
+        <strong><code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--SystemNameOverride</code></strong> — Overrides the system name sent to the Store Manager API during <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code>. Useful for deployments where the registered system type must differ from the component type embedded in the script.</li>
+      <li>
+        <strong><code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--WorkstationNameOverride</code></strong> — Overrides the workstation name sent to the Store Manager API. Accepts any string value (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">A319_OneXPOS1</code>). Propagated automatically from <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> when provided.</li>
+      <li>
+        <strong><code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--StructureUniqueNameOverride</code></strong> — Injects a <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">structureUniqueName</code> field into the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">newNode</code> object when creating workstation structures via <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">POST /structure/nodes</code>. Only active when explicitly passed; default behavior is unchanged.</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">SSL Password Control</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The SSL certificate password is now configurable and overridable at runtime without regenerating the package:</p>
+    <ul>
+      <li>
+        <strong>PowerShell:</strong> Pass <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-SslPassword &lt;password&gt;</code> as a CLI parameter</li>
+      <li>
+        <strong>Bash:</strong> Set the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">SSL_PASSWORD</code> environment variable before running the script</li>
+    </ul>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Improvements</h3>
+    <h4 style="color: rgb(30,58,95);">Post-Installation Status Validation</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The installation monitoring and cleanup logic has been significantly refactored for correctness and maintainability:</p>
+    <ul>
+      <li>
+        <strong>Consolidated Cleanup Functions:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Invoke-InstallationCleanup</code> (PowerShell) and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">cleanup_installation</code> (Bash) replace eight duplicated exit paths, handling file moves, token deletion, override cleanup, and log copying consistently</li>
+      <li>
+        <strong>Revert Detection:</strong> The script now scans the full installation log for the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">revert-installation-logic</code> marker. Installations that report success but then roll back are correctly classified as failures</li>
+      <li>
+        <strong>Consistent Override Cleanup:</strong> Installer override files are removed on all exit paths, preventing stale overrides from affecting subsequent Employee Hub updates</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Detection Settings Dialog Readability (Windows)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The Detection Settings dialog has been polished for Windows display:</p>
+    <ul>
+      <li>Emoji status indicators replaced with ASCII alternatives for Windows compatibility</li>
+      <li>Faint gray text colors brightened; small fonts bumped from 9-10 pt to 10-11 pt</li>
+      <li>Environment list layout improved with structured grid columns</li>
+      <li>No changes to generated scripts — UI-only</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Update Detection — Log Heuristic Replaced:</strong> The previous logic detected an existing installation by checking for log files modified within the last 7 days, causing stores offline for more than a week to incorrectly perform a full reinstall. Replaced with a direct test for <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">station.properties</code> in the installation directory — always present after a successful first install, absent on a fresh system.</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b05 - February 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>Installer.properties auto-selection, tenant ID fix, flexible version matching</em>
+    </p>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Improvements</h3>
+    <h4 style="color: rgb(30,58,95);">Offline Package Installer.properties Auto-Selection</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The Offline Package Creator now pre-scans component version directories on DSG for <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer.properties</code> files before presenting download selection dialogs. When found, the correct platform-specific files are automatically pre-selected, reducing manual selection effort and ensuring the right dependencies are downloaded.</p>
+    <ul>
+      <li>
+        <strong>Platform-Aware Pre-Selection:</strong> Automatically pre-selects the correct Java, Tomcat, and Jaybird files based on the target platform (Windows/Linux)</li>
+      <li>
+        <strong>Per-Component Installer Selection:</strong> Each component's preferred installer JAR is pre-selected based on its <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer_path</code> property</li>
+      <li>
+        <strong>OneX UI Auto-Selection:</strong> Preferred OneX UI package resolved from properties with fallback to platform-suffix matching</li>
+      <li>
+        <strong>Java Version Directory Auto-Select:</strong> When Java files are organized in version subdirectories, the correct directory is automatically selected based on the filename version</li>
+      <li>
+        <strong>Graceful Fallback:</strong> Falls back to manual user selection when no <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer.properties</code> is found</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Flexible Version Override Matching</h4>
+    <ul>
+      <li>
+        <strong>Substring Matching:</strong> Version overrides now use case-insensitive substring matching instead of exact system type comparison, supporting any project code prefix (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKR-sh-cloud</code>, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">CSE-sh-cloud</code>, or custom prefixes all correctly match StoreHub)</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Hardcoded Tenant ID:</strong> OAuth token URL and Employee Hub API header were hardcoding tenant ID as <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">001</code> instead of reading from configuration. Affected the Offline Package Creator token generation, API Client token generation, and API Client <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">gk-tenant-id</code> request header</li>
+      <li>
+        <strong>Empty Config Fallback:</strong> Fixed <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">config.get(key, default)</code> returning empty strings instead of falling back to default values for system type configuration</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b04 - February 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>RCS URL CLI parameter, autodetect mode, improved download feedback</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">RCS URL CLI Parameter (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-rcsUrl</code> / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl</code>)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">New CLI parameter for GKInstall scripts that allows specifying an RCS (Resource Cache Service) URL at install time, enabling the simplified installer to download packages from a local RCS instance instead of the cloud DSG. Supports three modes: direct URL, autodetect from Config-Service, or omitted for standard DSG download. See <ac:link>
+        <ri:page ri:content-title="RCS Usage guide"/>
+      </ac:link> for full documentation.</p>
+    <ul>
+      <li>
+        <strong>Direct URL Mode:</strong> Pass <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-rcsUrl http://rcs-host:8180</code> (PowerShell) or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl http://rcs-host:8180</code> (Bash) to use a specific RCS instance</li>
+      <li>
+        <strong>Autodetect Mode:</strong> Pass <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-rcsUrl autodetect</code> / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl autodetect</code> to automatically fetch the RCS URL from Config-Service API (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">system.properties → rcs.url</code>)</li>
+      <li>
+        <strong>Installation Token Integration:</strong> When <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">rcsUrl</code> is provided, the value is appended to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code> as <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">rcs.url=...</code> so the simplified installer uses RCS for downloads</li>
+      <li>
+        <strong>Download Source Feedback:</strong> Log wait message now shows <em>"Downloading installation files from RCS (url)"</em> when rcsUrl is active, instead of the default DSG message</li>
+      <li>
+        <strong>Documentation: </strong> <ac:link>
+          <ri:page ri:content-title="RCS Usage guide"/>
+        </ac:link>
+      </li>
+    </ul>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b03 - February 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>Python 3.14.2 | RCS component, Installer Overrides, Linux fixes</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">RCS (Resource Cache Service) Component</h4>
+    <ul>
+      <li>
+        <strong>7th Component Type:</strong> Full support for RCS (Resource Cache Service) as a new component alongside POS, OneX POS, WDM, Flow Service, LPA Service, and StoreHub Service</li>
+      <li>
+        <strong>Version Management:</strong> Dedicated version field with auto-detection of <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">{PROJECT}-RCS-CLOUD</code> system type and Config-Service version fetching</li>
+      <li>
+        <strong>Launcher Settings:</strong> Dedicated RCS launcher tab with configurable HTTP port, HTTPS toggle, and "Don't set RCS URL" option for environments that manage RCS URL from StoreManager</li>
+      <li>
+        <strong>RCS Configuration API:</strong> Store-initialization scripts configure RCS URL via Config-Service API with protocol/port selection based on launcher settings</li>
+      <li>
+        <strong>Station Files:</strong> Support for <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">RCS.station</code> detection files for store/workstation ID detection</li>
+      <li>
+        <strong>Offline Package:</strong> RCS added to offline package component selection</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Installer Overrides System</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Installer overrides let you control how the GK Simplified Installer behaves during deployment by placing an Ant XML file (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer_overrides.xml</code>) into the component's <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer/overrides/</code> directory. The most common use case is skipping the health check (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">check-alive</code>) during initial deployments when no process is running yet, or skipping <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">start-application</code> when batch-updating multiple components and starting them all together afterwards. GK Install Builder generates these XML files automatically based on your GUI configuration and deploys them via the GKInstall script at install time. The generated files can also be manually edited after generation to customize any of the 22 available override properties or to add custom Ant targets.</p>
+    <ul>
+      <li>
+        <strong>Override XML Templates:</strong> Ant XML override files for all 7 component types (POS, OneX POS, WDM, Flow Service, LPA Service, StoreHub Service, RCS) with configurable <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">check-alive</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">start-application</code> properties</li>
+      <li>
+        <strong>GUI Configuration:</strong> Per-component override toggles in the main UI with checkboxes for Skip Check-Alive and Skip Start-Application</li>
+      <li>
+        <strong>CLI Flags:</strong> New CLI parameters in generated scripts: <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--noOverrides</code> to skip deploying overrides entirely, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--skipCheckAlive</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--skipStartApplication</code> to force-skip at runtime even if the XML says otherwise</li>
+      <li>
+        <strong>Auto-Cleanup:</strong> Optional automatic removal of override files after successful installation, so they don't affect subsequent Employee Hub updates</li>
+      <li>
+        <strong>Customizable:</strong> Generated XML files in <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">helper/overrides/</code> can be edited directly to change any of the 22 override properties (stop, install, update, backup, restore, cleanup, etc.) or to add custom Ant targets using <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">extensionOf</code> extension points</li>
+      <li>
+        <strong>Documentation:</strong> See <ac:link>
+          <ri:page ri:content-title="Installer Overrides"/>
+        </ac:link> for full details on XML structure, all 22 properties, CLI parameters, customization examples, and usage scenarios, product documentation can be found here <ac:link>
+          <ri:page ri:content-title="How to use new CDPL extensibility for Projects" ri:space-key="GKRO"/>
+        </ac:link>, product will also enhance the documentation as aligned</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">OneX POS Offline UI Package (Electron Client)</h4>
+    <ul>
+      <li>
+        <strong>OneX UI Download:</strong> New "Include OneX UI package" sub-option in Offline Package Creator for downloading the OneX UI frontend package</li>
+      <li>
+        <strong>Platform-Specific Downloads:</strong> Automatically selects the correct platform-specific package (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">onex-ui-{version}-linux.zip</code> or Windows variant) based on target platform</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">IP-Based Store Detection</h4>
+    <ul>
+      <li>
+        <strong>IP Mapping Support:</strong> Store ID detection from IP address mapping for environments without hostname-based identification (e.g., Coop Sweden)</li>
+      <li>
+        <strong>Cross-Platform:</strong> Supported in both PowerShell and Bash generated scripts</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Offline Package Version Overrides</h4>
+    <ul>
+      <li>
+        <strong>Inline Version Entries:</strong> Per-component version entry fields in the Offline Package Creator dialog so users can override versions directly before downloading</li>
+      <li>
+        <strong>RCS &amp; OneX POS Support:</strong> RCS and OneX POS version mapping added to offline package generator and version utilities</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">GitLab CI/CD</h4>
+    <ul>
+      <li>
+        <strong>Pipeline Configuration:</strong> Added GitLab CI/CD configuration for automated builds alongside existing GitHub Actions</li>
+    </ul>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Improvements</h3>
+    <ul>
+      <li>
+        <strong>Update Mode Reliability:</strong> Improved update mode with base URL validation and more reliable detection of existing installations</li>
+      <li>
+        <strong>CLI Override Priority:</strong> CLI parameters (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--storeId</code>, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--workstationId</code>) now reliably override hostname detection in all scenarios</li>
+      <li>
+        <strong>Config Template Rebuild:</strong> Configuration is always recreated from original template to prevent stale values from previous generations</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <table class="wrapped" style="width: 100.0%;border-collapse: collapse;margin: 15.0px 0;">
+      <tbody>
+        <tr style="background: rgb(248,249,250);">
+          <th style="text-align: left;padding: 12.0px;border-bottom: 2.0px solid rgb(222,226,230);width: 200.0px;">Category</th>
+          <th style="text-align: left;padding: 12.0px;border-bottom: 2.0px solid rgb(222,226,230);">Fixes</th>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Linux Installer</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed RCS-SERVICE Config-Service version fetch missing case in Bash template (Linux-only)</li>
+              <li>Fixed override deployment case-sensitivity bug (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$component_type</code> vs <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$COMPONENT_TYPE</code>) - Bash is case-sensitive unlike PowerShell</li>
+              <li>Fixed curl SSL certificate verification issues in generated scripts</li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Override Generation</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed stale override files remaining when components are disabled - overrides directory is now cleaned before each generation</li>
+              <li>Override directory is fully removed when all component overrides are disabled</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Detection System</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">\d</code> regex escaping in PowerShell detection f-string generation</li>
+              <li>Added proper station names for ONEX-POS and RCS-SERVICE in detection settings</li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">RCS Configuration</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed RCS URL to use HTTP instead of HTTPS by default (correct protocol for RCS)</li>
+              <li>RCS HTTP port now configurable via launcher settings instead of hardcoded</li>
+              <li>Fixed RCS system type in auto-fill to always use <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKR-Resource-Cache-Service</code> prefix regardless of project code</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Offline Package</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed RCS-SERVICE directory name mapping in offline package - GKInstall scripts expected <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">offline_package_RCS-SERVICE</code> but offline package creator generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">offline_package_RCS</code>
+              </li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Windows Installer</td>
+          <td style="padding: 12.0px;">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed environment credentials not being applied for version API calls on Windows - PS1 template now reads <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">form_username</code> from file instead of unset script variable</li>
+              <li>Fixed Config-Service API calls fetching all 7 components instead of only the relevant one (matching Linux single-call behavior)</li>
+              <li>Added <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">form_username.txt</code> generation for restore-to-defaults support</li>
+            </ul>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 style="color: rgb(111,66,193);border-bottom: 2.0px solid rgb(111,66,193);padding-bottom: 8.0px;">Testing</h3>
+    <ul>
+      <li>
+        <strong>Expanded Test Suite:</strong> Test suite expanded from 143 to 244+ tests with new coverage for installer overrides (478-line test file) and template processor (32 tests covering PS1, Bash, cross-platform consistency, and parametrized edge cases)</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <h2 style="margin: 0 0 10.0px 0;color: rgb(30,58,95);">Build 5.27-b02 - November 2025</h2>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>Python 3.14.0 | OneX POS support, Legacy API compatibility, major refactoring</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">OneX POS Client Support</h4>
+    <ul>
+      <li>
+        <strong>6th Component Type:</strong> Full support for OneX POS Client as a new component type alongside POS, WDM, Flow Service, LPA Service, and StoreHub Service</li>
+      <li>
+        <strong>Version Management:</strong> Dedicated version field (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">onex_pos_version</code>) in Version Management section with auto-detection of <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">{PROJECT}-OPOS-ONEX-CLOUD</code> system type</li>
+      <li>
+        <strong>CLI Support:</strong> New <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--ComponentType ONEX</code> or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--ComponentType ONEX-POS</code> CLI parameters for both Windows and Linux scripts</li>
+      <li>
+        <strong>Offline Package Creation:</strong> OneX POS added to offline package component selection with proper dependency handling</li>
+      <li>
+        <strong>Launcher Settings:</strong> Dedicated launcher template (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">launcher.onex-pos.template</code>) with JMX port configuration</li>
+      <li>
+        <strong>Detection Files:</strong> Support for <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">ONEX.station</code> detection files for store/workstation ID detection</li>
+      <li>
+        <strong>Installation Directory:</strong> Installs to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/onex/</code> subdirectory (Windows: <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">C:\gkretail\onex</code>, Linux: <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/usr/local/gkretail/onex</code>)</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Legacy API Version Support (5.25 Compatibility)</h4>
+    <ul>
+      <li>
+        <strong>API Version Toggle:</strong> New radio button in Project Configuration to switch between Legacy (5.25) and New (5.27+) API endpoints</li>
+      <li>
+        <strong>Complete Endpoint Mapping:</strong> All generated scripts support both legacy and new API formats based on toggle selection</li>
+      <li>
+        <strong>DSG REST Browser:</strong> Legacy API support for file browsing and offline package downloads</li>
+      <li>
+        <strong>GUI API Testing:</strong> Test API button respects legacy/new API version selection</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Config-Service Version Sorting</h4>
+    <ul>
+      <li>
+        <strong>Automatic Version Selection:</strong> Config-Service API now automatically sorts and selects the highest available version, eliminating issues with unsorted API responses</li>
+      <li>
+        <strong>Re-enabled Config-Service Option:</strong> Config-Service is now available again as a version source option alongside Function Pack (FP)</li>
+      <li>
+        <strong>Improved Tooltips:</strong> Clear explanation of differences between FP (requires Function Pack configuration, allows customization) and Config-Service (simpler, always selects highest version)</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">CLI Parameter Overrides</h4>
+    <ul>
+      <li>
+        <strong>Highest Priority CLI Arguments:</strong> Added <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--storeId</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--workstationId</code> CLI parameters that override all other detection methods</li>
+      <li>
+        <strong>Linux Case-Insensitive Support:</strong> Linux scripts now handle CLI parameters case-insensitively</li>
+      <li>
+        <strong>Smart Prompting:</strong> Scripts only prompt for missing values, preserving CLI-provided values</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Automated Release Builds</h4>
+    <ul>
+      <li>
+        <strong>GitHub Actions Integration:</strong> Automated build workflow for both Windows (.exe) and Linux binaries</li>
+      <li>
+        <strong>Cross-Platform Releases:</strong> Consistent builds using Ubuntu 24.04 LTS (Linux) and Windows latest</li>
+      <li>
+        <strong>Optimized Binaries:</strong> Debug symbol stripping and maximum compression for smaller file sizes</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">TLS 1.2 Support</h4>
+    <ul>
+      <li>
+        <strong>Legacy Windows Compatibility:</strong> Added explicit TLS 1.2 enforcement in PowerShell templates for older Windows systems that default to TLS 1.0/1.1</li>
+    </ul>
+    <h3 style="color: rgb(253,126,20);border-bottom: 2.0px solid rgb(253,126,20);padding-bottom: 8.0px;">Legacy API Endpoint Mapping</h3>
+    <table class="wrapped" style="width: 100.0%;border-collapse: collapse;margin: 15.0px 0;">
+      <tbody>
+        <tr style="background: rgb(248,249,250);">
+          <th style="text-align: left;padding: 10.0px;border-bottom: 2.0px solid rgb(222,226,230);">Service</th>
+          <th style="text-align: left;padding: 10.0px;border-bottom: 2.0px solid rgb(222,226,230);">Legacy (5.25)</th>
+          <th style="text-align: left;padding: 10.0px;border-bottom: 2.0px solid rgb(222,226,230);">New (5.27+)</th>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Onboarding</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/cims/services/rest/cims/v1/...</code>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/iam/cim/rest/v1/...</code>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Config-Service</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/config-service/services/rest/...</code>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/config/services/rest/...</code>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Business Unit</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/swee-sdc/tenants/{tid}/...</code>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/business-unit/rest/v1/...</code>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Workstation</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/swee-sdc/tenants/{tid}/...</code>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/pos/master-data/rest/v1/...</code>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Employee Hub</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/employee-hub-service/...</code>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/employee-hub-service/...</code>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 10.0px;">
+            <strong>DSG Content</strong>
+          </td>
+          <td style="padding: 10.0px;">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/dsg/content/cep/SoftwarePackage</code>
+          </td>
+          <td style="padding: 10.0px;">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/digital-content/content/cep/SoftwarePackage</code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size: 13.0px;color: rgb(102,102,102);margin-top: 5.0px;">
+      <em>Note: Legacy master data endpoints (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/swee-sdc/...</code>) include tenant ID in URL path; New API uses tenant ID from auth token.</em>
+    </p>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Major Improvements</h3>
+    <h4 style="color: rgb(30,58,95);">Code Refactoring</h4>
+    <ul>
+      <li>
+        <strong>75% Code Reduction:</strong> Major refactoring reduced <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">generator.py</code> from 3,592 lines to 894 lines while maintaining 100% test coverage (143 tests)</li>
+      <li>
+        <strong>Modular Architecture:</strong> Created dedicated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">generators/</code> module with specialized components:<ul>
+          <li>
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">gk_install_generator.py</code> - Main script generation</li>
+          <li>
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">helper_file_generator.py</code> - Helper file operations</li>
+          <li>
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">launcher_generator.py</code> - Component launcher templates</li>
+          <li>
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">onboarding_generator.py</code> - Onboarding script generation</li>
+          <li>
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">offline_package_helpers.py</code> - Offline package creation</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Zero Regressions:</strong> All functionality preserved with identical generated output</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">UI/UX Improvements</h4>
+    <ul>
+      <li>
+        <strong>Info Icon Compatibility:</strong> Improved icon display across different systems and font configurations</li>
+      <li>
+        <strong>CustomTkinter Assets:</strong> Bundled fonts and assets for proper emoji and icon display in standalone builds</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <table class="wrapped" style="width: 100.0%;border-collapse: collapse;margin: 15.0px 0;">
+      <tbody>
+        <tr style="background: rgb(248,249,250);">
+          <th style="text-align: left;padding: 12.0px;border-bottom: 2.0px solid rgb(222,226,230);width: 200.0px;">Category</th>
+          <th style="text-align: left;padding: 12.0px;border-bottom: 2.0px solid rgb(222,226,230);">Fixes</th>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Linux Compatibility</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Hostname detection now case-insensitive</li>
+              <li>Improved fallback behavior with clearer error messages</li>
+              <li>Fixed native JSON parsing in bash scripts</li>
+              <li>Fixed password Base64 decoding issues</li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Certificate Generation</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed PyInstaller shell library conflicts on Linux</li>
+              <li>Clear LD_LIBRARY_PATH to prevent OpenSSL interference</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">PyInstaller Builds</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Disabled UPX compression for DLL loading fix</li>
+              <li>Corrected all relative imports to full package paths</li>
+              <li>Added missing hidden imports (KeePass, backports, pkg_resources)</li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Multi-Environment</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed environment hardcoding issue</li>
+              <li>Fixed null environment crashes</li>
+              <li>Fixed credential backup on first run</li>
+              <li>Added comprehensive token cleanup</li>
+              <li>Fixed critical credential timing bugs</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Password Encoding</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed encoding inconsistency between generator and environment manager</li>
+              <li>Fixed Linux Base64 decoding for AUTH token generation</li>
+            </ul>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);vertical-align: top;font-weight: bold;color: rgb(30,58,95);">Update Mode</td>
+          <td style="padding: 12.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Update mode no longer requires environments.json; uses extracted values from existing station.properties</li>
+              <li>Graceful fallback to script default credentials when no multi-environment config exists</li>
+              <li>Improved messaging with clear cyan/green status instead of error-like warnings</li>
+            </ul>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 12.0px;vertical-align: top;font-weight: bold;color: rgb(30,58,95);">API Version Toggle</td>
+          <td style="padding: 12.0px;">
+            <ul style="margin: 0;padding-left: 20.0px;">
+              <li>Fixed radio buttons not triggering config save when API version is changed</li>
+            </ul>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(173,181,189);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <h2 style="margin: 0 0 10.0px 0;color: rgb(108,117,125);">Build 5.27 - October 2025</h2>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>Initial 5.27 release with DSG REST API migration</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">Major Features</h3>
+    <h4 style="color: rgb(30,58,95);">DSG REST API Migration</h4>
+    <ul>
+      <li>
+        <strong>Migrated from WebDAV to DSG REST API:</strong> Complete transition to modern REST API (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/digital-content/services/rest/media/v1/files</code>) for file browsing and downloads</li>
+      <li>
+        <strong>OAuth2 Bearer Token Authentication:</strong> Implemented secure OAuth2 authentication replacing Basic Auth, with automatic token generation and refresh on 401 errors</li>
+      <li>
+        <strong>Modern File Browser:</strong> Complete UI redesign with CustomTkinter integration:<ul>
+          <li>Color-coded file types (folders, executables, archives)</li>
+          <li>Right-click context menu with "Copy Download URL" and "Download File" options</li>
+          <li>Performance optimization using lightweight Listbox instead of ScrollableFrame</li>
+          <li>Background threading for downloads with progress tracking</li>
+          <li>Downloads saved to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">downloaded_packages/</code> folder</li>
+        </ul>
+      </li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Multi-Environment and Multi-Tenancy Support</h4>
+    <ul>
+      <li>
+        <strong>Environment Manager UI:</strong> New interface for managing unlimited environments (TEST, PROD, QA, etc.) with per-environment configuration:<ul>
+          <li>Separate Base URLs, Tenant IDs, and credentials per environment</li>
+          <li>Clone functionality for easy multi-tenant setup with auto-incrementing tenant IDs</li>
+          <li>Base64-encoded credentials in generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">environments.json</code>
+          </li>
+        </ul>
+      </li>
+      <li>
+        <strong>Smart Environment Detection:</strong> Automatic environment selection with priority-based logic:<ol>
+          <li>CLI parameter (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-Env</code> or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--env</code>)</li>
+          <li>Hostname detection using regex patterns (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">P-001-101</code>)</li>
+          <li>Station file detection (reading <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Environment=</code> from .station files)</li>
+          <li>Interactive selection with option to use default or configured environments</li>
+        </ol>
+      </li>
+      <li>
+        <strong>3-Group Hostname Pattern:</strong> Enhanced regex detection <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">^(.+)-(.+)-(.+)$</code> to extract Environment-Store-Workstation from hostnames</li>
+      <li>
+        <strong>Toggle Controls:</strong> Enable/disable environment detection from station files independently of store/workstation detection</li>
+    </ul>
+    <h3 style="color: rgb(253,126,20);border-bottom: 2.0px solid rgb(253,126,20);padding-bottom: 8.0px;">API Endpoint Updates (Gravitee)</h3>
+    <table class="wrapped" style="width: 100.0%;border-collapse: collapse;margin: 15.0px 0;">
+      <tbody>
+        <tr style="background: rgb(248,249,250);">
+          <th style="text-align: left;padding: 10.0px;border-bottom: 2.0px solid rgb(222,226,230);">API</th>
+          <th style="text-align: left;padding: 10.0px;border-bottom: 2.0px solid rgb(222,226,230);">New Endpoint</th>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Onboarding</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/iam/cim/rest/v1/onboarding/tokens</code>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Config-Service</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/config/services/rest/infrastructure/v1/versions/search</code>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>Business-Unit</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/business-unit/rest/v1</code>
+          </td>
+        </tr>
+        <tr style="background: rgb(248,249,250);">
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <strong>POS Master Data</strong>
+          </td>
+          <td style="padding: 10.0px;border-bottom: 1.0px solid rgb(222,226,230);">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/pos/master-data/rest/v1</code>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 10.0px;">
+            <strong>CIMS / DSG</strong>
+          </td>
+          <td style="padding: 10.0px;">
+            <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/iam/cim/rest</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/api/digital-content/content/cep/SoftwarePackage</code>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <p>See <ac:link>
+        <ri:page ri:content-title="API Definition Migration (5.27)"/>
+      </ac:link> for complete migration details.</p>
+    <h3 style="color: rgb(111,66,193);border-bottom: 2.0px solid rgb(111,66,193);padding-bottom: 8.0px;">Config-Service Integration</h3>
+    <ul>
+      <li>
+        <strong>Dynamic Version Fetching:</strong> Config-Service API support for fetching component versions with VersionSource selection (CONFIG vs FP/FPD)</li>
+      <li>
+        <strong>Configurable Form Username:</strong> Made form username configurable with template placeholder replacement</li>
+      <li>
+        <strong>Auto-Detect GKR System Types:</strong> Automatic detection from product URLs for proper component identification</li>
+      <li>
+        <strong>Update_Version Fallback:</strong> Added fallback to FP/FPD API calls when dynamic version fetching fails</li>
+    </ul>
+    <h3 style="color: rgb(232,62,140);border-bottom: 2.0px solid rgb(232,62,140);padding-bottom: 8.0px;">Security and Authentication</h3>
+    <ul>
+      <li>
+        <strong>Password Masking in Logs:</strong> OAuth debug output now masks passwords (shows <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">password=********</code>)</li>
+      <li>
+        <strong>Base64 Credential Encoding:</strong> All credentials stored Base64-encoded in token files and properly decoded before use in both PowerShell and Bash scripts</li>
+      <li>
+        <strong>Token Refresh Logic:</strong> Automatic bearer token refresh on 401 errors with user notifications</li>
+      <li>
+        <strong>Comprehensive Debug Logging:</strong> Detailed logging for OAuth token generation with token URL, request body, file paths, and error responses</li>
+    </ul>
+    <h3 style="color: rgb(32,201,151);border-bottom: 2.0px solid rgb(32,201,151);padding-bottom: 8.0px;">Script Generation Improvements</h3>
+    <ul>
+      <li>
+        <strong>Multi-Environment Script Support:</strong> Both GKInstall.ps1 and GKInstall.sh support multi-environment configuration with automatic environment loading</li>
+      <li>
+        <strong>PowerShell Syntax Fixes:</strong> Correct brace matching and indentation for proper parsing in PowerShell 5.1</li>
+      <li>
+        <strong>Environment Priority Logic:</strong> Restored proper Load-Environments function without recursion issues</li>
+      <li>
+        <strong>Update Mode Support:</strong> OAuth token generation and environment selection properly supported in update mode installations</li>
+      <li>
+        <strong>Comprehensive API Logging:</strong> Added detailed API call logging with timestamps, status codes, and request/response bodies</li>
+    </ul>
+  </div>
+  <div style="border-left: 4.0px solid rgb(173,181,189);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <h2 style="margin: 0 0 10.0px 0;color: rgb(108,117,125);">Build 5.25-b06 - September 5, 2025</h2>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Updated KeePass Integration:</strong> Adjusted KeePass logic to reflect latest changes done by Cloud Operations Team</li>
+    </ul>
+  </div>
+  <div style="border-left: 4.0px solid rgb(173,181,189);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <h2 style="margin: 0 0 10.0px 0;color: rgb(108,117,125);">Build 5.25-b05 - August 27, 2025</h2>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <ul>
+      <li>
+        <strong>Employee Hub Version Fetching:</strong> GK Install Builder can now fetch preferred versions from Employee Hub, allowing dynamic version determination instead of hardcoded values</li>
+      <li>
+        <strong>Smart Function Pack API Integration:</strong> Intelligent version fetching that queries FP scope (customized versions) first, then falls back to FPD scope (defaults) for missing components<ul>
+          <li>
+            <strong>FPD scope</strong> = Function Pack default value from launchpad apps code</li>
+          <li>
+            <strong>FP scope</strong> = Function Pack value modified by user or pipeline</li>
+        </ul>
+      </li>
+    </ul>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Improvements</h3>
+    <ul>
+      <li>
+        <strong>Enhanced Error Messages:</strong> API test failures now provide specific guidance to check Security Configuration with exact field names</li>
+      <li>
+        <strong>Real-Time Updates:</strong> Component versions update immediately as you type in the main version field</li>
+      <li>
+        <strong>Template Integration:</strong> Both PowerShell and Bash installation scripts now include FP-first, FPD-fallback logic</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Fixed Hardcoded StoreHub Values:</strong> Removed static StoreHub configurations causing deployment failures</li>
+      <li>
+        <strong>Updated KeePass Integration:</strong> Fixed credential matching for new KeePass server format from Cloud Operations team</li>
+      <li>
+        <strong>Store Manager Matching:</strong> Resolved workstation ID and configuration problems reported by Primark</li>
+      <li>
+        <strong>Linux Compatibility:</strong> Fixed platform-specific installation script issues</li>
+      <li>
+        <strong>Template System:</strong> Simplified from 3 separate patterns to unified never-match pattern system for disabled hostname or file detection</li>
+    </ul>
+  </div>
+</div>

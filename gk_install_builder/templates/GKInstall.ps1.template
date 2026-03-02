@@ -19,7 +19,8 @@ param(
     [string]$VersionOverride,  # Optional: Override component version (e.g., v5.27.1 or 5.27.1)
     [string]$SystemNameOverride,  # Optional: Override system name for Store Manager API
     [string]$WorkstationNameOverride,  # Optional: Override workstation name (e.g., A319_OneXPOS1)
-    [string]$StructureUniqueNameOverride  # Optional: Override structureUniqueName for structure node creation
+    [string]$StructureUniqueNameOverride,  # Optional: Override structureUniqueName for structure node creation
+    [switch]$y  # Optional: Auto-confirm workstation creation without prompting
 )
 
 # Create a unique log filename based on timestamp
@@ -1974,6 +1975,10 @@ if (-not $isUpdate) {
                 if (![string]::IsNullOrEmpty($StructureUniqueNameOverride)) {
                     $storeInitArgs['StructureUniqueNameOverride'] = $StructureUniqueNameOverride
                     Write-Host "Passing StructureUniqueNameOverride to store-initialization: $StructureUniqueNameOverride"
+                }
+                if ($y) {
+                    $storeInitArgs['y'] = $true
+                    Write-Host "Passing -y (auto-confirm) to store-initialization"
                 }
                 & $storeInitScript @storeInitArgs
                 if ($LASTEXITCODE -eq 0) {

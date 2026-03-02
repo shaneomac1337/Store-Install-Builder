@@ -24,6 +24,7 @@ cli_version_override=""  # --VersionOverride: Override component version (highes
 cli_system_name_override=""  # --SystemNameOverride: Override system name for Store Manager API
 cli_workstation_name_override=""  # --WorkstationNameOverride: Override workstation name
 cli_structure_unique_name_override=""  # --StructureUniqueNameOverride: Override structureUniqueName for structure node creation
+cli_auto_confirm=false  # -y, --yes: Auto-confirm workstation creation without prompting
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -92,9 +93,13 @@ while [ $# -gt 0 ]; do
       cli_structure_unique_name_override="$2"
       shift 2
       ;;
+    -y|--yes)
+      cli_auto_confirm=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [-y|--yes] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
       exit 1
       ;;
   esac
@@ -2394,6 +2399,10 @@ if [ "$isUpdate" = false ]; then
         if [ -n "$cli_structure_unique_name_override" ]; then
           store_init_args+=(--StructureUniqueNameOverride "$cli_structure_unique_name_override")
           echo "Passing StructureUniqueNameOverride to store-initialization: $cli_structure_unique_name_override"
+        fi
+        if [ "$cli_auto_confirm" = true ]; then
+          store_init_args+=(--yes)
+          echo "Passing --yes (auto-confirm) to store-initialization"
         fi
         if ! "$store_init_script" "${store_init_args[@]}"; then
           echo "Error during store initialization"
