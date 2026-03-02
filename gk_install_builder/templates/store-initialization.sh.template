@@ -41,6 +41,7 @@ WORKSTATION_ID=""
 VERSION=""
 SYSTEM_NAME_OVERRIDE=""
 WORKSTATION_NAME_OVERRIDE=""
+STRUCTURE_UNIQUE_NAME_OVERRIDE=""
 
 # Initialize StoreHub wait tracking variable
 storehub_wait_complete=0
@@ -76,9 +77,13 @@ while [ $# -gt 0 ]; do
       WORKSTATION_NAME_OVERRIDE="$2"
       shift 2
       ;;
+    --StructureUniqueNameOverride)
+      STRUCTURE_UNIQUE_NAME_OVERRIDE="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>]"
+      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>]"
       exit 1
       ;;
   esac
@@ -397,7 +402,19 @@ else
           processed_template_path="$init_path/processed_create_structure.json"
           cp "$temp_structure_file" "$processed_template_path"
           echo "Saved processed template to: $processed_template_path"
-          
+
+          # Inject structureUniqueName into newNode if CLI override provided
+          if [ -n "$STRUCTURE_UNIQUE_NAME_OVERRIDE" ]; then
+            echo "CLI Override: Adding structureUniqueName '$STRUCTURE_UNIQUE_NAME_OVERRIDE' to create structure request"
+            if command -v jq &> /dev/null; then
+              jq --arg sun "$STRUCTURE_UNIQUE_NAME_OVERRIDE" '.newNode.structureUniqueName = $sun' "$processed_template_path" > "${processed_template_path}.tmp"
+              mv "${processed_template_path}.tmp" "$processed_template_path"
+            else
+              # Fallback: use sed to inject structureUniqueName into newNode
+              sed -i 's/"name": *"[^"]*"/&,\n        "structureUniqueName": "'"$STRUCTURE_UNIQUE_NAME_OVERRIDE"'"/' "$processed_template_path"
+            fi
+          fi
+
           # Make the API call to create the structure
           structure_create_url="https://$base_url/api/config/services/rest/infrastructure/v1/structure/nodes"
           

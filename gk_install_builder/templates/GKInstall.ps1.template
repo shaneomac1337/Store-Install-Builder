@@ -18,7 +18,8 @@ param(
     [string]$SslPassword,  # Optional: SSL certificate password (override via SSL_PASSWORD env var)
     [string]$VersionOverride,  # Optional: Override component version (e.g., v5.27.1 or 5.27.1)
     [string]$SystemNameOverride,  # Optional: Override system name for Store Manager API
-    [string]$WorkstationNameOverride  # Optional: Override workstation name (e.g., A319_OneXPOS1)
+    [string]$WorkstationNameOverride,  # Optional: Override workstation name (e.g., A319_OneXPOS1)
+    [string]$StructureUniqueNameOverride  # Optional: Override structureUniqueName for structure node creation
 )
 
 # Create a unique log filename based on timestamp
@@ -1995,6 +1996,10 @@ if (-not $isUpdate) {
                 if (![string]::IsNullOrEmpty($WorkstationNameOverride)) {
                     $storeInitArgs['WorkstationNameOverride'] = $WorkstationNameOverride
                     Write-Host "Passing WorkstationNameOverride to store-initialization: $WorkstationNameOverride"
+                }
+                if (![string]::IsNullOrEmpty($StructureUniqueNameOverride)) {
+                    $storeInitArgs['StructureUniqueNameOverride'] = $StructureUniqueNameOverride
+                    Write-Host "Passing StructureUniqueNameOverride to store-initialization: $StructureUniqueNameOverride"
                 }
                 & $storeInitScript @storeInitArgs
                 if ($LASTEXITCODE -eq 0) {

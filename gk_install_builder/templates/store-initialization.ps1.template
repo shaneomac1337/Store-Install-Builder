@@ -12,7 +12,9 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$SystemNameOverride,
     [Parameter(Mandatory=$false)]
-    [string]$WorkstationNameOverride
+    [string]$WorkstationNameOverride,
+    [Parameter(Mandatory=$false)]
+    [string]$StructureUniqueNameOverride
 )
 
 # Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
@@ -309,7 +311,16 @@ try {
                         
                         # Write the updated content to the processed file
                         $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
-                        
+
+                        # Inject structureUniqueName into newNode if CLI override provided
+                        if (![string]::IsNullOrEmpty($StructureUniqueNameOverride)) {
+                            Write-Host "CLI Override: Adding structureUniqueName '$StructureUniqueNameOverride' to create structure request"
+                            $jsonObj = $processedContent | ConvertFrom-Json
+                            $jsonObj.newNode | Add-Member -NotePropertyName "structureUniqueName" -NotePropertyValue $StructureUniqueNameOverride -Force
+                            $processedContent = $jsonObj | ConvertTo-Json -Depth 10
+                            $processedContent | Set-Content -Path $processedCreateStructurePath -NoNewline
+                        }
+
                         # Make the API call to create the structure
                         $structureCreateUrl = "https://$base_url/api/config/services/rest/infrastructure/v1/structure/nodes"
                         

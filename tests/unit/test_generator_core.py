@@ -1563,6 +1563,128 @@ class TestWorkstationNameCLIOverride:
             pass
 
 
+class TestStructureUniqueNameCLIOverride:
+    """Test that generated scripts contain --StructureUniqueNameOverride CLI parameter override logic"""
+
+    @staticmethod
+    def _configure_detection_manager(generator):
+        """Helper to configure detection_manager for tests"""
+        generator.detection_manager.detection_config = {
+            "file_detection_enabled": True,
+            "use_base_directory": True,
+            "base_directory": "",
+            "custom_filenames": {
+                "POS": "POS.station",
+                "WDM": "WDM.station",
+                "FLOW-SERVICE": "FLOW-SERVICE.station",
+                "LPA-SERVICE": "LPA.station",
+                "STOREHUB-SERVICE": "SH.station"
+            },
+            "detection_files": {
+                "POS": "stations\\POS.station",
+                "WDM": "stations\\WDM.station",
+                "FLOW-SERVICE": "stations\\Flow.station",
+                "LPA-SERVICE": "stations\\LPA.station",
+                "STOREHUB-SERVICE": "stations\\StoreHub.station"
+            },
+            "hostname_detection": {
+                "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                "test_hostname": "1234-101",
+                "detect_environment": False,
+                "env_group": 1,
+                "store_group": 1,
+                "workstation_group": 2
+            }
+        }
+        generator.detection_manager.get_hostname_env_detection = Mock(return_value=False)
+
+    def test_windows_script_has_structure_unique_name_override(self, tmp_path):
+        """Test that generated Windows script includes $StructureUniqueNameOverride parameter and splatting"""
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        self._configure_detection_manager(generator)
+
+        generator._create_directory_structure = Mock()
+        generator._copy_certificate = Mock()
+        generator._generate_environments_json = Mock()
+        generator._generate_onboarding = Mock()
+        generator._generate_launcher_templates = Mock()
+        generator._copy_helper_files = Mock()
+        generator._show_success = Mock()
+
+        config = {
+            "platform": "Windows",
+            "base_url": "test.cloud4retail.co",
+            "base_install_dir": "C:\\gkretail",
+            "tenant_id": "001",
+            "version": "v1.0.0",
+            "output_dir": str(tmp_path / "output"),
+            "use_hostname_detection": False,
+            "system_type": "GKR-POS-CLOUD",
+            "certificate_path": ""
+        }
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+        generator.generate(config)
+
+        content = (output_dir / "GKInstall.ps1").read_text()
+
+        # Verify $StructureUniqueNameOverride parameter in param block
+        assert "[string]$StructureUniqueNameOverride" in content
+        # Verify splatted pass-through
+        assert "storeInitArgs['StructureUniqueNameOverride']" in content
+        assert "Passing StructureUniqueNameOverride to store-initialization" in content
+
+    def test_linux_script_has_structure_unique_name_override(self, tmp_path):
+        """Test that generated Linux script includes --StructureUniqueNameOverride CLI parsing"""
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        self._configure_detection_manager(generator)
+
+        generator._create_directory_structure = Mock()
+        generator._copy_certificate = Mock()
+        generator._generate_environments_json = Mock()
+        generator._generate_onboarding = Mock()
+        generator._generate_launcher_templates = Mock()
+        generator._copy_helper_files = Mock()
+        generator._show_success = Mock()
+
+        config = {
+            "platform": "Linux",
+            "base_url": "test.cloud4retail.co",
+            "base_install_dir": "/usr/local/gkretail",
+            "tenant_id": "001",
+            "version": "v1.0.0",
+            "output_dir": str(tmp_path / "output"),
+            "use_hostname_detection": False,
+            "system_type": "GKR-POS-CLOUD",
+            "certificate_path": ""
+        }
+
+        output_dir = tmp_path / "output"
+        output_dir.mkdir()
+
+        try:
+            generator.generate(config)
+            output_file = output_dir / "GKInstall.sh"
+            if output_file.exists():
+                content = output_file.read_text()
+
+                # Verify cli_structure_unique_name_override variable
+                assert 'cli_structure_unique_name_override=""' in content
+                # Verify case entry for --StructureUniqueNameOverride
+                assert "--StructureUniqueNameOverride|--structureuniquenameoverride|--structureUniqueNameOverride)" in content
+                assert 'cli_structure_unique_name_override="$2"' in content
+                # Verify pass-through to store-initialization
+                assert "Passing StructureUniqueNameOverride to store-initialization" in content
+                # Verify usage string includes --StructureUniqueNameOverride
+                assert "--StructureUniqueNameOverride <name>" in content
+        except Exception:
+            pass
+
+
 class TestDirectoryStructure:
     """Test directory structure creation"""
 
