@@ -26,7 +26,9 @@ When PVH stores migrate from FAT to ONEX-CLOUD via the PVH wrapper, a failed GKI
 3. Backup C:\gkretail -> C:\gkretail_migration_backup
    - If C:\gkretail does NOT exist: log warning, skip backup, proceed to step 4
    - If C:\gkretail_migration_backup already exists: remove it first
-   - Copy-Item -Recurse C:\gkretail -> C:\gkretail_migration_backup
+   - If C:\gkretail_failed exists from a prior run: remove it first
+   - Rename-Item C:\gkretail -> C:\gkretail_migration_backup (instant, same volume)
+   - GKInstall will create a fresh C:\gkretail during installation
 
 4. Run GKInstall.ps1 (existing wrapper logic)
 
@@ -35,10 +37,11 @@ When PVH stores migrate from FAT to ONEX-CLOUD via the PVH wrapper, a failed GKI
    5b. FAILURE (non-zero exit code): Execute rollback (step 6)
 
 6. Rollback (only if backup was created in step 3)
-   - Remove failed C:\gkretail
-   - Copy C:\gkretail_migration_backup -> C:\gkretail
+   - Rename failed C:\gkretail -> C:\gkretail_failed
+   - Rename C:\gkretail_migration_backup -> C:\gkretail (instant, same volume)
+   - Remove C:\gkretail_failed (best-effort)
    - Restart the service stopped in step 1 (SMInfoServer or SMInfoClient)
-   - Launch C:\gkretail\pos-full\run_tpos_PVH.cmd
+   - Launch C:\gkretail\pos-full\run_tpos_PVH.cmd (fire-and-forget, skip if file missing)
    - Exit with GKInstall's original error code
 ```
 
@@ -51,14 +54,18 @@ When PVH stores migrate from FAT to ONEX-CLOUD via the PVH wrapper, a failed GKI
 
 - Use `Stop-Service -Name <name> -Force -ErrorAction SilentlyContinue`
 - Use `Get-Service -Name <name> -ErrorAction SilentlyContinue` to check existence before logging
+- Timeout: wait up to 30 seconds for service to stop, then proceed regardless
 - On rollback: `Start-Service -Name <name> -ErrorAction SilentlyContinue`
 
 ### POS Process Kill Logic
 
+Kill all processes listening on port 3333 (handles child processes / multiple listeners):
+
 ```powershell
-$conn = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue | Select-Object -First 1
-if ($conn) {
-    Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+$pids = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique
+foreach ($pid in $pids) {
+    Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
 }
 ```
 
@@ -67,8 +74,10 @@ if ($conn) {
 - **Source**: `C:\gkretail`
 - **Destination**: `C:\gkretail_migration_backup`
 - If source does not exist: log `[PVH] No existing installation found at C:\gkretail - skipping backup` and proceed. Set a flag (`$backupCreated = $false`) so rollback is skipped on failure.
-- If destination already exists: remove it before copying (each run gets a fresh backup of the current state)
-- Copy is a full recursive copy of the entire directory
+- If destination already exists: remove it before renaming (each run gets a fresh backup of the current state)
+- If `C:\gkretail_failed` exists from a prior run: remove it (best-effort cleanup)
+- Uses `Rename-Item` (not copy) — instant on same volume, avoids partial-copy risks and disk space issues. GKInstall creates a fresh `C:\gkretail` during installation so the original does not need to remain in place.
+- **Assumption**: `C:\gkretail` is on the C: drive (not a junction/symlink to another volume). This is the standard PVH deployment.
 
 ### Rollback Behavior
 
@@ -77,20 +86,27 @@ Only executes if:
 - A backup was actually created (`$backupCreated -eq $true`)
 
 Steps:
-1. `Remove-Item -Recurse -Force C:\gkretail`
-2. `Copy-Item -Recurse C:\gkretail_migration_backup C:\gkretail`
-3. `Start-Service` the appropriate service (SMInfoServer or SMInfoClient)
-4. `Start-Process C:\gkretail\pos-full\run_tpos_PVH.cmd`
+1. Rename failed `C:\gkretail` to `C:\gkretail_failed` — if rename fails (locked files), log error with manual recovery instructions and exit
+2. Rename `C:\gkretail_migration_backup` to `C:\gkretail` (instant on same volume)
+3. Remove `C:\gkretail_failed` (best-effort, warn if it fails — will be cleaned up on next run)
+4. `Start-Service` the appropriate service (SMInfoServer or SMInfoClient) — log warning if service does not reach Running state
+5. Launch `C:\gkretail\pos-full\run_tpos_PVH.cmd` via `Start-Process` (fire-and-forget, skip with warning if file not found via `Test-Path`)
 
 If no backup was created (source didn't exist), rollback logs a message and skips restore.
 
 ### WhatIf / DryRun Support
 
-The existing `-WhatIf` flag will display what would happen at each step without executing:
+Each new section (6a, 6b, 6c) checks `$WhatIfPreference` independently and outputs what it would do without executing. Section 9 (rollback) never executes in WhatIf mode since GKInstall doesn't run.
+
+Display includes:
 - Which service would be stopped
 - Whether POS process on port 3333 would be killed
 - Whether backup would be created (and whether source exists)
 - The GKInstall command that would run
+
+### GKInstall Exit Code Capture
+
+The wrapper uses `& $gkInstallPath @gkInstallArgs` which sets `$LASTEXITCODE` when GKInstall calls `exit N`. Additionally wrap the call in try/catch to handle terminating errors — treat thrown exceptions as failures (trigger rollback). Default exit code for exception path: `1`.
 
 ### Script Structure (insertion points in PVH-GKInstall.ps1)
 
@@ -113,6 +129,7 @@ Existing sections 7-8 (build args, execute GKInstall)
 | `$backupCreated` | bool | Whether backup was actually created (controls rollback) |
 | `$backupSource` | string | `C:\gkretail` |
 | `$backupDest` | string | `C:\gkretail_migration_backup` |
+| `$backupFailed` | string | `C:\gkretail_failed` (temp name during rollback) |
 
 ### Error Handling
 
@@ -126,3 +143,5 @@ Existing sections 7-8 (build args, execute GKInstall)
 - Linux (`PVH-GKInstall.sh`) — not needed per requirements
 - Automatic backup cleanup — backup persists indefinitely
 - Timestamped/multiple backups — single backup at fixed path, overwritten each run
+- Transcript/file logging — console output only
+- Re-entrancy safety (detecting corrupted `C:\gkretail` before overwriting a good backup) — operator responsibility
