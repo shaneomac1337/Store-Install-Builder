@@ -319,34 +319,123 @@ if ($PSBoundParameters.ContainsKey('VersionOverride'))    { $gkInstallArgs['Vers
 # ============================================================
 # 8. EXECUTE GKINSTALL (or dry-run)
 # ============================================================
-$gkInstallPath = Join-Path $PSScriptRoot "GKInstall.ps1"
-
 $argsDisplay = ($gkInstallArgs.GetEnumerator() | ForEach-Object { "-$($_.Key) $($_.Value)" }) -join ' '
 
 if ($WhatIfPreference) {
     Write-Host "[PVH] DRY RUN - Would execute:" -ForegroundColor Yellow
     Write-Host "  $gkInstallPath $argsDisplay" -ForegroundColor Yellow
     Write-Host ""
+    Write-Host "[PVH] DRY RUN - On failure, would rollback:" -ForegroundColor Yellow
+    Write-Host "  1. Rename $backupSource -> $backupFailed" -ForegroundColor Yellow
+    Write-Host "  2. Rename $backupDest -> $backupSource" -ForegroundColor Yellow
+    Write-Host "  3. Start-Service $serviceName" -ForegroundColor Yellow
+    Write-Host "  4. Launch $backupSource\pos-full\run_tpos_PVH.cmd" -ForegroundColor Yellow
+    Write-Host ""
     Write-Host "[PVH] Dry run complete. No changes were made." -ForegroundColor Yellow
     exit 0
-}
-
-if (-not (Test-Path $gkInstallPath)) {
-    Write-Host "[PVH] ERROR: GKInstall.ps1 not found at: $gkInstallPath" -ForegroundColor Red
-    Write-Host "[PVH] Place GKInstall.ps1 in the same directory as this wrapper." -ForegroundColor Yellow
-    exit 1
 }
 
 Write-Host "[PVH] Calling GKInstall.ps1..."
 Write-Host "[PVH] Command: GKInstall.ps1 $argsDisplay"
 Write-Host ""
 
-& $gkInstallPath @gkInstallArgs
-$exitCode = $LASTEXITCODE
+$gkInstallFailed = $false
+$exitCode = 0
 
-if ($exitCode -ne 0) {
+try {
+    & $gkInstallPath @gkInstallArgs
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        $gkInstallFailed = $true
+    }
+} catch {
     Write-Host ""
-    Write-Host "[PVH] GKInstall.ps1 exited with code: $exitCode" -ForegroundColor Red
+    Write-Host "[PVH] GKInstall.ps1 threw an exception: $($_.Exception.Message)" -ForegroundColor Red
+    $gkInstallFailed = $true
+    $exitCode = 1
+}
+
+# ============================================================
+# 9. CHECK RESULT & ROLLBACK IF NEEDED
+# ============================================================
+if ($gkInstallFailed) {
+    Write-Host ""
+    Write-Host "========================================" -ForegroundColor Red
+    Write-Host " GKInstall FAILED (exit code: $exitCode)" -ForegroundColor Red
+    Write-Host "========================================" -ForegroundColor Red
+
+    if ($backupCreated) {
+        Write-Host ""
+        Write-Host "[PVH] Rolling back to pre-migration state..." -ForegroundColor Yellow
+
+        # Step 1: Rename failed installation out of the way
+        if (Test-Path $backupSource) {
+            try {
+                Rename-Item -Path $backupSource -NewName (Split-Path $backupFailed -Leaf) -ErrorAction Stop
+                Write-Host "[PVH] Renamed failed installation to $backupFailed" -ForegroundColor Gray
+            } catch {
+                Write-Host "[PVH] ERROR: Cannot rename failed $backupSource to $backupFailed" -ForegroundColor Red
+                Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "[PVH]        MANUAL RECOVERY: Restore from $backupDest" -ForegroundColor Red
+                exit $exitCode
+            }
+        }
+
+        # Step 2: Restore backup
+        try {
+            Rename-Item -Path $backupDest -NewName (Split-Path $backupSource -Leaf) -ErrorAction Stop
+            Write-Host "[PVH] Restored backup to $backupSource" -ForegroundColor Green
+        } catch {
+            Write-Host "[PVH] ERROR: Cannot restore backup from $backupDest" -ForegroundColor Red
+            Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "[PVH]        MANUAL RECOVERY: Rename $backupDest to $backupSource" -ForegroundColor Red
+            exit $exitCode
+        }
+
+        # Step 3: Clean up failed installation (best-effort)
+        if (Test-Path $backupFailed) {
+            Remove-Item -Path $backupFailed -Recurse -Force -ErrorAction SilentlyContinue
+            if (Test-Path $backupFailed) {
+                Write-Host "[PVH] WARNING: Could not remove $backupFailed (locked files). Will be cleaned up on next run." -ForegroundColor Yellow
+            }
+        }
+
+        # Step 4: Restart service
+        $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+        if ($svc) {
+            Write-Host "[PVH] Restarting service: $serviceName..." -ForegroundColor Yellow
+            try {
+                Start-Service -Name $serviceName -ErrorAction Stop
+                $svc.WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+                Write-Host "[PVH] Service $serviceName started." -ForegroundColor Green
+            } catch {
+                Write-Host "[PVH] WARNING: Service $serviceName did not reach Running state." -ForegroundColor Yellow
+                Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "[PVH]          You may need to start it manually." -ForegroundColor Yellow
+            }
+        }
+
+        # Step 5: Launch POS application
+        $runTposPath = Join-Path $backupSource "pos-full\run_tpos_PVH.cmd"
+        if (Test-Path $runTposPath) {
+            Write-Host "[PVH] Launching $runTposPath..." -ForegroundColor Yellow
+            Start-Process -FilePath $runTposPath
+            Write-Host "[PVH] POS application launched." -ForegroundColor Green
+        } else {
+            Write-Host "[PVH] WARNING: $runTposPath not found - skipping POS launch." -ForegroundColor Yellow
+        }
+
+        Write-Host ""
+        Write-Host "[PVH] Rollback complete. System restored to pre-migration state." -ForegroundColor Green
+    } else {
+        Write-Host "[PVH] No backup was created (source did not exist) - nothing to rollback." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host ""
+    Write-Host "[PVH] GKInstall.ps1 completed successfully." -ForegroundColor Green
+    if ($backupCreated) {
+        Write-Host "[PVH] Backup preserved at: $backupDest" -ForegroundColor Gray
+    }
 }
 
 exit $exitCode
