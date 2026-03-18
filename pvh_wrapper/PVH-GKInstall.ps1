@@ -1,11 +1,22 @@
 <#
 .SYNOPSIS
     PVH wrapper for GKInstall.ps1 - auto-detects store, system type, and workstation from hostname.
+    Includes backup/rollback: backs up C:\gkretail before install, auto-rolls back on failure.
 
 .DESCRIPTION
     Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
     from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
     --SystemNameOverride, --WorkstationNameOverride, --StructureUniqueNameOverride, and -y parameters.
+
+    Before running GKInstall, the wrapper:
+    1. Stops the SMInfoServer (TILL01) or SMInfoClient (all others) service
+    2. Kills any Java POS process listening on port 3333
+    3. Backs up C:\gkretail to C:\gkretail_migration_backup (via rename)
+
+    If GKInstall fails (non-zero exit code or exception), the wrapper automatically:
+    1. Restores C:\gkretail from the backup
+    2. Restarts the stopped service
+    3. Launches C:\gkretail\pos-full\run_tpos_PVH.cmd
 
     Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
     Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
@@ -20,7 +31,11 @@
 
 .EXAMPLE
     .\PVH-GKInstall.ps1 -WhatIf
-    # Dry-run: shows parsed values without executing GKInstall
+    # Dry-run: shows parsed values and backup/rollback plan without executing
+
+.EXAMPLE
+    .\PVH-GKInstall.ps1 -SkipBackup
+    # Skip the backup/rollback mechanism entirely
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -44,7 +59,8 @@ param(
 
     # PVH-specific parameters
     [string]$MappingFile = "pvh_store_mapping.properties",
-    [string]$HostnameOverride  # Override hostname for testing
+    [string]$HostnameOverride,  # Override hostname for testing
+    [switch]$SkipBackup           # Skip backup/rollback mechanism
 )
 
 # ============================================================
@@ -164,6 +180,29 @@ Write-Host "  Auto-Confirm:       Yes (-y)" -ForegroundColor Green
 Write-Host "  Component Type:     $ComponentType"
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host ""
+
+# ============================================================
+# BACKUP/ROLLBACK CONFIGURATION
+# ============================================================
+$backupSource  = "C:\gkretail"
+$backupDest    = "C:\gkretail_migration_backup"
+$backupFailed  = "C:\gkretail_failed"
+$backupCreated = $false
+
+# Determine which service to manage based on till number
+if ($tillNumber -eq 1) {
+    $serviceName = "SMInfoServer"
+} else {
+    $serviceName = "SMInfoClient"
+}
+
+# Early check: ensure GKInstall.ps1 exists before stopping services or creating backups
+$gkInstallPath = Join-Path $PSScriptRoot "GKInstall.ps1"
+if (-not $WhatIfPreference -and -not (Test-Path $gkInstallPath)) {
+    Write-Host "[PVH] ERROR: GKInstall.ps1 not found at: $gkInstallPath" -ForegroundColor Red
+    Write-Host "[PVH] Place GKInstall.ps1 in the same directory as this wrapper." -ForegroundColor Yellow
+    exit 1
+}
 
 # ============================================================
 # 7. BUILD GKINSTALL ARGUMENTS
