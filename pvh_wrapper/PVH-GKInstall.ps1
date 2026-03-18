@@ -205,6 +205,30 @@ if (-not $WhatIfPreference -and -not (Test-Path $gkInstallPath)) {
 }
 
 # ============================================================
+# 6a. STOP SERVICE (SMInfoServer on TILL01, SMInfoClient on others)
+# ============================================================
+if (-not $SkipBackup) {
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if ($svc) {
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - Would stop service: $serviceName (current status: $($svc.Status))" -ForegroundColor Yellow
+        } else {
+            Write-Host "[PVH] Stopping service: $serviceName..." -ForegroundColor Yellow
+            try {
+                Stop-Service -Name $serviceName -Force -ErrorAction Stop
+                $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
+                Write-Host "[PVH] Service $serviceName stopped." -ForegroundColor Green
+            } catch {
+                Write-Host "[PVH] WARNING: Could not stop service $serviceName within 30s. Proceeding anyway." -ForegroundColor Yellow
+                Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "[PVH] Service $serviceName not found - skipping. (This is normal if the service is not installed on this machine)" -ForegroundColor Gray
+    }
+}
+
+# ============================================================
 # 7. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 $gkInstallArgs = @{
