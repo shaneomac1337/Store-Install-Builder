@@ -229,6 +229,27 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
+# 6b. KILL POS PROCESS (Java on port 3333)
+# ============================================================
+if (-not $SkipBackup) {
+    $pids = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty OwningProcess -Unique
+    if ($pids) {
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - Would kill process(es) on port 3333: PID(s) $($pids -join ', ')" -ForegroundColor Yellow
+        } else {
+            foreach ($p in $pids) {
+                Write-Host "[PVH] Killing process on port 3333 (PID: $p)..." -ForegroundColor Yellow
+                Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
+            }
+            Write-Host "[PVH] POS process(es) on port 3333 killed." -ForegroundColor Green
+        }
+    } else {
+        Write-Host "[PVH] No process listening on port 3333 - skipping POS kill." -ForegroundColor Gray
+    }
+}
+
+# ============================================================
 # 7. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 $gkInstallArgs = @{
