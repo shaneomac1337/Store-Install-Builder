@@ -216,7 +216,7 @@ if (-not $SkipBackup) {
             Write-Host "[PVH] Stopping service: $serviceName..." -ForegroundColor Yellow
             try {
                 Stop-Service -Name $serviceName -Force -ErrorAction Stop
-                $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
+                (Get-Service -Name $serviceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
                 Write-Host "[PVH] Service $serviceName stopped." -ForegroundColor Green
             } catch {
                 Write-Host "[PVH] WARNING: Could not stop service $serviceName within 30s. Proceeding anyway." -ForegroundColor Yellow
@@ -232,13 +232,13 @@ if (-not $SkipBackup) {
 # 6b. KILL POS PROCESS (Java on port 3333)
 # ============================================================
 if (-not $SkipBackup) {
-    $pids = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue |
+    $posProcessIds = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue |
         Select-Object -ExpandProperty OwningProcess -Unique
-    if ($pids) {
+    if ($posProcessIds) {
         if ($WhatIfPreference) {
-            Write-Host "[PVH] DRY RUN - Would kill process(es) on port 3333: PID(s) $($pids -join ', ')" -ForegroundColor Yellow
+            Write-Host "[PVH] DRY RUN - Would kill process(es) on port 3333: PID(s) $($posProcessIds -join ', ')" -ForegroundColor Yellow
         } else {
-            foreach ($p in $pids) {
+            foreach ($p in $posProcessIds) {
                 Write-Host "[PVH] Killing process on port 3333 (PID: $p)..." -ForegroundColor Yellow
                 Stop-Process -Id $p -Force -ErrorAction SilentlyContinue
             }
@@ -270,7 +270,14 @@ if (-not $SkipBackup) {
             }
             if (Test-Path $backupDest) {
                 Write-Host "[PVH] Removing previous backup at $backupDest..." -ForegroundColor Gray
-                Remove-Item -Path $backupDest -Recurse -Force -ErrorAction SilentlyContinue
+                try {
+                    Remove-Item -Path $backupDest -Recurse -Force -ErrorAction Stop
+                } catch {
+                    Write-Host "[PVH] ERROR: Cannot remove previous backup at $backupDest" -ForegroundColor Red
+                    Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+                    Write-Host "[PVH]        Cannot proceed. Aborting." -ForegroundColor Red
+                    exit 1
+                }
             }
 
             Write-Host "[PVH] Backing up $backupSource -> $backupDest..." -ForegroundColor Yellow
@@ -344,8 +351,9 @@ $exitCode = 0
 
 try {
     & $gkInstallPath @gkInstallArgs
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) {
+    $scriptSucceeded = $?
+    $exitCode = if ($LASTEXITCODE) { $LASTEXITCODE } else { if ($scriptSucceeded) { 0 } else { 1 } }
+    if (-not $scriptSucceeded -or $exitCode -ne 0) {
         $gkInstallFailed = $true
     }
 } catch {
@@ -406,7 +414,7 @@ if ($gkInstallFailed) {
             Write-Host "[PVH] Restarting service: $serviceName..." -ForegroundColor Yellow
             try {
                 Start-Service -Name $serviceName -ErrorAction Stop
-                $svc.WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+                (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
                 Write-Host "[PVH] Service $serviceName started." -ForegroundColor Green
             } catch {
                 Write-Host "[PVH] WARNING: Service $serviceName did not reach Running state." -ForegroundColor Yellow
