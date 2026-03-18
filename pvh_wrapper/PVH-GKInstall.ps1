@@ -250,6 +250,45 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
+# 6c. BACKUP C:\gkretail -> C:\gkretail_migration_backup
+# ============================================================
+if (-not $SkipBackup) {
+    if (-not (Test-Path $backupSource)) {
+        Write-Host "[PVH] No existing installation found at $backupSource - skipping backup." -ForegroundColor Yellow
+        Write-Host "[PVH] GKInstall will create a fresh installation." -ForegroundColor Yellow
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - No backup needed (source does not exist)." -ForegroundColor Yellow
+        }
+    } else {
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - Would backup $backupSource -> $backupDest (via rename)" -ForegroundColor Yellow
+        } else {
+            # Clean up stale directories from prior runs
+            if (Test-Path $backupFailed) {
+                Write-Host "[PVH] Removing stale $backupFailed from prior run..." -ForegroundColor Gray
+                Remove-Item -Path $backupFailed -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path $backupDest) {
+                Write-Host "[PVH] Removing previous backup at $backupDest..." -ForegroundColor Gray
+                Remove-Item -Path $backupDest -Recurse -Force -ErrorAction SilentlyContinue
+            }
+
+            Write-Host "[PVH] Backing up $backupSource -> $backupDest..." -ForegroundColor Yellow
+            try {
+                Rename-Item -Path $backupSource -NewName (Split-Path $backupDest -Leaf) -ErrorAction Stop
+                $backupCreated = $true
+                Write-Host "[PVH] Backup complete." -ForegroundColor Green
+            } catch {
+                Write-Host "[PVH] ERROR: Failed to backup $backupSource" -ForegroundColor Red
+                Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "[PVH]        Cannot proceed without backup. Aborting." -ForegroundColor Red
+                exit 1
+            }
+        }
+    }
+}
+
+# ============================================================
 # 7. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 $gkInstallArgs = @{
