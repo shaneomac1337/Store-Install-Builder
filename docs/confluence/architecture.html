@@ -1,0 +1,270 @@
+<h1>GK Install Builder &mdash; Architecture</h1>
+
+<p>This page provides a technical overview of the GK Install Builder's internal architecture and the runtime execution flow of the generated GKInstall scripts.</p>
+
+<ac:structured-macro ac:name="toc">
+  <ac:parameter ac:name="maxLevel">3</ac:parameter>
+</ac:structured-macro>
+
+<hr />
+
+<h2>System Architecture</h2>
+
+<p>The GK Install Builder is a Python GUI application that generates cross-platform installation packages for retail store environments. The architecture follows a <strong>delegation pattern</strong>: the main orchestrator (<code>generator.py</code>) coordinates specialised generator modules, each responsible for a specific aspect of the output.</p>
+
+<p><ac:image ac:align="center" ac:width="1200"><ri:attachment ri:filename="architecture.png" /></ac:image></p>
+
+<h3>Input &amp; Configuration</h3>
+
+<p>The left side of the diagram shows how user input flows into the system:</p>
+
+<table>
+  <thead>
+    <tr><th>Component</th><th>Responsibility</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>GUI Application</strong><br/><code>main.py</code> (~1,392 lines)</td>
+      <td>CustomTkinter-based wizard interface. Manages all user-facing forms, auto-save with 1-second debounce, and integration with feature modules.</td>
+    </tr>
+    <tr>
+      <td><strong>Configuration Managers</strong></td>
+      <td>
+        <ul>
+          <li><code>config.py</code> &mdash; JSON-based config storage with auto-save</li>
+          <li><code>detection.py</code> &mdash; Store/Workstation ID detection patterns</li>
+          <li><code>environment_manager.py</code> &mdash; Multi-environment support (DEV, QA, PROD)</li>
+        </ul>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Feature Modules</strong></td>
+      <td>
+        <ul>
+          <li><code>auto_fill.py</code> &mdash; Auto-populate fields from base URL</li>
+          <li><code>certificate_manager.py</code> &mdash; SSL certificate import/generation</li>
+          <li><code>platform_handler.py</code> &mdash; Windows/Linux switching</li>
+          <li><code>version_manager.py</code> &mdash; Component version management</li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Generation Engine</h3>
+
+<p>The centre of the architecture is the <strong>generator hub</strong> &mdash; <code>generator.py</code> (899 lines) acts as the orchestrator and delegates to six specialised modules:</p>
+
+<table>
+  <thead>
+    <tr><th>Module</th><th>Lines</th><th>Responsibility</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>gk_install_generator.py</code></td><td>791</td><td>GKInstall script generation &mdash; template variable replacement, hostname/file detection code injection, platform-specific regex handling</td></tr>
+    <tr><td><code>helper_file_generator.py</code></td><td>601</td><td>Helper file operations &mdash; store initialisation scripts, component files, JSON configs, multi-environment support</td></tr>
+    <tr><td><code>launcher_generator.py</code></td><td>287</td><td>Component launcher template generation with per-component port and settings configuration</td></tr>
+    <tr><td><code>onboarding_generator.py</code></td><td>115</td><td>Onboarding script generation for both platforms</td></tr>
+    <tr><td><code>template_processor.py</code></td><td>150</td><td>Hostname regex replacement and <code>@VARIABLE@</code> token processing</td></tr>
+    <tr><td><code>offline_package_helpers.py</code></td><td>690</td><td>File download threading, progress tracking, and offline package handling</td></tr>
+  </tbody>
+</table>
+
+<h3>Generated Output</h3>
+
+<p>The right side shows the output directory structure produced by the generation engine:</p>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[output_dir/
+├── GKInstall.ps1 / GKInstall.sh           # Main installer script
+├── onboarding.ps1 / onboarding.sh         # OAuth2 + CIMS onboarding
+├── store-initialization.ps1 / .sh         # SDC workstation registration
+├── certificate.p12                        # SSL certificate (if provided)
+└── helper/
+    ├── launchers/                          # Component launcher templates
+    ├── onboarding/                         # Component onboarding configs (JSON)
+    ├── tokens/                            # Authentication token files
+    ├── init/                              # Initialisation configs
+    ├── storehub/                           # StoreHub-specific configs
+    └── structure/                          # Directory structure configs]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>Template System</h3>
+
+<p>Templates use <code>@VARIABLE@</code> token replacement (simple string substitution, no templating engine). Templates are located in <code>gk_install_builder/templates/</code> and come in platform pairs (<code>.ps1.template</code> / <code>.sh.template</code>).</p>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[Key variables:
+  @BASE_URL@                    Cloud environment URL
+  @TENANT_ID@                   Tenant identifier
+  @SYSTEM_TYPE@                 Component type (e.g. GKR-POS-CLOUD)
+  @AUTH_SERVICE_BA_PASSWORD@    Auth credentials
+  @BASE_INSTALL_DIR@            Installation directory]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>Detection Priority System</h3>
+
+<p>Generated scripts implement a five-tier detection system for Store ID and Workstation ID:</p>
+
+<table>
+  <thead>
+    <tr><th>Priority</th><th>Source</th><th>Description</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>0 (Highest)</strong></td><td>CLI parameters</td><td><code>--storeId</code>, <code>--workstationId</code></td></tr>
+    <tr><td><strong>1</strong></td><td>Update mode</td><td>Read from existing <code>station.properties</code></td></tr>
+    <tr><td><strong>2</strong></td><td>Hostname detection</td><td>Regex patterns applied to machine hostname</td></tr>
+    <tr><td><strong>3</strong></td><td>File detection</td><td>Component-specific <code>.station</code> files</td></tr>
+    <tr><td><strong>4 (Lowest)</strong></td><td>Manual input</td><td>Interactive user prompt</td></tr>
+  </tbody>
+</table>
+
+<h3>API Integrations</h3>
+
+<p>The application integrates with several external services:</p>
+
+<table>
+  <thead>
+    <tr><th>Service</th><th>Purpose</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Function Pack API</strong></td><td>Component version retrieval via Employee Hub Service</td></tr>
+    <tr><td><strong>Config-Service API</strong></td><td>Infrastructure version search and store structure management</td></tr>
+    <tr><td><strong>DSG REST API</strong></td><td>File browsing and downloads for offline packages</td></tr>
+    <tr><td><strong>Pleasant Password Server</strong></td><td>KeePass credential management via OAuth2</td></tr>
+  </tbody>
+</table>
+
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p>The application supports two API versions: <strong>Legacy (5.25)</strong> and <strong>New (5.27+)</strong>. The version is toggled via radio buttons in the Project Configuration section and affects all generated scripts and GUI API testing.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<hr />
+
+<h2>GKInstall Script &mdash; Runtime Execution Flow</h2>
+
+<p>This diagram shows what happens when <code>GKInstall.ps1</code> or <code>GKInstall.sh</code> runs on a retail store terminal. The script is essentially a <strong>preparation machine</strong> &mdash; it resolves identity, assembles configuration files, and then hands everything to the Launcher for the actual installation.</p>
+
+<p><ac:image ac:align="center" ac:width="900"><ri:attachment ri:filename="gkinstall-flow.png" /></ac:image></p>
+
+<h3>Phase 1: Parse &amp; Validate</h3>
+
+<p>The script begins by parsing CLI arguments (<code>-ComponentType</code>, <code>--storeId</code>, <code>--offline</code>, etc.), validating the component type, and setting up logging with timestamped output.</p>
+
+<h3>Phase 2: Cleanup &amp; Setup</h3>
+
+<p>Removes stale files from previous runs, creates the logging directory, and prepares the working environment.</p>
+
+<h3>Phase 3: Fresh Install vs. Update</h3>
+
+<p>The script checks for an existing <code>station.properties</code> file in the installation directory:</p>
+
+<table>
+  <thead>
+    <tr><th>Path</th><th>What Happens</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Fresh Install</strong><br/>(no <code>station.properties</code>)</td>
+      <td>Loads <code>environments.json</code>, selects environment, applies credentials and tenant ID from environment config.</td>
+    </tr>
+    <tr>
+      <td><strong>Update Mode</strong><br/>(<code>station.properties</code> found)</td>
+      <td>Reads Store ID, Workstation ID, tenant ID, and Config Service URL from the existing file. Skips environment selection. CLI parameters (Priority 0) can still override.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Phase 4: Version Resolution</h3>
+
+<p>Determines the component version to install. Sources checked in order:</p>
+
+<ol>
+  <li>CLI <code>--VersionOverride</code> parameter</li>
+  <li>API fetch (Config-Service or Function Pack)</li>
+  <li>Hardcoded defaults from the generated script</li>
+</ol>
+
+<h3>Phase 5: Identity Detection</h3>
+
+<p>Resolves Store ID and Workstation ID using the five-tier priority system (see Detection Priority table above). For fresh installs, this may involve hostname regex matching or reading <code>.station</code> files.</p>
+
+<h3>Phase 6: Onboarding &amp; Store Initialisation</h3>
+
+<ac:structured-macro ac:name="note">
+  <ac:rich-text-body>
+    <p>This phase runs only for <strong>fresh installs</strong>. Updates skip onboarding entirely.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<ul>
+  <li><strong>Onboarding:</strong> Calls <code>onboarding.ps1</code> / <code>.sh</code> to generate OAuth2 token and obtain a CIMS onboarding token</li>
+  <li><strong>Store Initialisation:</strong> Calls <code>store-initialization.ps1</code> / <code>.sh</code> to register the workstation in Store Manager and assign it to SDC</li>
+</ul>
+
+<h3>Phase 7: Assemble Installation Token</h3>
+
+<p>Generates the installation token file containing Config Service URL, tenant ID, onboarding token, DSG URL, and other configuration. This is the primary input for the Launcher.</p>
+
+<h3>Phase 8: Launcher Setup</h3>
+
+<ul>
+  <li>Processes SSL certificate and writes <code>launcher.properties</code></li>
+  <li>Resolves the Launcher executable URL and downloads <code>Launcher.exe</code> / <code>Launcher.run</code> (or uses offline copy)</li>
+  <li>Generates <code>installer_overrides.xml</code> if overrides are configured</li>
+</ul>
+
+<h3>Phase 9: Execute Launcher</h3>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[# Fresh install
+./Launcher.run --defaultsFile launcher.properties --mode unattended
+
+# Update
+./Launcher.run --mode unattended --forceDownload false \
+    --station.applicationVersion $version \
+    --station.propertiesPath $install_dir]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>Phase 10: Monitor &amp; Complete</h3>
+
+<p>The script monitors <code>installer.log</code> for 3-hour timeout, checks for the <code>revert-installation-logic</code> marker (to catch silent rollbacks), and then:</p>
+
+<table>
+  <thead>
+    <tr><th>Outcome</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Success</strong></td>
+      <td>Copies logs to <code>results/</code>, cleans up tokens and override files, exits with code 0</td>
+    </tr>
+    <tr>
+      <td><strong>Failure</strong></td>
+      <td>Copies logs to <code>errors/</code>, preserves installer output for debugging, exits with code 1</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr />
+
+<h2>Supported Components</h2>
+
+<table>
+  <thead>
+    <tr><th>Component</th><th>ComponentType Flag</th><th>Default System Type</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Point of Sale</td><td><code>POS</code></td><td>GKR-OPOS-CLOUD</td></tr>
+    <tr><td>OneX POS</td><td><code>ONEX-POS</code></td><td>GKR-OPOS-ONEX-CLOUD</td></tr>
+    <tr><td>Wall Device Manager</td><td><code>WDM</code></td><td>GKR-wdm</td></tr>
+    <tr><td>Flow Service</td><td><code>FLOW-SERVICE</code></td><td>GKR-FLOWSERVICE-CLOUD</td></tr>
+    <tr><td>Label Print Adapter</td><td><code>LPA</code></td><td>GKR-lps-lpa</td></tr>
+    <tr><td>StoreHub Service</td><td><code>SH</code></td><td>GKR-sh-cloud</td></tr>
+    <tr><td>Resource Cache Service</td><td><code>RCS</code></td><td>GKR-Resource-Cache-Service</td></tr>
+  </tbody>
+</table>
