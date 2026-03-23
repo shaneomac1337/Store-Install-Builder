@@ -1,12 +1,11 @@
 <#
 .SYNOPSIS
-    PVH wrapper for GKInstall.ps1 - auto-detects store, system type, and workstation from hostname.
+    PVH wrapper for GKInstall.ps1 - auto-detects store ID and workstation ID from hostname.
     Includes backup/rollback: backs up C:\gkretail before install, auto-rolls back on failure.
 
 .DESCRIPTION
-    Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
-    from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.ps1 with the correct
-    --SystemNameOverride, --WorkstationNameOverride, --StructureUniqueNameOverride, and -y parameters.
+    Reads the hostname, parses it into store prefix + till number, derives storeId and workstationId,
+    and calls GKInstall.ps1 with --storeId, --workstationId, and -y parameters.
 
     Before running GKInstall, the wrapper:
     1. Stops the SMInfoServer (TILL01) or SMInfoClient (all others) service
@@ -58,7 +57,6 @@ param(
     [string]$VersionOverride,
 
     # PVH-specific parameters
-    [string]$MappingFile = "pvh_store_mapping.properties",
     [string]$HostnameOverride,  # Override hostname for testing
     [switch]$SkipBackup           # Skip backup/rollback mechanism
 )
@@ -109,80 +107,27 @@ if ($hostname -match $hostnamePattern) {
 Write-Host "[PVH] Parsed -> Store: $storePrefix | Till: $tillNumber"
 
 # ============================================================
-# 3. READ MAPPING FILE
+# 3. DERIVE WORKSTATION ID
 # ============================================================
-$mappingPath = Join-Path $PSScriptRoot $MappingFile
-
-if (-not (Test-Path $mappingPath)) {
-    Write-Host ""
-    Write-Host "[PVH] ERROR: Mapping file not found: $mappingPath" -ForegroundColor Red
-    Write-Host "[PVH] Create the file with store-to-system-type mappings." -ForegroundColor Red
-    Write-Host "[PVH] Format: STORE_PREFIX=PVH-OPOS-FAT-LOCALE-BRAND-TYPE" -ForegroundColor Red
-    Write-Host "[PVH] Example: A319=PVH-OPOS-FAT-EN_GB-TH-FULL" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "[PVH] See pvh_store_mapping.properties.example for a template." -ForegroundColor Yellow
-    exit 1
-}
-
-$mapping = @{}
-foreach ($line in Get-Content $mappingPath) {
-    $line = $line.Trim()
-    if ($line -and -not $line.StartsWith('#')) {
-        $parts = $line -split '=', 2
-        if ($parts.Count -eq 2) {
-            $mapping[$parts[0].Trim()] = $parts[1].Trim()
-        }
-    }
-}
-
-Write-Host "[PVH] Loaded $($mapping.Count) store mappings from $MappingFile"
+$workstationId = 100 + $tillNumber                          # TILL01 -> 101
 
 # ============================================================
-# 4. LOOKUP STORE + TRANSFORM FAT -> ONEX-CLOUD
-# ============================================================
-$fatSystemName = $mapping[$storePrefix]
-
-if (-not $fatSystemName) {
-    Write-Host ""
-    Write-Host "[PVH] ERROR: Store '$storePrefix' not found in mapping file." -ForegroundColor Red
-    Write-Host "[PVH] Available stores:" -ForegroundColor Yellow
-    $mapping.Keys | Sort-Object | ForEach-Object {
-        Write-Host "  $_  =  $($mapping[$_])" -ForegroundColor Gray
-    }
-    Write-Host ""
-    Write-Host "[PVH] Add the store to $mappingPath and try again." -ForegroundColor Yellow
-    exit 1
-}
-
-$onexSystemName = $fatSystemName -replace 'FAT', 'ONEX-CLOUD'
-
-# ============================================================
-# 5. DERIVE WORKSTATION ID AND NAME
-# ============================================================
-$workstationId   = 100 + $tillNumber                          # TILL01 -> 101
-$workstationName = "${storePrefix}TILL$('{0:D2}' -f $tillNumber)"  # A319TILL01
-
-# ============================================================
-# 6. DISPLAY SUMMARY
+# 4. DISPLAY SUMMARY
 # ============================================================
 Write-Host ""
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host " Resolved Values:" -ForegroundColor Cyan
 Write-Host "----------------------------------------" -ForegroundColor Cyan
-Write-Host "  Store ID:           $storePrefix"
+Write-Host "  Store ID:           $storePrefix" -ForegroundColor Green
 Write-Host "  Till Number:        $tillNumber"
-Write-Host "  FAT System Name:    $fatSystemName"
-Write-Host "  ONEX System Name:   $onexSystemName" -ForegroundColor Green
 Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
-Write-Host "  Workstation Name:   $workstationName" -ForegroundColor Green
-Write-Host "  Structure Name:     $onexSystemName" -ForegroundColor Green
 Write-Host "  Auto-Confirm:       Yes (-y)" -ForegroundColor Green
 Write-Host "  Component Type:     $ComponentType"
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host ""
 
 # ============================================================
-# BACKUP/ROLLBACK CONFIGURATION
+# BACKUP/ROLLBACK CONFIGURATION (sections 4a-4c below)
 # ============================================================
 $backupSource  = "C:\gkretail"
 $backupDest    = "C:\gkretail_migration_backup"
@@ -205,7 +150,7 @@ if (-not $WhatIfPreference -and -not (Test-Path $gkInstallPath)) {
 }
 
 # ============================================================
-# 6a. STOP SERVICE (SMInfoServer on TILL01, SMInfoClient on others)
+# 4a. STOP SERVICE (SMInfoServer on TILL01, SMInfoClient on others)
 # ============================================================
 if (-not $SkipBackup) {
     $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
@@ -229,7 +174,7 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
-# 6b. KILL POS PROCESS (Java on port 3333)
+# 4b. KILL POS PROCESS (Java on port 3333)
 # ============================================================
 if (-not $SkipBackup) {
     $posProcessIds = Get-NetTCPConnection -LocalPort 3333 -ErrorAction SilentlyContinue |
@@ -250,7 +195,7 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
-# 6c. BACKUP C:\gkretail -> C:\gkretail_migration_backup
+# 4c. BACKUP C:\gkretail -> C:\gkretail_migration_backup
 # ============================================================
 if (-not $SkipBackup) {
     if (-not (Test-Path $backupSource)) {
@@ -296,16 +241,13 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
-# 7. BUILD GKINSTALL ARGUMENTS
+# 5. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 $gkInstallArgs = @{
-    ComponentType                = $ComponentType
-    storeId                      = $storePrefix
-    WorkstationId                = $workstationId
-    SystemNameOverride           = $onexSystemName
-    WorkstationNameOverride      = $workstationName
-    StructureUniqueNameOverride  = $onexSystemName
-    y                            = $true
+    ComponentType   = $ComponentType
+    storeId         = $storePrefix
+    WorkstationId   = $workstationId
+    y               = $true
 }
 
 # Pass through optional parameters that were explicitly specified
@@ -324,7 +266,7 @@ if ($PSBoundParameters.ContainsKey('SslPassword'))        { $gkInstallArgs['SslP
 if ($PSBoundParameters.ContainsKey('VersionOverride'))    { $gkInstallArgs['VersionOverride']      = $VersionOverride }
 
 # ============================================================
-# 8. EXECUTE GKINSTALL (or dry-run)
+# 6. EXECUTE GKINSTALL (or dry-run)
 # ============================================================
 $argsDisplay = ($gkInstallArgs.GetEnumerator() | ForEach-Object { "-$($_.Key) $($_.Value)" }) -join ' '
 
@@ -364,7 +306,7 @@ try {
 }
 
 # ============================================================
-# 9. CHECK RESULT & ROLLBACK IF NEEDED
+# 7. CHECK RESULT & ROLLBACK IF NEEDED
 # ============================================================
 if ($gkInstallFailed) {
     Write-Host ""
