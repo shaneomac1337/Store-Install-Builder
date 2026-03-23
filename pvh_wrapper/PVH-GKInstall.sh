@@ -1,10 +1,9 @@
 #!/bin/bash
 #
-# PVH wrapper for GKInstall.sh - auto-detects store, system type, and workstation from hostname.
+# PVH wrapper for GKInstall.sh - auto-detects store ID and workstation ID from hostname.
 #
-# Reads the hostname, parses it into store prefix + till number, looks up the FAT system type
-# from a mapping file, transforms FAT -> ONEX-CLOUD, and calls GKInstall.sh with the correct
-# --SystemNameOverride, --WorkstationNameOverride, --StructureUniqueNameOverride, and -y parameters.
+# Reads the hostname, parses it into store prefix + till number, derives storeId and workstationId,
+# and calls GKInstall.sh with --storeId, --workstationId, and -y parameters.
 #
 # Hostname format: [CC-]{StorePrefix}TILL{TillNumber}[T]
 # Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
@@ -32,7 +31,6 @@ HOSTNAME_PATTERN='^([A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})(T?)$'
 # ============================================================
 # DEFAULTS
 # ============================================================
-MAPPING_FILE="pvh_store_mapping.properties"
 COMPONENT_TYPE="ONEX-POS"
 DRY_RUN=false
 HOSTNAME_OVERRIDE=""
@@ -48,10 +46,6 @@ while [ $# -gt 0 ]; do
             DRY_RUN=true
             shift
             ;;
-        --mapping-file|--MappingFile)
-            MAPPING_FILE="$2"
-            shift 2
-            ;;
         --hostname-override|--HostnameOverride)
             HOSTNAME_OVERRIDE="$2"
             shift 2
@@ -65,7 +59,7 @@ while [ $# -gt 0 ]; do
             PASSTHROUGH_ARGS+=("$1")
             shift
             ;;
-        --storeId|--StoreID|--workstationId|--WorkstationID|--SystemNameOverride|--WorkstationNameOverride|--StructureUniqueNameOverride)
+        --storeId|--StoreID|--workstationId|--WorkstationID)
             # Skip these - the wrapper sets them automatically
             echo "[PVH] WARNING: Ignoring $1 (set automatically by wrapper)" >&2
             shift 2
@@ -129,67 +123,12 @@ fi
 echo "[PVH] Parsed -> Store: $store_prefix | Till: $till_number_int"
 
 # ============================================================
-# 3. READ MAPPING FILE
-# ============================================================
-mapping_path="$SCRIPT_DIR/$MAPPING_FILE"
-
-if [ ! -f "$mapping_path" ]; then
-    echo "" >&2
-    echo "[PVH] ERROR: Mapping file not found: $mapping_path" >&2
-    echo "[PVH] Create the file with store-to-system-type mappings." >&2
-    echo "[PVH] Format: STORE_PREFIX=PVH-OPOS-FAT-LOCALE-BRAND-TYPE" >&2
-    echo "[PVH] Example: A319=PVH-OPOS-FAT-EN_GB-TH-FULL" >&2
-    echo "" >&2
-    echo "[PVH] See pvh_store_mapping.properties.example for a template." >&2
-    exit 1
-fi
-
-declare -A mapping
-store_count=0
-while IFS= read -r line || [ -n "$line" ]; do
-    # Trim whitespace
-    line="$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    # Skip empty lines and comments
-    if [ -z "$line" ] || [[ "$line" == \#* ]]; then
-        continue
-    fi
-    key="${line%%=*}"
-    value="${line#*=}"
-    key="$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    value="$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-    mapping["$key"]="$value"
-    ((store_count++))
-done < "$mapping_path"
-
-echo "[PVH] Loaded $store_count store mappings from $MAPPING_FILE"
-
-# ============================================================
-# 4. LOOKUP STORE + TRANSFORM FAT -> ONEX-CLOUD
-# ============================================================
-fat_system_name="${mapping[$store_prefix]:-}"
-
-if [ -z "$fat_system_name" ]; then
-    echo "" >&2
-    echo "[PVH] ERROR: Store '$store_prefix' not found in mapping file." >&2
-    echo "[PVH] Available stores:" >&2
-    for key in $(echo "${!mapping[@]}" | tr ' ' '\n' | sort); do
-        echo "  $key  =  ${mapping[$key]}" >&2
-    done
-    echo "" >&2
-    echo "[PVH] Add the store to $mapping_path and try again." >&2
-    exit 1
-fi
-
-onex_system_name="${fat_system_name//FAT/ONEX-CLOUD}"
-
-# ============================================================
-# 5. DERIVE WORKSTATION ID AND NAME
+# 3. DERIVE WORKSTATION ID
 # ============================================================
 workstation_id=$((100 + till_number_int))                      # TILL01 -> 101
-workstation_name="${store_prefix}TILL$(printf '%02d' "$till_number_int")"  # A319TILL01
 
 # ============================================================
-# 6. DISPLAY SUMMARY
+# 4. DISPLAY SUMMARY
 # ============================================================
 echo ""
 echo "----------------------------------------"
@@ -197,25 +136,18 @@ echo " Resolved Values:"
 echo "----------------------------------------"
 echo "  Store ID:           $store_prefix"
 echo "  Till Number:        $till_number_int"
-echo "  FAT System Name:    $fat_system_name"
-echo "  ONEX System Name:   $onex_system_name"
 echo "  Workstation ID:     $workstation_id"
-echo "  Workstation Name:   $workstation_name"
-echo "  Structure Name:     $onex_system_name"
 echo "  Auto-Confirm:       Yes (-y)"
 echo "  Component Type:     $COMPONENT_TYPE"
 echo "----------------------------------------"
 echo ""
 
 # ============================================================
-# 7. BUILD GKINSTALL ARGUMENTS
+# 5. BUILD GKINSTALL ARGUMENTS
 # ============================================================
 gkinstall_args=(
     --storeId "$store_prefix"
     --workstationId "$workstation_id"
-    --SystemNameOverride "$onex_system_name"
-    --WorkstationNameOverride "$workstation_name"
-    --StructureUniqueNameOverride "$onex_system_name"
     -y
 )
 
@@ -223,7 +155,7 @@ gkinstall_args=(
 gkinstall_args+=("${PASSTHROUGH_ARGS[@]}")
 
 # ============================================================
-# 8. EXECUTE GKINSTALL
+# 6. EXECUTE GKINSTALL
 # ============================================================
 gkinstall_path="$SCRIPT_DIR/GKInstall.sh"
 
