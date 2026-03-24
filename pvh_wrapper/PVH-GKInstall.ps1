@@ -10,7 +10,9 @@
     Before running GKInstall, the wrapper:
     1. Stops the SMInfoServer (TILL01) or SMInfoClient (all others) service
     2. Kills any Java POS process listening on port 3333
-    3. Backs up C:\gkretail to C:\gkretail_migration_backup (via rename)
+    3. Releases open file handles on C:\gkretail (via Sysinternals handle.exe)
+    4. Fixes permissions on C:\gkretail (grants Everyone full control via icacls)
+    5. Backs up C:\gkretail to C:\gkretail_migration_backup (via rename)
 
     If GKInstall fails (non-zero exit code or exception), the wrapper automatically:
     1. Restores C:\gkretail from the backup
@@ -195,7 +197,108 @@ if (-not $SkipBackup) {
 }
 
 # ============================================================
-# 4c. BACKUP C:\gkretail -> C:\gkretail_migration_backup
+# 4c. KILL FILE HANDLES on C:\gkretail (using Sysinternals handle.exe)
+# ============================================================
+if (-not $SkipBackup) {
+    $handleExe = Join-Path $PSScriptRoot "handle.exe"
+    if (Test-Path $backupSource) {
+        if (Test-Path $handleExe) {
+            if ($WhatIfPreference) {
+                Write-Host "[PVH] DRY RUN - Would kill open file handles in $backupSource using $handleExe" -ForegroundColor Yellow
+            } else {
+                Write-Host "[PVH] Releasing open file handles in $backupSource..." -ForegroundColor Yellow
+                $handleCount = 0
+                try {
+                    $handleOutput = & $handleExe /accepteula -nobanner $backupSource 2>&1
+                    foreach ($line in $handleOutput) {
+                        # handle.exe output format: "process.exe  pid: 1234  type: File  1A4: C:\gkretail\..."
+                        if ($line -match 'pid:\s*(\d+)\s+type:\s*\w+\s+([0-9A-Fa-f]+):') {
+                            $handlePid = $Matches[1]
+                            $handleId  = $Matches[2]
+                            Write-Host "[PVH]   Releasing handle $handleId in PID $handlePid" -ForegroundColor Gray
+                            & $handleExe -c $handleId -y -p $handlePid 2>&1 | Out-Null
+                            $handleCount++
+                        }
+                    }
+                    if ($handleCount -gt 0) {
+                        Write-Host "[PVH] Released $handleCount file handle(s)." -ForegroundColor Green
+                    } else {
+                        Write-Host "[PVH] No open file handles found in $backupSource." -ForegroundColor Gray
+                    }
+                } catch {
+                    Write-Host "[PVH] WARNING: handle.exe failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                    Write-Host "[PVH]          Proceeding anyway - backup rename may fail if files are locked." -ForegroundColor Yellow
+                }
+            }
+        } else {
+            # Auto-download handle.exe from Sysinternals
+            Write-Host "[PVH] handle.exe not found - downloading from Sysinternals..." -ForegroundColor Yellow
+            $handleZip = Join-Path $PSScriptRoot "Handle.zip"
+            try {
+                [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+                Invoke-WebRequest -Uri "https://download.sysinternals.com/files/Handle.zip" -OutFile $handleZip -UseBasicParsing -ErrorAction Stop
+                Expand-Archive -Path $handleZip -DestinationPath $PSScriptRoot -Force -ErrorAction Stop
+                Remove-Item -Path $handleZip -Force -ErrorAction SilentlyContinue
+                if (Test-Path $handleExe) {
+                    Write-Host "[PVH] handle.exe downloaded successfully." -ForegroundColor Green
+                    # Now run it
+                    Write-Host "[PVH] Releasing open file handles in $backupSource..." -ForegroundColor Yellow
+                    $handleCount = 0
+                    $handleOutput = & $handleExe /accepteula -nobanner $backupSource 2>&1
+                    foreach ($line in $handleOutput) {
+                        if ($line -match 'pid:\s*(\d+)\s+type:\s*\w+\s+([0-9A-Fa-f]+):') {
+                            $handlePid = $Matches[1]
+                            $handleId  = $Matches[2]
+                            Write-Host "[PVH]   Releasing handle $handleId in PID $handlePid" -ForegroundColor Gray
+                            & $handleExe -c $handleId -y -p $handlePid 2>&1 | Out-Null
+                            $handleCount++
+                        }
+                    }
+                    if ($handleCount -gt 0) {
+                        Write-Host "[PVH] Released $handleCount file handle(s)." -ForegroundColor Green
+                    } else {
+                        Write-Host "[PVH] No open file handles found in $backupSource." -ForegroundColor Gray
+                    }
+                } else {
+                    Write-Host "[PVH] WARNING: Download succeeded but handle.exe not found in archive." -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "[PVH] WARNING: Could not download handle.exe: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "[PVH]          Proceeding without file handle release." -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# ============================================================
+# 4d. FIX PERMISSIONS on C:\gkretail (grant Everyone full control)
+# ============================================================
+if (-not $SkipBackup) {
+    if (Test-Path $backupSource) {
+        $logPath = Join-Path $backupSource "pos-client\log"
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - Would grant Everyone (S-1-1-0) full control on $backupSource" -ForegroundColor Yellow
+        } else {
+            Write-Host "[PVH] Fixing permissions on $backupSource..." -ForegroundColor Yellow
+            try {
+                # Grant Everyone full control recursively on the log folder (often has restrictive ACLs)
+                if (Test-Path $logPath) {
+                    & icacls.exe $logPath /c /grant "*S-1-1-0:(OI)(CI)F" /t 2>&1 | Out-Null
+                    Write-Host "[PVH] Granted full control on $logPath" -ForegroundColor Green
+                }
+                # Grant Everyone full control on the top-level folder to ensure rename succeeds
+                & icacls.exe $backupSource /c /grant "*S-1-1-0:(OI)(CI)F" /t 2>&1 | Out-Null
+                Write-Host "[PVH] Granted full control on $backupSource" -ForegroundColor Green
+            } catch {
+                Write-Host "[PVH] WARNING: icacls failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                Write-Host "[PVH]          Proceeding anyway - backup rename may fail due to permissions." -ForegroundColor Yellow
+            }
+        }
+    }
+}
+
+# ============================================================
+# 4e. BACKUP C:\gkretail -> C:\gkretail_migration_backup
 # ============================================================
 if (-not $SkipBackup) {
     if (-not (Test-Path $backupSource)) {
@@ -275,10 +378,12 @@ if ($WhatIfPreference) {
     Write-Host "  $gkInstallPath $argsDisplay" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "[PVH] DRY RUN - On failure, would rollback:" -ForegroundColor Yellow
-    Write-Host "  1. Rename $backupSource -> $backupFailed" -ForegroundColor Yellow
-    Write-Host "  2. Rename $backupDest -> $backupSource" -ForegroundColor Yellow
-    Write-Host "  3. Start-Service $serviceName" -ForegroundColor Yellow
-    Write-Host "  4. Launch $backupSource\pos-full\run_tpos_PVH.cmd" -ForegroundColor Yellow
+    Write-Host "  1. Release file handles via handle.exe" -ForegroundColor Yellow
+    Write-Host "  2. Fix permissions via icacls" -ForegroundColor Yellow
+    Write-Host "  3. Rename $backupSource -> $backupFailed" -ForegroundColor Yellow
+    Write-Host "  4. Rename $backupDest -> $backupSource" -ForegroundColor Yellow
+    Write-Host "  5. Start-Service $serviceName" -ForegroundColor Yellow
+    Write-Host "  6. Launch $backupSource\pos-full\run_tpos_PVH.cmd" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "[PVH] Dry run complete. No changes were made." -ForegroundColor Yellow
     exit 0
@@ -317,6 +422,26 @@ if ($gkInstallFailed) {
     if ($backupCreated) {
         Write-Host ""
         Write-Host "[PVH] Rolling back to pre-migration state..." -ForegroundColor Yellow
+
+        # Step 0: Release file handles before rollback renames
+        $handleExeRollback = Join-Path $PSScriptRoot "handle.exe"
+        if (Test-Path $handleExeRollback) {
+            foreach ($rollbackDir in @($backupSource, $backupDest)) {
+                if (Test-Path $rollbackDir) {
+                    Write-Host "[PVH] Releasing file handles in $rollbackDir..." -ForegroundColor Yellow
+                    try {
+                        $handleOutput = & $handleExeRollback /accepteula -nobanner $rollbackDir 2>&1
+                        foreach ($line in $handleOutput) {
+                            if ($line -match 'pid:\s*(\d+)\s+type:\s*\w+\s+([0-9A-Fa-f]+):') {
+                                & $handleExeRollback -c $Matches[2] -y -p $Matches[1] 2>&1 | Out-Null
+                            }
+                        }
+                    } catch {
+                        Write-Host "[PVH] WARNING: handle.exe failed during rollback: $($_.Exception.Message)" -ForegroundColor Yellow
+                    }
+                }
+            }
+        }
 
         # Step 1: Rename failed installation out of the way
         if (Test-Path $backupSource) {
@@ -365,11 +490,13 @@ if ($gkInstallFailed) {
             }
         }
 
-        # Step 5: Launch POS application
-        $runTposPath = Join-Path $backupSource "pos-full\run_tpos_PVH.cmd"
+        # Step 5: Launch POS application (cd into directory first, then run)
+        $posFullDir  = Join-Path $backupSource "pos-full"
+        $runTposCmd  = "run_tpos_PVH.cmd"
+        $runTposPath = Join-Path $posFullDir $runTposCmd
         if (Test-Path $runTposPath) {
-            Write-Host "[PVH] Launching $runTposPath..." -ForegroundColor Yellow
-            Start-Process -FilePath $runTposPath
+            Write-Host "[PVH] Launching $runTposCmd from $posFullDir..." -ForegroundColor Yellow
+            Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$posFullDir`" && $runTposCmd" -WorkingDirectory $posFullDir
             Write-Host "[PVH] POS application launched." -ForegroundColor Green
         } else {
             Write-Host "[PVH] WARNING: $runTposPath not found - skipping POS launch." -ForegroundColor Yellow
