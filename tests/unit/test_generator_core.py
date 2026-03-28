@@ -153,7 +153,7 @@ class TestGenerate:
         generator._generate_store_initialization = Mock()
         generator._generate_launcher_templates = Mock()
         generator._copy_helper_files = Mock()
-        generator._show_success = Mock()
+        generator._show_generation_summary = Mock()
 
         # Create config
         config = create_config(output_dir=str(tmp_path / "output"))
@@ -168,7 +168,7 @@ class TestGenerate:
         generator._generate_onboarding.assert_called_once()
         generator._copy_helper_files.assert_called_once()
         generator._generate_environments_json.assert_called_once()
-        generator._show_success.assert_called_once()
+        generator._show_generation_summary.assert_called_once()
 
     def test_generate_windows_platform(self, tmp_path):
         """Test generation with Windows platform configuration"""

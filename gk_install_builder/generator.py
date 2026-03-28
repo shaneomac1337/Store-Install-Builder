@@ -19,6 +19,12 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from concurrent.futures import ThreadPoolExecutor
 
+# Generation tracker for summary dialog
+try:
+    from .generation_tracker import GenerationTracker
+except ImportError:
+    from generation_tracker import GenerationTracker
+
 # Support both package-relative imports (for tests/package use) and direct imports (for running app)
 try:
     from gk_install_builder.detection import DetectionManager
@@ -331,38 +337,51 @@ class ProjectGenerator:
     def generate(self, config):
         """Generate project from configuration"""
         try:
+            # Create tracker for summary
+            tracker = GenerationTracker()
+            tracker.set_config_snapshot(
+                platform=config.get("platform", "Windows"),
+                base_url=config.get("base_url", ""),
+                tenant_id=config.get("tenant_id", "001"),
+                api_version=config.get("api_version", "new"),
+                output_dir=config.get("output_dir", ""),
+            )
+
             # Get absolute output directory path
             output_dir = os.path.abspath(config["output_dir"])
             print(f"Creating output directory: {output_dir}")
-            
+
             # Create output directory and all parent directories if they don't exist
             os.makedirs(output_dir, exist_ok=True)
-            
+
             # Store the original working directory
             original_cwd = os.getcwd()
-            
+
             # Print debug information
             print(f"Current working directory: {original_cwd}")
             print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
             print(f"Output directory: {output_dir}")
-            
+
             # Create project structure
             self._create_directory_structure(output_dir)
-            
+
             # Copy certificate if it exists
-            self._copy_certificate(output_dir, config)
-            
+            self._copy_certificate(output_dir, config, tracker)
+
             # Generate main scripts by modifying the original files
-            self._generate_gk_install(output_dir, config)
-            self._generate_onboarding(output_dir, config)
-            
+            self._generate_gk_install(output_dir, config, tracker)
+            self._generate_onboarding(output_dir, config, tracker)
+
             # Copy and modify helper files
-            self._copy_helper_files(output_dir, config)
-            
+            self._copy_helper_files(output_dir, config, tracker)
+
             # Generate environments.json if environments are configured
-            self._generate_environments_json(output_dir, config)
-            
-            self._show_success(f"Project generated in: {output_dir}")
+            self._generate_environments_json(output_dir, config, tracker)
+
+            # Update tracker with absolute output dir for Open Folder button
+            tracker._config_snapshot["output_dir"] = output_dir
+
+            self._show_generation_summary(tracker)
         except Exception as e:
             self._show_error(f"Failed to generate project: {str(e)}")
             # Print detailed error for debugging
@@ -373,36 +392,120 @@ class ProjectGenerator:
         """Create the project directory structure"""
         create_directory_structure(output_dir, self.helper_structure)
 
-    def _copy_certificate(self, output_dir, config):
+    def _copy_certificate(self, output_dir, config, tracker=None):
         """Copy SSL certificate to output directory if it exists"""
-        return copy_certificate(output_dir, config)
+        result = copy_certificate(output_dir, config)
+        if tracker:
+            cert_path = config.get("certificate_path", "")
+            if result:
+                cert_filename = os.path.basename(cert_path)
+                tracker.add_file(cert_filename, GenerationTracker.OTHER)
+                tracker.add_note(f"Certificate included: {cert_filename}")
+            else:
+                if not cert_path or cert_path == "PROJECT/BASEURL/certificate.p12":
+                    tracker.add_note("No certificate configured — skipped")
+                else:
+                    tracker.add_note(f"Certificate not found at: {cert_path}")
+        return result
     
-    def _generate_environments_json(self, output_dir, config):
+    def _generate_environments_json(self, output_dir, config, tracker=None):
         """Generate environments.json file for multi-environment support"""
-        return generate_environments_json(output_dir, config)
+        result = generate_environments_json(output_dir, config)
+        if tracker:
+            envs = config.get("environments", [])
+            tracker.add_file("environments.json", GenerationTracker.CONFIGS)
+            if envs:
+                tracker.add_note(f"{len(envs)} environment(s) configured")
+            else:
+                tracker.add_note("No environments configured")
+        return result
 
-    def _generate_gk_install(self, output_dir, config):
+    def _generate_gk_install(self, output_dir, config, tracker=None):
         """Generate GKInstall script with replaced values based on platform"""
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        return generate_gk_install(
+        result = generate_gk_install(
             output_dir, config, self.detection_manager,
             replace_hostname_regex_powershell, replace_hostname_regex_bash,
             script_dir
         )
+        if tracker:
+            platform = config.get("platform", "Windows")
+            filename = "GKInstall.ps1" if platform == "Windows" else "GKInstall.sh"
+            tracker.add_file(filename, GenerationTracker.SCRIPTS)
+        return result
 
     def _generate_launcher_templates(self, launchers_dir, config):
         """Generate launcher templates with custom settings from config"""
         generate_launcher_templates(launchers_dir, config, LAUNCHER_TEMPLATES)
 
-    def _generate_onboarding(self, output_dir, config):
+    def _generate_onboarding(self, output_dir, config, tracker=None):
         """Generate onboarding script with replaced values based on platform"""
         templates_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
         generate_onboarding_script(output_dir, config, templates_dir)
+        if tracker:
+            platform = config.get("platform", "Windows")
+            filename = "onboarding.ps1" if platform == "Windows" else "onboarding.sh"
+            tracker.add_file(filename, GenerationTracker.SCRIPTS)
 
-    def _copy_helper_files(self, output_dir, config):
+    def _copy_helper_files(self, output_dir, config, tracker=None):
         """Copy helper files to output directory"""
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        return copy_helper_files(output_dir, config, script_dir, self.helper_structure, LAUNCHER_TEMPLATES)
+        result = copy_helper_files(output_dir, config, script_dir, self.helper_structure, LAUNCHER_TEMPLATES)
+        if tracker:
+            platform = config.get("platform", "Windows")
+            # Store-initialization script
+            si_name = "store-initialization.ps1" if platform == "Windows" else "store-initialization.sh"
+            tracker.add_file(si_name, GenerationTracker.SCRIPTS)
+            # Launcher templates (7 components)
+            for name in ["launcher.pos.template", "launcher.onex-pos.template",
+                         "launcher.wdm.template", "launcher.flow-service.template",
+                         "launcher.lpa-service.template", "launcher.storehub-service.template",
+                         "launcher.rcs-service.template"]:
+                tracker.add_file(name, GenerationTracker.LAUNCHERS)
+            # Password/token files (3 files + 3 defaults)
+            for name in ["basic_auth_password.txt", "basic_auth_password.txt.default",
+                         "form_password.txt", "form_password.txt.default",
+                         "form_username.txt", "form_username.txt.default"]:
+                tracker.add_file(name, GenerationTracker.TOKENS)
+            # Config files
+            for name in ["create_structure.json", "get_store.json",
+                         "storehub/update_config.json", "rcs/update_config.json"]:
+                tracker.add_file(name, GenerationTracker.CONFIGS)
+            # Onboarding JSON files
+            for name in ["pos.onboarding.json", "onex-pos.onboarding.json",
+                         "wdm.onboarding.json", "flow-service.onboarding.json",
+                         "lpa-service.onboarding.json", "storehub-service.onboarding.json"]:
+                tracker.add_file(name, GenerationTracker.CONFIGS)
+            # Override files (if enabled)
+            overrides_enabled = config.get("installer_overrides_enabled", True)
+            if overrides_enabled:
+                override_components = config.get("installer_overrides_components", {})
+                for comp_name, enabled in override_components.items():
+                    if enabled:
+                        tracker.add_file(f"installer_overrides_{comp_name}.xml", GenerationTracker.OVERRIDES)
+            else:
+                tracker.add_note("Installer overrides disabled")
+            # Informational notes
+            if not config.get("use_hostname_detection", True):
+                tracker.add_note("Hostname detection disabled")
+            if config.get("api_version", "new") == "legacy":
+                tracker.add_note("Using Legacy API (5.25)")
+            file_detection = config.get("detection_config", {}).get("file_detection_enabled", False)
+            if file_detection:
+                tracker.add_note("File-based detection enabled")
+            # Custom versions note
+            use_defaults = config.get("use_default_versions", True)
+            if not use_defaults:
+                version_parts = []
+                for key, label in [("pos_version", "POS"), ("wdm_version", "WDM"),
+                                   ("flow_service_version", "Flow"), ("lpa_service_version", "LPA"),
+                                   ("storehub_service_version", "StoreHub"), ("rcs_version", "RCS")]:
+                    v = config.get(key, "")
+                    if v and v != config.get("version", ""):
+                        version_parts.append(f"{label} {v}")
+                if version_parts:
+                    tracker.add_note(f"Custom versions: {', '.join(version_parts)}")
+        return result
 
     def _create_helper_structure(self, helper_dir):
         """Create the necessary helper directory structure with placeholder files"""
@@ -476,6 +579,20 @@ class ProjectGenerator:
             title="Success"
         )
         dialog.destroy()
+
+    def _show_generation_summary(self, tracker):
+        """Show generation summary dialog"""
+        if self.parent_window:
+            try:
+                from .dialogs.generation_summary import GenerationSummaryDialog
+            except ImportError:
+                from dialogs.generation_summary import GenerationSummaryDialog
+            GenerationSummaryDialog(self.parent_window, tracker)
+        else:
+            # No GUI — print summary to console (for tests / CLI usage)
+            print(f"\nGeneration complete: {tracker.get_total_file_count()} files generated")
+            for note in tracker.get_notes():
+                print(f"  - {note}")
 
     def _ask_download_dependencies_only(self, component_type, parent=None, error_message=None):
         """Ask user if they want to download dependencies even if component files are not found"""
