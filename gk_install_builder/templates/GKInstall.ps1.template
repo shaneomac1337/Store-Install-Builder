@@ -2352,12 +2352,24 @@ if ($noOverrides) {
 if (-not $offline_mode) {
     $download_url = "https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.exe"
     Write-Host "Attempting to download Launcher.exe from: $download_url"
+
+    # Read bearer token for DSG download authorization
+    $dsgTokenFile = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+    $dsgBearerToken = ""
+    if (Test-Path $dsgTokenFile) {
+        $dsgBearerToken = (Get-Content $dsgTokenFile -Raw).Trim()
+    }
+
     try {
         # Try to use curl first (faster), fall back to WebClient if not available or fails
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
             Write-Host "Using curl for download..."
             try {
-                curl.exe -k -L --progress-bar --ssl-no-revoke -o "Launcher.exe" "$download_url"
+                if ($dsgBearerToken) {
+                    curl.exe -k -L --progress-bar --ssl-no-revoke -H "Authorization: Bearer $dsgBearerToken" -o "Launcher.exe" "$download_url"
+                } else {
+                    curl.exe -k -L --progress-bar --ssl-no-revoke -o "Launcher.exe" "$download_url"
+                }
                 if (-not (Test-Path "Launcher.exe") -or (Get-Item "Launcher.exe").Length -eq 0) {
                     throw "Curl download failed or produced empty file."
                 }
@@ -2365,11 +2377,17 @@ if (-not $offline_mode) {
             } catch {
                 Write-Host "Curl failed: $_. Falling back to WebClient..."
                 $webClient = New-Object System.Net.WebClient
+                if ($dsgBearerToken) {
+                    $webClient.Headers.Add("Authorization", "Bearer $dsgBearerToken")
+                }
                 $webClient.DownloadFile($download_url, "Launcher.exe")
             }
         } else {
             Write-Host "curl not available, using WebClient..."
             $webClient = New-Object System.Net.WebClient
+            if ($dsgBearerToken) {
+                $webClient.Headers.Add("Authorization", "Bearer $dsgBearerToken")
+            }
             $webClient.DownloadFile($download_url, "Launcher.exe")
         }
         Write-Host "Successfully downloaded Launcher.exe"
@@ -2409,6 +2427,10 @@ if (Test-Path $installerLogPath) {
     }
 }
 
+# Service installation arguments (injected by generator)
+$serviceArgs = @()
+@SERVICE_ARGS_PS@
+
 # Start Launcher with appropriate arguments for new installation or update
 if ($isUpdate) {
     Write-Host "================================================================="
@@ -2426,7 +2448,11 @@ if ($isUpdate) {
     Write-Host "================================================================="
     Write-Host "                 RUNNING IN FULL INSTALLATION MODE               " -ForegroundColor Green
     Write-Host "================================================================="
-    $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList "--defaultsFile", "launcher.properties", "--mode", "unattended" -PassThru
+    $installArgs = @("--defaultsFile", "launcher.properties", "--mode", "unattended") + $serviceArgs
+    if ($serviceArgs.Count -gt 0) {
+        Write-Host "Service installation enabled: $($serviceArgs -join ' ')" -ForegroundColor Yellow
+    }
+    $launcherProcess = Start-Process -FilePath ".\Launcher.exe" -ArgumentList $installArgs -PassThru
 }
 
 # Check installation logs

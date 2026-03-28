@@ -2791,18 +2791,39 @@ fi
 if [ "$offline_mode" = false ]; then
     download_url="https://$base_url/dsg/content/cep/SoftwarePackage/$systemType/$component_version/Launcher.run"
   echo "Attempting to download Launcher.run from: $download_url"
-  
+
+  # Read bearer token for DSG download authorization
+  dsg_token_file="$PWD/helper/tokens/access_token.txt"
+  dsg_bearer_token=""
+  if [ -f "$dsg_token_file" ]; then
+    dsg_bearer_token=$(cat "$dsg_token_file" | tr -d '\n\r ')
+  fi
+  # Build wget auth header if token is available
+  wget_auth_header=""
+  if [ -n "$dsg_bearer_token" ]; then
+    wget_auth_header="--header=Authorization: Bearer $dsg_bearer_token"
+  fi
+
   # Try using curl with progress bar first
   if command -v curl >/dev/null 2>&1; then
     echo "Using curl for download with progress bar..."
-    if curl -k -L --progress-bar -o "Launcher.run" "$download_url"; then
-      if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
+    if [ -n "$dsg_bearer_token" ]; then
+      curl -k -L --progress-bar -H "Authorization: Bearer $dsg_bearer_token" -o "Launcher.run" "$download_url"
+    else
+      curl -k -L --progress-bar -o "Launcher.run" "$download_url"
+    fi
+    if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
         echo "Successfully downloaded Launcher.run using curl"
-      else
+    else
         echo "Curl download produced empty file. Trying wget..."
         if command -v wget >/dev/null 2>&1; then
           echo "Using wget as fallback..."
-          if wget --show-progress -O "Launcher.run" "$download_url"; then
+          if [ -n "$wget_auth_header" ]; then
+            wget --show-progress "$wget_auth_header" -O "Launcher.run" "$download_url"
+          else
+            wget --show-progress -O "Launcher.run" "$download_url"
+          fi
+          if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
             echo "Successfully downloaded Launcher.run using wget"
           else
             echo "Error downloading Launcher.run"
@@ -2812,27 +2833,16 @@ if [ "$offline_mode" = false ]; then
           echo "Error downloading: Empty file and wget not available"
           exit 1
         fi
-      fi
-    else
-      # Try wget as a fallback
-      echo "Curl failed. Trying wget..."
-      if command -v wget >/dev/null 2>&1; then
-        echo "Using wget as fallback..."
-        if wget --show-progress -O "Launcher.run" "$download_url"; then
-          echo "Successfully downloaded Launcher.run using wget"
-        else
-          echo "Error downloading Launcher.run"
-          exit 1
-        fi
-      else
-        echo "Error downloading: Curl failed and wget not available"
-        exit 1
-      fi
     fi
   elif command -v wget >/dev/null 2>&1; then
     # No curl, use wget directly
     echo "Using wget for download with progress bar..."
-    if wget --show-progress -O "Launcher.run" "$download_url"; then
+    if [ -n "$wget_auth_header" ]; then
+      wget --show-progress "$wget_auth_header" -O "Launcher.run" "$download_url"
+    else
+      wget --show-progress -O "Launcher.run" "$download_url"
+    fi
+    if [ -f "Launcher.run" ] && [ -s "Launcher.run" ]; then
       echo "Successfully downloaded Launcher.run using wget"
     else
       echo "Error downloading Launcher.run"
@@ -2875,6 +2885,10 @@ echo "Running Launcher.run with arguments: --defaultsFile launcher.properties --
 
 # If we found JRE, add it to PATH temporarily to ensure Java can be found
 
+# Service installation arguments (injected by generator)
+service_args=""
+@SERVICE_ARGS_SH@
+
 # Start Launcher based on whether this is an update or new installation
 if [ "$isUpdate" = true ]; then
     echo -e "\033[1;36m=================================================================\033[0m"
@@ -2887,7 +2901,10 @@ else
     echo -e "\033[1;32m=================================================================\033[0m"
     echo -e "\033[1;32m                 RUNNING IN FULL INSTALLATION MODE               \033[0m"
     echo -e "\033[1;32m=================================================================\033[0m"
-    ./Launcher.run --defaultsFile launcher.properties --mode unattended &
+    if [ -n "$service_args" ]; then
+        echo -e "\033[1;33mService installation enabled: $service_args\033[0m"
+    fi
+    ./Launcher.run --defaultsFile launcher.properties --mode unattended $service_args &
     launcher_pid=$!
 fi
 

@@ -37,7 +37,11 @@ class LauncherSettingsEditor:
             "firebirdServerPath": "Firebird Installation directory",
             "firebirdServerPort": "Firebird listen port",
             "firebirdServerUser": "Firebird DB Admin",
-            "firebirdServerPassword": "Firebird DB Password"
+            "firebirdServerPassword": "Firebird DB Password",
+            "runAsService": "Install as System Service",
+            "appServiceName": "Application Service Name",
+            "updaterServiceName": "Updater Service Name",
+            "runAsServiceStartType": "Service Start Type (Windows only)",
         }
 
         # Tooltips for parameters
@@ -54,7 +58,11 @@ class LauncherSettingsEditor:
             "firebirdServerPath": "Path to Firebird server installation (not 'localhost')",
             "firebirdServerPort": "Port used by Firebird database server (default: 3050)",
             "firebirdServerUser": "Username for Firebird database administrator (default: SYSDBA)",
-            "firebirdServerPassword": "Password for Firebird database administrator (default: masterkey)"
+            "firebirdServerPassword": "Password for Firebird database administrator (default: masterkey)",
+            "runAsService": "Register the application as a system service. Requires running GKInstall as Administrator (Windows) or root (Linux).",
+            "appServiceName": "Name of the Windows/Linux service for the application server",
+            "updaterServiceName": "Name of the Windows/Linux service for the updater",
+            "runAsServiceStartType": "Windows only. 'auto' starts the service on boot, 'manual' requires manual start.",
         }
 
     def open_editor(self):
@@ -113,6 +121,16 @@ class LauncherSettingsEditor:
             )
             instructions.pack(pady=(0, 10), padx=10, anchor="w")
 
+            tomcat_components = ["WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
+            if component_type in tomcat_components:
+                warning_label = ctk.CTkLabel(
+                    settings_frame,
+                    text="Note: 'Install as System Service' requires running GKInstall as Administrator (Windows) or root (Linux).",
+                    wraplength=700,
+                    text_color="orange"
+                )
+                warning_label.pack(pady=(0, 5), padx=10, anchor="w")
+
             # Create a scrollable frame for settings using CTkScrollableFrame
             scrollable_settings = ctk.CTkScrollableFrame(settings_frame)
             scrollable_settings.pack(fill="both", expand=True, padx=5, pady=5)
@@ -132,8 +150,15 @@ class LauncherSettingsEditor:
                 label = ctk.CTkLabel(frame, text=display_label, width=250, anchor="w")
                 label.grid(row=0, column=0, sticky="w", padx=10, pady=5)
 
-                entry = ctk.CTkEntry(frame, width=400)
-                entry.insert(0, value)
+                if key == "runAsService":
+                    entry = ctk.CTkComboBox(frame, width=400, values=["0", "1"], state="readonly")
+                    entry.set(value)
+                elif key == "runAsServiceStartType":
+                    entry = ctk.CTkComboBox(frame, width=400, values=["auto", "manual"], state="readonly")
+                    entry.set(value)
+                else:
+                    entry = ctk.CTkEntry(frame, width=400)
+                    entry.insert(0, value)
                 entry.grid(row=0, column=1, sticky="ew", padx=10, pady=5)
 
                 # Add tooltip if available
@@ -238,6 +263,10 @@ class LauncherSettingsEditor:
 
         # WDM settings
         self.settings["WDM"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-wdm",
+            "updaterServiceName": "Updater-wdm",
+            "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8080",
             "applicationServerHttpsPort": "8443",
             "applicationServerShutdownPort": "8005",
@@ -248,6 +277,10 @@ class LauncherSettingsEditor:
 
         # Flow Service settings
         self.settings["FLOW-SERVICE"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-flow",
+            "updaterServiceName": "Updater-flow",
+            "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
@@ -258,6 +291,10 @@ class LauncherSettingsEditor:
 
         # LPA Service settings
         self.settings["LPA-SERVICE"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-lpa",
+            "updaterServiceName": "Updater-lpa",
+            "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
@@ -268,6 +305,10 @@ class LauncherSettingsEditor:
 
         # StoreHub Service settings
         self.settings["STOREHUB-SERVICE"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-sh",
+            "updaterServiceName": "Updater-sh",
+            "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",
@@ -283,6 +324,10 @@ class LauncherSettingsEditor:
 
         # RCS Service settings
         self.settings["RCS-SERVICE"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-rcs",
+            "updaterServiceName": "Updater-rcs",
+            "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
             "applicationServerShutdownPort": "8005",

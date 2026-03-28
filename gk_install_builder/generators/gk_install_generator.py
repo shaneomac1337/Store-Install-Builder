@@ -15,6 +15,61 @@ except ImportError:
     from utils.file_operations import determine_gk_install_paths, write_installation_script
 
 
+# Mapping from GKInstall ComponentType to launcher settings config key
+COMPONENT_SERVICE_CONFIG_MAP = {
+    "WDM": "wdm_launcher_settings",
+    "FLOW-SERVICE": "flow_service_launcher_settings",
+    "LPA-SERVICE": "lpa_service_launcher_settings",
+    "STOREHUB-SERVICE": "storehub_service_launcher_settings",
+    "RCS-SERVICE": "rcs_service_launcher_settings",
+}
+
+
+def build_service_args(config, platform):
+    """
+    Build service CLI argument strings for the Launcher invocation.
+
+    Reads per-component service settings from config and generates
+    platform-specific argument strings for all Tomcat-based components.
+
+    Args:
+        config: Configuration dictionary
+        platform: "Windows" or "Linux"
+
+    Returns:
+        dict with "ps" and "sh" keys containing the replacement strings
+        for @SERVICE_ARGS_PS@ and @SERVICE_ARGS_SH@ tokens
+    """
+    ps_lines = []
+    sh_lines = []
+
+    for component_type, config_key in COMPONENT_SERVICE_CONFIG_MAP.items():
+        settings = config.get(config_key, {})
+        run_as_service = settings.get("runAsService", "0")
+
+        if run_as_service != "1":
+            continue
+
+        app_service_name = settings.get("appServiceName", f"Tomcat-{component_type.lower().split('-')[0]}")
+        updater_service_name = settings.get("updaterServiceName", f"Updater-{component_type.lower().split('-')[0]}")
+        start_type = settings.get("runAsServiceStartType", "auto")
+
+        # PowerShell: conditional block per component
+        ps_lines.append(f'if ($ComponentType -eq \'{component_type}\') {{')
+        ps_lines.append(f'    $serviceArgs = @("--runAsService", "1", "--appServiceName", "{app_service_name}", "--updaterServiceName", "{updater_service_name}", "--runAsServiceStartType", "{start_type}")')
+        ps_lines.append(f'}}')
+
+        # Bash: conditional block per component (no runAsServiceStartType — Windows only)
+        sh_lines.append(f'if [ "$ComponentType" = "{component_type}" ]; then')
+        sh_lines.append(f'    service_args="--runAsService 1 --appServiceName {app_service_name} --updaterServiceName {updater_service_name}"')
+        sh_lines.append(f'fi')
+
+    return {
+        "ps": "\n".join(ps_lines),
+        "sh": "\n".join(sh_lines),
+    }
+
+
 def generate_gk_install(output_dir, config, detection_manager,
                         replace_hostname_regex_powershell_func,
                         replace_hostname_regex_bash_func,
@@ -292,6 +347,13 @@ def generate_gk_install(output_dir, config, detection_manager,
         # Replace REMOVE_OVERRIDES_AFTER_INSTALL placeholder
         remove_overrides = config.get("remove_overrides_after_install", False)
         template = template.replace("@REMOVE_OVERRIDES_AFTER_INSTALL@", "true" if remove_overrides else "false")
+
+        # Replace service args tokens
+        service_args = build_service_args(config, platform)
+        if platform == "Windows":
+            template = template.replace("@SERVICE_ARGS_PS@", service_args["ps"])
+        else:
+            template = template.replace("@SERVICE_ARGS_SH@", service_args["sh"])
 
         # Apply custom regex if available and hostname detection is enabled
         if use_hostname_detection and "detection_config" in config and "hostname_detection" in config["detection_config"]:
