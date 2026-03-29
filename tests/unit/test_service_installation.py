@@ -48,7 +48,7 @@ class TestBuildServiceArgs:
             }
         }
         result = build_service_args(config, "Linux")
-        assert 'if [ "$ComponentType" = "WDM" ]' in result["sh"]
+        assert 'if [ "$COMPONENT_TYPE" = "WDM" ]' in result["sh"]
         assert "--runAsService 1" in result["sh"]
         assert "--appServiceName Tomcat-wdm" in result["sh"]
         assert "--updaterServiceName Updater-wdm" in result["sh"]

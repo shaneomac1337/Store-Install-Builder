@@ -60,7 +60,7 @@ def build_service_args(config, platform):
         ps_lines.append(f'}}')
 
         # Bash: conditional block per component (no runAsServiceStartType — Windows only)
-        sh_lines.append(f'if [ "$ComponentType" = "{component_type}" ]; then')
+        sh_lines.append(f'if [ "$COMPONENT_TYPE" = "{component_type}" ]; then')
         sh_lines.append(f'    service_args="--runAsService 1 --appServiceName {app_service_name} --updaterServiceName {updater_service_name}"')
         sh_lines.append(f'fi')
 
