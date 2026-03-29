@@ -397,10 +397,15 @@ class ProjectGenerator:
         result = copy_certificate(output_dir, config)
         if tracker:
             cert_path = config.get("certificate_path", "")
+            cert_filename = os.path.basename(cert_path) if cert_path else ""
+            # Check if certificate already exists in output directory (e.g., generated there)
+            cert_in_output = cert_filename and os.path.exists(os.path.join(output_dir, cert_filename))
             if result:
-                cert_filename = os.path.basename(cert_path)
                 tracker.add_file(cert_filename, GenerationTracker.OTHER)
                 tracker.add_note(f"Certificate included: {cert_filename}")
+            elif cert_in_output:
+                tracker.add_file(cert_filename, GenerationTracker.OTHER)
+                tracker.add_note(f"Certificate already present: {cert_filename}")
             else:
                 if not cert_path or cert_path == "PROJECT/BASEURL/certificate.p12":
                     tracker.add_note("No certificate configured — skipped")

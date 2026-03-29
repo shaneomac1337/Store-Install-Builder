@@ -9,6 +9,11 @@ import sys
 import subprocess
 import customtkinter as ctk
 
+try:
+    from gk_install_builder.ui.helpers import bind_mousewheel_to_frame
+except ImportError:
+    from ui.helpers import bind_mousewheel_to_frame
+
 
 class GenerationSummaryDialog:
     """Modal summary dialog shown after generation completes."""
@@ -72,6 +77,9 @@ class GenerationSummaryDialog:
         # Scrollable content
         content = ctk.CTkScrollableFrame(self.window)
         content.pack(fill="both", expand=True, padx=15, pady=(15, 5))
+
+        # Apply mousewheel binding for Linux scrolling
+        bind_mousewheel_to_frame(content)
 
         # Header
         ctk.CTkLabel(
