@@ -25,6 +25,8 @@ cli_system_name_override=""  # --SystemNameOverride: Override system name for St
 cli_workstation_name_override=""  # --WorkstationNameOverride: Override workstation name
 cli_structure_unique_name_override=""  # --StructureUniqueNameOverride: Override structureUniqueName for structure node creation
 cli_auto_confirm=false  # -y, --yes: Auto-confirm workstation creation without prompting
+cli_remove_overrides=false  # --removeOverrides: Force remove override files after installation
+cli_keep_overrides=false    # --keepOverrides: Force keep override files after installation
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -97,13 +99,27 @@ while [ $# -gt 0 ]; do
       cli_auto_confirm=true
       shift
       ;;
+    --removeOverrides|--removeoverrides)
+      cli_remove_overrides=true
+      shift
+      ;;
+    --keepOverrides|--keepoverrides)
+      cli_keep_overrides=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [-y|--yes] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>]"
+      echo "Usage: $0 [--offline] [--ComponentType <POS|ONEX|WDM|FLOW-SERVICE|LPA|SH|RCS>] [--base_url <url>] [--storeId|--StoreID <id>] [--workstationId|--WorkstationID <id>] [--UseDefaultVersions] [--VersionOverride <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [-y|--yes] [-e|--env|--environment <alias>] [--list-environments] [--noOverrides] [--skipCheckAlive] [--skipStartApplication] [--rcsUrl <url>] [--removeOverrides] [--keepOverrides]"
       exit 1
       ;;
   esac
 done
+
+# Validate mutually exclusive override flags
+if [ "$cli_remove_overrides" = "true" ] && [ "$cli_keep_overrides" = "true" ]; then
+    echo "ERROR: --removeOverrides and --keepOverrides are mutually exclusive. Use only one."
+    exit 1
+fi
 
 # Validate ComponentType
 valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE" "RCS" "RCS-SERVICE")
@@ -2747,6 +2763,15 @@ echo "Launcher properties file created successfully. Launcher will use this for 
 
 # Deploy installer override file
 remove_overrides_after_install="@REMOVE_OVERRIDES_AFTER_INSTALL@"
+# CLI override for remove-overrides-after-install setting
+if [ "$cli_remove_overrides" = "true" ]; then
+    remove_overrides_after_install="true"
+    echo "CLI Override: Override files will be removed after installation (--removeOverrides)"
+fi
+if [ "$cli_keep_overrides" = "true" ]; then
+    remove_overrides_after_install="false"
+    echo "CLI Override: Override files will be kept after installation (--keepOverrides)"
+fi
 if [ "$no_overrides" = true ]; then
     echo "Skipping installer overrides (--noOverrides flag specified)"
 else
