@@ -278,8 +278,8 @@ class LauncherSettingsEditor:
         # Flow Service settings
         self.settings["FLOW-SERVICE"] = {
             "runAsService": "0",
-            "appServiceName": "Tomcat-flow",
-            "updaterServiceName": "Updater-flow",
+            "appServiceName": "Tomcat-flowservice",
+            "updaterServiceName": "Updater-flowservice",
             "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
@@ -306,8 +306,8 @@ class LauncherSettingsEditor:
         # StoreHub Service settings
         self.settings["STOREHUB-SERVICE"] = {
             "runAsService": "0",
-            "appServiceName": "Tomcat-sh",
-            "updaterServiceName": "Updater-sh",
+            "appServiceName": "Tomcat-storehub",
+            "updaterServiceName": "Updater-storehub",
             "runAsServiceStartType": "auto",
             "applicationServerHttpPort": "8180",
             "applicationServerHttpsPort": "8543",
