@@ -315,6 +315,31 @@ Get-Help .\GKInstall.ps1 -Parameter WorkstationId
 
 ---
 
+## Override File Cleanup Flags
+
+| Parameter | Type | Platform | Description |
+|-----------|------|----------|-------------|
+| `--removeOverrides` | Switch | Both | Force removal of override files after installation completes |
+| `--keepOverrides` | Switch | Both | Force keeping override files after installation completes |
+
+These flags override the "Remove overrides after install" setting that was configured in the GUI at generation time. They are mutually exclusive — using both will cause the script to exit with an error.
+
+**Use case:** When override files were generated with removal disabled (the default), but the user wants to clean them up after a specific run — or vice versa.
+
+**Examples:**
+```bash
+# Run installer and remove override files afterward
+./GKInstall.sh --removeOverrides
+
+# Run installer and ensure override files are kept (even if generated with removal ON)
+./GKInstall.sh --keepOverrides
+
+# Use with other flags
+./GKInstall.sh --skipCheckAlive --removeOverrides
+```
+
+---
+
 ## Conclusion
 
 This feature provides maximum flexibility for installation scenarios while maintaining full backward compatibility with existing detection mechanisms. Your specific use case (hardcoded Workstation ID + hostname-detected Store ID) is now fully supported!
