@@ -20,12 +20,20 @@ param(
     [string]$SystemNameOverride,  # Optional: Override system name for Store Manager API
     [string]$WorkstationNameOverride,  # Optional: Override workstation name (e.g., A319_OneXPOS1)
     [string]$StructureUniqueNameOverride,  # Optional: Override structureUniqueName for structure node creation
-    [switch]$y  # Optional: Auto-confirm workstation creation without prompting
+    [switch]$y,  # Optional: Auto-confirm workstation creation without prompting
+    [switch]$removeOverrides,  # Optional: Force remove override files after installation
+    [switch]$keepOverrides  # Optional: Force keep override files after installation
 )
 
 # Create a unique log filename based on timestamp
 $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $logFile = "GKInstall_$ComponentType`_$timestamp.log"
+
+# Validate mutually exclusive override flags
+if ($removeOverrides -and $keepOverrides) {
+    Write-Host "ERROR: --removeOverrides and --keepOverrides are mutually exclusive. Use only one." -ForegroundColor Red
+    exit 1
+}
 
 # Start transcript to capture all console output
 try {
@@ -2306,6 +2314,15 @@ Write-Host "Launcher properties file created successfully. Launcher will use thi
 
 # Deploy installer override file
 $removeOverridesAfterInstall = "@REMOVE_OVERRIDES_AFTER_INSTALL@"
+# CLI override for remove-overrides-after-install setting
+if ($removeOverrides) {
+    $removeOverridesAfterInstall = "true"
+    Write-Host "CLI Override: Override files will be removed after installation (--removeOverrides)"
+}
+if ($keepOverrides) {
+    $removeOverridesAfterInstall = "false"
+    Write-Host "CLI Override: Override files will be kept after installation (--keepOverrides)"
+}
 if ($noOverrides) {
     Write-Host "Skipping installer overrides (--noOverrides flag specified)"
 } else {
