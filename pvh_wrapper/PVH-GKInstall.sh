@@ -29,6 +29,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOSTNAME_PATTERN='^([A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})(T?)$'
 
 # ============================================================
+# CONFIGURABLE ENVIRONMENT
+# Change this value when creating copies for other environments.
+# Example: "PVHTST2" for test, "PVHPRD" for production
+# ============================================================
+PVH_ENVIRONMENT="PVHTST2"
+
+# ============================================================
 # DEFAULTS
 # ============================================================
 COMPONENT_TYPE="ONEX-POS"
@@ -139,6 +146,7 @@ echo "  Till Number:        $till_number_int"
 echo "  Workstation ID:     $workstation_id"
 echo "  Auto-Confirm:       Yes (-y)"
 echo "  Component Type:     $COMPONENT_TYPE"
+echo "  Environment:        $PVH_ENVIRONMENT"
 echo "----------------------------------------"
 echo ""
 
@@ -148,6 +156,7 @@ echo ""
 gkinstall_args=(
     --storeId "$store_prefix"
     --workstationId "$workstation_id"
+    --env "$PVH_ENVIRONMENT"
     -y
 )
 

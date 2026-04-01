@@ -74,6 +74,13 @@ param(
 $hostnamePattern = '^(?:[A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})T?$'
 
 # ============================================================
+# CONFIGURABLE ENVIRONMENT
+# Change this value when creating copies for other environments.
+# Example: "PVHTST2" for test, "PVHPRD" for production
+# ============================================================
+$pvhEnvironment = "PVHTST2"
+
+# ============================================================
 # 1. GET HOSTNAME
 # ============================================================
 if ($HostnameOverride) {
@@ -125,6 +132,7 @@ Write-Host "  Till Number:        $tillNumber"
 Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
 Write-Host "  Auto-Confirm:       Yes (-y)" -ForegroundColor Green
 Write-Host "  Component Type:     $ComponentType"
+Write-Host "  Environment:        $pvhEnvironment" -ForegroundColor Green
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host ""
 
@@ -350,6 +358,7 @@ $gkInstallArgs = @{
     ComponentType   = $ComponentType
     storeId         = $storePrefix
     WorkstationId   = $workstationId
+    Env             = $pvhEnvironment
     y               = $true
 }
 
@@ -358,6 +367,7 @@ if ($offline)                                             { $gkInstallArgs['offl
 if ($PSBoundParameters.ContainsKey('base_url'))           { $gkInstallArgs['base_url']             = $base_url }
 if ($PSBoundParameters.ContainsKey('UseDefaultVersions')) { $gkInstallArgs['UseDefaultVersions']   = $UseDefaultVersions }
 if ($PSBoundParameters.ContainsKey('VersionSource'))      { $gkInstallArgs['VersionSource']        = $VersionSource }
+# Note: -Env is always set from $pvhEnvironment above; CLI override still possible
 if ($PSBoundParameters.ContainsKey('Env'))                { $gkInstallArgs['Env']                  = $Env }
 if ($PSBoundParameters.ContainsKey('EnvironmentName'))    { $gkInstallArgs['EnvironmentName']      = $EnvironmentName }
 if ($noOverrides)                                         { $gkInstallArgs['noOverrides']          = $true }
