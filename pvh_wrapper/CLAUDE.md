@@ -44,6 +44,17 @@ PVH is migrating from `PVH-OPOS-FAT-*` to `PVH-OPOS-ONEX-CLOUD-*` system types. 
 - Production has zero mixed types (all workstations in a store use same system type)
 - QA has 6 stores with mixed types (minor misconfigs, not a concern)
 
+### Post-Install Health Check
+- **Purpose**: Verify ONEX installation is functional even when GKInstall exits 0
+- **Configurable**: `$enableHealthCheck` / `ENABLE_HEALTH_CHECK` (default: true)
+- **CLI override**: `-SkipHealthCheck` (PS1) / `--skip-health-check` (bash)
+- **Checks (sequential, fail-fast)**:
+  1. `C:\gkretail\onex` folder exists (immediate)
+  2. `C:\gkretail\onex\station.properties` file exists (immediate)
+  3. Java process listening on port 3333 (poll every 30s, up to 10min)
+- **On failure**: Sets `$gkInstallFailed = $true` and triggers existing rollback logic
+- **Paths configurable**: `$healthCheckOnexPath`, `$healthCheckStationFile`, `$healthCheckPort`
+
 ## Pending Items (Waiting on Colleague)
 
 ### 1. Hostname Format ~~Confirmation~~ CONFIRMED
@@ -88,11 +99,17 @@ All queries default to `sm_pvhprd` (production) with `sm_qa2` (QA) as commented 
 # Test with production mapping (copy prod file first)
 copy pvh_store_mapping_prod.properties pvh_store_mapping.properties
 .\PVH-GKInstall.ps1 -HostnameOverride "A143TILL02" -WhatIf
+
+# Test with health check disabled
+.\PVH-GKInstall.ps1 -HostnameOverride "A319TILL01" -SkipHealthCheck -WhatIf
 ```
 
 ```bash
 # Bash dry-run test
 ./PVH-GKInstall.sh --hostname-override "A319TILL01" --dry-run
+
+# Bash with health check disabled
+./PVH-GKInstall.sh --hostname-override "A319TILL01" --skip-health-check --dry-run
 ```
 
 ## Git State
