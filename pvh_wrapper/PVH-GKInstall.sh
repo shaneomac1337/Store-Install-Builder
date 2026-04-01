@@ -36,12 +36,25 @@ HOSTNAME_PATTERN='^([A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL([0-9]{2})(T?)$'
 PVH_ENVIRONMENT="PVHTST2"
 
 # ============================================================
+# CONFIGURABLE HEALTH CHECK
+# Post-install verification: checks ONEX folder, station.properties,
+# and Java process on port 3333. Triggers rollback on failure.
+# ============================================================
+ENABLE_HEALTH_CHECK=true
+HEALTH_CHECK_TIMEOUT=600
+HEALTH_CHECK_INTERVAL=30
+HEALTH_CHECK_ONEX_PATH="/usr/local/gkretail/onex"
+HEALTH_CHECK_STATION_FILE="/usr/local/gkretail/onex/station.properties"
+HEALTH_CHECK_PORT=3333
+
+# ============================================================
 # DEFAULTS
 # ============================================================
 COMPONENT_TYPE="ONEX-POS"
 DRY_RUN=false
 HOSTNAME_OVERRIDE=""
 PASSTHROUGH_ARGS=()
+SKIP_HEALTH_CHECK=false
 
 # ============================================================
 # PARSE WRAPPER ARGUMENTS
@@ -51,6 +64,10 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --dry-run|--DryRun)
             DRY_RUN=true
+            shift
+            ;;
+        --skip-health-check|--SkipHealthCheck)
+            SKIP_HEALTH_CHECK=true
             shift
             ;;
         --hostname-override|--HostnameOverride)
@@ -147,6 +164,11 @@ echo "  Workstation ID:     $workstation_id"
 echo "  Auto-Confirm:       Yes (-y)"
 echo "  Component Type:     $COMPONENT_TYPE"
 echo "  Environment:        $PVH_ENVIRONMENT"
+if [ "$SKIP_HEALTH_CHECK" = true ] || [ "$ENABLE_HEALTH_CHECK" != true ]; then
+    echo "  Health Check:       Disabled"
+else
+    echo "  Health Check:       Enabled (port timeout: ${HEALTH_CHECK_TIMEOUT}s)"
+fi
 echo "----------------------------------------"
 echo ""
 
@@ -178,6 +200,14 @@ if [ "$DRY_RUN" = true ]; then
     echo "[PVH] DRY RUN - Would execute:"
     echo "  $gkinstall_path ${gkinstall_args[*]}"
     echo ""
+    if [ "$SKIP_HEALTH_CHECK" != true ] && [ "$ENABLE_HEALTH_CHECK" = true ]; then
+        echo ""
+        echo "[PVH] DRY RUN - After successful GKInstall, would perform health checks:"
+        echo "  1. Check folder exists: $HEALTH_CHECK_ONEX_PATH"
+        echo "  2. Check file exists: $HEALTH_CHECK_STATION_FILE"
+        echo "  3. Poll for Java process on port $HEALTH_CHECK_PORT (every ${HEALTH_CHECK_INTERVAL}s, up to ${HEALTH_CHECK_TIMEOUT}s)"
+        echo "  4. On failure: trigger rollback"
+    fi
     echo "[PVH] Dry run complete. No changes were made."
     exit 0
 fi
@@ -186,4 +216,102 @@ echo "[PVH] Calling GKInstall.sh..."
 echo "[PVH] Command: GKInstall.sh ${gkinstall_args[*]}"
 echo ""
 
-exec "$gkinstall_path" "${gkinstall_args[@]}"
+set +e
+"$gkinstall_path" "${gkinstall_args[@]}"
+gk_exit_code=$?
+set -e
+
+if [ $gk_exit_code -ne 0 ]; then
+    echo ""
+    echo "========================================"
+    echo " GKInstall FAILED (exit code: $gk_exit_code)"
+    echo "========================================"
+    exit $gk_exit_code
+fi
+
+echo ""
+echo "[PVH] GKInstall.sh completed successfully (exit code: 0)."
+
+# ============================================================
+# 8. POST-INSTALL HEALTH CHECK
+# ============================================================
+health_check_passed=true
+health_check_reason=""
+
+if [ "$SKIP_HEALTH_CHECK" != true ] && [ "$ENABLE_HEALTH_CHECK" = true ]; then
+    echo ""
+    echo "========================================"
+    echo " Post-Install Health Check"
+    echo "========================================"
+
+    # Check 1: ONEX folder exists
+    printf "[PVH] [1/3] Checking %s exists... " "$HEALTH_CHECK_ONEX_PATH"
+    if [ -d "$HEALTH_CHECK_ONEX_PATH" ]; then
+        echo "OK"
+    else
+        echo "FAILED"
+        health_check_passed=false
+        health_check_reason="ONEX folder not found at $HEALTH_CHECK_ONEX_PATH"
+    fi
+
+    # Check 2: station.properties exists (only if check 1 passed)
+    if [ "$health_check_passed" = true ]; then
+        printf "[PVH] [2/3] Checking %s exists... " "$HEALTH_CHECK_STATION_FILE"
+        if [ -f "$HEALTH_CHECK_STATION_FILE" ]; then
+            echo "OK"
+        else
+            echo "FAILED"
+            health_check_passed=false
+            health_check_reason="station.properties not found at $HEALTH_CHECK_STATION_FILE"
+        fi
+    fi
+
+    # Check 3: Java process on port (only if checks 1-2 passed)
+    if [ "$health_check_passed" = true ]; then
+        max_attempts=$(( HEALTH_CHECK_TIMEOUT / HEALTH_CHECK_INTERVAL ))
+        echo "[PVH] [3/3] Waiting for Java process on port $HEALTH_CHECK_PORT (timeout: $(( HEALTH_CHECK_TIMEOUT / 60 ))m)..."
+        port_check_passed=false
+
+        for attempt in $(seq 1 $max_attempts); do
+            sleep "$HEALTH_CHECK_INTERVAL"
+            elapsed=$(( attempt * HEALTH_CHECK_INTERVAL ))
+            minutes=$(( elapsed / 60 ))
+            seconds=$(( elapsed % 60 ))
+            time_str=$(printf "%d:%02d" $minutes $seconds)
+
+            printf "[PVH]        Attempt %d/%d (%s elapsed)... " "$attempt" "$max_attempts" "$time_str"
+
+            pid=$(ss -tlnp sport = :$HEALTH_CHECK_PORT 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
+            if [ -n "$pid" ]; then
+                comm=$(cat /proc/$pid/comm 2>/dev/null || echo "unknown")
+                if [ "$comm" = "java" ]; then
+                    echo "Java process detected on port $HEALTH_CHECK_PORT (PID: $pid). OK"
+                    port_check_passed=true
+                    break
+                else
+                    echo "port in use but not Java (process: $comm)"
+                fi
+            else
+                echo "not yet"
+            fi
+        done
+
+        if [ "$port_check_passed" != true ]; then
+            health_check_passed=false
+            health_check_reason="No Java process listening on port $HEALTH_CHECK_PORT after $HEALTH_CHECK_TIMEOUT seconds"
+        fi
+    fi
+
+    # Result
+    if [ "$health_check_passed" = true ]; then
+        echo ""
+        echo "[PVH] === Health Check PASSED ==="
+    else
+        echo ""
+        echo "[PVH] === Health Check FAILED ==="
+        echo "[PVH] Reason: $health_check_reason"
+        exit 1
+    fi
+else
+    echo "[PVH] Health check skipped."
+fi
