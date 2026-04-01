@@ -632,92 +632,48 @@ try {
 
     Write-Host "Found businessUnitGroupID: $businessUnitGroupId"
 
-    # Second API call - Try to Get Workstation first
-    $wsUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations/(businessUnitGroupId=$businessUnitGroupId,workstationId=$WorkstationId)"
-    Log-ApiCall -Method "GET" -Url $wsUrl -Description "Check if Workstation Exists"
-    try {
-        $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Get -Headers $headers
-        Log-ApiResponse -Status "SUCCESS" -Response $wsResponse
-        Write-Host "Successfully retrieved existing workstation information"
+    # Second API call - Register Workstation (PUT = create or update)
+    # Determine workstation type based on ComponentType
+    $typeCode = switch ($ComponentType) {
+        'LPA-SERVICE' { 'LPAS' }
+        'STOREHUB-SERVICE' { 'SHS' }
+        'FLOW-SERVICE' { 'EDGE' }
+        'RCS-SERVICE' { 'RCS' }
+        'POS' { 'POS' }
+        'WDM' { 'EDGE' }
+        default { 'POS' }
     }
-    catch {
-        if ($_.Exception.Response.StatusCode.value__ -eq 404) {
-            Write-Host "Workstation not found, creating new workstation..."
-            
-            # Determine workstation type based on ComponentType
-            $typeCode = switch ($ComponentType) {
-                'LPA-SERVICE' { 'LPAS' }
-                'STOREHUB-SERVICE' { 'SHS' }
-                'FLOW-SERVICE' { 'EDGE' }
-                'RCS-SERVICE' { 'RCS' }
-                'POS' { 'POS' }
-                'WDM' { 'EDGE' }
-                default { 'POS' }
-            }
 
-            # Create workstation payload
-            $wsCreateUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations"
-            $wsPayload = @{
-                workstation = @{
-                    key = @{
-                        workstationID = $WorkstationId
-                        businessUnitGroupID = $businessUnitGroupId
-                    }
-                    typeCode = $typeCode
-                    createTimestampUTC0 = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
-                }
-            } | ConvertTo-Json -Depth 10
+    $wsUrl = "https://$base_url/api/pos/master-data/rest/v1/workstations"
+    $wsPayload = @{
+        workstation = @{
+            key = @{
+                workstationID = $WorkstationId
+                businessUnitGroupID = $businessUnitGroupId
+            }
+            typeCode = $typeCode
+            createTimestampUTC0 = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
+        }
+    } | ConvertTo-Json -Depth 10
 
-            Log-ApiCall -Method "POST" -Url $wsCreateUrl -Description "Register Workstation to SDC (type: $typeCode)"
-            Write-Host "Payload: $wsPayload"
-            $wsResponse = Invoke-RestMethod -Uri $wsCreateUrl -Method Post -Headers $headers -Body $wsPayload
-            Log-ApiResponse -Status "SUCCESS" -Response $wsResponse
-            Write-Host "Successfully created new workstation"
-            
-            # Add a sleep for StoreHub components to allow time for backend processing
-            if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
-                Write-Host "==========================================================" -ForegroundColor Yellow
-                Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
-                Write-Host "==========================================================" -ForegroundColor Yellow
-                Start-Sleep -Seconds 120
-                Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
-                # Set flag to indicate we've already waited
-                $script:storeHubWaitComplete = $true
-            }
-        }
-        else {
-            Log-ApiResponse -Status "FAILURE" -Response $_.Exception.Message
-            Write-Host "Error accessing workstation:"
-            Write-Host $_
-            if ($_.Exception.Response) {
-                $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-                $reader.BaseStream.Position = 0
-                $reader.DiscardBufferedData()
-                $responseBody = $reader.ReadToEnd()
-                Write-Host "Response body: $responseBody"
-            }
-            exit 1
-        }
-    }
+    Log-ApiCall -Method "PUT" -Url $wsUrl -Description "Register Workstation to SDC (type: $typeCode)"
+    Write-Host "Payload: $wsPayload"
+    $wsResponse = Invoke-RestMethod -Uri $wsUrl -Method Put -Headers $headers -Body $wsPayload
+    Log-ApiResponse -Status "SUCCESS" -Response $wsResponse
+    Write-Host "Successfully registered workstation"
 
     # Save responses to files for reference
     $buResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "business-unit.json" -NoNewline
     $wsResponse | ConvertTo-Json -Depth 10 | Set-Content -Path "workstation.json" -NoNewline
     Write-Host "Saved response data to business-unit.json and workstation.json"
-    
-    # Always ensure we wait for StoreHub even if the workstation existed already
+
+    # Wait for StoreHub components to allow time for backend processing
     if ($ComponentType -eq 'STOREHUB-SERVICE' -or $ComponentType -eq 'SH') {
-        # Check if we haven't already waited
-        if (-not $script:storeHubWaitComplete) {
-            Write-Host "==========================================================" -ForegroundColor Yellow
-            Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
-            Write-Host "==========================================================" -ForegroundColor Yellow
-            Start-Sleep -Seconds 120
-            Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
-            $script:storeHubWaitComplete = $true
-        } else {
-            Write-Host "StoreHub wait already completed. Skipping additional wait."
-        }
+        Write-Host "==========================================================" -ForegroundColor Yellow
+        Write-Host "Waiting 2 minutes for backend to complete StoreHub workstation processing..." -ForegroundColor Yellow
+        Write-Host "==========================================================" -ForegroundColor Yellow
+        Start-Sleep -Seconds 120
+        Write-Host "Wait complete. Resuming operations." -ForegroundColor Green
     }
     
     # Exit successfully

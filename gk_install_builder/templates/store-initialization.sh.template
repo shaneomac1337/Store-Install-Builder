@@ -788,100 +788,61 @@ fi
 
 echo "Found businessUnitGroupID: $business_unit_group_id"
 
-# Second API call - Try to Get Workstation first
-ws_url="https://$base_url/api/pos/master-data/rest/v1/workstations/(businessUnitGroupId=$business_unit_group_id,workstationId=$WORKSTATION_ID)"
-log_api_call "GET" "$ws_url" "Check if Workstation Exists"
-ws_response=$(curl -s -f -X GET "$ws_url" "${headers[@]}" || echo "HTTP_ERROR")
+# Second API call - Register Workstation (PUT = create or update)
+# Determine workstation type based on ComponentType
+case "$COMPONENT_TYPE" in
+  'LPA-SERVICE')
+    type_code="LPAS"
+    ;;
+  'STOREHUB-SERVICE')
+    type_code="SHS"
+    ;;
+  'FLOW-SERVICE')
+    type_code="EDGE"
+    ;;
+  'RCS-SERVICE')
+    type_code="RCS"
+    ;;
+  'POS')
+    type_code="POS"
+    ;;
+  'WDM')
+    type_code="EDGE"
+    ;;
+  *)
+    type_code="POS"
+    ;;
+esac
 
-if [ "$ws_response" = "HTTP_ERROR" ]; then
-  # Check if it's a 404 error
-  status_code=$(curl -s -o /dev/null -w "%{http_code}" "$ws_url" "${headers[@]}")
-  
-  if [ "$status_code" = "404" ]; then
-    echo "Workstation not found, creating new workstation..."
-    
-    # Determine workstation type based on ComponentType
-    case "$COMPONENT_TYPE" in
-      'LPA-SERVICE')
-        type_code="LPAS"
-        ;;
-      'STOREHUB-SERVICE')
-        type_code="SHS"
-        ;;
-      'FLOW-SERVICE')
-        type_code="EDGE"
-        ;;
-      'RCS-SERVICE')
-        type_code="RCS"
-        ;;
-      'POS')
-        type_code="POS"
-        ;;
-      'WDM')
-        type_code="EDGE"
-        ;;
-      *)
-        type_code="POS"
-        ;;
-    esac
+current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
 
-    # Create workstation payload
-    current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-    ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
-    
-    ws_create_url="https://$base_url/api/pos/master-data/rest/v1/workstations"
-    log_api_call "POST" "$ws_create_url" "Register Workstation to SDC (type: $type_code)"
-    echo "Payload: $ws_payload"
-    ws_response=$(curl -s -f -X POST "$ws_create_url" "${headers[@]}" -d "$ws_payload")
-    
-    if [ $? -ne 0 ]; then
-      log_api_response "FAILURE" "$ws_response"
-      echo "Error creating workstation"
-      echo "Response: $ws_response"
-      exit 1
-    fi
-    log_api_response "SUCCESS" "$ws_response"
-    echo "Successfully created new workstation"
-    
-    # Add a sleep for StoreHub components to allow time for backend processing
-    if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
-      echo -e "\033[33m=================================================================\033[0m"
-      echo -e "\033[33mWaiting 2 minutes for backend to complete StoreHub workstation processing...\033[0m"
-      echo -e "\033[33m=================================================================\033[0m"
-      sleep 120
-      echo -e "\033[32mWait complete. Resuming operations.\033[0m"
-      # Set flag to indicate we've already waited
-      storehub_wait_complete=1
-    fi
-  else
-    log_api_response "FAILURE" "Status code: $status_code"
-    echo "Error accessing workstation. Status code: $status_code"
-    echo "Response: $ws_response"
-    exit 1
-  fi
-else
-  log_api_response "SUCCESS" "$ws_response"
-  echo "Successfully retrieved existing workstation information"
+ws_url="https://$base_url/api/pos/master-data/rest/v1/workstations"
+log_api_call "PUT" "$ws_url" "Register Workstation to SDC (type: $type_code)"
+echo "Payload: $ws_payload"
+ws_response=$(curl -s -f -X PUT "$ws_url" "${headers[@]}" -d "$ws_payload")
+
+if [ $? -ne 0 ]; then
+  log_api_response "FAILURE" "$ws_response"
+  echo "Error registering workstation"
+  echo "Response: $ws_response"
+  exit 1
 fi
+log_api_response "SUCCESS" "$ws_response"
+echo "Successfully registered workstation"
 
 # Save responses to files
 echo "$bu_response" > "business-unit.json"
 echo "$ws_response" > "workstation.json"
 echo "Saved response data to business-unit.json and workstation.json"
 
-# Always ensure we wait for StoreHub even if the workstation existed already
+# Wait for StoreHub components to allow time for backend processing
 if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then
-  # Check if we haven't already waited
-  if [ "$storehub_wait_complete" -ne 1 ]; then
-    echo -e "\033[33m=================================================================\033[0m"
-    echo -e "\033[33mWaiting 2 minutes for backend to complete StoreHub workstation processing...\033[0m"
-    echo -e "\033[33m=================================================================\033[0m"
-    sleep 120
-    echo -e "\033[32mWait complete. Resuming operations.\033[0m"
-    storehub_wait_complete=1
-  else
-    echo "StoreHub wait already completed. Skipping additional wait."
-  fi
+  echo -e "\033[33m=================================================================\033[0m"
+  echo -e "\033[33mWaiting 2 minutes for backend to complete StoreHub workstation processing...\033[0m"
+  echo -e "\033[33m=================================================================\033[0m"
+  sleep 120
+  echo -e "\033[32mWait complete. Resuming operations.\033[0m"
 fi
 
 # Exit successfully
