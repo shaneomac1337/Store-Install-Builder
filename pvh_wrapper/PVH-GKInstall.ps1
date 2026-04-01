@@ -443,105 +443,195 @@ try {
 }
 
 # ============================================================
-# 7. CHECK RESULT & ROLLBACK IF NEEDED
+# 7. CHECK GKINSTALL RESULT
 # ============================================================
 if ($gkInstallFailed) {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Red
     Write-Host " GKInstall FAILED (exit code: $exitCode)" -ForegroundColor Red
     Write-Host "========================================" -ForegroundColor Red
+} else {
+    Write-Host ""
+    Write-Host "[PVH] GKInstall.ps1 completed successfully (exit code: 0)." -ForegroundColor Green
 
-    if ($backupCreated) {
+    # ============================================================
+    # 8. POST-INSTALL HEALTH CHECK
+    # ============================================================
+    if (-not $SkipHealthCheck -and $enableHealthCheck -and -not $SkipBackup) {
         Write-Host ""
-        Write-Host "[PVH] Rolling back to pre-migration state..." -ForegroundColor Yellow
+        Write-Host "========================================" -ForegroundColor Cyan
+        Write-Host " Post-Install Health Check" -ForegroundColor Cyan
+        Write-Host "========================================" -ForegroundColor Cyan
+        $healthCheckPassed = $true
+        $healthCheckReason = ""
 
-        # Step 0: Release file handles before rollback renames
-        $handleExeRollback = Join-Path $PSScriptRoot "handle.exe"
-        if (Test-Path $handleExeRollback) {
-            foreach ($rollbackDir in @($backupSource, $backupDest)) {
-                if (Test-Path $rollbackDir) {
-                    Write-Host "[PVH] Releasing file handles in $rollbackDir..." -ForegroundColor Yellow
-                    try {
-                        $handleOutput = & $handleExeRollback /accepteula -nobanner $rollbackDir 2>&1
-                        foreach ($line in $handleOutput) {
-                            if ($line -match 'pid:\s*(\d+)\s+type:\s*\w+\s+([0-9A-Fa-f]+):') {
-                                & $handleExeRollback -c $Matches[2] -y -p $Matches[1] 2>&1 | Out-Null
-                            }
-                        }
-                    } catch {
-                        Write-Host "[PVH] WARNING: handle.exe failed during rollback: $($_.Exception.Message)" -ForegroundColor Yellow
+        # Check 1: ONEX folder exists
+        Write-Host "[PVH] [1/3] Checking $healthCheckOnexPath exists... " -NoNewline
+        if (Test-Path $healthCheckOnexPath) {
+            Write-Host "OK" -ForegroundColor Green
+        } else {
+            Write-Host "FAILED" -ForegroundColor Red
+            $healthCheckPassed = $false
+            $healthCheckReason = "ONEX folder not found at $healthCheckOnexPath"
+        }
+
+        # Check 2: station.properties exists (only if check 1 passed)
+        if ($healthCheckPassed) {
+            Write-Host "[PVH] [2/3] Checking $healthCheckStationFile exists... " -NoNewline
+            if (Test-Path $healthCheckStationFile) {
+                Write-Host "OK" -ForegroundColor Green
+            } else {
+                Write-Host "FAILED" -ForegroundColor Red
+                $healthCheckPassed = $false
+                $healthCheckReason = "station.properties not found at $healthCheckStationFile"
+            }
+        }
+
+        # Check 3: Java process on port (only if checks 1-2 passed)
+        if ($healthCheckPassed) {
+            $maxAttempts = [math]::Ceiling($healthCheckTimeout / $healthCheckInterval)
+            Write-Host "[PVH] [3/3] Waiting for Java process on port $healthCheckPort (timeout: $($healthCheckTimeout / 60)m)..."
+            $portCheckPassed = $false
+
+            for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                Start-Sleep -Seconds $healthCheckInterval
+                $elapsed = $attempt * $healthCheckInterval
+                $minutes = [math]::Floor($elapsed / 60)
+                $seconds = $elapsed % 60
+                $timeStr = "${minutes}:$("{0:D2}" -f $seconds)"
+
+                Write-Host "[PVH]        Attempt $attempt/$maxAttempts ($timeStr elapsed)... " -NoNewline
+
+                $conn = Get-NetTCPConnection -LocalPort $healthCheckPort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($conn) {
+                    $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+                    if ($proc -and $proc.ProcessName -like "*java*") {
+                        Write-Host "Java process detected on port $healthCheckPort (PID: $($proc.Id)). OK" -ForegroundColor Green
+                        $portCheckPassed = $true
+                        break
+                    } else {
+                        $procName = if ($proc) { $proc.ProcessName } else { "unknown" }
+                        Write-Host "port in use but not Java (process: $procName)" -ForegroundColor Yellow
                     }
+                } else {
+                    Write-Host "not yet" -ForegroundColor Gray
+                }
+            }
+
+            if (-not $portCheckPassed) {
+                $healthCheckPassed = $false
+                $healthCheckReason = "No Java process listening on port $healthCheckPort after $healthCheckTimeout seconds"
+            }
+        }
+
+        # Result
+        if ($healthCheckPassed) {
+            Write-Host ""
+            Write-Host "[PVH] === Health Check PASSED ===" -ForegroundColor Green
+        } else {
+            Write-Host ""
+            Write-Host "[PVH] === Health Check FAILED ===" -ForegroundColor Red
+            Write-Host "[PVH] Reason: $healthCheckReason" -ForegroundColor Red
+            $gkInstallFailed = $true
+            $exitCode = 1
+        }
+    } elseif ($SkipHealthCheck -or -not $enableHealthCheck) {
+        Write-Host "[PVH] Health check skipped." -ForegroundColor Yellow
+    }
+}
+
+# ============================================================
+# 9. ROLLBACK IF NEEDED (GKInstall failure OR health check failure)
+# ============================================================
+if ($gkInstallFailed -and $backupCreated) {
+    Write-Host ""
+    Write-Host "[PVH] Rolling back to pre-migration state..." -ForegroundColor Yellow
+
+    # Step 0: Release file handles before rollback renames
+    $handleExeRollback = Join-Path $PSScriptRoot "handle.exe"
+    if (Test-Path $handleExeRollback) {
+        foreach ($rollbackDir in @($backupSource, $backupDest)) {
+            if (Test-Path $rollbackDir) {
+                Write-Host "[PVH] Releasing file handles in $rollbackDir..." -ForegroundColor Yellow
+                try {
+                    $handleOutput = & $handleExeRollback /accepteula -nobanner $rollbackDir 2>&1
+                    foreach ($line in $handleOutput) {
+                        if ($line -match 'pid:\s*(\d+)\s+type:\s*\w+\s+([0-9A-Fa-f]+):') {
+                            & $handleExeRollback -c $Matches[2] -y -p $Matches[1] 2>&1 | Out-Null
+                        }
+                    }
+                } catch {
+                    Write-Host "[PVH] WARNING: handle.exe failed during rollback: $($_.Exception.Message)" -ForegroundColor Yellow
                 }
             }
         }
+    }
 
-        # Step 1: Rename failed installation out of the way
-        if (Test-Path $backupSource) {
-            try {
-                Rename-Item -Path $backupSource -NewName (Split-Path $backupFailed -Leaf) -ErrorAction Stop
-                Write-Host "[PVH] Renamed failed installation to $backupFailed" -ForegroundColor Gray
-            } catch {
-                Write-Host "[PVH] ERROR: Cannot rename failed $backupSource to $backupFailed" -ForegroundColor Red
-                Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host "[PVH]        MANUAL RECOVERY: Restore from $backupDest" -ForegroundColor Red
-                exit $exitCode
-            }
-        }
-
-        # Step 2: Restore backup
+    # Step 1: Rename failed installation out of the way
+    if (Test-Path $backupSource) {
         try {
-            Rename-Item -Path $backupDest -NewName (Split-Path $backupSource -Leaf) -ErrorAction Stop
-            Write-Host "[PVH] Restored backup to $backupSource" -ForegroundColor Green
+            Rename-Item -Path $backupSource -NewName (Split-Path $backupFailed -Leaf) -ErrorAction Stop
+            Write-Host "[PVH] Renamed failed installation to $backupFailed" -ForegroundColor Gray
         } catch {
-            Write-Host "[PVH] ERROR: Cannot restore backup from $backupDest" -ForegroundColor Red
+            Write-Host "[PVH] ERROR: Cannot rename failed $backupSource to $backupFailed" -ForegroundColor Red
             Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
-            Write-Host "[PVH]        MANUAL RECOVERY: Rename $backupDest to $backupSource" -ForegroundColor Red
+            Write-Host "[PVH]        MANUAL RECOVERY: Restore from $backupDest" -ForegroundColor Red
             exit $exitCode
         }
-
-        # Step 3: Clean up failed installation (best-effort)
-        if (Test-Path $backupFailed) {
-            Remove-Item -Path $backupFailed -Recurse -Force -ErrorAction SilentlyContinue
-            if (Test-Path $backupFailed) {
-                Write-Host "[PVH] WARNING: Could not remove $backupFailed (locked files). Will be cleaned up on next run." -ForegroundColor Yellow
-            }
-        }
-
-        # Step 4: Restart service
-        $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
-        if ($svc) {
-            Write-Host "[PVH] Restarting service: $serviceName..." -ForegroundColor Yellow
-            try {
-                Start-Service -Name $serviceName -ErrorAction Stop
-                (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
-                Write-Host "[PVH] Service $serviceName started." -ForegroundColor Green
-            } catch {
-                Write-Host "[PVH] WARNING: Service $serviceName did not reach Running state." -ForegroundColor Yellow
-                Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
-                Write-Host "[PVH]          You may need to start it manually." -ForegroundColor Yellow
-            }
-        }
-
-        # Step 5: Launch POS application (cd into directory first, then run)
-        $posFullDir  = Join-Path $backupSource "pos-full"
-        $runTposCmd  = "run_tpos_PVH.cmd"
-        $runTposPath = Join-Path $posFullDir $runTposCmd
-        if (Test-Path $runTposPath) {
-            Write-Host "[PVH] Launching $runTposCmd from $posFullDir..." -ForegroundColor Yellow
-            Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$posFullDir`" && $runTposCmd" -WorkingDirectory $posFullDir
-            Write-Host "[PVH] POS application launched." -ForegroundColor Green
-        } else {
-            Write-Host "[PVH] WARNING: $runTposPath not found - skipping POS launch." -ForegroundColor Yellow
-        }
-
-        Write-Host ""
-        Write-Host "[PVH] Rollback complete. System restored to pre-migration state." -ForegroundColor Green
-    } else {
-        Write-Host "[PVH] No backup was created (source did not exist) - nothing to rollback." -ForegroundColor Yellow
     }
-} else {
+
+    # Step 2: Restore backup
+    try {
+        Rename-Item -Path $backupDest -NewName (Split-Path $backupSource -Leaf) -ErrorAction Stop
+        Write-Host "[PVH] Restored backup to $backupSource" -ForegroundColor Green
+    } catch {
+        Write-Host "[PVH] ERROR: Cannot restore backup from $backupDest" -ForegroundColor Red
+        Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "[PVH]        MANUAL RECOVERY: Rename $backupDest to $backupSource" -ForegroundColor Red
+        exit $exitCode
+    }
+
+    # Step 3: Clean up failed installation (best-effort)
+    if (Test-Path $backupFailed) {
+        Remove-Item -Path $backupFailed -Recurse -Force -ErrorAction SilentlyContinue
+        if (Test-Path $backupFailed) {
+            Write-Host "[PVH] WARNING: Could not remove $backupFailed (locked files). Will be cleaned up on next run." -ForegroundColor Yellow
+        }
+    }
+
+    # Step 4: Restart service
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if ($svc) {
+        Write-Host "[PVH] Restarting service: $serviceName..." -ForegroundColor Yellow
+        try {
+            Start-Service -Name $serviceName -ErrorAction Stop
+            (Get-Service -Name $serviceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+            Write-Host "[PVH] Service $serviceName started." -ForegroundColor Green
+        } catch {
+            Write-Host "[PVH] WARNING: Service $serviceName did not reach Running state." -ForegroundColor Yellow
+            Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "[PVH]          You may need to start it manually." -ForegroundColor Yellow
+        }
+    }
+
+    # Step 5: Launch POS application (cd into directory first, then run)
+    $posFullDir  = Join-Path $backupSource "pos-full"
+    $runTposCmd  = "run_tpos_PVH.cmd"
+    $runTposPath = Join-Path $posFullDir $runTposCmd
+    if (Test-Path $runTposPath) {
+        Write-Host "[PVH] Launching $runTposCmd from $posFullDir..." -ForegroundColor Yellow
+        Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$posFullDir`" && $runTposCmd" -WorkingDirectory $posFullDir
+        Write-Host "[PVH] POS application launched." -ForegroundColor Green
+    } else {
+        Write-Host "[PVH] WARNING: $runTposPath not found - skipping POS launch." -ForegroundColor Yellow
+    }
+
     Write-Host ""
-    Write-Host "[PVH] GKInstall.ps1 completed successfully." -ForegroundColor Green
+    Write-Host "[PVH] Rollback complete. System restored to pre-migration state." -ForegroundColor Green
+} elseif ($gkInstallFailed -and -not $backupCreated) {
+    Write-Host "[PVH] No backup was created (source did not exist) - nothing to rollback." -ForegroundColor Yellow
+} else {
+    # Success
     if ($backupCreated) {
         Write-Host "[PVH] Backup preserved at: $backupDest" -ForegroundColor Gray
     }
