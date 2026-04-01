@@ -59,8 +59,9 @@ param(
     [string]$VersionOverride,
 
     # PVH-specific parameters
-    [string]$HostnameOverride,  # Override hostname for testing
-    [switch]$SkipBackup           # Skip backup/rollback mechanism
+    [string]$HostnameOverride,    # Override hostname for testing
+    [switch]$SkipBackup,          # Skip backup/rollback mechanism
+    [switch]$SkipHealthCheck      # Skip post-install health check
 )
 
 # ============================================================
@@ -79,6 +80,18 @@ $hostnamePattern = '^(?:[A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})T?$'
 # Example: "PVHTST2" for test, "PVHPRD" for production
 # ============================================================
 $pvhEnvironment = "PVHTST2"
+
+# ============================================================
+# CONFIGURABLE HEALTH CHECK
+# Post-install verification: checks ONEX folder, station.properties,
+# and Java process on port 3333. Triggers rollback on failure.
+# ============================================================
+$enableHealthCheck    = $true    # Set to $false to disable health checks entirely
+$healthCheckTimeout   = 600      # Max seconds to wait for port 3333 (default: 10 minutes)
+$healthCheckInterval  = 30       # Seconds between port check attempts (default: 30s)
+$healthCheckOnexPath  = "C:\gkretail\onex"
+$healthCheckStationFile = "C:\gkretail\onex\station.properties"
+$healthCheckPort      = 3333
 
 # ============================================================
 # 1. GET HOSTNAME
@@ -133,6 +146,7 @@ Write-Host "  Workstation ID:     $workstationId" -ForegroundColor Green
 Write-Host "  Auto-Confirm:       Yes (-y)" -ForegroundColor Green
 Write-Host "  Component Type:     $ComponentType"
 Write-Host "  Environment:        $pvhEnvironment" -ForegroundColor Green
+Write-Host "  Health Check:       $(if ($SkipHealthCheck -or -not $enableHealthCheck) { 'Disabled' } else { 'Enabled (port timeout: ' + $healthCheckTimeout + 's)' })" -ForegroundColor $(if ($SkipHealthCheck -or -not $enableHealthCheck) { 'Yellow' } else { 'Green' })
 Write-Host "----------------------------------------" -ForegroundColor Cyan
 Write-Host ""
 
@@ -394,6 +408,14 @@ if ($WhatIfPreference) {
     Write-Host "  4. Rename $backupDest -> $backupSource" -ForegroundColor Yellow
     Write-Host "  5. Start-Service $serviceName" -ForegroundColor Yellow
     Write-Host "  6. Launch $backupSource\pos-full\run_tpos_PVH.cmd" -ForegroundColor Yellow
+    if (-not $SkipHealthCheck -and $enableHealthCheck) {
+        Write-Host ""
+        Write-Host "[PVH] DRY RUN - After successful GKInstall, would perform health checks:" -ForegroundColor Yellow
+        Write-Host "  1. Check folder exists: $healthCheckOnexPath" -ForegroundColor Yellow
+        Write-Host "  2. Check file exists: $healthCheckStationFile" -ForegroundColor Yellow
+        Write-Host "  3. Poll for Java process on port $healthCheckPort (every ${healthCheckInterval}s, up to ${healthCheckTimeout}s)" -ForegroundColor Yellow
+        Write-Host "  4. On failure: trigger rollback" -ForegroundColor Yellow
+    }
     Write-Host ""
     Write-Host "[PVH] Dry run complete. No changes were made." -ForegroundColor Yellow
     exit 0
