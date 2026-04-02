@@ -311,6 +311,9 @@ if (-not $SkipBackup) {
                 # Grant Everyone full control on the top-level folder to ensure rename succeeds
                 & icacls.exe $backupSource /c /grant "*S-1-1-0:(OI)(CI)F" /t 2>&1 | Out-Null
                 Write-Host "[PVH] Granted full control on $backupSource" -ForegroundColor Green
+                # Wait for ACL changes to propagate across the directory tree
+                Write-Host "[PVH] Waiting 10s for permission changes to propagate..." -ForegroundColor Gray
+                Start-Sleep -Seconds 10
             } catch {
                 Write-Host "[PVH] WARNING: icacls failed: $($_.Exception.Message)" -ForegroundColor Yellow
                 Write-Host "[PVH]          Proceeding anyway - backup rename may fail due to permissions." -ForegroundColor Yellow
