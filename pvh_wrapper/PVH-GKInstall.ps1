@@ -353,16 +353,34 @@ if (-not $SkipBackup) {
                 }
             }
 
-            Write-Host "[PVH] Backing up $backupSource -> $backupDest..." -ForegroundColor Yellow
-            try {
-                Rename-Item -Path $backupSource -NewName (Split-Path $backupDest -Leaf) -ErrorAction Stop
-                $backupCreated = $true
-                Write-Host "[PVH] Backup complete." -ForegroundColor Green
-            } catch {
-                Write-Host "[PVH] ERROR: Failed to backup $backupSource" -ForegroundColor Red
-                Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
-                Write-Host "[PVH]        Cannot proceed without backup. Aborting." -ForegroundColor Red
-                exit 1
+            $backupMaxRetries = 3
+            $backupRetryDelay = 10
+            $backupSucceeded  = $false
+
+            for ($attempt = 1; $attempt -le $backupMaxRetries; $attempt++) {
+                if ($attempt -eq 1) {
+                    Write-Host "[PVH] Backing up $backupSource -> $backupDest..." -ForegroundColor Yellow
+                } else {
+                    Write-Host "[PVH] Backing up $backupSource -> $backupDest... (attempt $attempt/$backupMaxRetries)" -ForegroundColor Yellow
+                }
+                try {
+                    Rename-Item -Path $backupSource -NewName (Split-Path $backupDest -Leaf) -ErrorAction Stop
+                    $backupCreated  = $true
+                    $backupSucceeded = $true
+                    Write-Host "[PVH] Backup complete." -ForegroundColor Green
+                    break
+                } catch {
+                    if ($attempt -lt $backupMaxRetries) {
+                        Write-Host "[PVH] WARNING: Backup rename failed (attempt $attempt/$backupMaxRetries): $($_.Exception.Message)" -ForegroundColor Yellow
+                        Write-Host "[PVH]          Retrying in ${backupRetryDelay}s..." -ForegroundColor Yellow
+                        Start-Sleep -Seconds $backupRetryDelay
+                    } else {
+                        Write-Host "[PVH] ERROR: Failed to backup $backupSource after $backupMaxRetries attempts." -ForegroundColor Red
+                        Write-Host "[PVH]        Error: $($_.Exception.Message)" -ForegroundColor Red
+                        Write-Host "[PVH]        Cannot proceed without backup. Aborting." -ForegroundColor Red
+                        exit 1
+                    }
+                }
             }
         }
     }
