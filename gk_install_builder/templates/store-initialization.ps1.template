@@ -535,10 +535,25 @@ try {
                 }
 
                 if ($updateConfigJson) {
-                    # Get hostname
-                    $hostname = $env:COMPUTERNAME
-                    if ([string]::IsNullOrEmpty($hostname)) {
-                        $hostname = "localhost"
+                    # Resolve host identifier based on URL mode
+                    $rcsUrlMode = "@RCS_URL_MODE@"
+                    if ($rcsUrlMode -eq "ip") {
+                        # Get IP address from the adapter with default gateway
+                        $hostIdentifier = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway }) |
+                            Select-Object -First 1 |
+                            ForEach-Object { $_.IPv4Address.IPAddress }
+                        if ([string]::IsNullOrEmpty($hostIdentifier)) {
+                            Write-Host "Warning: Could not detect IP address from default gateway adapter, falling back to hostname" -ForegroundColor Yellow
+                            $hostIdentifier = $env:COMPUTERNAME
+                        } else {
+                            Write-Host "Detected IP address from default gateway adapter: $hostIdentifier" -ForegroundColor Green
+                        }
+                    } else {
+                        # Use hostname (default)
+                        $hostIdentifier = $env:COMPUTERNAME
+                        if ([string]::IsNullOrEmpty($hostIdentifier)) {
+                            $hostIdentifier = "localhost"
+                        }
                     }
 
                     # Get version from parameter or fallback to config
@@ -550,8 +565,8 @@ try {
                         Write-Host "Using fallback version from config: $version"
                     }
 
-                    # Build the RCS URL (uses HTTP, port from launcher settings)
-                    $rcsUrl = "@RCS_PROTOCOL@://${hostname}:@RCS_PORT@/rcs"
+                    # Build the RCS URL
+                    $rcsUrl = "@RCS_PROTOCOL@://${hostIdentifier}:@RCS_PORT@/rcs"
 
                     # Always recreate processed copy from original template (ensures fresh placeholders)
                     $updateConfigJson | Set-Content -Path $processedUpdateConfigPath -NoNewline

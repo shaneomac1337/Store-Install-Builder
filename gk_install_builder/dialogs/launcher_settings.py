@@ -171,32 +171,79 @@ class LauncherSettingsEditor:
 
                 row += 1
 
-            # Add RCS HTTPS checkbox to the RCS-SERVICE tab
+            # Add RCS URL mode and HTTPS options to the RCS-SERVICE tab
             if component_type == "RCS-SERVICE":
                 separator = ctk.CTkFrame(scrollable_settings, height=2, fg_color="gray50")
                 separator.grid(row=row, column=0, sticky="ew", padx=5, pady=10)
                 row += 1
 
+                # RCS URL Mode radio buttons
+                mode_label = ctk.CTkLabel(scrollable_settings, text="RCS URL Mode:", anchor="w")
+                mode_label.grid(row=row, column=0, sticky="w", padx=10, pady=(5, 0))
+                row += 1
+
+                mode_frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
+                mode_frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
+
+                self.rcs_url_mode_var = ctk.StringVar(
+                    value=self.config_manager.config.get("rcs_url_mode", "hostname")
+                )
+
+                hostname_rb = ctk.CTkRadioButton(
+                    mode_frame,
+                    text="Hostname",
+                    variable=self.rcs_url_mode_var,
+                    value="hostname",
+                    command=self._on_rcs_url_mode_changed
+                )
+                hostname_rb.pack(side="left", padx=10, pady=5)
+                create_tooltip(hostname_rb,
+                    "Use the machine's hostname for the RCS service URL.\n"
+                    "Example: http://STORE-PC-01:8180/rcs",
+                    parent_window=self.window)
+
+                ip_rb = ctk.CTkRadioButton(
+                    mode_frame,
+                    text="IP Address",
+                    variable=self.rcs_url_mode_var,
+                    value="ip",
+                    command=self._on_rcs_url_mode_changed
+                )
+                ip_rb.pack(side="left", padx=10, pady=5)
+                create_tooltip(ip_rb,
+                    "Use the machine's IP address (from the default gateway adapter)\n"
+                    "for the RCS service URL. HTTPS is not available in this mode.\n"
+                    "Example: http://10.63.2.215:8180/rcs",
+                    parent_window=self.window)
+
+                row += 1
+
+                # HTTPS checkbox
                 https_frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
                 https_frame.grid(row=row, column=0, sticky="ew", padx=5, pady=5)
 
                 self.rcs_use_https_var = ctk.BooleanVar(
                     value=self.config_manager.config.get("rcs_use_https", False)
                 )
-                rcs_https_cb = ctk.CTkCheckBox(
+                self.rcs_https_cb = ctk.CTkCheckBox(
                     https_frame,
                     text="Use HTTPS for RCS URL",
                     variable=self.rcs_use_https_var,
                     onvalue=True, offvalue=False
                 )
-                rcs_https_cb.pack(side="left", padx=10, pady=5)
-                create_tooltip(rcs_https_cb,
+                self.rcs_https_cb.pack(side="left", padx=10, pady=5)
+                create_tooltip(self.rcs_https_cb,
                     "Use HTTPS protocol and HTTPS port for the RCS service URL.\n"
                     "When enabled, the store-initialization script will configure\n"
                     "RCS with https://<hostname>:<httpsPort>/rcs instead of\n"
-                    "http://<hostname>:<httpPort>/rcs.",
+                    "http://<hostname>:<httpPort>/rcs.\n"
+                    "Not available when using IP Address mode.",
                     parent_window=self.window)
 
+                # Apply initial state (disable HTTPS if IP mode)
+                self._on_rcs_url_mode_changed()
+
+                # Skip URL checkbox
                 skip_url_frame = ctk.CTkFrame(scrollable_settings, fg_color="transparent")
                 skip_url_frame.grid(row=row + 1, column=0, sticky="ew", padx=5, pady=5)
 
@@ -398,6 +445,14 @@ class LauncherSettingsEditor:
                 except Exception as e:
                     print(f"Error loading settings from template {filename}: {str(e)}")
 
+    def _on_rcs_url_mode_changed(self):
+        """Handle RCS URL mode radio button change - disable HTTPS when IP is selected"""
+        if self.rcs_url_mode_var.get() == "ip":
+            self.rcs_use_https_var.set(False)
+            self.rcs_https_cb.configure(state="disabled")
+        else:
+            self.rcs_https_cb.configure(state="normal")
+
     def save_settings(self):
         """Save settings to config and close the window"""
         # Update settings from entries
@@ -419,6 +474,8 @@ class LauncherSettingsEditor:
                 print(f"  {k}: {v}")
 
         # Save RCS settings
+        if hasattr(self, 'rcs_url_mode_var'):
+            self.config_manager.config["rcs_url_mode"] = self.rcs_url_mode_var.get()
         if hasattr(self, 'rcs_use_https_var'):
             self.config_manager.config["rcs_use_https"] = self.rcs_use_https_var.get()
         if hasattr(self, 'rcs_skip_url_var'):

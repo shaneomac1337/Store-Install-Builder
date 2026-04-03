@@ -134,6 +134,7 @@ class ConfigManager:
             "remove_overrides_after_install": False,  # Remove override XMLs from install dir after installation
             "rcs_use_https": False,  # Use HTTPS protocol and HTTPS port for RCS URL (default: HTTP)
             "rcs_skip_url_config": False,  # Skip setting the RCS URL in store-initialization
+            "rcs_url_mode": "hostname",  # RCS URL resolution mode: "hostname" or "ip" (IP disables HTTPS)
             
             # Component-specific versions
             "use_version_override": False,  # Flag to enable/disable version override

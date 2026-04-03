@@ -5,7 +5,7 @@
     ================================================================================
     GK Software Simplified Installer - WDM Override Configuration
     ================================================================================
-    Component: WDM (Workforce Device Manager)
+    Component: WDM (Wall Device Manager)
     Task File: wdm.xml
 
     File Location: ${INSTALL_PATH}/installer/overrides/installer_overrides.xml

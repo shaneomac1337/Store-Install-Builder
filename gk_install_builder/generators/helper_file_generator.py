@@ -101,9 +101,16 @@ def generate_store_init_script(output_dir, config, templates_dir):
         user_id = config.get("eh_launchpad_username", "1001")
         template_content = template_content.replace("${user_id}", user_id)
 
+        # Add RCS URL mode
+        rcs_url_mode = config.get("rcs_url_mode", "hostname")
+        template_content = template_content.replace("@RCS_URL_MODE@", rcs_url_mode)
+
         # Add RCS protocol and port from launcher settings
         rcs_launcher_settings = config.get("rcs_service_launcher_settings", {})
         rcs_use_https = config.get("rcs_use_https", False)
+        # IP mode forces HTTP (no valid certificate for raw IP addresses)
+        if rcs_url_mode == "ip":
+            rcs_use_https = False
         if rcs_use_https:
             rcs_protocol = "https"
             rcs_port = rcs_launcher_settings.get("applicationServerHttpsPort", "8543")

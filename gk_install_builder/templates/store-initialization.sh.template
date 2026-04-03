@@ -671,8 +671,25 @@ else
       fi
 
       if [ -n "$update_config_json" ]; then
-        # Get hostname
-        hostname=$(hostname 2>/dev/null || echo "localhost")
+        # Resolve host identifier based on URL mode
+        rcs_url_mode="@RCS_URL_MODE@"
+        if [ "$rcs_url_mode" = "ip" ]; then
+          # Get IP address from the adapter with default gateway
+          host_identifier=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1); exit}')
+          if [ -z "$host_identifier" ]; then
+            # Fallback: first non-loopback IP
+            host_identifier=$(hostname -I 2>/dev/null | awk '{print $1}')
+          fi
+          if [ -z "$host_identifier" ]; then
+            echo "Warning: Could not detect IP address from default gateway adapter, falling back to hostname"
+            host_identifier=$(hostname 2>/dev/null || echo "localhost")
+          else
+            echo "Detected IP address from default gateway adapter: $host_identifier"
+          fi
+        else
+          # Use hostname (default)
+          host_identifier=$(hostname 2>/dev/null || echo "localhost")
+        fi
 
         # Get version from parameter or fallback to config
         if [ -n "$VERSION" ]; then
@@ -683,8 +700,8 @@ else
           echo "Using fallback version from config: $version"
         fi
 
-        # Build the RCS URL (uses HTTP, port from launcher settings)
-        rcs_url="@RCS_PROTOCOL@://${hostname}:@RCS_PORT@/rcs"
+        # Build the RCS URL
+        rcs_url="@RCS_PROTOCOL@://${host_identifier}:@RCS_PORT@/rcs"
 
         # Always recreate processed copy from original template (ensures fresh placeholders)
         echo "$update_config_json" > "$processed_update_config_path"
