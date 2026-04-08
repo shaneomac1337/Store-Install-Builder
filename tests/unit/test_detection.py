@@ -206,3 +206,50 @@ class TestDetectionLogic:
             final_store = file_detected_store
 
         assert final_store == "R007"  # File should be used as fallback
+
+
+class TestWsidLeadingZeroStripping:
+    """Test workstation ID leading zero stripping configuration"""
+
+    def test_strip_leading_zeros_wsid_defaults_to_false(self):
+        """Test that strip_leading_zeros_wsid defaults to False"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        assert dm.is_strip_leading_zeros_wsid() is False
+
+    def test_enable_strip_leading_zeros_wsid(self):
+        """Test enabling strip_leading_zeros_wsid"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        dm.set_strip_leading_zeros_wsid(True)
+        assert dm.is_strip_leading_zeros_wsid() is True
+
+    def test_disable_strip_leading_zeros_wsid(self):
+        """Test disabling strip_leading_zeros_wsid after enabling"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        dm.set_strip_leading_zeros_wsid(True)
+        dm.set_strip_leading_zeros_wsid(False)
+        assert dm.is_strip_leading_zeros_wsid() is False
+
+    def test_strip_leading_zeros_wsid_in_get_config(self):
+        """Test that strip_leading_zeros_wsid appears in get_config output"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        config = dm.get_config()
+        assert "strip_leading_zeros_wsid" in config
+        assert config["strip_leading_zeros_wsid"] is False
+
+    def test_set_config_loads_strip_leading_zeros_wsid(self):
+        """Test that set_config correctly loads the setting"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        dm.set_config({"strip_leading_zeros_wsid": True})
+        assert dm.is_strip_leading_zeros_wsid() is True
+
+    def test_set_config_without_strip_leading_zeros_preserves_default(self):
+        """Test backward compatibility: missing key keeps default False"""
+        from gk_install_builder.detection import DetectionManager
+        dm = DetectionManager()
+        dm.set_config({"file_detection_enabled": True})
+        assert dm.is_strip_leading_zeros_wsid() is False

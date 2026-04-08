@@ -27,6 +27,7 @@ class DetectionManager:
                 "STOREHUB-SERVICE": "",
                 "RCS-SERVICE": ""
             },
+            "strip_leading_zeros_wsid": False,
             "hostname_detection": {
                 "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
                 "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
@@ -108,6 +109,14 @@ class DetectionManager:
         """Check if file detection is enabled"""
         return self.detection_config["file_detection_enabled"]
     
+    def is_strip_leading_zeros_wsid(self):
+        """Check if leading zeros should be stripped from workstation IDs"""
+        return self.detection_config.get("strip_leading_zeros_wsid", False)
+
+    def set_strip_leading_zeros_wsid(self, enabled=True):
+        """Set whether to strip leading zeros from workstation IDs"""
+        self.detection_config["strip_leading_zeros_wsid"] = enabled
+
     # Add alias methods for the renamed functions
     def enable_detection(self, enabled=True):
         """Enable or disable station detection (alias for enable_file_detection)"""
@@ -142,6 +151,9 @@ class DetectionManager:
                 if component in self.detection_config["detection_files"]:
                     self.detection_config["detection_files"][component] = path
                     
+        if "strip_leading_zeros_wsid" in config:
+            self.detection_config["strip_leading_zeros_wsid"] = config["strip_leading_zeros_wsid"]
+
         # Copy hostname detection settings if they exist
         if "hostname_detection" in config:
             for key, value in config["hostname_detection"].items():
