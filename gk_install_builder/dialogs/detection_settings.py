@@ -52,6 +52,7 @@ class DetectionSettingsDialog:
         self.windows_results_text = None
         self.linux_results_text = None
         self.hostname_env_detection_var = None
+        self.strip_wsid_zeros_var = None
         self.env_group_dropdown = None
         self.store_group_dropdown = None
         self.workstation_group_dropdown = None
@@ -691,6 +692,43 @@ Environment=P"""
             justify="left"
         ).pack(anchor="w", padx=10, pady=(5, 10))
 
+        # WSID Leading Zero Stripping
+        wsid_strip_frame = ctk.CTkFrame(tab_regex)
+        wsid_strip_frame.pack(fill="x", padx=10, pady=10)
+
+        ctk.CTkLabel(
+            wsid_strip_frame,
+            text="Workstation ID Transformation",
+            font=("Helvetica", 12, "bold")
+        ).pack(anchor="w", padx=10, pady=(5, 5))
+
+        # Create BooleanVar for WSID zero stripping
+        self.strip_wsid_zeros_var = ctk.BooleanVar(
+            value=self.detection_manager.is_strip_leading_zeros_wsid()
+        )
+
+        # Checkbox
+        strip_wsid_checkbox = ctk.CTkCheckBox(
+            wsid_strip_frame,
+            text="Remove leading zeros from Workstation ID",
+            variable=self.strip_wsid_zeros_var,
+            command=self.on_strip_wsid_toggle,
+            onvalue=True,
+            offvalue=False
+        )
+        strip_wsid_checkbox.pack(anchor="w", padx=10, pady=5)
+
+        # Explanation label
+        ctk.CTkLabel(
+            wsid_strip_frame,
+            text="Useful when hostname patterns produce zero-padded workstation IDs (e.g., '01' becomes '1'). "
+                 "Applies to all detection sources: hostname, file, CLI, and manual input.",
+            text_color="#b0b0b0",
+            font=("Helvetica", 11),
+            wraplength=650,
+            justify="left"
+        ).pack(anchor="w", padx=10, pady=(0, 5))
+
         # Group mapping configuration
         self.group_mapping_frame = ctk.CTkFrame(env_detection_frame)
         self.group_mapping_frame.pack(fill="x", padx=10, pady=(5, 10))
@@ -1009,7 +1047,12 @@ Environment=P"""
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
                     if "store_number" in result:
                         results_text.insert("end", f"Extracted Store Number: {result['store_number']}\n")
-                    results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
+                    ws_id = result['workstation_id']
+                    if self.strip_wsid_zeros_var and self.strip_wsid_zeros_var.get() and ws_id.lstrip('0') and ws_id != ws_id.lstrip('0'):
+                        stripped = str(int(ws_id))
+                        results_text.insert("end", f"Workstation ID: {ws_id} \u2192 {stripped}\n")
+                    else:
+                        results_text.insert("end", f"Workstation ID: {ws_id}\n")
                     if "is_valid_store" in result:
                         valid_indicator = "[OK]" if result["is_valid_store"] else "[FAIL]"
                         results_text.insert("end", f"{valid_indicator} Store ID format: " +
@@ -1021,7 +1064,12 @@ Environment=P"""
                 else:
                     # Linux has more detailed results
                     results_text.insert("end", f"Store ID: {result['store_id']}\n")
-                    results_text.insert("end", f"Workstation ID: {result['workstation_id']}\n")
+                    ws_id = result['workstation_id']
+                    if self.strip_wsid_zeros_var and self.strip_wsid_zeros_var.get() and ws_id.lstrip('0') and ws_id != ws_id.lstrip('0'):
+                        stripped = str(int(ws_id))
+                        results_text.insert("end", f"Workstation ID: {ws_id} \u2192 {stripped}\n")
+                    else:
+                        results_text.insert("end", f"Workstation ID: {ws_id}\n")
                     # Add validation results
                     if "is_valid_store" in result:
                         valid_indicator = "[OK]" if result["is_valid_store"] else "[FAIL]"
@@ -1133,6 +1181,11 @@ Environment=P"""
 
         # Update UI to show/hide environment dropdown
         self.update_detection_ui()
+
+    def on_strip_wsid_toggle(self):
+        """Handle WSID leading zero stripping checkbox toggle"""
+        enabled = self.strip_wsid_zeros_var.get()
+        self.detection_manager.set_strip_leading_zeros_wsid(enabled)
 
     def apply_3group_pattern_silent(self):
         """Apply the 3-group pattern template without showing messagebox"""
