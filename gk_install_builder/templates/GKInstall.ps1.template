@@ -1900,6 +1900,8 @@ if (![string]::IsNullOrEmpty($cliWorkstationId)) {
     $workstationId = $cliWorkstationId
 }
 
+# WSID_STRIP_LEADING_ZEROS_PLACEHOLDER
+
 # Print final results
 Write-Host "-------------------"
 Write-Host "StoreNr   : $storeNumber"

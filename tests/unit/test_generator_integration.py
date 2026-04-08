@@ -561,6 +561,188 @@ class TestEndToEndValidation:
             assert subdir_path.is_dir()
 
 
+class TestWsidLeadingZeroStrippingGeneration:
+    """Test that strip_leading_zeros_wsid setting affects generated scripts"""
+
+    def test_ps1_contains_stripping_when_enabled(self, tmp_path):
+        """Test PowerShell script contains integer conversion when enabled"""
+        config = create_config(
+            platform="Windows",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "C:\\gkretail\\stations",
+                "strip_leading_zeros_wsid": True,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        ps1_path = tmp_path / "GKInstall.ps1"
+        content = ps1_path.read_text()
+        assert "[string][int]$workstationId" in content
+
+    def test_ps1_no_stripping_when_disabled(self, tmp_path):
+        """Test PowerShell script does NOT contain integer conversion when disabled"""
+        config = create_config(
+            platform="Windows",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "C:\\gkretail\\stations",
+                "strip_leading_zeros_wsid": False,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        ps1_path = tmp_path / "GKInstall.ps1"
+        content = ps1_path.read_text()
+        assert "[string][int]$workstationId" not in content
+
+    def test_bash_contains_stripping_when_enabled(self, tmp_path):
+        """Test Bash script contains integer conversion when enabled"""
+        config = create_config(
+            platform="Linux",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "/usr/local/gkretail/stations",
+                "strip_leading_zeros_wsid": True,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        sh_path = tmp_path / "GKInstall.sh"
+        content = sh_path.read_text()
+        assert "workstationId=$(( 10#$workstationId ))" in content
+
+    def test_bash_no_stripping_when_disabled(self, tmp_path):
+        """Test Bash script does NOT contain integer conversion when disabled"""
+        config = create_config(
+            platform="Linux",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "/usr/local/gkretail/stations",
+                "strip_leading_zeros_wsid": False,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        sh_path = tmp_path / "GKInstall.sh"
+        content = sh_path.read_text()
+        assert "workstationId=$(( 10#$workstationId ))" not in content
+
+    def test_ps1_stripping_before_print_results(self, tmp_path):
+        """Test that stripping line appears before Print final results in PS1"""
+        config = create_config(
+            platform="Windows",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "C:\\gkretail\\stations",
+                "strip_leading_zeros_wsid": True,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        ps1_path = tmp_path / "GKInstall.ps1"
+        content = ps1_path.read_text()
+        strip_pos = content.index("[string][int]$workstationId")
+        print_pos = content.index("# Print final results")
+        assert strip_pos < print_pos
+
+    def test_bash_stripping_before_print_results(self, tmp_path):
+        """Test that stripping line appears before Print final results in Bash"""
+        config = create_config(
+            platform="Linux",
+            use_hostname_detection=True,
+            detection_config={
+                "file_detection_enabled": True,
+                "use_base_directory": True,
+                "base_directory": "/usr/local/gkretail/stations",
+                "strip_leading_zeros_wsid": True,
+                "hostname_detection": {
+                    "windows_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "linux_regex": r"^([0-9]{4})-([0-9]{3})$",
+                    "test_hostname": "1234-101",
+                    "detect_environment": False,
+                    "store_group": 1,
+                    "workstation_group": 2
+                }
+            },
+            output_dir=str(tmp_path)
+        )
+        from gk_install_builder.generator import ProjectGenerator
+        generator = ProjectGenerator()
+        generator.generate(config)
+
+        sh_path = tmp_path / "GKInstall.sh"
+        content = sh_path.read_text()
+        strip_pos = content.index("workstationId=$(( 10#$workstationId ))")
+        print_pos = content.index("# Print final results")
+        assert strip_pos < print_pos
+
+
 # ============================================================================
 # Quick Test Summary
 # ============================================================================

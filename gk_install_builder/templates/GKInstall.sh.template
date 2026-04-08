@@ -2344,6 +2344,8 @@ if [ -n "$cliWorkstationId" ]; then
   workstationId="$cliWorkstationId"
 fi
 
+# WSID_STRIP_LEADING_ZEROS_PLACEHOLDER
+
 # Print final results
 echo "-------------------"
 echo "StoreNr   : $storeNumber"

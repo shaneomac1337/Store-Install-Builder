@@ -958,6 +958,25 @@ fi
             else:
                 print(f"Warning: Could not find insertion point for station detection code in Bash script")
 
+        # Handle WSID leading zero stripping placeholder
+        strip_wsid_zeros = detection_manager.is_strip_leading_zeros_wsid()
+        if strip_wsid_zeros:
+            if platform == "Windows":
+                wsid_strip_code = """# Strip leading zeros from Workstation ID (integer conversion)
+if ($workstationId -match '^[0-9]+$') {
+    $workstationId = [string][int]$workstationId
+    Write-Host "Workstation ID after leading zero removal: $workstationId"
+}"""
+            else:
+                wsid_strip_code = """# Strip leading zeros from Workstation ID (integer conversion)
+if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+  workstationId=$(( 10#$workstationId ))
+  echo "Workstation ID after leading zero removal: $workstationId"
+fi"""
+            template = template.replace("# WSID_STRIP_LEADING_ZEROS_PLACEHOLDER", wsid_strip_code)
+        else:
+            template = template.replace("# WSID_STRIP_LEADING_ZEROS_PLACEHOLDER", "")
+
         # Write the installation script with platform-specific formatting
         write_installation_script(output_path, template, platform, output_filename)
 
