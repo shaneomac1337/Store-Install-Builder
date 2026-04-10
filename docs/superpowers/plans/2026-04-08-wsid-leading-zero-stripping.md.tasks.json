@@ -1,0 +1,33 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-08-wsid-leading-zero-stripping.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Add strip_leading_zeros_wsid config to DetectionManager",
+      "status": "pending",
+      "description": "**Goal:** Add `strip_leading_zeros_wsid` boolean to DetectionManager with getter/setter and config persistence.\n\n**Files:**\n- Modify: `gk_install_builder/detection.py`\n- Modify: `tests/unit/test_detection.py`\n\n```json:metadata\n{\"files\": [\"gk_install_builder/detection.py\", \"tests/unit/test_detection.py\"], \"verifyCommand\": \"pytest tests/unit/test_detection.py -v\", \"acceptanceCriteria\": [\"strip_leading_zeros_wsid defaults to False\", \"getter/setter methods exist\", \"set_config loads the setting\", \"backward compatible with missing key\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Inject WSID stripping into generated scripts",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Generator conditionally injects integer conversion line into PowerShell and Bash scripts.\n\n**Files:**\n- Modify: `gk_install_builder/templates/GKInstall.ps1.template`\n- Modify: `gk_install_builder/templates/GKInstall.sh.template`\n- Modify: `gk_install_builder/generators/gk_install_generator.py`\n- Modify: `tests/unit/test_generator_integration.py`\n\n```json:metadata\n{\"files\": [\"gk_install_builder/templates/GKInstall.ps1.template\", \"gk_install_builder/templates/GKInstall.sh.template\", \"gk_install_builder/generators/gk_install_generator.py\", \"tests/unit/test_generator_integration.py\"], \"verifyCommand\": \"pytest tests/unit/test_generator_integration.py -v -k strip_leading_zeros\", \"acceptanceCriteria\": [\"PS1 contains stripping when enabled\", \"Bash contains stripping when enabled\", \"no stripping when disabled\", \"correct position in script\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Add UI checkbox and test preview in Detection Settings",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** Add checkbox with tooltip and arrow preview notation in Detection Settings dialog.\n\n**Files:**\n- Modify: `gk_install_builder/dialogs/detection_settings.py`\n\n```json:metadata\n{\"files\": [\"gk_install_builder/dialogs/detection_settings.py\"], \"verifyCommand\": \"pytest tests/ -v\", \"acceptanceCriteria\": [\"checkbox appears in UI\", \"tooltip present\", \"state persisted\", \"arrow preview when enabled\", \"no arrow when disabled\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Full integration verification and cleanup",
+      "status": "pending",
+      "blockedBy": [2, 3],
+      "description": "**Goal:** Verify end-to-end that all pieces work together.\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"pytest tests/ -v --tb=short\", \"acceptanceCriteria\": [\"all tests pass\", \"end-to-end generation works\", \"config persistence works\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-08T12:00:00Z"
+}
