@@ -22,7 +22,8 @@ param(
     [string]$StructureUniqueNameOverride,  # Optional: Override structureUniqueName for structure node creation
     [switch]$y,  # Optional: Auto-confirm workstation creation without prompting
     [switch]$removeOverrides,  # Optional: Force remove override files after installation
-    [switch]$keepOverrides  # Optional: Force keep override files after installation
+    [switch]$keepOverrides,  # Optional: Force keep override files after installation
+    [switch]$SkipStoreInit  # Optional: Skip store initialization step after onboarding (edge cases only)
 )
 
 # Create a unique log filename based on timestamp
@@ -1918,6 +1919,9 @@ if (-not $isUpdate) {
         .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url -tenant_id $tenantId
         Write-Host "$ComponentType onboarding completed successfully"
 
+        if ($SkipStoreInit) {
+            Write-Host "SkipStoreInit flag set - skipping store initialization"
+        } else {
         # Execute store initialization right after successful onboarding
         # Run store initialization for all components including WDM
         Write-Host "Starting store initialization..."
@@ -2009,6 +2013,7 @@ if (-not $isUpdate) {
             Stop-TranscriptSafely
             exit 1
         }
+        }  # end else ($SkipStoreInit)
     }
     catch {
         Write-Host "Error during $ComponentType onboarding: $_"
