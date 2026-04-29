@@ -1,9 +1,14 @@
 <#
 .SYNOPSIS
-    PVH wrapper for GKInstall.ps1 - auto-detects store ID and workstation ID from hostname.
+    PVH MIGRATION wrapper for GKInstall.ps1 - one-time migration from legacy SMInfo to ONEX-POS.
+    Auto-detects store ID and workstation ID from hostname.
     Includes backup/rollback: backs up C:\gkretail before install, auto-rolls back on failure.
 
 .DESCRIPTION
+    USE THIS VERSION FOR THE INITIAL MIGRATION FROM SMInfoServer/SMInfoClient TO ONEX-POS.
+    For re-installs after a successful migration, use PVH-GKInstall-Standard.ps1 instead
+    (which omits service handling, backup, rollback, and health check).
+
     Reads the hostname, parses it into store prefix + till number, derives storeId and workstationId,
     and calls GKInstall.ps1 with --storeId, --workstationId, and -y parameters.
 
@@ -14,6 +19,9 @@
     4. Fixes permissions on C:\gkretail (grants Everyone full control via icacls)
     5. Backs up C:\gkretail to C:\gkretail_migration_backup (via rename)
 
+    On a successful health check, the wrapper sets the SMInfo service startup type to Disabled
+    so it does not auto-start on reboot (legacy POS is being replaced by ONEX-POS on port 3333).
+
     If GKInstall fails (non-zero exit code or exception), the wrapper automatically:
     1. Restores C:\gkretail from the backup
     2. Restarts the stopped service
@@ -23,20 +31,24 @@
     Examples: DE-A319TILL01, DE-A319TILL01T, A319TILL01
 
 .EXAMPLE
-    .\PVH-GKInstall.ps1
+    .\PVH-GKInstall-Migration.ps1
     # Auto-detects everything from hostname
 
 .EXAMPLE
-    .\PVH-GKInstall.ps1 -ComponentType ONEX-POS -offline
+    .\PVH-GKInstall-Migration.ps1 -ComponentType ONEX-POS -offline
     # Auto-detects store/workstation, passes through -ComponentType and -offline
 
 .EXAMPLE
-    .\PVH-GKInstall.ps1 -WhatIf
+    .\PVH-GKInstall-Migration.ps1 -WhatIf
     # Dry-run: shows parsed values and backup/rollback plan without executing
 
 .EXAMPLE
-    .\PVH-GKInstall.ps1 -SkipBackup
+    .\PVH-GKInstall-Migration.ps1 -SkipBackup
     # Skip the backup/rollback mechanism entirely
+
+.EXAMPLE
+    .\PVH-GKInstall-Migration.ps1 -SkipFixPermissions
+    # Skip the recursive icacls step (faster on machines with many log files)
 #>
 
 [CmdletBinding(SupportsShouldProcess)]
@@ -61,8 +73,19 @@ param(
     # PVH-specific parameters
     [string]$HostnameOverride,    # Override hostname for testing
     [switch]$SkipBackup,          # Skip backup/rollback mechanism
-    [switch]$SkipHealthCheck      # Skip post-install health check
+    [switch]$SkipHealthCheck,     # Skip post-install health check
+    [switch]$SkipFixPermissions   # Skip recursive icacls on C:\gkretail (faster on tills with many log files)
 )
+
+# ============================================================
+# DISABLE PROXY (process-scoped only)
+# Admin PowerShell sessions can inherit a corporate WinHTTP proxy
+# (e.g., amsrpxy01.retailstoreseu.com:8080) that returns 503 for the
+# Cloud4Retail endpoints. Clearing it forces all Invoke-WebRequest /
+# curl-alias / GKInstall HTTP calls in this process to go direct.
+# Affects only this PowerShell process - no system-wide change.
+# ============================================================
+[System.Net.WebRequest]::DefaultWebProxy = $null
 
 # ============================================================
 # CONFIGURABLE HOSTNAME PATTERN
@@ -79,7 +102,7 @@ $hostnamePattern = '^(?:[A-Za-z]{2}-)?([A-Za-z][A-Za-z0-9]{3})TILL(\d{2})T?$'
 # Change this value when creating copies for other environments.
 # Example: "PVHTST2" for test, "PVHPRD" for production
 # ============================================================
-$pvhEnvironment = "PVHTST2"
+$pvhEnvironment = ""
 
 # ============================================================
 # CONFIGURABLE HEALTH CHECK
@@ -295,7 +318,7 @@ if (-not $SkipBackup) {
 # ============================================================
 # 4d. FIX PERMISSIONS on C:\gkretail (grant Everyone full control)
 # ============================================================
-if (-not $SkipBackup) {
+if (-not $SkipBackup -and -not $SkipFixPermissions) {
     if (Test-Path $backupSource) {
         $logPath = Join-Path $backupSource "pos-client\log"
         if ($WhatIfPreference) {
@@ -320,6 +343,8 @@ if (-not $SkipBackup) {
             }
         }
     }
+} elseif ($SkipFixPermissions -and -not $SkipBackup) {
+    Write-Host "[PVH] Permission fix skipped (-SkipFixPermissions). Backup rename may fail if ACLs are restrictive." -ForegroundColor Yellow
 }
 
 # ============================================================
@@ -546,6 +571,19 @@ if ($gkInstallFailed) {
         if ($healthCheckPassed) {
             Write-Host ""
             Write-Host "[PVH] === Health Check PASSED ===" -ForegroundColor Green
+
+            # Disable the service so it does not auto-start on reboot
+            $svcDisable = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($svcDisable) {
+                Write-Host "[PVH] Disabling service: $serviceName..." -ForegroundColor Yellow
+                try {
+                    Set-Service -Name $serviceName -StartupType Disabled -ErrorAction Stop
+                    Write-Host "[PVH] Service $serviceName set to Disabled." -ForegroundColor Green
+                } catch {
+                    Write-Host "[PVH] WARNING: Could not disable service $serviceName." -ForegroundColor Yellow
+                    Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+                }
+            }
         } else {
             Write-Host ""
             Write-Host "[PVH] === Health Check FAILED ===" -ForegroundColor Red
