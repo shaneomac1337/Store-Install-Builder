@@ -2413,7 +2413,7 @@ if [ "$isUpdate" = false ]; then
         fi
 
         # Call the store initialization script with the dynamic version
-        store_init_args=(--ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version")
+        store_init_args=(--ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --StoreId "$storeNumber" --WorkstationId "$workstationId" --Version "$component_version" --tenant_id "$tenant_id")
         if [ -n "$cli_system_name_override" ]; then
           store_init_args+=(--SystemNameOverride "$cli_system_name_override")
           echo "Passing SystemNameOverride to store-initialization: $cli_system_name_override"
