@@ -16,6 +16,8 @@ param (
     [Parameter(Mandatory=$false)]
     [string]$StructureUniqueNameOverride,
     [Parameter(Mandatory=$false)]
+    [string]$tenant_id = "${tenant_id}",
+    [Parameter(Mandatory=$false)]
     [switch]$y
 )
 

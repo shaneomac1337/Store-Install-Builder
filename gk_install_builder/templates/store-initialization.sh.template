@@ -43,6 +43,7 @@ SYSTEM_NAME_OVERRIDE=""
 WORKSTATION_NAME_OVERRIDE=""
 STRUCTURE_UNIQUE_NAME_OVERRIDE=""
 AUTO_CONFIRM=false
+tenant_id=""
 
 # Initialize StoreHub wait tracking variable
 storehub_wait_complete=0
@@ -82,17 +83,24 @@ while [ $# -gt 0 ]; do
       STRUCTURE_UNIQUE_NAME_OVERRIDE="$2"
       shift 2
       ;;
+    --tenant_id)
+      tenant_id="$2"
+      shift 2
+      ;;
     -y|--yes)
       AUTO_CONFIRM=true
       shift
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [-y|--yes]"
+      echo "Usage: $0 [--ComponentType <type>] [--base_url <url>] [--StoreId <id>] [--WorkstationId <id>] [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>] [--StructureUniqueNameOverride <name>] [--tenant_id <id>] [-y|--yes]"
       exit 1
       ;;
   esac
 done
+
+# Inner ${tenant_id} is substituted at generation time as the build-time fallback.
+tenant_id=${tenant_id:-"${tenant_id}"}
 
 # Verify all required parameters are provided
 if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z "$WORKSTATION_ID" ]; then

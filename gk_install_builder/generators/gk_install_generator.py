@@ -207,8 +207,10 @@ def generate_gk_install(output_dir, config, detection_manager,
                 "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
                 "config_versions_search": "/config-service/services/rest/infrastructure/v1/versions/search",
                 # Master data APIs (include tenant ID in URL for legacy)
-                "business_unit": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/business-units",
-                "workstation_base": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/workstations",
+                # ${tenant_id} is intentionally a runtime PS/bash var, not a Python f-string —
+                # multi-env installs need the runtime tenant, not the build-time one.
+                "business_unit": "/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units",
+                "workstation_base": "/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations",
                 # Installation token URLs
                 "install_token_config_service": "/config-service",
                 "install_token_cims": "/cims",
