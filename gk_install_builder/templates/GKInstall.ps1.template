@@ -1977,6 +1977,7 @@ if (-not $isUpdate) {
                     StoreId = $storeNumber
                     WorkstationId = $workstationId
                     Version = $component_version
+                    tenant_id = $tenantId
                 }
                 if (![string]::IsNullOrEmpty($SystemNameOverride)) {
                     $storeInitArgs['SystemNameOverride'] = $SystemNameOverride

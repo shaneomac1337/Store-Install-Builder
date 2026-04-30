@@ -52,8 +52,10 @@ def generate_store_init_script(output_dir, config, templates_dir):
             "config_structure_search": "/config-service/services/rest/infrastructure/v1/structure/child-nodes/search",
             "config_structure_create": "/config-service/services/rest/infrastructure/v1/structure/nodes",
             "config_management": "/config-service/services/rest/config-management/v1/parameter-contents/plain",
-            "business_unit": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/business-units",
-            "workstation_base": f"/swee-sdc/tenants/{tenant_id}/services/rest/master-data/v1/workstations",
+            # ${tenant_id} is intentionally a runtime PS/bash var, not a Python f-string —
+            # multi-env installs need the runtime tenant, not the build-time one.
+            "business_unit": "/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/business-units",
+            "workstation_base": "/swee-sdc/tenants/${tenant_id}/services/rest/master-data/v1/workstations",
         }
     else:  # new API (5.27+)
         api_endpoints = {
