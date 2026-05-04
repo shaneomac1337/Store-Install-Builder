@@ -197,6 +197,38 @@ if (-not $WhatIfPreference -and -not (Test-Path $gkInstallPath)) {
 }
 
 # ============================================================
+# 4. STOP ELASTIC AGENT (file system monitoring can lock C:\gkretail)
+# Set $elasticAgentWasStopped flag so the single restart block at
+# the end of the script restores the agent on any exit path.
+# ============================================================
+$elasticServiceName     = "Elastic Agent"
+$elasticAgentWasStopped = $false
+$elasticSvc = Get-Service -Name $elasticServiceName -ErrorAction SilentlyContinue
+if ($elasticSvc) {
+    if ($elasticSvc.Status -eq "Running") {
+        if ($WhatIfPreference) {
+            Write-Host "[PVH] DRY RUN - Would stop service: $elasticServiceName" -ForegroundColor Yellow
+        } else {
+            Write-Host "[PVH] Stopping service: $elasticServiceName..." -ForegroundColor Yellow
+            try {
+                Stop-Service -Name $elasticServiceName -Force -ErrorAction Stop
+                (Get-Service -Name $elasticServiceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
+                Start-Sleep -Seconds 10
+                Write-Host "[PVH] Service $elasticServiceName stopped." -ForegroundColor Green
+                $elasticAgentWasStopped = $true
+            } catch {
+                Write-Host "[PVH] WARNING: Could not stop service $elasticServiceName. Proceeding anyway." -ForegroundColor Yellow
+                Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        Write-Host "[PVH] Service $elasticServiceName is not running - skipping." -ForegroundColor Gray
+    }
+} else {
+    Write-Host "[PVH] Service $elasticServiceName not found - skipping. (Normal if Elastic Agent is not installed)" -ForegroundColor Gray
+}
+
+# ============================================================
 # 4a. STOP SERVICE (SMInfoServer on TILL01, SMInfoClient on others)
 # ============================================================
 if (-not $SkipBackup) {
@@ -690,6 +722,25 @@ if ($gkInstallFailed -and $backupCreated) {
     # Success
     if ($backupCreated) {
         Write-Host "[PVH] Backup preserved at: $backupDest" -ForegroundColor Gray
+    }
+}
+
+# ============================================================
+# 10. RESTART ELASTIC AGENT (always, if we stopped it earlier)
+# Runs on every exit path - success, success+skip-health-check,
+# success+skip-backup, rollback success, and rollback failure -
+# so monitoring is restored regardless of install outcome.
+# ============================================================
+if ($elasticAgentWasStopped) {
+    Write-Host "[PVH] Restarting service: $elasticServiceName..." -ForegroundColor Yellow
+    try {
+        Start-Service -Name $elasticServiceName -ErrorAction Stop
+        (Get-Service -Name $elasticServiceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
+        Write-Host "[PVH] Service $elasticServiceName started." -ForegroundColor Green
+    } catch {
+        Write-Host "[PVH] WARNING: Could not start service $elasticServiceName." -ForegroundColor Yellow
+        Write-Host "[PVH]          Error: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "[PVH]          You may need to start it manually." -ForegroundColor Yellow
     }
 }
 
