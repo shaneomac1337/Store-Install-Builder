@@ -374,6 +374,10 @@ class APIClient:
                             elif prop_id in ["SH_Update_Version", "StoreHub_Version"] and value and versions["STOREHUB-SERVICE"]["value"] is None:
                                 versions["STOREHUB-SERVICE"] = {"value": value, "source": "FPD (Default)"}
                                 print(f"[TEST API]     -> Matched StoreHub ({prop_id}): {value}")
+                            # RCS: try Version first, fallback to Update_Version
+                            elif prop_id in ["RCS_Version", "RCS_Update_Version"] and value and versions["RCS-SERVICE"]["value"] is None:
+                                versions["RCS-SERVICE"] = {"value": value, "source": "FPD (Default)"}
+                                print(f"[TEST API]     -> Matched RCS ({prop_id}): {value}")
                     except Exception as e:
                         print(f"Warning: FPD scope request failed: {e}")
 
