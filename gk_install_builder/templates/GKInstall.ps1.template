@@ -762,6 +762,16 @@ function Get-DefaultVersions {
                                 $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
                             }
                         }
+                        "RCS_Version" {
+                            $versions["RCS-SERVICE"] = $property.value
+                            $versionSources["RCS-SERVICE"] = "FP (Modified)"
+                        }
+                        "RCS_Update_Version" {
+                            if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                $versions["RCS-SERVICE"] = $property.value
+                                $versionSources["RCS-SERVICE"] = "FP (Modified)"
+                            }
+                        }
                     }
                 }
             }
