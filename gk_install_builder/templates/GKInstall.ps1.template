@@ -868,6 +868,18 @@ function Get-DefaultVersions {
                                     $versionSources["STOREHUB-SERVICE"] = "FPD (Default)"
                                 }
                             }
+                            "RCS_Version" {
+                                if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                    $versions["RCS-SERVICE"] = $property.value
+                                    $versionSources["RCS-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "RCS_Update_Version" {
+                                if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                    $versions["RCS-SERVICE"] = $property.value
+                                    $versionSources["RCS-SERVICE"] = "FPD (Default)"
+                                }
+                            }
                         }
                     }
                 }
