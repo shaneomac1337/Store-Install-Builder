@@ -934,8 +934,13 @@ function Get-DefaultVersions-ConfigService {
                 $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -TimeoutSec 30
 
                 if ($response.versionNameList -and $response.versionNameList.Count -gt 0) {
-                    # Sort versions and take the highest (latest)
-                    $latestVersion = ($response.versionNameList | Sort-Object { [System.Version]($_ -replace '^v','') } -Descending)[0]
+                    # Sort versions and take the highest (latest).
+                    # Use Select-Object -First 1 - `(...)[0]` breaks for single-element
+                    # pipelines because PowerShell unwraps the result to a scalar string
+                    # and indexes the first character. See PRIA-1740.
+                    $latestVersion = $response.versionNameList |
+                        Sort-Object { [System.Version]($_ -replace '^v','') } -Descending |
+                        Select-Object -First 1
                     $versions[$component] = $latestVersion
                     $versionSources[$component] = "Config-Service"
                     Write-Host "  Found $component`: $latestVersion (available: $($response.versionNameList.Count) versions)"
