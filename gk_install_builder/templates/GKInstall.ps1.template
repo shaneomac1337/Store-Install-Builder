@@ -762,6 +762,16 @@ function Get-DefaultVersions {
                                 $versionSources["STOREHUB-SERVICE"] = "FP (Modified)"
                             }
                         }
+                        "RCS_Version" {
+                            $versions["RCS-SERVICE"] = $property.value
+                            $versionSources["RCS-SERVICE"] = "FP (Modified)"
+                        }
+                        "RCS_Update_Version" {
+                            if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                $versions["RCS-SERVICE"] = $property.value
+                                $versionSources["RCS-SERVICE"] = "FP (Modified)"
+                            }
+                        }
                     }
                 }
             }
@@ -858,6 +868,18 @@ function Get-DefaultVersions {
                                     $versionSources["STOREHUB-SERVICE"] = "FPD (Default)"
                                 }
                             }
+                            "RCS_Version" {
+                                if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                    $versions["RCS-SERVICE"] = $property.value
+                                    $versionSources["RCS-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "RCS_Update_Version" {
+                                if (-not $versions.ContainsKey("RCS-SERVICE")) {
+                                    $versions["RCS-SERVICE"] = $property.value
+                                    $versionSources["RCS-SERVICE"] = "FPD (Default)"
+                                }
+                            }
                         }
                     }
                 }
@@ -934,8 +956,13 @@ function Get-DefaultVersions-ConfigService {
                 $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Headers $headers -Body $body -TimeoutSec 30
 
                 if ($response.versionNameList -and $response.versionNameList.Count -gt 0) {
-                    # Sort versions and take the highest (latest)
-                    $latestVersion = ($response.versionNameList | Sort-Object { [System.Version]($_ -replace '^v','') } -Descending)[0]
+                    # Sort versions and take the highest (latest).
+                    # Use Select-Object -First 1 - `(...)[0]` breaks for single-element
+                    # pipelines because PowerShell unwraps the result to a scalar string
+                    # and indexes the first character. See PRIA-1740.
+                    $latestVersion = $response.versionNameList |
+                        Sort-Object { [System.Version]($_ -replace '^v','') } -Descending |
+                        Select-Object -First 1
                     $versions[$component] = $latestVersion
                     $versionSources[$component] = "Config-Service"
                     Write-Host "  Found $component`: $latestVersion (available: $($response.versionNameList.Count) versions)"

@@ -1093,6 +1093,12 @@ get_default_versions() {
           result_version=$(echo "$fp_response" | grep -o '"propertyId":"StoreHub_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
         fi
         ;;
+      "RCS-SERVICE")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"RCS_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        if [ -z "$result_version" ]; then
+          result_version=$(echo "$fp_response" | grep -o '"propertyId":"RCS_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        fi
+        ;;
     esac
 
     if [ -n "$result_version" ]; then
@@ -1152,6 +1158,12 @@ get_default_versions() {
           result_version=$(echo "$fpd_response" | grep -o '"propertyId":"OneX_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
           if [ -z "$result_version" ]; then
             result_version=$(echo "$fpd_response" | grep -o '"propertyId":"OneX_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          fi
+          ;;
+        "RCS-SERVICE")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"RCS_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          if [ -z "$result_version" ]; then
+            result_version=$(echo "$fpd_response" | grep -o '"propertyId":"RCS_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
           fi
           ;;
       esac
