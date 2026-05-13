@@ -33,7 +33,8 @@ The existing behavior of appending `rcs.url=<url>` to `installationtoken.txt` is
 - `RCS-SERVICE` onboarding body remains literally unchanged.
 - `MQTT-BROKER` and all other non-RCS components receive the injection.
 - Update mode (`isUpdate=true`) skips onboarding entirely; the legacy `onboarding.token` file is reused as today.
-- Server-side onboarding endpoint must tolerate the new `afterOnboardingProperties` field (assumption — request format provided by user).
+- Server-side onboarding endpoint accepts `afterOnboardingProperties` (verified by user).
+- Template JSON files in `helper/onboarding/` do NOT contain an `afterOnboardingProperties` field today, so injection always adds a new key, never overwrites.
 
 ## Architecture
 
@@ -143,7 +144,7 @@ $body = Get-Content -Path $jsonPath -Raw
 if ($rcsUrl -and $ComponentType -ne "RCS-SERVICE") {
     $bodyObj = $body | ConvertFrom-Json
     $afterProps = @(@{ key = "rcs.url"; value = $rcsUrl })
-    $bodyObj | Add-Member -NotePropertyName afterOnboardingProperties -NotePropertyValue $afterProps -Force
+    $bodyObj | Add-Member -NotePropertyName afterOnboardingProperties -NotePropertyValue $afterProps
     $body = $bodyObj | ConvertTo-Json -Depth 10
 }
 
@@ -218,11 +219,10 @@ Add unit tests to `tests/unit/test_generator_integration.py` covering generated 
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
-| Server rejects `afterOnboardingProperties` as unknown field | High | Format provided by user — assumed supported. Verify against running endpoint before merge. |
 | OAuth pre-acquisition fails in environments where onboarding.ps1's acquisition would succeed | Low | Use identical credential paths; reuse existing pattern at line 1334+. |
-| Bash sed fallback corrupts JSON for non-trivial bodies | Medium | Document jq as preferred; test fallback only against known-shape files. Or: require jq, drop fallback. |
+| Bash sed fallback corrupts JSON when template body shape changes | Medium | Anchor sed pattern to closing `}` at end of file. Add unit test for fallback. Both jq and sed paths covered in tests. |
 | Update mode (isUpdate=true) installations get stale onboarding.token without new properties | Low | Existing limitation. Documented. Fresh install required to pick up afterOnboardingProperties. |
-| Autodetect ordering change (now pre-onboarding) breaks if storeNumber/tenantId not yet resolved | Medium | Verify both values are CLI-parsed before the new block. Add guard. |
+| Autodetect ordering change (now pre-onboarding) breaks if storeNumber/tenantId not yet resolved | Low | Verified: `$tenantId` finalized by line 1329, `$storeNumber` by line ~1973, onboarding call at line 1997. New block fits at line ~1990. |
 
 ## Open questions
 
