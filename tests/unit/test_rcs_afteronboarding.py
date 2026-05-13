@@ -208,3 +208,76 @@ class TestGKInstallShRcsUrlPreOnboarding:
         content = self._generate_sh(tmp_path)
         marker = "Autodetecting RCS URL from config-service"
         assert content.count(marker) == 1
+
+
+class TestRcsUrlEndToEndFlow:
+    """Verify the full rcsUrl flow end-to-end across generated scripts."""
+
+    def test_ps1_full_flow_consistent(self, tmp_path):
+        """When rcsUrl is set, the generated PS1 chain wires it correctly."""
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        output_dir = tmp_path / "rcs_e2e_ps1"
+        output_dir.mkdir()
+        cfg = create_config(
+            platform="Windows",
+            output_dir=str(output_dir),
+            include_pos=True,
+            pos_version="v1.0.0",
+        )
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+
+        gk_path = os.path.join(str(output_dir), "GKInstall.ps1")
+        ob_path = os.path.join(str(output_dir), "onboarding.ps1")
+        with open(gk_path, "r", encoding="utf-8") as f:
+            gk = f.read()
+        with open(ob_path, "r", encoding="utf-8") as f:
+            ob = f.read()
+
+        # GKInstall passes rcsUrl
+        assert '-rcsUrl $rcsUrl' in gk
+        # Autodetect lives in GKInstall before onboarding call
+        assert gk.find("Autodetecting RCS URL") < gk.find(".\\onboarding.ps1")
+        # Onboarding accepts param + injects
+        assert '[string]$rcsUrl' in ob
+        assert 'afterOnboardingProperties' in ob
+        assert '-ne "RCS-SERVICE"' in ob
+        # Legacy installationtoken.txt append still present
+        assert 'rcs.url=$rcsUrl' in gk or '`nrcs.url=$rcsUrl' in gk
+
+    def test_sh_full_flow_consistent(self, tmp_path):
+        """When rcs_url is set, the generated SH chain wires it correctly."""
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        output_dir = tmp_path / "rcs_e2e_sh"
+        output_dir.mkdir()
+        cfg = create_config(
+            platform="Linux",
+            output_dir=str(output_dir),
+            include_pos=True,
+            pos_version="v1.0.0",
+        )
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+
+        gk_path = os.path.join(str(output_dir), "GKInstall.sh")
+        ob_path = os.path.join(str(output_dir), "onboarding.sh")
+        with open(gk_path, "r", encoding="utf-8") as f:
+            gk = f.read()
+        with open(ob_path, "r", encoding="utf-8") as f:
+            ob = f.read()
+
+        assert '--rcsUrl "$rcs_url"' in gk
+        assert gk.find("Autodetecting RCS URL") < gk.find("./onboarding.sh")
+        assert '--rcsUrl' in ob
+        assert 'afterOnboardingProperties' in ob
+        assert '!= "RCS-SERVICE"' in ob
+        # Legacy installationtoken.txt append still present
+        assert 'rcs.url=$rcs_url' in gk
