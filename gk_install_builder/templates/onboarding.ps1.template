@@ -1,7 +1,8 @@
 param (
     [string]$ComponentType = "POS",
     [string]$base_url = "test.cse.cloud4retail.co",  # Add this parameter
-    [string]$tenant_id = "001"  # Add this parameter
+    [string]$tenant_id = "001",  # Add this parameter
+    [string]$rcsUrl = ""
 )
 
 # Set TLS 1.2 as the security protocol (fixes SSL/TLS errors on older systems)
@@ -170,6 +171,20 @@ try {
     catch {
         Write-Host "Error reading JSON file: $_"
         exit
+    }
+
+    # Inject afterOnboardingProperties for non-RCS components when rcsUrl is provided
+    if ($rcsUrl -and $ComponentType -ne "RCS-SERVICE") {
+        try {
+            $bodyObj = $body | ConvertFrom-Json
+            $afterProps = @(@{ key = "rcs.url"; value = $rcsUrl })
+            $bodyObj | Add-Member -NotePropertyName afterOnboardingProperties -NotePropertyValue $afterProps
+            $body = $bodyObj | ConvertTo-Json -Depth 10
+            Write-Host "Injected afterOnboardingProperties rcs.url=$rcsUrl into $ComponentType onboarding body"
+        } catch {
+            Write-Host "Warning: Failed to inject afterOnboardingProperties: $_"
+            Write-Host "Continuing with original body"
+        }
     }
 
     try {
