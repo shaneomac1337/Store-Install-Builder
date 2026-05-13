@@ -108,3 +108,55 @@ class TestOnboardingShRcsUrlInjection:
         assert "sed '$ s/}/" not in content, (
             "Sed fallback must not use / delimiter (breaks on URLs containing /)"
         )
+
+
+class TestGKInstallPs1RcsUrlPreOnboarding:
+    """GKInstall.ps1 must resolve rcsUrl BEFORE onboarding.ps1 is invoked."""
+
+    def _generate_ps1(self, tmp_path):
+        """Generate GKInstall.ps1 via the real generator and return its content."""
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        output_dir = tmp_path / "rcs_pre_onboarding"
+        output_dir.mkdir()
+        cfg = create_config(
+            platform="Windows",
+            output_dir=str(output_dir),
+            include_pos=True,
+            pos_version="v1.0.0",
+        )
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+        ps1_path = os.path.join(str(output_dir), "GKInstall.ps1")
+        with open(ps1_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_onboarding_call_passes_rcsurl(self, tmp_path):
+        content = self._generate_ps1(tmp_path)
+        # The .\onboarding.ps1 invocation must include -rcsUrl $rcsUrl
+        assert '.\\onboarding.ps1' in content
+        assert '-rcsUrl $rcsUrl' in content, (
+            "GKInstall.ps1 must pass -rcsUrl when calling onboarding.ps1"
+        )
+
+    def test_autodetect_runs_before_onboarding_call(self, tmp_path):
+        content = self._generate_ps1(tmp_path)
+        autodetect_marker = "Autodetecting RCS URL from config-service"
+        onboarding_marker = ".\\onboarding.ps1"
+        a_idx = content.find(autodetect_marker)
+        o_idx = content.find(onboarding_marker)
+        assert a_idx >= 0, "Autodetect block not found"
+        assert o_idx >= 0, "Onboarding invocation not found"
+        assert a_idx < o_idx, (
+            f"Autodetect block (idx={a_idx}) must appear BEFORE onboarding call (idx={o_idx})"
+        )
+
+    def test_autodetect_block_not_duplicated(self, tmp_path):
+        content = self._generate_ps1(tmp_path)
+        marker = "Autodetecting RCS URL from config-service"
+        assert content.count(marker) == 1, (
+            f"Autodetect block must appear exactly once, found {content.count(marker)}"
+        )

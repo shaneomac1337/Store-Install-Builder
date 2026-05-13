@@ -1992,9 +1992,130 @@ Write-Host "Starting onboarding process for $ComponentType"
 
 # Skip onboarding and store initialization if this is an update
 if (-not $isUpdate) {
+    # ---- Pre-acquire OAuth + resolve RCS URL (for afterOnboardingProperties injection) ----
+    if ($rcsUrl) {
+        try {
+            $tokensPath = Join-Path $PSScriptRoot "helper\tokens"
+            $basicAuthPath = Join-Path $tokensPath "basic_auth_password.txt"
+            $formPasswordPath = Join-Path $tokensPath "form_password.txt"
+            $formUsernamePath = Join-Path $tokensPath "form_username.txt"
+
+            if ((Test-Path $basicAuthPath) -and (Test-Path $formPasswordPath) -and (Test-Path $formUsernamePath)) {
+                $preOAuthUsername = "launchpad"
+                # Credentials on disk are Base64-encoded; decode before use
+                $basicAuthPasswordEncoded = (Get-Content $basicAuthPath -Raw).Trim()
+                $formPasswordEncoded = (Get-Content $formPasswordPath -Raw).Trim()
+                $basicAuthPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($basicAuthPasswordEncoded))
+                $formPassword = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($formPasswordEncoded))
+                $formUsername = (Get-Content $formUsernamePath -Raw).Trim()
+
+                $base64Auth = [Convert]::ToBase64String(
+                    [Text.Encoding]::ASCII.GetBytes("${preOAuthUsername}:${basicAuthPassword}")
+                )
+                $oauthBody = @{
+                    username   = $formUsername
+                    password   = $formPassword
+                    grant_type = "password"
+                }
+                $formData = ($oauthBody.GetEnumerator() | ForEach-Object {
+                    "$([System.Net.WebUtility]::UrlEncode($_.Key))=$([System.Net.WebUtility]::UrlEncode($_.Value))"
+                }) -join '&'
+                $tokenUrl = "https://$base_url/auth-service/tenants/${tenantId}/oauth/token"
+                $oauthResponse = Invoke-RestMethod -Uri $tokenUrl -Method Post `
+                    -Headers @{Authorization = "Basic $base64Auth"} `
+                    -Body $formData -ContentType "application/x-www-form-urlencoded"
+                Set-Content -Path (Join-Path $tokensPath "access_token.txt") `
+                    -Value $oauthResponse.access_token -NoNewline
+                Write-Host "Pre-acquired OAuth token for RCS URL resolution"
+            }
+        } catch {
+            Write-Host "Warning: Pre-OAuth acquisition failed: $_" -ForegroundColor Yellow
+        }
+
+        if ($rcsUrl -eq "autodetect") {
+            # ---- Autodetect block (moved from later in script) ----
+            Write-Host "Autodetecting RCS URL from config-service..." -ForegroundColor Cyan
+            $rcsUrl = ""
+            try {
+                $tokenFile = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
+                if (Test-Path $tokenFile) {
+                    $bearerToken = (Get-Content $tokenFile -Raw).Trim()
+                    $rcsHeaders = @{
+                        "authorization" = "Bearer $bearerToken"
+                        "Content-Type"  = "application/json"
+                    }
+                    $childNodesUrl = "https://$server/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
+                    $childNodesBody = @{
+                        station = @{
+                            systemName    = "GKR-Store"
+                            tenantId      = $tenantId
+                            retailStoreId = $storeNumber
+                        }
+                    } | ConvertTo-Json -Compress
+                    Write-Host "Fetching store child nodes for store $storeNumber..."
+                    $childNodesResponse = Invoke-RestMethod -Uri $childNodesUrl -Method Post `
+                        -Headers $rcsHeaders -Body $childNodesBody -TimeoutSec 30
+                    $rcsNode = $childNodesResponse.childNodeList |
+                        Where-Object { $_.systemName -like "*Resource-Cache-Service*" } |
+                        Select-Object -First 1
+                    if ($rcsNode) {
+                        Write-Host "Found RCS node: $($rcsNode.systemName) (version: $($rcsNode.activeVersion))"
+                        $paramUrl = "https://$server/api/config/services/rest/config-management/v1/parameter-contents/plain/search"
+                        $paramBody = @{
+                            levelDescriptor  = @{ structureUniqueName = $rcsNode.structureUniqueName }
+                            systemDescriptor = @{
+                                systemName        = $rcsNode.systemName
+                                systemVersionList = @(@{ name = $rcsNode.activeVersion })
+                            }
+                            parameterList    = @(@{ name = "system.properties" })
+                        } | ConvertTo-Json -Depth 4 -Compress
+                        Write-Host "Fetching RCS system.properties..."
+                        $paramResponse = Invoke-RestMethod -Uri $paramUrl -Method Post `
+                            -Headers $rcsHeaders -Body $paramBody `
+                            -ContentType "application/json" -TimeoutSec 30
+                        $propsParam = $paramResponse.parameterList |
+                            Where-Object { $_.name -eq "system.properties" } |
+                            Select-Object -First 1
+                        if ($propsParam -and $propsParam.content) {
+                            $propsContent = [System.Text.Encoding]::UTF8.GetString(
+                                [Convert]::FromBase64String($propsParam.content)
+                            )
+                            $rcsUrlMatch = [regex]::Match($propsContent, 'rcs\.url\s*=\s*(.+)')
+                            if ($rcsUrlMatch.Success) {
+                                $rcsUrl = $rcsUrlMatch.Groups[1].Value.Trim() -replace '\\:', ':' -replace '\\=', '='
+                                Write-Host "Autodetected RCS URL: $rcsUrl" -ForegroundColor Green
+                            } else {
+                                Write-Host "Warning: system.properties found but no rcs.url entry" -ForegroundColor Yellow
+                            }
+                        } else {
+                            Write-Host "Warning: No system.properties content returned for RCS node" -ForegroundColor Yellow
+                        }
+                    } else {
+                        Write-Host "Warning: No Resource-Cache-Service node found for store $storeNumber" -ForegroundColor Yellow
+                    }
+                } else {
+                    Write-Host "Warning: No access token available for RCS URL autodetect" -ForegroundColor Yellow
+                }
+            } catch {
+                Write-Host "Warning: Failed to autodetect RCS URL: $_" -ForegroundColor Yellow
+            }
+
+            if ([string]::IsNullOrEmpty($rcsUrl)) {
+                Write-Host "RCS URL autodetection failed. Continue without rcs.url in installation token?" -ForegroundColor Yellow
+                $continue = Read-Host "Press Y to continue, any other key to abort"
+                if ($continue -ne "Y" -and $continue -ne "y") {
+                    Write-Host "Aborted by user."
+                    Stop-TranscriptSafely
+                    exit 1
+                }
+            }
+        }
+    }
+    # ---- End pre-onboarding RCS URL resolution ----
+
     # Call the onboarding script with the appropriate component type and tenant_id
     try {
-        .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url -tenant_id $tenantId
+        .\onboarding.ps1 -ComponentType $ComponentType -base_url $base_url -tenant_id $tenantId -rcsUrl $rcsUrl
         Write-Host "$ComponentType onboarding completed successfully"
 
         if ($SkipStoreInit) {
@@ -2140,85 +2261,6 @@ $installationToken = $installationToken.Replace('@DsgServer@', $dsg_server)
 $installationToken = $installationToken.Replace('@SYSTEM_TYPE@', $systemType)
 $installationToken = $installationToken.Replace('@ONBOARDING_TOKEN@', $onboardingToken)
 $installationToken = $installationToken.Replace('@TenantId@', $tenantId)
-
-# Resolve RCS URL if autodetect requested
-if ($rcsUrl -eq "autodetect") {
-    Write-Host "Autodetecting RCS URL from config-service..." -ForegroundColor Cyan
-    $rcsUrl = ""  # Reset so we only append if fetch succeeds
-    try {
-        $tokenFile = Join-Path $PSScriptRoot "helper\tokens\access_token.txt"
-        if (Test-Path $tokenFile) {
-            $bearerToken = (Get-Content $tokenFile -Raw).Trim()
-            $rcsHeaders = @{
-                "authorization" = "Bearer $bearerToken"
-                "Content-Type"  = "application/json"
-            }
-
-            # Call 1: Get child nodes for this store
-            $childNodesUrl = "https://$server/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
-            $childNodesBody = @{
-                station = @{
-                    systemName    = "GKR-Store"
-                    tenantId      = $tenantId
-                    retailStoreId = $storeNumber
-                }
-            } | ConvertTo-Json -Compress
-            Write-Host "Fetching store child nodes for store $storeNumber..."
-            $childNodesResponse = Invoke-RestMethod -Uri $childNodesUrl -Method Post -Headers $rcsHeaders -Body $childNodesBody -TimeoutSec 30
-
-            # Find the RCS node
-            $rcsNode = $childNodesResponse.childNodeList | Where-Object { $_.systemName -like "*Resource-Cache-Service*" } | Select-Object -First 1
-            if ($rcsNode) {
-                Write-Host "Found RCS node: $($rcsNode.systemName) (version: $($rcsNode.activeVersion))"
-
-                # Call 2: Get system.properties for the RCS node
-                $paramUrl = "https://$server/api/config/services/rest/config-management/v1/parameter-contents/plain/search"
-                $paramBody = @{
-                    levelDescriptor  = @{ structureUniqueName = $rcsNode.structureUniqueName }
-                    systemDescriptor = @{
-                        systemName        = $rcsNode.systemName
-                        systemVersionList = @(@{ name = $rcsNode.activeVersion })
-                    }
-                    parameterList    = @(@{ name = "system.properties" })
-                } | ConvertTo-Json -Depth 4 -Compress
-                Write-Host "Fetching RCS system.properties..."
-                $paramResponse = Invoke-RestMethod -Uri $paramUrl -Method Post -Headers $rcsHeaders -Body $paramBody -ContentType "application/json" -TimeoutSec 30
-
-                # Decode base64 content and extract rcs.url
-                $propsParam = $paramResponse.parameterList | Where-Object { $_.name -eq "system.properties" } | Select-Object -First 1
-                if ($propsParam -and $propsParam.content) {
-                    $propsContent = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($propsParam.content))
-                    # Parse rcs.url from properties (handle Java-style escaping \: -> :)
-                    $rcsUrlMatch = [regex]::Match($propsContent, 'rcs\.url\s*=\s*(.+)')
-                    if ($rcsUrlMatch.Success) {
-                        $rcsUrl = $rcsUrlMatch.Groups[1].Value.Trim() -replace '\\:', ':' -replace '\\=', '='
-                        Write-Host "Autodetected RCS URL: $rcsUrl" -ForegroundColor Green
-                    } else {
-                        Write-Host "Warning: system.properties found but no rcs.url entry" -ForegroundColor Yellow
-                    }
-                } else {
-                    Write-Host "Warning: No system.properties content returned for RCS node" -ForegroundColor Yellow
-                }
-            } else {
-                Write-Host "Warning: No Resource-Cache-Service node found for store $storeNumber" -ForegroundColor Yellow
-            }
-        } else {
-            Write-Host "Warning: No access token available for RCS URL autodetect" -ForegroundColor Yellow
-        }
-    } catch {
-        Write-Host "Warning: Failed to autodetect RCS URL: $_" -ForegroundColor Yellow
-    }
-
-    if ([string]::IsNullOrEmpty($rcsUrl)) {
-        Write-Host "RCS URL autodetection failed. Continue without rcs.url in installation token?" -ForegroundColor Yellow
-        $continue = Read-Host "Press Y to continue, any other key to abort"
-        if ($continue -ne "Y" -and $continue -ne "y") {
-            Write-Host "Aborted by user."
-            Stop-TranscriptSafely
-            exit 1
-        }
-    }
-}
 
 # Append RCS URL to installation token if provided
 if ($rcsUrl -and $rcsUrl -ne "autodetect") {
