@@ -55,3 +55,45 @@ class TestOnboardingPs1RcsUrlInjection:
         assert 'rcs.url' in content, (
             "Injection must reference rcs.url key"
         )
+
+
+class TestOnboardingShRcsUrlInjection:
+    """Onboarding.sh must accept --rcsUrl and inject afterOnboardingProperties."""
+
+    def test_sh_has_rcsurl_arg(self, tmp_path):
+        templates_dir, output_dir = _setup_templates(tmp_path, "Linux")
+        cfg = create_config(platform="Linux")
+        generate_onboarding_script(output_dir, cfg, templates_dir)
+        content = _read(output_dir, "onboarding.sh")
+        assert '--rcsUrl' in content, (
+            "onboarding.sh must accept --rcsUrl argument"
+        )
+        assert 'rcs_url=' in content, (
+            "onboarding.sh must initialise rcs_url variable"
+        )
+
+    def test_sh_injects_afteronboarding_for_non_rcs(self, tmp_path):
+        templates_dir, output_dir = _setup_templates(tmp_path, "Linux")
+        cfg = create_config(platform="Linux")
+        generate_onboarding_script(output_dir, cfg, templates_dir)
+        content = _read(output_dir, "onboarding.sh")
+        assert 'afterOnboardingProperties' in content, (
+            "onboarding.sh must inject afterOnboardingProperties"
+        )
+        assert 'RCS-SERVICE' in content and '!= "RCS-SERVICE"' in content, (
+            "Injection must be gated by COMPONENT_TYPE != RCS-SERVICE"
+        )
+        # Both jq path and sed fallback present
+        assert 'jq' in content and 'sed' in content, (
+            "Both jq and sed fallback paths must be present"
+        )
+
+    def test_sh_sed_fallback_anchored_to_last_line(self, tmp_path):
+        """Sed fallback must use $ line-address to avoid matching nested braces."""
+        templates_dir, output_dir = _setup_templates(tmp_path, "Linux")
+        cfg = create_config(platform="Linux")
+        generate_onboarding_script(output_dir, cfg, templates_dir)
+        content = _read(output_dir, "onboarding.sh")
+        assert "sed '$ s/}/" in content or 'sed "$ s/}/' in content, (
+            "Sed fallback must be anchored to last line ($ address)"
+        )

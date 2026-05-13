@@ -5,6 +5,7 @@ COMPONENT_TYPE="POS"
 base_url="test.cse.cloud4retail.co"
 tenant_id="001"
 username="launchpad"
+rcs_url=""
 
 # Process command line options
 while [ $# -gt 0 ]; do
@@ -21,9 +22,13 @@ while [ $# -gt 0 ]; do
       tenant_id="$2"
       shift 2
       ;;
+    --rcsUrl)
+      rcs_url="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--tenant_id <tenant_id>]"
+      echo "Usage: $0 [--ComponentType <POS|WDM|FLOW-SERVICE|LPA-SERVICE|STOREHUB-SERVICE>] [--base_url <url>] [--tenant_id <tenant_id>] [--rcsUrl <url>]"
       exit 1
       ;;
   esac
@@ -240,6 +245,25 @@ if [ ! -f "$json_path" ]; then
 fi
 
 body=$(cat "$json_path")
+
+# Inject afterOnboardingProperties for non-RCS components when rcs_url is provided
+if [ -n "$rcs_url" ] && [ "$COMPONENT_TYPE" != "RCS-SERVICE" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    new_body=$(echo "$body" | jq --arg url "$rcs_url" \
+      '. + {afterOnboardingProperties: [{key: "rcs.url", value: $url}]}' 2>/dev/null)
+    if [ -n "$new_body" ]; then
+      body="$new_body"
+      echo "Injected afterOnboardingProperties rcs.url=$rcs_url (via jq)"
+    else
+      echo "Warning: jq failed; using original body for $COMPONENT_TYPE"
+    fi
+  else
+    # Sed fallback anchored to last line only (avoids nested braces)
+    new_body=$(echo "$body" | sed '$ s/}/,"afterOnboardingProperties":[{"key":"rcs.url","value":"'"$rcs_url"'"}]}/')
+    body="$new_body"
+    echo "Injected afterOnboardingProperties rcs.url=$rcs_url (via sed fallback)"
+  fi
+fi
 
 # Make the onboarding API call
 log_api_call "POST" "$onboarding_url" "Create Onboarding Token for $COMPONENT_TYPE"
