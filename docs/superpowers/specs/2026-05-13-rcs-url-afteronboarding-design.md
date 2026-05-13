@@ -152,7 +152,7 @@ if ($rcsUrl -and $ComponentType -ne "RCS-SERVICE") {
 Invoke-RestMethod -Uri $onboardingUrl -Method Post -Headers $headers -Body $body
 ```
 
-**Bash equivalent (jq):**
+**Bash equivalent (jq with sed fallback):**
 ```bash
 body=$(cat "$jsonPath")
 if [ -n "$rcs_url" ] && [ "$ComponentType" != "RCS-SERVICE" ]; then
@@ -160,12 +160,15 @@ if [ -n "$rcs_url" ] && [ "$ComponentType" != "RCS-SERVICE" ]; then
         body=$(echo "$body" | jq --arg url "$rcs_url" \
             '. + {afterOnboardingProperties: [{key: "rcs.url", value: $url}]}')
     else
-        # Fallback: manual injection before closing brace
-        body=$(echo "$body" | sed 's/}$/,"afterOnboardingProperties":[{"key":"rcs.url","value":"'"$rcs_url"'"}]}/')
+        # Fallback: sed anchored to LAST line only (avoids matching nested closing braces)
+        # Relies on stable JSON template shape (closing } on its own line at EOF)
+        body=$(echo "$body" | sed '$ s/}/,"afterOnboardingProperties":[{"key":"rcs.url","value":"'"$rcs_url"'"}]}/')
     fi
 fi
 curl -X POST ... --data "$body"
 ```
+
+**Note on sed pattern:** `$` here is a line-address (last line only), not end-of-line. This ensures only the OUTER closing `}` is replaced, even if the template has nested objects with `}` on their own lines. Relies on the convention that the file's last line is the outer `}`. The template files in `helper/onboarding/*.onboarding.json` follow this convention and are not expected to change shape.
 
 ## Data flow
 
@@ -220,7 +223,7 @@ Add unit tests to `tests/unit/test_generator_integration.py` covering generated 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
 | OAuth pre-acquisition fails in environments where onboarding.ps1's acquisition would succeed | Low | Use identical credential paths; reuse existing pattern at line 1334+. |
-| Bash sed fallback corrupts JSON when template body shape changes | Medium | Anchor sed pattern to closing `}` at end of file. Add unit test for fallback. Both jq and sed paths covered in tests. |
+| Bash sed fallback corrupts JSON when template body shape changes | Low | Anchored to last line (`$ s/}/.../`) — only outer `}` matched. JSON template shape stable, not expected to change. Unit tests cover both jq and sed paths. |
 | Update mode (isUpdate=true) installations get stale onboarding.token without new properties | Low | Existing limitation. Documented. Fresh install required to pick up afterOnboardingProperties. |
 | Autodetect ordering change (now pre-onboarding) breaks if storeNumber/tenantId not yet resolved | Low | Verified: `$tenantId` finalized by line 1329, `$storeNumber` by line ~1973, onboarding call at line 1997. New block fits at line ~1990. |
 
