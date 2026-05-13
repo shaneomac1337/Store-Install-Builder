@@ -160,3 +160,51 @@ class TestGKInstallPs1RcsUrlPreOnboarding:
         assert content.count(marker) == 1, (
             f"Autodetect block must appear exactly once, found {content.count(marker)}"
         )
+
+
+class TestGKInstallShRcsUrlPreOnboarding:
+    """GKInstall.sh must resolve rcs_url BEFORE onboarding.sh is invoked."""
+
+    def _generate_sh(self, tmp_path):
+        """Generate GKInstall.sh via the real generator and return its content."""
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        output_dir = tmp_path / "rcs_pre_onboarding_sh"
+        output_dir.mkdir()
+        cfg = create_config(
+            platform="Linux",
+            output_dir=str(output_dir),
+            include_pos=True,
+            pos_version="v1.0.0",
+        )
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+        sh_path = os.path.join(str(output_dir), "GKInstall.sh")
+        with open(sh_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_onboarding_call_passes_rcsurl(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        assert './onboarding.sh' in content
+        assert '--rcsUrl "$rcs_url"' in content, (
+            "GKInstall.sh must pass --rcsUrl when calling onboarding.sh"
+        )
+
+    def test_autodetect_runs_before_onboarding_call(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        autodetect_marker = "Autodetecting RCS URL from config-service"
+        onboarding_marker = "./onboarding.sh"
+        a_idx = content.find(autodetect_marker)
+        o_idx = content.find(onboarding_marker)
+        assert a_idx >= 0 and o_idx >= 0
+        assert a_idx < o_idx, (
+            f"Autodetect block (idx={a_idx}) must appear BEFORE onboarding call (idx={o_idx})"
+        )
+
+    def test_autodetect_block_not_duplicated(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        marker = "Autodetecting RCS URL from config-service"
+        assert content.count(marker) == 1

@@ -2424,8 +2424,144 @@ echo "Starting onboarding process for $COMPONENT_TYPE"
 
 # Skip onboarding and store initialization if this is an update
 if [ "$isUpdate" = false ]; then
+    # ---- Pre-acquire OAuth + resolve RCS URL (for afterOnboardingProperties injection) ----
+    if [ -n "$rcs_url" ]; then
+      tokens_path="$script_dir/helper/tokens"
+      basic_auth_file="$tokens_path/basic_auth_password.txt"
+      form_password_file="$tokens_path/form_password.txt"
+      form_username_file="$tokens_path/form_username.txt"
+
+      if [ -f "$basic_auth_file" ] && [ -f "$form_password_file" ] && [ -f "$form_username_file" ]; then
+        # NOTE: credential files may be base64-encoded on disk; use the same
+        # auto-detect pattern as the existing OAuth block earlier in this script
+        # (~line 1665) to stay consistent.
+        username="launchpad"
+        basic_auth_password=$(cat "$basic_auth_file" | tr -d '\n\r')
+        form_password=$(cat "$form_password_file" | tr -d '\n\r')
+        form_username=$(cat "$form_username_file" | tr -d '\n\r')
+
+        # Auto-detect and decode base64 if credentials look base64-encoded
+        if [[ "$basic_auth_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+          decoded_basic=$(echo "$basic_auth_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
+          if [ $? -eq 0 ] && [ -n "$decoded_basic" ]; then
+            basic_auth_password="$decoded_basic"
+          fi
+        fi
+        if [[ "$form_password" =~ ^[A-Za-z0-9+/]+=*$ ]]; then
+          decoded_form=$(echo "$form_password" | tr -d '\n\r' | base64 -d 2>/dev/null)
+          if [ $? -eq 0 ] && [ -n "$decoded_form" ]; then
+            form_password="$decoded_form"
+          fi
+        fi
+
+        auth_string=$(echo -n "$username:$basic_auth_password" | base64 | tr -d '\n')
+
+        urlencode_pre() {
+          local string="$1"
+          local length="${#string}"
+          local encoded=""
+          local i char
+          for (( i = 0; i < length; i++ )); do
+            char="${string:i:1}"
+            case "$char" in
+              [a-zA-Z0-9.~_-]) encoded="$encoded$char" ;;
+              *) encoded="$encoded$(printf '%%%02X' "'$char")" ;;
+            esac
+          done
+          echo "$encoded"
+        }
+
+        username_enc=$(urlencode_pre "$form_username")
+        password_enc=$(urlencode_pre "$form_password")
+        token_url="https://$base_url/auth-service/tenants/$tenant_id/oauth/token"
+        oauth_response=$(curl -s -X POST "$token_url" \
+          -H "Authorization: Basic $auth_string" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          --data "username=$username_enc&password=$password_enc&grant_type=password")
+        if command -v jq >/dev/null 2>&1; then
+          access_token_pre=$(echo "$oauth_response" | jq -r '.access_token // empty')
+        else
+          access_token_pre=$(echo "$oauth_response" | grep -o '"access_token":"[^"]*"' | sed 's/"access_token":"//;s/"$//')
+        fi
+        if [ -n "$access_token_pre" ]; then
+          echo -n "$access_token_pre" > "$tokens_path/access_token.txt"
+          echo "Pre-acquired OAuth token for RCS URL resolution"
+        else
+          echo "Warning: Pre-OAuth acquisition returned no token"
+        fi
+      fi
+
+      if [ "$rcs_url" = "autodetect" ]; then
+        # ---- Autodetect block (moved from later in script) ----
+        echo "Autodetecting RCS URL from config-service..."
+        rcs_url=""
+        token_file="$script_dir/helper/tokens/access_token.txt"
+        if [ -f "$token_file" ]; then
+          bearer_token=$(cat "$token_file" | tr -d '\n\r')
+          child_nodes_url="https://$server/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
+          child_nodes_body=$(printf '{"station":{"systemName":"GKR-Store","tenantId":"%s","retailStoreId":"%s"}}' "$tenant_id" "$storeNumber")
+          echo "Fetching store child nodes for store $storeNumber..."
+          child_nodes_response=$(curl -s -X POST "$child_nodes_url" \
+            -H "authorization: Bearer $bearer_token" \
+            -H "Content-Type: application/json" \
+            -d "$child_nodes_body")
+
+          if command -v jq >/dev/null 2>&1; then
+            rcs_struct=$(echo "$child_nodes_response" | jq -r '.childNodeList[]? | select(.systemName | test("Resource-Cache-Service")) | .structureUniqueName' | head -n 1)
+            rcs_system=$(echo "$child_nodes_response" | jq -r '.childNodeList[]? | select(.systemName | test("Resource-Cache-Service")) | .systemName' | head -n 1)
+            rcs_version=$(echo "$child_nodes_response" | jq -r '.childNodeList[]? | select(.systemName | test("Resource-Cache-Service")) | .activeVersion' | head -n 1)
+          else
+            rcs_struct=$(echo "$child_nodes_response" | grep -o '"structureUniqueName":"[^"]*"' | head -n 1 | sed 's/"structureUniqueName":"//;s/"$//')
+            rcs_system=$(echo "$child_nodes_response" | grep -o '"systemName":"[^"]*Resource-Cache-Service[^"]*"' | head -n 1 | sed 's/"systemName":"//;s/"$//')
+            rcs_version=$(echo "$child_nodes_response" | grep -o '"activeVersion":"[^"]*"' | head -n 1 | sed 's/"activeVersion":"//;s/"$//')
+          fi
+
+          if [ -n "$rcs_system" ]; then
+            echo "Found RCS node: $rcs_system (version: $rcs_version)"
+            param_url="https://$server/api/config/services/rest/config-management/v1/parameter-contents/plain/search"
+            param_body=$(printf '{"levelDescriptor":{"structureUniqueName":"%s"},"systemDescriptor":{"systemName":"%s","systemVersionList":[{"name":"%s"}]},"parameterList":[{"name":"system.properties"}]}' "$rcs_struct" "$rcs_system" "$rcs_version")
+            echo "Fetching RCS system.properties..."
+            param_response=$(curl -s -X POST "$param_url" \
+              -H "authorization: Bearer $bearer_token" \
+              -H "Content-Type: application/json" \
+              -d "$param_body")
+            if command -v jq >/dev/null 2>&1; then
+              props_b64=$(echo "$param_response" | jq -r '.parameterList[]? | select(.name == "system.properties") | .content' | head -n 1)
+            else
+              props_b64=$(echo "$param_response" | grep -o '"content":"[^"]*"' | head -n 1 | sed 's/"content":"//;s/"$//')
+            fi
+            if [ -n "$props_b64" ]; then
+              props_content=$(echo "$props_b64" | base64 -d 2>/dev/null)
+              rcs_url=$(echo "$props_content" | grep '^rcs\.url=' | sed 's/^rcs\.url=//;s/\\:/:/g;s/\\=/=/g' | tr -d '\r')
+              if [ -n "$rcs_url" ]; then
+                echo "Autodetected RCS URL: $rcs_url"
+              else
+                echo "Warning: system.properties found but no rcs.url entry"
+              fi
+            else
+              echo "Warning: No system.properties content returned for RCS node"
+            fi
+          else
+            echo "Warning: No Resource-Cache-Service node found for store $storeNumber"
+          fi
+        else
+          echo "Warning: No access token available for RCS URL autodetect"
+        fi
+
+        if [ -z "$rcs_url" ]; then
+          echo "RCS URL autodetection failed. Continue without rcs.url in installation token?"
+          read -p "Press Y to continue, any other key to abort: " continue_choice
+          if [ "$continue_choice" != "Y" ] && [ "$continue_choice" != "y" ]; then
+            echo "Aborted by user."
+            exit 1
+          fi
+        fi
+      fi
+    fi
+    # ---- End pre-onboarding RCS URL resolution ----
+
     # Call the onboarding script with the appropriate component type and tenant_id
-    if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --tenant_id "$tenant_id"; then
+    if ! ./onboarding.sh --ComponentType "$COMPONENT_TYPE" --base_url "$base_url" --tenant_id "$tenant_id" --rcsUrl "$rcs_url"; then
       echo "Error during $COMPONENT_TYPE onboarding"
       exit 1
     fi
@@ -2532,91 +2668,6 @@ station.systemType=$systemType
 onboarding.token=$onboardingToken
 dsg.url=https://$dsg_server/api/digital-content/content/cep/SoftwarePackage
 EOF
-
-# Resolve RCS URL if autodetect requested
-if [ "$rcs_url" = "autodetect" ]; then
-  echo "Autodetecting RCS URL from config-service..."
-  rcs_url=""  # Reset so we only append if fetch succeeds
-  token_file="$script_dir/helper/tokens/access_token.txt"
-  if [ -f "$token_file" ]; then
-    bearer_token=$(cat "$token_file" | tr -d '\n\r ')
-
-    # Call 1: Get child nodes for this store
-    child_nodes_url="https://$server/api/config/services/rest/infrastructure/v1/structure/child-nodes/search"
-    child_nodes_body="{\"station\":{\"systemName\":\"GKR-Store\",\"tenantId\":\"$tenant_id\",\"retailStoreId\":\"$storeNumber\"}}"
-    echo "Fetching store child nodes for store $storeNumber..."
-    child_nodes_response=$(curl -s -f -X POST "$child_nodes_url" \
-      -H "authorization: Bearer $bearer_token" \
-      -H "Content-Type: application/json" \
-      -d "$child_nodes_body" \
-      --connect-timeout 30)
-
-    if [ $? -eq 0 ] && [ -n "$child_nodes_response" ]; then
-      # Find the RCS node - extract structureUniqueName, systemName, activeVersion
-      rcs_structure=$(echo "$child_nodes_response" | grep -o '"structureUniqueName":"[^"]*"[^}]*"systemName":"[^"]*Resource-Cache-Service[^"]*"[^}]*"activeVersion":"[^"]*"' | head -1)
-      if [ -z "$rcs_structure" ]; then
-        # Try alternate JSON field order
-        rcs_structure=$(echo "$child_nodes_response" | tr ',' '\n' | tr '{' '\n' | grep -B20 'Resource-Cache-Service' | tr '\n' ',' )
-      fi
-
-      if [ -n "$rcs_structure" ]; then
-        rcs_struct_name=$(echo "$rcs_structure" | grep -o '"structureUniqueName":"[^"]*"' | head -1 | sed 's/"structureUniqueName":"//;s/"//')
-        rcs_sys_name=$(echo "$rcs_structure" | grep -o '"systemName":"[^"]*"' | head -1 | sed 's/"systemName":"//;s/"//')
-        rcs_version=$(echo "$rcs_structure" | grep -o '"activeVersion":"[^"]*"' | head -1 | sed 's/"activeVersion":"//;s/"//')
-
-        if [ -n "$rcs_struct_name" ] && [ -n "$rcs_sys_name" ] && [ -n "$rcs_version" ]; then
-          echo "Found RCS node: $rcs_sys_name (version: $rcs_version)"
-
-          # Call 2: Get system.properties for the RCS node
-          param_url="https://$server/api/config/services/rest/config-management/v1/parameter-contents/plain/search"
-          param_body="{\"levelDescriptor\":{\"structureUniqueName\":\"$rcs_struct_name\"},\"systemDescriptor\":{\"systemName\":\"$rcs_sys_name\",\"systemVersionList\":[{\"name\":\"$rcs_version\"}]},\"parameterList\":[{\"name\":\"system.properties\"}]}"
-          echo "Fetching RCS system.properties..."
-          param_response=$(curl -s -f -X POST "$param_url" \
-            -H "authorization: Bearer $bearer_token" \
-            -H "Content-Type: application/json" \
-            -d "$param_body" \
-            --connect-timeout 30)
-
-          if [ $? -eq 0 ] && [ -n "$param_response" ]; then
-            # Extract base64 content from response
-            props_b64=$(echo "$param_response" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//;s/"//')
-            if [ -n "$props_b64" ]; then
-              # Decode and extract rcs.url (handle Java-style \: escaping)
-              props_content=$(echo "$props_b64" | base64 -d 2>/dev/null)
-              rcs_url=$(echo "$props_content" | grep '^rcs\.url=' | sed 's/^rcs\.url=//;s/\\:/:/g;s/\\=/=/g' | tr -d '\r')
-              if [ -n "$rcs_url" ]; then
-                echo "Autodetected RCS URL: $rcs_url"
-              else
-                echo "Warning: system.properties found but no rcs.url entry"
-              fi
-            else
-              echo "Warning: No system.properties content returned for RCS node"
-            fi
-          else
-            echo "Warning: Failed to fetch RCS system.properties"
-          fi
-        else
-          echo "Warning: Could not parse RCS node details from response"
-        fi
-      else
-        echo "Warning: No Resource-Cache-Service node found for store $storeNumber"
-      fi
-    else
-      echo "Warning: Failed to fetch store child nodes"
-    fi
-  else
-    echo "Warning: No access token available for RCS URL autodetect"
-  fi
-
-  if [ -z "$rcs_url" ]; then
-    echo "RCS URL autodetection failed. Continue without rcs.url in installation token?"
-    read -p "Press Y to continue, any other key to abort: " continue_choice
-    if [ "$continue_choice" != "Y" ] && [ "$continue_choice" != "y" ]; then
-      echo "Aborted by user."
-      exit 1
-    fi
-  fi
-fi
 
 # Append RCS URL to installation token if provided
 if [ -n "$rcs_url" ] && [ "$rcs_url" != "autodetect" ]; then
