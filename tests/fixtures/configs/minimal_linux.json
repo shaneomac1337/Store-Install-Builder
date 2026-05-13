@@ -20,6 +20,8 @@
   "flow_service_version": "",
   "lpa_service_version": "",
   "storehub_service_version": "",
+  "mqtt_broker_version": "v1.0.0",
+  "mqtt_broker_system_type": "GKR-Store-MQTT-Broker",
   "certificate_path": "",
   "environments": []
 }

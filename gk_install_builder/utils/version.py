@@ -71,6 +71,10 @@ def get_component_version(system_type, config):
         version = config.get("rcs_version", default_version)
         print(f"Matched RCS system type, using version: {version}")
         return version
+    elif "STORE-MQTT-BROKER" in st:
+        version = config.get("mqtt_broker_version", default_version)
+        print(f"Matched Store MQTT Broker system type, using version: {version}")
+        return version
     else:
         print(f"No match found for system type, using default version: {default_version}")
         return default_version

@@ -1,6 +1,6 @@
 param(
     [switch]$offline,
-    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE', 'RCS', 'RCS-SERVICE')]
+    [ValidateSet('POS', 'ONEX', 'ONEX-POS', 'WDM', 'FLOW-SERVICE', 'LPA', 'SH', 'LPA-SERVICE', 'STOREHUB-SERVICE', 'RCS', 'RCS-SERVICE', 'MQTT-BROKER')]
     [string]$ComponentType = 'POS',
     [string]$base_url = "test.cse.cloud4retail.co",
     [string]$storeId,  # Optional: Override Store ID detection
@@ -344,6 +344,7 @@ function Select-Environment {
         'LPA-SERVICE' { "LPA.station" }
         'STOREHUB-SERVICE' { "SH.station" }
         'RCS-SERVICE' { "RCS.station" }
+        'MQTT-BROKER' { "MQTT.station" }
         default { $null }
     }
     
@@ -772,6 +773,16 @@ function Get-DefaultVersions {
                                 $versionSources["RCS-SERVICE"] = "FP (Modified)"
                             }
                         }
+                        "StoreMQTTBroker_Version" {
+                            $versions["MQTT-BROKER"] = $property.value
+                            $versionSources["MQTT-BROKER"] = "FP (Modified)"
+                        }
+                        "StoreMQTTBroker_Update_Version" {
+                            if (-not $versions.ContainsKey("MQTT-BROKER")) {
+                                $versions["MQTT-BROKER"] = $property.value
+                                $versionSources["MQTT-BROKER"] = "FP (Modified)"
+                            }
+                        }
                     }
                 }
             }
@@ -782,7 +793,7 @@ function Get-DefaultVersions {
         }
 
         # Step 2: For components not found in FP, try FPD scope (default versions)
-        $allComponents = @("POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE")
+        $allComponents = @("POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE", "MQTT-BROKER")
         $missingComponents = $allComponents | Where-Object { -not $versions.ContainsKey($_) }
 
         if ($missingComponents.Count -gt 0) {
@@ -878,6 +889,18 @@ function Get-DefaultVersions {
                                 if (-not $versions.ContainsKey("RCS-SERVICE")) {
                                     $versions["RCS-SERVICE"] = $property.value
                                     $versionSources["RCS-SERVICE"] = "FPD (Default)"
+                                }
+                            }
+                            "StoreMQTTBroker_Version" {
+                                if (-not $versions.ContainsKey("MQTT-BROKER")) {
+                                    $versions["MQTT-BROKER"] = $property.value
+                                    $versionSources["MQTT-BROKER"] = "FPD (Default)"
+                                }
+                            }
+                            "StoreMQTTBroker_Update_Version" {
+                                if (-not $versions.ContainsKey("MQTT-BROKER")) {
+                                    $versions["MQTT-BROKER"] = $property.value
+                                    $versionSources["MQTT-BROKER"] = "FPD (Default)"
                                 }
                             }
                         }
@@ -1040,6 +1063,7 @@ $systemType = switch ($ComponentType) {
     'LPA-SERVICE' { "CSE-lps-lpa" }
     'STOREHUB-SERVICE' { "CSE-sh-cloud" }
     'RCS-SERVICE' { "@RCS_SYSTEM_TYPE@" }
+    'MQTT-BROKER' { "@MQTT_BROKER_SYSTEM_TYPE@" }
     default { "CSE-OPOS-CLOUD" }
 }
 
@@ -1052,6 +1076,7 @@ $install_dir = Join-Path $base_install_dir $(
     elseif ($ComponentType -eq 'LPA-SERVICE') { "lpa-service" }
     elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "storehub-service" }
     elseif ($ComponentType -eq 'RCS-SERVICE') { "rcs" }
+    elseif ($ComponentType -eq 'MQTT-BROKER') { "store-mqtt-broker-service" }
     else { "wdm" }
 )
 
@@ -1122,10 +1147,14 @@ if ($isUpdate) {
             Write-Host "Warning: No station.tenantId found in station.properties" -ForegroundColor Yellow
         }
 
-        # If both store ID and workstation ID were found, mark detection as complete
+        # If both store ID and workstation ID were found, mark detection as complete.
+        # MQTT-BROKER is a singleton-per-store: only Store ID is required.
         if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workstationId)) {
             $hostnameDetected = $true
             Write-Host "Using Store ID and Workstation ID from existing installation"
+        } elseif ($ComponentType -eq 'MQTT-BROKER' -and ![string]::IsNullOrEmpty($storeNumber)) {
+            $hostnameDetected = $true
+            Write-Host "MQTT-BROKER update: using Store ID from existing installation (WSID not required for singleton)"
         } else {
             Write-Host "Error: Could not extract complete information from station.properties" -ForegroundColor Red
             Write-Host "Update not possible. Exiting." -ForegroundColor Red
@@ -1399,6 +1428,7 @@ if ($UseDefaultVersions) {
             "LPA-SERVICE" = "@LPA_SERVICE_SYSTEM_TYPE@"
             "STOREHUB-SERVICE" = "@STOREHUB_SERVICE_SYSTEM_TYPE@"
             "RCS-SERVICE" = "@RCS_SYSTEM_TYPE@"
+            "MQTT-BROKER" = "@MQTT_BROKER_SYSTEM_TYPE@"
         }
 
         if ($allSystemTypes.ContainsKey($ComponentType)) {
@@ -1429,6 +1459,7 @@ if ($UseDefaultVersions) {
             "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
             "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
             "@RCS_SYSTEM_TYPE@" { "@RCS_VERSION@" }
+            "@MQTT_BROKER_SYSTEM_TYPE@" { "@MQTT_BROKER_VERSION@" }
             default { "" }
         }
     }
@@ -1443,6 +1474,7 @@ if ($UseDefaultVersions) {
         "CSE-lps-lpa" { "@LPA_SERVICE_VERSION@" }
         "CSE-sh-cloud" { "@STOREHUB_SERVICE_VERSION@" }
         "@RCS_SYSTEM_TYPE@" { "@RCS_VERSION@" }
+        "@MQTT_BROKER_SYSTEM_TYPE@" { "@MQTT_BROKER_VERSION@" }
         default { "" }
     }
 }
@@ -1508,6 +1540,7 @@ if ($ComponentType -eq 'WDM') {
 $package_dir = if ($ComponentType -eq 'LPA-SERVICE') { "offline_package_LPA" }
                elseif ($ComponentType -eq 'STOREHUB-SERVICE') { "offline_package_SH" }
                elseif ($ComponentType -eq 'RCS-SERVICE') { "offline_package_RCS" }
+               elseif ($ComponentType -eq 'MQTT-BROKER') { "offline_package_MQTT-BROKER" }
                else { "offline_package_$ComponentType" }
 
 # Update offline mode checks
@@ -1857,6 +1890,12 @@ if (![string]::IsNullOrEmpty($storeNumber) -and ![string]::IsNullOrEmpty($workst
     $hostnameDetected = $true
     Write-Host "Both Store ID and Workstation ID provided via CLI - skipping detection"
 }
+# MQTT-BROKER is a singleton-per-store: WSID is not required. If storeNumber
+# is provided (CLI or otherwise), MQTT detection is considered complete.
+elseif ($ComponentType -eq 'MQTT-BROKER' -and ![string]::IsNullOrEmpty($storeNumber)) {
+    $hostnameDetected = $true
+    Write-Host "MQTT-BROKER is a singleton - Store ID provided, WSID not required - skipping detection"
+}
 
 # For new installations (not update mode), detect from hostname or prompt user
 # Only run detection if we still need values
@@ -1880,11 +1919,18 @@ if (-not $isUpdate) {
         # File detection code will be inserted here by the generator
     }
 
+    # MQTT-BROKER singleton clamp: if storeNumber was extracted by hostname
+    # or file detection, mark detection as complete even if no WSID was found.
+    if (-not $hostnameDetected -and $ComponentType -eq 'MQTT-BROKER' -and ![string]::IsNullOrEmpty($storeNumber)) {
+        $hostnameDetected = $true
+        Write-Host "MQTT-BROKER is a singleton - Store Number detected ($storeNumber), WSID not required"
+    }
+
     # If both hostname and file detection failed, prompt for manual input
     # Only prompt for values that are still missing
     if (-not $hostnameDetected) {
         Write-Host "Falling back to manual input for missing values."
-        
+
         # Only prompt for Store Number if not provided
         if ([string]::IsNullOrEmpty($storeNumber)) {
             Write-Host "Please enter the Store Number in one of these formats `(or any custom format`):"
@@ -1902,14 +1948,19 @@ if (-not $isUpdate) {
         } else {
             Write-Host "Store Number already provided: $storeNumber"
         }
-        
-        # Only prompt for Workstation ID if not provided
-        if ([string]::IsNullOrEmpty($workstationId)) {
-            do {
-                $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
-            } while ($workstationId -notmatch '^\d+$')
+
+        # Only prompt for Workstation ID if not provided.
+        # MQTT-BROKER is a singleton-per-store: WSID is not required, so never prompt.
+        if ($ComponentType -ne 'MQTT-BROKER') {
+            if ([string]::IsNullOrEmpty($workstationId)) {
+                do {
+                    $workstationId = Read-Host "Please enter the Workstation ID (numeric)"
+                } while ($workstationId -notmatch '^\d+$')
+            } else {
+                Write-Host "Workstation ID already provided: $workstationId"
+            }
         } else {
-            Write-Host "Workstation ID already provided: $workstationId"
+            Write-Host "ComponentType is MQTT-BROKER (singleton-per-store) - skipping Workstation ID prompt"
         }
     }
 }
@@ -2291,6 +2342,8 @@ $templateFile = if ($ComponentType -eq 'POS') {
     Join-Path $launchersPath "launcher.storehub-service.template"
 } elseif ($ComponentType -eq 'RCS-SERVICE') {
     Join-Path $launchersPath "launcher.rcs-service.template"
+} elseif ($ComponentType -eq 'MQTT-BROKER') {
+    Join-Path $launchersPath "launcher.store-mqtt-broker-service.template"
 } else {
     Join-Path $launchersPath "launcher.wdm.template"
 }
@@ -2370,6 +2423,7 @@ if ($noOverrides) {
         'LPA-SERVICE'      { "installer_overrides.lpa-service.xml" }
         'STOREHUB-SERVICE' { "installer_overrides.storehub-service.xml" }
         'RCS-SERVICE'      { "installer_overrides.rcs-service.xml" }
+        'MQTT-BROKER'      { "installer_overrides.store-mqtt-broker-service.xml" }
         default            { $null }
     }
     if ($overrideFile) {

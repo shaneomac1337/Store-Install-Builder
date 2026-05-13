@@ -80,6 +80,7 @@ def create_config(**overrides) -> Dict:
             "POS": True, "ONEX-POS": True, "WDM": True,
             "FLOW-SERVICE": True, "LPA-SERVICE": True,
             "STOREHUB-SERVICE": True, "RCS-SERVICE": True,
+            "MQTT-BROKER": True,
         },
         "installer_overrides_properties": {
             "check-alive": True,

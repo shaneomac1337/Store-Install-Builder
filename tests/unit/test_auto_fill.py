@@ -143,3 +143,74 @@ class TestAutoFillLogic:
             project_code = "GKR"
 
         assert project_code == "TEST"
+
+    def test_mqtt_broker_system_type_always_gkr(self):
+        """Test that MQTT Broker system type always uses GKR prefix regardless of project code"""
+        from gk_install_builder.features.auto_fill import AutoFillManager
+        from unittest.mock import Mock
+
+        # Test that MQTT Broker always uses GKR prefix regardless of project code
+        test_cases = [
+            ("dev.cse.cloud4retail.co", "CSE"),        # Customer project: CSE
+            ("dev.cloud4retail.co", "GKR"),             # Product project: GKR
+            ("dev.abc.cloud4retail.co", "ABC"),         # Custom project: ABC
+        ]
+
+        for base_url, expected_project_code in test_cases:
+            # Create a minimal config manager mock that implements the real update_entry_value logic
+            mock_config_manager = Mock()
+            mock_config_manager.config = {
+                "platform": "Windows",
+                "base_install_dir": "C:\\gkretail",
+                "base_url": base_url,
+            }
+
+            # Create a helper function to generate mock entries with proper methods
+            def create_mock_entry():
+                mock_entry = Mock()
+                mock_entry.get = Mock(return_value="")
+                return mock_entry
+
+            # Mock entry widgets for the fields we care about
+            entries_dict = {
+                "mqtt_broker_system_type": create_mock_entry(),
+                "pos_system_type": create_mock_entry(),
+                "onex_pos_system_type": create_mock_entry(),
+                "wdm_system_type": create_mock_entry(),
+                "flow_service_system_type": create_mock_entry(),
+                "lpa_service_system_type": create_mock_entry(),
+                "storehub_service_system_type": create_mock_entry(),
+                "rcs_system_type": create_mock_entry(),
+                "project_name": create_mock_entry(),
+                "output_dir": create_mock_entry(),
+                "certificate_path": create_mock_entry(),
+                "base_install_dir": create_mock_entry(),
+                "username": create_mock_entry(),
+                "eh_launchpad_username": create_mock_entry(),
+                "ssl_password": create_mock_entry(),
+            }
+            mock_config_manager.get_entry = Mock(side_effect=lambda key: entries_dict.get(key))
+
+            # Implement the real update_entry_value logic in the mock
+            def update_entry_value_impl(key, value):
+                entry = entries_dict.get(key)
+                if entry and hasattr(entry, "delete") and hasattr(entry, "insert"):
+                    entry.delete(0, 'end')
+                    entry.insert(0, value)
+                    mock_config_manager.config[key] = value
+                    return True
+                return False
+
+            mock_config_manager.update_entry_value = Mock(side_effect=update_entry_value_impl)
+
+            # Create AutoFillManager and call auto_fill_based_on_url
+            auto_fill_manager = AutoFillManager(mock_config_manager)
+            result = auto_fill_manager.auto_fill_based_on_url(base_url)
+
+            # Verify auto-fill was successful
+            assert result is True
+
+            # Verify that mqtt_broker_system_type was set to GKR in the config dict
+            # regardless of project code (CSE, GKR, or ABC)
+            assert mock_config_manager.config.get("mqtt_broker_system_type") == "GKR-Store-MQTT-Broker", \
+                f"MQTT broker type should be GKR-Store-MQTT-Broker for project {expected_project_code}, got {mock_config_manager.config.get('mqtt_broker_system_type')}"

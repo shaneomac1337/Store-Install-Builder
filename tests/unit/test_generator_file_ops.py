@@ -429,6 +429,112 @@ class TestOutputFileCreation:
             pass
 
 
+class TestMqttBrokerHelperFiles:
+    """Test MQTT Broker helper file generation"""
+
+    def test_mqtt_broker_structure_template_no_workstationid(self, tmp_path):
+        """Test that create_structure_mqtt-broker.json is emitted with NO workstationId in newNode.
+
+        MQTT-BROKER is a singleton-per-store. The structure-creation POST body for
+        MQTT must NOT include workstationId in newNode (Product UI shape).
+        """
+        import json
+        try:
+            from gk_install_builder.generators.helper_file_generator import create_component_files
+        except ImportError:
+            from generators.helper_file_generator import create_component_files
+
+        helper_dir = tmp_path / "helper"
+        helper_dir.mkdir()
+
+        # Run the function-under-test
+        create_component_files(str(helper_dir))
+
+        mqtt_path = helper_dir / "structure" / "create_structure_mqtt-broker.json"
+        assert mqtt_path.exists(), (
+            f"create_structure_mqtt-broker.json must be written to {mqtt_path}"
+        )
+
+        body = json.loads(mqtt_path.read_text(encoding="utf-8"))
+
+        # Parent node shape
+        assert body["parentNode"]["systemName"] == "GKR-Store"
+        # New node shape: NO workstationId allowed (this is the whole point)
+        assert "workstationId" not in body["newNode"], (
+            f"newNode must NOT contain workstationId for MQTT singleton; got: {body['newNode']}"
+        )
+        assert body["newNode"]["systemName"] == "@SYSTEM_TYPE@"
+        assert body["newNode"]["name"] == "@STATION_NAME@"
+        # User placeholder
+        assert body["user"] == "@USER_ID@"
+
+    def test_mqtt_broker_structure_template_has_no_workstation_placeholder(self, tmp_path):
+        """Defensive: generated create_structure_mqtt-broker.json contains NO @WORKSTATION_ID@.
+
+        The MQTT-BROKER template intentionally has no workstationId field at all,
+        so the @WORKSTATION_ID@ placeholder substitution in store-init is a no-op.
+        This guards against future regressions where someone might accidentally
+        re-add the placeholder (e.g. by copying from the workstation template).
+
+        If this fires, the singleton semantics are broken — fix the template, do
+        not weaken this assertion.
+        """
+        try:
+            from gk_install_builder.generators.helper_file_generator import create_component_files
+        except ImportError:
+            from generators.helper_file_generator import create_component_files
+
+        helper_dir = tmp_path / "helper"
+        helper_dir.mkdir()
+
+        create_component_files(str(helper_dir))
+
+        mqtt_path = helper_dir / "structure" / "create_structure_mqtt-broker.json"
+        assert mqtt_path.exists(), (
+            f"create_structure_mqtt-broker.json must be written to {mqtt_path}"
+        )
+
+        content = mqtt_path.read_text(encoding="utf-8")
+        assert "@WORKSTATION_ID@" not in content, (
+            "MQTT-BROKER structure template must NOT contain the "
+            "@WORKSTATION_ID@ placeholder; the whole point of the singleton "
+            "template is that workstationId is absent. Found placeholder in:\n"
+            f"{content}"
+        )
+
+    def test_mqtt_broker_onboarding_json_content(self, tmp_path):
+        """Test that store-mqtt-broker-service.onboarding.json is generated with correct clientType"""
+        from gk_install_builder.generator import ProjectGenerator
+        import json
+
+        generator = ProjectGenerator()
+
+        helper_dir = tmp_path / "helper"
+        helper_dir.mkdir()
+
+        config = create_config(
+            platform="Windows",
+            output_dir=str(tmp_path),
+            tenant_id="001",
+            eh_launchpad_username="1001"
+        )
+
+        # _create_default_json_files populates helper/onboarding/*.onboarding.json
+        generator._create_default_json_files(str(helper_dir), config)
+
+        p = helper_dir / "onboarding" / "store-mqtt-broker-service.onboarding.json"
+        assert p.exists(), "store-mqtt-broker-service.onboarding.json must be generated"
+        text = p.read_text()
+        assert "store-mqtt-broker" in text, (
+            f"clientType 'store-mqtt-broker' not found in {p.name}; got: {text}"
+        )
+        data = json.loads(text)
+        # Broad structure check: clientType must be present at any nesting level
+        assert data.get("clientType") == "store-mqtt-broker" or (
+            "restrictions" in data and data["restrictions"].get("clientType") == "store-mqtt-broker"
+        ), f"clientType mismatch: {data}"
+
+
 # ============================================================================
 # Quick Test Summary
 # ============================================================================
@@ -448,8 +554,9 @@ def test_file_ops_summary():
     print("✅ TestLauncherTemplateGeneration: 2 tests")
     print("✅ TestFilePermissions: 2 tests")
     print("✅ TestOutputFileCreation: 2 tests")
+    print("✅ TestMqttBrokerHelperFiles: 3 tests")
     print("-"*70)
-    print("📊 Total: 14 tests for file operations")
+    print("📊 Total: 16 tests for file operations")
     print("="*70 + "\n")
 
 

@@ -40,6 +40,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
     lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
     storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
     rcs_system_type = config.get("rcs_system_type", "GKR-Resource-Cache-Service")
+    mqtt_broker_system_type = config.get("mqtt_broker_system_type", "GKR-Store-MQTT-Broker")
     base_url = config.get("base_url", "test.cse.cloud4retail.co")
     tenant_id = config.get("tenant_id", "001")
 
@@ -96,6 +97,7 @@ def generate_store_init_script(output_dir, config, templates_dir):
         template_content = template_content.replace("${lpa_service_system_type}", lpa_service_system_type)
         template_content = template_content.replace("${storehub_service_system_type}", storehub_service_system_type)
         template_content = template_content.replace("${rcs_system_type}", rcs_system_type)
+        template_content = template_content.replace("${mqtt_broker_system_type}", mqtt_broker_system_type)
         template_content = template_content.replace("${base_url}", base_url)
         template_content = template_content.replace("${tenant_id}", tenant_id)
 
@@ -257,6 +259,28 @@ def create_component_files(helper_dir):
     with open(file_path, 'w', encoding='utf-8') as f:
         f.write(create_structure_json)
     print(f"  Created structure template: {file_path}")
+
+    # Create create_structure_mqtt-broker.json template for MQTT-BROKER singleton.
+    # MQTT-BROKER is a store-level singleton: the node-creation POST body must NOT
+    # include workstationId in newNode (Product UI shape). All other components keep
+    # using the workstation-shaped create_structure.json above.
+    create_structure_mqtt_json = '''{
+    "parentNode": {
+        "tenantId": "@TENANT_ID@",
+        "retailStoreId": "@RETAIL_STORE_ID@",
+        "systemName": "GKR-Store"
+    },
+    "newNode": {
+        "systemName": "@SYSTEM_TYPE@",
+        "name": "@STATION_NAME@"
+    },
+    "user": "@USER_ID@"
+}'''
+
+    mqtt_file_path = os.path.join(structure_dir, "create_structure_mqtt-broker.json")
+    with open(mqtt_file_path, 'w', encoding='utf-8') as f:
+        f.write(create_structure_mqtt_json)
+    print(f"  Created structure template: {mqtt_file_path}")
 
 
 def create_init_json_files(helper_dir, config):

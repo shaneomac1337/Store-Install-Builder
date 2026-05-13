@@ -181,7 +181,8 @@ class APIClient:
                 "FLOW-SERVICE": {"value": None, "source": None},
                 "LPA-SERVICE": {"value": None, "source": None},
                 "STOREHUB-SERVICE": {"value": None, "source": None},
-                "RCS-SERVICE": {"value": None, "source": None}
+                "RCS-SERVICE": {"value": None, "source": None},
+                "MQTT-BROKER": {"value": None, "source": None}
             }
 
             # Get API version from config (default to "new" for 5.27+)
@@ -294,6 +295,11 @@ class APIClient:
                                 if versions["RCS-SERVICE"]["value"] is None or prop_id == "RCS_Version":
                                     versions["RCS-SERVICE"] = {"value": value, "source": "FP (Modified)"}
                                     print(f"[TEST API]     -> Matched RCS ({prop_id}): {value}")
+                            # Store MQTT Broker: try Version first, fallback to Update_Version
+                            elif prop_id in ["StoreMQTTBroker_Version", "StoreMQTTBroker_Update_Version"] and value:
+                                if versions["MQTT-BROKER"]["value"] is None or prop_id == "StoreMQTTBroker_Version":
+                                    versions["MQTT-BROKER"] = {"value": value, "source": "FP (Modified)"}
+                                    print(f"[TEST API]     -> Matched MQTT Broker ({prop_id}): {value}")
                     else:
                         print(f"[TEST API] ERROR: FP response is not a list, it's a {type(fp_data)}")
                 except Exception as json_err:
@@ -378,6 +384,10 @@ class APIClient:
                             elif prop_id in ["RCS_Version", "RCS_Update_Version"] and value and versions["RCS-SERVICE"]["value"] is None:
                                 versions["RCS-SERVICE"] = {"value": value, "source": "FPD (Default)"}
                                 print(f"[TEST API]     -> Matched RCS ({prop_id}): {value}")
+                            # Store MQTT Broker: try Version first, fallback to Update_Version
+                            elif prop_id in ["StoreMQTTBroker_Version", "StoreMQTTBroker_Update_Version"] and value and versions["MQTT-BROKER"]["value"] is None:
+                                versions["MQTT-BROKER"] = {"value": value, "source": "FPD (Default)"}
+                                print(f"[TEST API]     -> Matched MQTT Broker ({prop_id}): {value}")
                     except Exception as e:
                         print(f"Warning: FPD scope request failed: {e}")
 
@@ -596,7 +606,8 @@ class APIClient:
                 "FLOW-SERVICE": self.config_manager.config.get("flow_service_system_type", "GKR-FLOWSERVICE-CLOUD"),
                 "LPA-SERVICE": self.config_manager.config.get("lpa_service_system_type", "CSE-lps-lpa"),
                 "STOREHUB-SERVICE": self.config_manager.config.get("storehub_service_system_type", "CSE-sh-cloud"),
-                "RCS-SERVICE": self.config_manager.config.get("rcs_system_type", "GKR-Resource-Cache-Service")
+                "RCS-SERVICE": self.config_manager.config.get("rcs_system_type", "GKR-Resource-Cache-Service"),
+                "MQTT-BROKER": self.config_manager.config.get("mqtt_broker_system_type", "GKR-Store-MQTT-Broker")
             }
 
             print(f"[CONFIG API] System types: {system_types}")

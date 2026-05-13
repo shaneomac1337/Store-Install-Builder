@@ -18,7 +18,8 @@ HELPER_STRUCTURE = {
         "launcher.flow-service.template",
         "launcher.lpa-service.template",
         "launcher.storehub-service.template",
-        "launcher.rcs-service.template"
+        "launcher.rcs-service.template",
+        "launcher.store-mqtt-broker-service.template"
     ],
     "onboarding": [
         "pos.onboarding.json",
@@ -27,7 +28,8 @@ HELPER_STRUCTURE = {
         "flow-service.onboarding.json",
         "lpa-service.onboarding.json",
         "storehub-service.onboarding.json",
-        "rcs-service.onboarding.json"
+        "rcs-service.onboarding.json",
+        "store-mqtt-broker-service.onboarding.json"
     ],
     "tokens": [
         "basic_auth_password.txt",
@@ -41,6 +43,10 @@ HELPER_STRUCTURE = {
             ]
         }
     ],
+    "structure": [
+        "create_structure.json",
+        "create_structure_mqtt-broker.json"
+    ],
     "overrides": [
         "installer_overrides.pos.xml",
         "installer_overrides.onex-pos.xml",
@@ -48,7 +54,8 @@ HELPER_STRUCTURE = {
         "installer_overrides.flow-service.xml",
         "installer_overrides.lpa-service.xml",
         "installer_overrides.storehub-service.xml",
-        "installer_overrides.rcs-service.xml"
+        "installer_overrides.rcs-service.xml",
+        "installer_overrides.store-mqtt-broker-service.xml"
     ]
 }
 
@@ -195,6 +202,26 @@ tomcat_package_version_local=@TOMCAT_VERSION@
 tomcat_package_local=@TOMCAT_PACKAGE@
 """
 
+LAUNCHER_TEMPLATE_MQTT_BROKER = """# Launcher defaults for MQTT Broker
+installdir=@INSTALL_DIR@
+identifierEncoded=@BASE64_TOKEN@
+applicationServerHttpPort=8180
+applicationServerHttpsPort=8543
+applicationServerShutdownPort=8005
+applicationServerJmxPort=52222
+updaterJmxPort=4333
+ssl_path=@SSL_PATH@
+ssl_password=@SSL_PASSWORD@
+identifierExpert=@OFFLINE_MODE@
+useLocalFiles=@OFFLINE_MODE@
+keepFiles=0
+jre_package_version_local=@JRE_VERSION@
+jre_package_local=@JRE_PACKAGE@
+installer_package_local=@INSTALLER_PACKAGE@
+tomcat_package_version_local=@TOMCAT_VERSION@
+tomcat_package_local=@TOMCAT_PACKAGE@
+"""
+
 # Map component names to their override output filenames
 OVERRIDE_COMPONENT_FILES = {
     "POS": "installer_overrides.pos.xml",
@@ -204,6 +231,7 @@ OVERRIDE_COMPONENT_FILES = {
     "LPA-SERVICE": "installer_overrides.lpa-service.xml",
     "STOREHUB-SERVICE": "installer_overrides.storehub-service.xml",
     "RCS-SERVICE": "installer_overrides.rcs-service.xml",
+    "MQTT-BROKER": "installer_overrides.store-mqtt-broker-service.xml",
 }
 
 # Map override output filenames to source template filenames
@@ -215,6 +243,7 @@ OVERRIDE_TEMPLATE_MAP = {
     "installer_overrides.lpa-service.xml": "installer_overrides_Services.xml",
     "installer_overrides.storehub-service.xml": "installer_overrides_StoreHub.xml",
     "installer_overrides.rcs-service.xml": "installer_overrides_Services.xml",
+    "installer_overrides.store-mqtt-broker-service.xml": "installer_overrides_Services.xml",
 }
 
 # Map launcher filenames to their templates
@@ -225,5 +254,6 @@ LAUNCHER_TEMPLATES = {
     "launcher.flow-service.template": LAUNCHER_TEMPLATE_FLOW_SERVICE,
     "launcher.lpa-service.template": LAUNCHER_TEMPLATE_LPA_SERVICE,
     "launcher.storehub-service.template": LAUNCHER_TEMPLATE_STOREHUB_SERVICE,
-    "launcher.rcs-service.template": LAUNCHER_TEMPLATE_RCS_SERVICE
+    "launcher.rcs-service.template": LAUNCHER_TEMPLATE_RCS_SERVICE,
+    "launcher.store-mqtt-broker-service.template": LAUNCHER_TEMPLATE_MQTT_BROKER
 }

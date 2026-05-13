@@ -95,7 +95,7 @@ class LauncherSettingsEditor:
         tab_view = ctk.CTkTabview(main_frame)
         tab_view.pack(fill="both", expand=True, padx=10, pady=10)
 
-        component_types = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
+        component_types = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE", "MQTT-BROKER"]
 
         # Initialize settings dictionary
         self.settings = {}
@@ -121,7 +121,7 @@ class LauncherSettingsEditor:
             )
             instructions.pack(pady=(0, 10), padx=10, anchor="w")
 
-            tomcat_components = ["WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
+            tomcat_components = ["WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE", "MQTT-BROKER"]
             if component_type in tomcat_components:
                 warning_label = ctk.CTkLabel(
                     settings_frame,
@@ -383,6 +383,20 @@ class LauncherSettingsEditor:
             "keepFiles": "0"
         }
 
+        # Store MQTT Broker settings
+        self.settings["MQTT-BROKER"] = {
+            "runAsService": "0",
+            "appServiceName": "Tomcat-storemqttbrokerservice",
+            "updaterServiceName": "Updater-storemqttbrokerservice",
+            "runAsServiceStartType": "auto",
+            "applicationServerHttpPort": "8180",
+            "applicationServerHttpsPort": "8543",
+            "applicationServerShutdownPort": "8005",
+            "applicationServerJmxPort": "52222",
+            "updaterJmxPort": "4333",
+            "keepFiles": "0"
+        }
+
         # Try to load existing templates from the output directory
         self._load_existing_templates()
 
@@ -415,7 +429,8 @@ class LauncherSettingsEditor:
             "WDM": "launcher.wdm.template",
             "FLOW-SERVICE": "launcher.flow-service.template",
             "LPA-SERVICE": "launcher.lpa-service.template",
-            "STOREHUB-SERVICE": "launcher.storehub-service.template"
+            "STOREHUB-SERVICE": "launcher.storehub-service.template",
+            "MQTT-BROKER": "launcher.store-mqtt-broker-service.template"
         }
 
         for component_type, filename in template_files.items():

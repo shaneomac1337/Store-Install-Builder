@@ -23,6 +23,8 @@
   "flow_service_version": "v4.0.0",
   "lpa_service_version": "v3.2.0",
   "storehub_service_version": "v2.8.0",
+  "mqtt_broker_version": "v1.0.0",
+  "mqtt_broker_system_type": "GKR-Store-MQTT-Broker",
   "auth_service_ba_user": "linuxadmin",
   "auth_service_ba_password": "linuxpass123",
   "launchpad_oauth2": "linux_oauth_pass",

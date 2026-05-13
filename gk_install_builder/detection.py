@@ -16,7 +16,8 @@ class DetectionManager:
                 "FLOW-SERVICE": "FLOW-SERVICE.station",
                 "LPA-SERVICE": "LPA.station",
                 "STOREHUB-SERVICE": "SH.station",
-                "RCS-SERVICE": "RCS.station"
+                "RCS-SERVICE": "RCS.station",
+                "MQTT-BROKER": "MQTT.station"
             },
             "detection_files": {
                 "POS": "",
@@ -25,7 +26,8 @@ class DetectionManager:
                 "FLOW-SERVICE": "",
                 "LPA-SERVICE": "",
                 "STOREHUB-SERVICE": "",
-                "RCS-SERVICE": ""
+                "RCS-SERVICE": "",
+                "MQTT-BROKER": ""
             },
             "strip_leading_zeros_wsid": False,
             "hostname_detection": {

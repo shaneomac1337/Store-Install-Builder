@@ -108,3 +108,35 @@ class TestBuildServiceArgs:
         result = build_service_args({}, "Windows")
         assert result["ps"] == ""
         assert result["sh"] == ""
+
+    def test_mqtt_broker_service_names_powershell(self):
+        """MQTT-BROKER with service enabled generates correct PS block"""
+        config = {
+            "mqtt_broker_launcher_settings": {
+                "runAsService": "1",
+                "appServiceName": "Tomcat-storemqttbrokerservice",
+                "updaterServiceName": "Updater-storemqttbrokerservice",
+                "runAsServiceStartType": "auto",
+            }
+        }
+        result = build_service_args(config, "Windows")
+        assert "if ($ComponentType -eq 'MQTT-BROKER')" in result["ps"]
+        assert '"--runAsService", "1"' in result["ps"]
+        assert '"--appServiceName", "Tomcat-storemqttbrokerservice"' in result["ps"]
+        assert '"--updaterServiceName", "Updater-storemqttbrokerservice"' in result["ps"]
+
+    def test_mqtt_broker_service_names_bash(self):
+        """MQTT-BROKER with service enabled generates correct Bash block"""
+        config = {
+            "mqtt_broker_launcher_settings": {
+                "runAsService": "1",
+                "appServiceName": "Tomcat-storemqttbrokerservice",
+                "updaterServiceName": "Updater-storemqttbrokerservice",
+                "runAsServiceStartType": "auto",
+            }
+        }
+        result = build_service_args(config, "Linux")
+        assert 'if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]' in result["sh"]
+        assert "--runAsService 1" in result["sh"]
+        assert "--appServiceName Tomcat-storemqttbrokerservice" in result["sh"]
+        assert "--updaterServiceName Updater-storemqttbrokerservice" in result["sh"]

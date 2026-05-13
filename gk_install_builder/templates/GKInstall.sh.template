@@ -127,7 +127,7 @@ if [ "$cli_remove_overrides" = "true" ] && [ "$cli_keep_overrides" = "true" ]; t
 fi
 
 # Validate ComponentType
-valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE" "RCS" "RCS-SERVICE")
+valid_types=("POS" "ONEX" "ONEX-POS" "WDM" "FLOW-SERVICE" "LPA" "SH" "LPA-SERVICE" "STOREHUB-SERVICE" "RCS" "RCS-SERVICE" "MQTT-BROKER")
 valid=false
 for type in "${valid_types[@]}"; do
   if [ "$COMPONENT_TYPE" = "$type" ]; then
@@ -597,6 +597,7 @@ select_environment() {
     'LPA-SERVICE') station_filename="LPA.station" ;;
     'STOREHUB-SERVICE') station_filename="SH.station" ;;
     'RCS-SERVICE') station_filename="RCS.station" ;;
+    'MQTT-BROKER') station_filename="MQTT.station" ;;
   esac
   
   if [ -n "$station_filename" ]; then
@@ -1099,6 +1100,12 @@ get_default_versions() {
           result_version=$(echo "$fp_response" | grep -o '"propertyId":"RCS_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
         fi
         ;;
+      "MQTT-BROKER")
+        result_version=$(echo "$fp_response" | grep -o '"propertyId":"StoreMQTTBroker_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        if [ -z "$result_version" ]; then
+          result_version=$(echo "$fp_response" | grep -o '"propertyId":"StoreMQTTBroker_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+        fi
+        ;;
     esac
 
     if [ -n "$result_version" ]; then
@@ -1164,6 +1171,12 @@ get_default_versions() {
           result_version=$(echo "$fpd_response" | grep -o '"propertyId":"RCS_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
           if [ -z "$result_version" ]; then
             result_version=$(echo "$fpd_response" | grep -o '"propertyId":"RCS_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          fi
+          ;;
+        "MQTT-BROKER")
+          result_version=$(echo "$fpd_response" | grep -o '"propertyId":"StoreMQTTBroker_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
+          if [ -z "$result_version" ]; then
+            result_version=$(echo "$fpd_response" | grep -o '"propertyId":"StoreMQTTBroker_Update_Version"[^}]*"value":"[^"]*"' | sed 's/.*"value":"\([^"]*\)".*/\1/')
           fi
           ;;
       esac
@@ -1298,6 +1311,10 @@ case "$COMPONENT_TYPE" in
     systemType="@RCS_SYSTEM_TYPE@"
     install_dir="$base_install_dir/rcs"
     ;;
+  'MQTT-BROKER')
+    systemType="@MQTT_BROKER_SYSTEM_TYPE@"
+    install_dir="$base_install_dir/store-mqtt-broker-service"
+    ;;
   *)
     systemType="CSE-OPOS-CLOUD"
     install_dir="$base_install_dir/wdm"
@@ -1374,10 +1391,14 @@ if [ "$isUpdate" = true ]; then
       echo -e "\033[1;33mWarning: No station.tenantId found in station.properties\033[0m"
     fi
 
-    # If both store ID and workstation ID were found, mark detection as complete
+    # If both store ID and workstation ID were found, mark detection as complete.
+    # MQTT-BROKER is a singleton-per-store: only Store ID is required.
     if [ -n "$storeNumber" ] && [ -n "$workstationId" ]; then
       hostnameDetected=true
       echo "Using Store ID and Workstation ID from existing installation"
+    elif [ "$COMPONENT_TYPE" = "MQTT-BROKER" ] && [ -n "$storeNumber" ]; then
+      hostnameDetected=true
+      echo "MQTT-BROKER update: using Store ID from existing installation (WSID not required for singleton)"
     else
       echo -e "\033[1;31mError: Could not extract complete information from station.properties\033[0m"
       echo -e "\033[1;31mUpdate not possible. Exiting.\033[0m"
@@ -1774,6 +1795,9 @@ if [ "$use_default_versions" = true ]; then
       'RCS-SERVICE')
         system_name="@RCS_SYSTEM_TYPE@"
         ;;
+      'MQTT-BROKER')
+        system_name="@MQTT_BROKER_SYSTEM_TYPE@"
+        ;;
       *)
         system_name=""
         ;;
@@ -1816,6 +1840,9 @@ if [ "$use_default_versions" = true ]; then
       "@RCS_SYSTEM_TYPE@")
         component_version="@RCS_VERSION@"
         ;;
+      "@MQTT_BROKER_SYSTEM_TYPE@")
+        component_version="@MQTT_BROKER_VERSION@"
+        ;;
       *)
         component_version=""
         ;;
@@ -1845,6 +1872,9 @@ else
       ;;
     "@RCS_SYSTEM_TYPE@")
       component_version="@RCS_VERSION@"
+      ;;
+    "@MQTT_BROKER_SYSTEM_TYPE@")
+      component_version="@MQTT_BROKER_VERSION@"
       ;;
     *)
       component_version=""
@@ -1913,6 +1943,8 @@ elif [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ]; then
   package_dir="offline_package_SH"
 elif [ "$COMPONENT_TYPE" = "RCS-SERVICE" ]; then
   package_dir="offline_package_RCS"
+elif [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+  package_dir="offline_package_MQTT-BROKER"
 else
   package_dir="offline_package_$COMPONENT_TYPE"
 fi
@@ -2261,6 +2293,12 @@ if [ -n "$cliStoreId" ] && [ -n "$cliWorkstationId" ]; then
   workstationId="$cliWorkstationId"
   echo "Both Store ID and Workstation ID provided via CLI - skipping detection"
   hostnameDetected=true
+# MQTT-BROKER is a singleton-per-store: WSID is not required. If storeNumber
+# is provided (CLI or otherwise), MQTT detection is considered complete.
+elif [ "$COMPONENT_TYPE" = "MQTT-BROKER" ] && [ -n "$cliStoreId" ]; then
+  storeNumber="$cliStoreId"
+  echo "MQTT-BROKER is a singleton - Store ID provided, WSID not required - skipping detection"
+  hostnameDetected=true
 fi
 
 # For new installations (not update mode), detect from hostname or prompt user
@@ -2309,11 +2347,18 @@ if [ "$isUpdate" = false ]; then
     # File detection code will be inserted here by the generator
   fi
 
+  # MQTT-BROKER singleton clamp: if storeNumber was extracted by hostname
+  # or file detection, mark detection as complete even if no WSID was found.
+  if [ "$hostnameDetected" = false ] && [ "$COMPONENT_TYPE" = "MQTT-BROKER" ] && [ -n "$storeNumber" ]; then
+    hostnameDetected=true
+    echo "MQTT-BROKER is a singleton - Store Number detected ($storeNumber), WSID not required"
+  fi
+
   # If both hostname and file detection failed, prompt for manual input
   # Only prompt for values that are still missing
   if [ "$hostnameDetected" = false ]; then
     echo "[3] Manual Input: Falling back to manual input for missing values."
-    
+
     # Prompt for Store Number only if not provided
     if [ -z "$storeNumber" ]; then
       echo "Please enter the Store Number in one of these formats (or any custom format):"
@@ -2331,18 +2376,23 @@ if [ "$isUpdate" = false ]; then
     else
       echo "Store Number already provided: $storeNumber"
     fi
-    
-    # Prompt for Workstation ID only if not provided
-    if [ -z "$workstationId" ]; then
-      while true; do
-        read -p "Please enter the Workstation ID (numeric): " workstationId
-        if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
-          break
-        fi
-        echo "Invalid input. Please enter a numeric Workstation ID."
-      done
+
+    # Prompt for Workstation ID only if not provided.
+    # MQTT-BROKER is a singleton-per-store: WSID is not required, so never prompt.
+    if [ "$COMPONENT_TYPE" != "MQTT-BROKER" ]; then
+      if [ -z "$workstationId" ]; then
+        while true; do
+          read -p "Please enter the Workstation ID (numeric): " workstationId
+          if [[ "$workstationId" =~ ^[0-9]+$ ]]; then
+            break
+          fi
+          echo "Invalid input. Please enter a numeric Workstation ID."
+        done
+      else
+        echo "Workstation ID already provided: $workstationId"
+      fi
     else
-      echo "Workstation ID already provided: $workstationId"
+      echo "COMPONENT_TYPE is MQTT-BROKER (singleton-per-store) - skipping Workstation ID prompt"
     fi
   fi
 fi
@@ -2707,6 +2757,9 @@ case "$COMPONENT_TYPE" in
   'RCS-SERVICE')
     template_file="$launchers_path/launcher.rcs-service.template"
     ;;
+  'MQTT-BROKER')
+    template_file="$launchers_path/launcher.store-mqtt-broker-service.template"
+    ;;
   *)
     template_file="$launchers_path/launcher.wdm.template"
     ;;
@@ -2807,6 +2860,7 @@ else
         LPA-SERVICE)      override_file="installer_overrides.lpa-service.xml" ;;
         STOREHUB-SERVICE) override_file="installer_overrides.storehub-service.xml" ;;
         RCS-SERVICE)      override_file="installer_overrides.rcs-service.xml" ;;
+        MQTT-BROKER)      override_file="installer_overrides.store-mqtt-broker-service.xml" ;;
         *)                override_file="" ;;
     esac
     if [ -n "$override_file" ]; then

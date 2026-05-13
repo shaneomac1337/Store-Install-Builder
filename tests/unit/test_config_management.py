@@ -201,3 +201,12 @@ class TestConfigManagement:
         assert cloned_env["tenant_id"] == "002"
         assert cloned_env["base_url"] == source_env["base_url"]  # Same URL
         assert cloned_env["launchpad_oauth2"] == source_env["launchpad_oauth2"]  # Same credentials
+
+    def test_mqtt_broker_defaults_present(self):
+        """Test that MQTT-BROKER component defaults are present in config"""
+        from gk_install_builder.config import ConfigManager
+        cm = ConfigManager()
+        config = cm._get_default_config()
+        assert config["installer_overrides_components"]["MQTT-BROKER"] is True
+        assert config["mqtt_broker_version"] == "v1.0.0"
+        assert "mqtt_broker_system_type" in config

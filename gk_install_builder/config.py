@@ -126,6 +126,7 @@ class ConfigManager:
                 "LPA-SERVICE": True,
                 "STOREHUB-SERVICE": True,
                 "RCS-SERVICE": True,
+                "MQTT-BROKER": True,
             },
             "installer_overrides_properties": {
                 "check-alive": True,
@@ -145,6 +146,7 @@ class ConfigManager:
             "lpa_service_version": "v1.0.0",
             "storehub_service_version": "v1.0.0",
             "rcs_version": "v1.0.0",
+            "mqtt_broker_version": "v1.0.0",
 
             # Installation Configuration
             "base_install_dir": "C:\\gkretail",  # Will be adjusted based on platform
@@ -156,6 +158,7 @@ class ConfigManager:
             "lpa_service_system_type": "",  # Will be dynamically set based on URL
             "storehub_service_system_type": "",  # Will be dynamically set based on URL
             "rcs_system_type": "",  # Will be dynamically set based on URL
+            "mqtt_broker_system_type": "",  # Will be dynamically set based on URL
             "firebird_server_path": default_firebird_path,
             "firebird_driver_path_local": default_jaybird_path,
             

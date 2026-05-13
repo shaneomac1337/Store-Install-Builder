@@ -606,9 +606,10 @@ class GKInstallBuilder:
                 "LPA Service System Type",
                 "StoreHub Service System Type",
                 "RCS System Type",
+                "MQTT Broker System Type",
                 "Firebird Server Path"
             ]
-            
+
             # Field tooltips for this section
             tooltips = {
                 "Base Install Directory": "Root directory where components will be installed (e.g., 'C:\\gkretail' for Windows or '/usr/local/gkretail' for Linux)",
@@ -619,10 +620,10 @@ class GKInstallBuilder:
                 "LPA Service System Type": "Type of LPA Service (e.g., 'CSE-LPA-Service')",
                 "StoreHub Service System Type": "Type of StoreHub Service (e.g., 'CSE-StoreHub-Service')",
                 "RCS System Type": "Type of RCS Service (e.g., 'GKR-Resource-Cache-Service').\nUse --rcsUrl <url> or --rcsUrl autodetect in GKInstall script.",
+                "MQTT Broker System Type": "Type of Store MQTT Broker (e.g., 'GKR-Store-MQTT-Broker').",
                 "WDM System Type": "Type of Wall Device Manager (e.g., 'CSE-wdm')",
                 "Firebird Server Path": "Path to the Firebird server (e.g., '/opt/firebird')",
             }
-            
             # Create fields
             for field in fields:
                 field_frame = ctk.CTkFrame(form_frame)
@@ -1532,6 +1533,7 @@ class GKInstallBuilder:
             "POS": True, "ONEX-POS": True, "WDM": True,
             "FLOW-SERVICE": True, "LPA-SERVICE": True,
             "STOREHUB-SERVICE": True, "RCS-SERVICE": True,
+            "MQTT-BROKER": True,
         }
         for k, v in default_all.items():
             components.setdefault(k, v)
@@ -1545,6 +1547,7 @@ class GKInstallBuilder:
             "LPA-SERVICE": "LPA Service",
             "STOREHUB-SERVICE": "StoreHub Service",
             "RCS-SERVICE": "RCS Service",
+            "MQTT-BROKER": "Store MQTT Broker",
         }
 
         # Create checkboxes

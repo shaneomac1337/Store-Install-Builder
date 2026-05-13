@@ -374,5 +374,21 @@
         "referenceId": "platform",
         "value": "v1.3.0",
         "description": "Version of Store Hub for installation"
+    },
+    {
+        "propertyId": "StoreMQTTBroker_Update_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.0.0",
+        "description": "Version for Store MQTT Broker Update"
+    },
+    {
+        "propertyId": "StoreMQTTBroker_Version",
+        "tenantId": "000",
+        "scope": "FPD",
+        "referenceId": "platform",
+        "value": "v1.0.0",
+        "description": "Version of Store MQTT Broker for installation"
     }
 ]

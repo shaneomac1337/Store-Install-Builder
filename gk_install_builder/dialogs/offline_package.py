@@ -240,7 +240,8 @@ class OfflinePackageCreator:
                 self.include_flow_service.get() or
                 self.include_lpa_service.get() or
                 self.include_storehub_service.get() or
-                self.include_rcs_service.get()
+                self.include_rcs_service.get() or
+                self.include_mqtt_broker.get()
             )
 
             # Handle POS and OneX POS separately - they only affect Java
@@ -420,6 +421,25 @@ class OfflinePackageCreator:
         )
         rcs_service_checkbox.pack(side="left", pady=5, padx=10)
         add_version_entry(rcs_service_component_frame, "rcs_version")
+
+        # Store MQTT Broker component frame
+        mqtt_broker_component_frame = ctk.CTkFrame(self.components_frame)
+        mqtt_broker_component_frame.pack(fill="x", pady=5, padx=10)
+
+        # Store MQTT Broker checkbox
+        self.include_mqtt_broker = ctk.BooleanVar(value=False)
+        # Add trace to Store MQTT Broker variable
+        self.include_mqtt_broker.trace_add("write", lambda *args: update_dependencies())
+
+        mqtt_broker_checkbox = ctk.CTkCheckBox(
+            mqtt_broker_component_frame,
+            text="Store MQTT Broker",
+            variable=self.include_mqtt_broker,
+            checkbox_width=20,
+            checkbox_height=20
+        )
+        mqtt_broker_checkbox.pack(side="left", pady=5, padx=10)
+        add_version_entry(mqtt_broker_component_frame, "mqtt_broker_version")
 
         # Call update_dependencies to set initial state based on default selections
         # Removed: update_dependencies()
@@ -1674,6 +1694,7 @@ class OfflinePackageCreator:
                    self.include_lpa_service.get() or
                    self.include_storehub_service.get() or
                    self.include_rcs_service.get() or
+                   self.include_mqtt_broker.get() or
                    self.include_java.get() or
                    self.include_tomcat.get() or
                    self.include_jaybird.get()):
@@ -1710,6 +1731,9 @@ class OfflinePackageCreator:
 
             if self.include_rcs_service.get():
                 selected_components.append("RCS-SERVICE")
+
+            if self.include_mqtt_broker.get():
+                selected_components.append("MQTT-BROKER")
 
             # Update config with inline version values before creating package
             for config_key, entry in self.version_entries.items():

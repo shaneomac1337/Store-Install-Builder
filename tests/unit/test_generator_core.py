@@ -1764,6 +1764,29 @@ class TestDirectoryStructure:
 # Quick Test Summary
 # ============================================================================
 
+def test_mqtt_broker_detection_file_default():
+    from gk_install_builder.detection import DetectionManager
+    dm = DetectionManager()
+    assert dm.detection_config["custom_filenames"]["MQTT-BROKER"] == "MQTT.station"
+    assert "MQTT-BROKER" in dm.detection_config["detection_files"]
+
+
+def test_mqtt_broker_in_component_service_config_map():
+    from gk_install_builder.generators.gk_install_generator import COMPONENT_SERVICE_CONFIG_MAP
+    assert COMPONENT_SERVICE_CONFIG_MAP["MQTT-BROKER"] == "mqtt_broker_launcher_settings"
+
+
+def test_mqtt_broker_station_file_in_generated_ps1(tmp_path):
+    from gk_install_builder.generator import ProjectGenerator
+    from tests.fixtures.generator_fixtures import create_config
+    config = create_config(output_dir=str(tmp_path), platform="Windows")
+    pg = ProjectGenerator()
+    pg.generate(config)
+    ps1 = (tmp_path / "GKInstall.ps1").read_text()
+    assert "'MQTT-BROKER'" in ps1
+    assert "MQTT.station" in ps1
+
+
 def test_generator_core_summary():
     """
     Summary test to verify all core tests are working

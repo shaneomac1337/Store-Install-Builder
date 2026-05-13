@@ -23,6 +23,7 @@ COMPONENT_PROPERTIES = {
     "LPA-SERVICE": ("LPA_Version", "LPA_Update_Version"),
     "STOREHUB-SERVICE": ("StoreHub_Version", "SH_Update_Version"),
     "RCS-SERVICE": ("RCS_Version", "RCS_Update_Version"),
+    "MQTT-BROKER": ("StoreMQTTBroker_Version", "StoreMQTTBroker_Update_Version"),
 }
 
 
@@ -97,3 +98,23 @@ def test_dispatch_site_handles_component(
         f"{component!r}: {missing!r}. Add a switch/case/elif branch in "
         f"{path.name} between anchors {start_phrase!r} and {end_phrase!r}."
     )
+
+
+def test_mqtt_broker_in_versions_init():
+    """MQTT-BROKER must appear in the versions init dict in api_client.py."""
+    source = API_CLIENT.read_text(encoding="utf-8")
+    assert '"MQTT-BROKER": {"value": None, "source": None}' in source
+
+
+def test_mqtt_broker_property_ids_dispatched():
+    """Both FP and FPD property IDs for MQTT Broker must appear in api_client.py."""
+    source = API_CLIENT.read_text(encoding="utf-8")
+    assert "StoreMQTTBroker_Version" in source
+    assert "StoreMQTTBroker_Update_Version" in source
+
+
+def test_mqtt_broker_in_config_service_system_types():
+    """MQTT-BROKER must be present in the Config-Service system_types dict."""
+    source = API_CLIENT.read_text(encoding="utf-8")
+    assert "mqtt_broker_system_type" in source
+    assert "GKR-Store-MQTT-Broker" in source

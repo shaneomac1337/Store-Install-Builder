@@ -490,7 +490,7 @@ Environment=P"""
         ).pack(anchor="w", padx=10, pady=(8, 5))
 
         # Create filename entries for each component
-        components = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE"]
+        components = ["POS", "ONEX-POS", "WDM", "FLOW-SERVICE", "LPA-SERVICE", "STOREHUB-SERVICE", "RCS-SERVICE", "MQTT-BROKER"]
         for component in components:
             row_frame = ctk.CTkFrame(filenames_frame, fg_color="transparent")
             row_frame.pack(fill="x", padx=10, pady=2)

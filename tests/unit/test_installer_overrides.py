@@ -19,7 +19,7 @@ class TestGenerateOverrideFiles:
         )
 
     def test_generate_override_files_creates_all_files(self, tmp_path):
-        """When enabled, all 7 override XML files should be created"""
+        """When enabled, all 8 override XML files should be created"""
         from gk_install_builder.generators.helper_file_generator import generate_override_files
 
         helper_dir = tmp_path / "helper"
@@ -40,6 +40,7 @@ class TestGenerateOverrideFiles:
             "installer_overrides.lpa-service.xml",
             "installer_overrides.storehub-service.xml",
             "installer_overrides.rcs-service.xml",
+            "installer_overrides.store-mqtt-broker-service.xml",
         ]
         for filename in expected_files:
             assert (overrides_dir / filename).exists(), f"Missing override file: {filename}"
@@ -348,6 +349,7 @@ class TestPerComponentOverrides:
                 "LPA-SERVICE": False,
                 "STOREHUB-SERVICE": False,
                 "RCS-SERVICE": False,
+                "MQTT-BROKER": False,
             }
         }
         templates_dir = self._get_templates_dir()
@@ -377,6 +379,7 @@ class TestPerComponentOverrides:
                 "LPA-SERVICE": False,
                 "STOREHUB-SERVICE": False,
                 "RCS-SERVICE": False,
+                "MQTT-BROKER": False,
             }
         }
         templates_dir = self._get_templates_dir()
@@ -398,7 +401,7 @@ class TestPerComponentOverrides:
         generate_override_files(str(helper_dir), config, templates_dir)
 
         overrides_dir = helper_dir / "overrides"
-        assert len(list(overrides_dir.iterdir())) == 7
+        assert len(list(overrides_dir.iterdir())) == 8
 
     def test_single_component_enabled(self, tmp_path):
         """Enabling only one component should produce exactly one file"""
@@ -416,6 +419,7 @@ class TestPerComponentOverrides:
                 "LPA-SERVICE": False,
                 "STOREHUB-SERVICE": True,
                 "RCS-SERVICE": False,
+                "MQTT-BROKER": False,
             }
         }
         templates_dir = self._get_templates_dir()
@@ -435,7 +439,7 @@ class TestPerComponentOverrides:
         default = cm._get_default_config()
         assert "installer_overrides_components" in default
         components = default["installer_overrides_components"]
-        assert len(components) == 7
+        assert len(components) == 8
         assert all(v is True for v in components.values())
 
 
@@ -443,14 +447,14 @@ class TestOverrideTemplateMap:
     """Tests for OVERRIDE_TEMPLATE_MAP configuration"""
 
     def test_override_template_map_has_all_entries(self):
-        """OVERRIDE_TEMPLATE_MAP should have 7 entries"""
+        """OVERRIDE_TEMPLATE_MAP should have 8 entries"""
         from gk_install_builder.gen_config.generator_config import OVERRIDE_TEMPLATE_MAP
-        assert len(OVERRIDE_TEMPLATE_MAP) == 7
+        assert len(OVERRIDE_TEMPLATE_MAP) == 8
 
     def test_override_component_files_has_all_entries(self):
-        """OVERRIDE_COMPONENT_FILES should have 7 entries"""
+        """OVERRIDE_COMPONENT_FILES should have 8 entries"""
         from gk_install_builder.gen_config.generator_config import OVERRIDE_COMPONENT_FILES
-        assert len(OVERRIDE_COMPONENT_FILES) == 7
+        assert len(OVERRIDE_COMPONENT_FILES) == 8
 
     def test_component_files_match_template_map_keys(self):
         """All OVERRIDE_COMPONENT_FILES values should be keys in OVERRIDE_TEMPLATE_MAP"""
@@ -462,7 +466,22 @@ class TestOverrideTemplateMap:
         """HELPER_STRUCTURE should include overrides directory"""
         from gk_install_builder.gen_config.generator_config import HELPER_STRUCTURE
         assert "overrides" in HELPER_STRUCTURE
-        assert len(HELPER_STRUCTURE["overrides"]) == 7
+        assert len(HELPER_STRUCTURE["overrides"]) == 8
+
+    def test_helper_structure_lists_mqtt_broker_structure_template(self):
+        """HELPER_STRUCTURE should register create_structure_mqtt-broker.json
+        alongside create_structure.json in the structure directory.
+
+        MQTT-BROKER is a store-level singleton and needs its own
+        no-workstationId structure template; gen_config is the source of truth
+        for which helper files are part of the generated output.
+        """
+        from gk_install_builder.gen_config.generator_config import HELPER_STRUCTURE
+        assert "structure" in HELPER_STRUCTURE, (
+            "HELPER_STRUCTURE must register the structure directory"
+        )
+        assert "create_structure.json" in HELPER_STRUCTURE["structure"]
+        assert "create_structure_mqtt-broker.json" in HELPER_STRUCTURE["structure"]
 
     def test_all_template_sources_exist(self):
         """All template source files referenced in OVERRIDE_TEMPLATE_MAP should exist"""
@@ -476,6 +495,61 @@ class TestOverrideTemplateMap:
         for output_name, template_name in OVERRIDE_TEMPLATE_MAP.items():
             template_path = os.path.join(templates_dir, template_name)
             assert os.path.exists(template_path), f"Template missing: {template_name} (for {output_name})"
+
+
+class TestMQTTBrokerOverrideGeneration:
+    """Tests for Store MQTT Broker override XML generation"""
+
+    def _get_templates_dir(self):
+        """Get the real templates directory"""
+        return os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "gk_install_builder", "templates"
+        )
+
+    def test_mqtt_broker_override_xml_generated_with_select_component(self, tmp_path):
+        """Test that only MQTT-BROKER override XML is generated when only it is enabled"""
+        from gk_install_builder.generators.helper_file_generator import generate_override_files
+
+        helper_dir = tmp_path / "helper"
+        helper_dir.mkdir()
+        config = {
+            "installer_overrides_enabled": True,
+            "installer_overrides_components": {
+                "POS": False,
+                "ONEX-POS": False,
+                "WDM": False,
+                "FLOW-SERVICE": False,
+                "LPA-SERVICE": False,
+                "STOREHUB-SERVICE": False,
+                "RCS-SERVICE": False,
+                "MQTT-BROKER": True,
+            }
+        }
+        templates_dir = self._get_templates_dir()
+
+        generate_override_files(str(helper_dir), config, templates_dir)
+
+        # Verify only MQTT-BROKER override XML was generated
+        overrides_dir = helper_dir / "overrides"
+        assert overrides_dir.exists()
+
+        mqtt_override_path = overrides_dir / "installer_overrides.store-mqtt-broker-service.xml"
+        assert mqtt_override_path.exists(), \
+            f"MQTT-BROKER override XML not found at {mqtt_override_path}"
+
+        # Verify only one file exists
+        generated_files = list(overrides_dir.iterdir())
+        assert len(generated_files) == 1, \
+            f"Expected only 1 file, found {len(generated_files)}: {[f.name for f in generated_files]}"
+
+        # Verify the file has MQTT-specific override properties
+        content = mqtt_override_path.read_text()
+        assert "override.check-alive" in content, "MQTT-BROKER override missing check-alive property"
+        assert 'name="override.check-alive" value="true"' in content, \
+            "MQTT-BROKER override check-alive not properly set"
+        assert "override.start-application" in content, \
+            "MQTT-BROKER override missing start-application property"
 
 
 class TestRemoveOverridesCLIFlags:

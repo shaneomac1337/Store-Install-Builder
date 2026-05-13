@@ -148,6 +148,7 @@ class TestGetComponentVersion:
         ("CSE-lps-lpa", "lpa_service_version"),
         ("CSE-sh-cloud", "storehub_service_version"),
         ("GKR-Resource-Cache-Service", "rcs_version"),
+        ("GKR-Store-MQTT-Broker", "mqtt_broker_version"),
     ])
     def test_override_returns_component_version(self, system_type, config_key):
         """Each system type returns its per-component version when override is enabled."""
@@ -164,11 +165,17 @@ class TestGetComponentVersion:
         config = self._make_config(rcs_version="v2.0.0")
         assert get_component_version("GKR-Resource-Cache-Service", config) == "v2.0.0"
 
+    def test_mqtt_broker_returns_correct_version(self):
+        """Store MQTT Broker system type returns mqtt_broker_version, not the default."""
+        config = self._make_config(mqtt_broker_version="v1.0.0")
+        assert get_component_version("GKR-Store-MQTT-Broker", config) == "v1.0.0"
+
     def test_override_disabled_returns_default(self):
         """When override is disabled, all system types return the default version."""
-        config = self._make_config(override=False, pos_version="v2.0.0", rcs_version="v2.0.0")
+        config = self._make_config(override=False, pos_version="v2.0.0", rcs_version="v2.0.0", mqtt_broker_version="v2.0.0")
         assert get_component_version("GKR-OPOS-CLOUD", config) == "v5.29.0"
         assert get_component_version("GKR-Resource-Cache-Service", config) == "v5.29.0"
+        assert get_component_version("GKR-Store-MQTT-Broker", config) == "v5.29.0"
 
     def test_unknown_system_type_returns_default(self):
         """Unknown system types fall back to the default version."""
@@ -183,5 +190,6 @@ class TestGetComponentVersion:
 
     def test_missing_component_version_falls_back_to_default(self):
         """If a per-component version key is missing, falls back to default."""
-        config = self._make_config()  # no rcs_version key
+        config = self._make_config()  # no rcs_version or mqtt_broker_version key
         assert get_component_version("GKR-Resource-Cache-Service", config) == "v5.29.0"
+        assert get_component_version("GKR-Store-MQTT-Broker", config) == "v5.29.0"

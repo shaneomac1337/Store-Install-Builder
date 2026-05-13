@@ -25,6 +25,7 @@ class VersionManager:
         self.lpa_service_version_entry = None
         self.storehub_service_version_entry = None
         self.rcs_version_entry = None
+        self.mqtt_broker_version_entry = None
 
         # Checkbox variables
         self.version_override_var = None
@@ -187,6 +188,17 @@ class VersionManager:
         self.create_tooltip(rcs_label, "Version for RCS Service components")
         self.create_tooltip(self.rcs_version_entry, "Example: v1.0.0")
 
+        # Store MQTT Broker Version
+        mqtt_broker_label = ctk.CTkLabel(grid_frame, text="Store MQTT Broker Version:")
+        mqtt_broker_label.grid(row=10, column=0, padx=10, pady=5, sticky="w")
+        self.mqtt_broker_version_entry = ctk.CTkEntry(grid_frame, width=200)
+        self.mqtt_broker_version_entry.grid(row=10, column=1, padx=10, pady=5, sticky="w")
+        self.mqtt_broker_version_entry.insert(0, self.config_manager.config.get("mqtt_broker_version", project_version))
+        self.version_fields.extend([mqtt_broker_label, self.mqtt_broker_version_entry])
+        self.config_manager.register_entry("mqtt_broker_version", self.mqtt_broker_version_entry)
+        self.create_tooltip(mqtt_broker_label, "Version for Store MQTT Broker components")
+        self.create_tooltip(self.mqtt_broker_version_entry, "Example: v1.0.0")
+
         # Register the checkboxes with config manager
         self.config_manager.register_entry("use_version_override", self.version_override_var)
         self.config_manager.register_entry("use_default_versions", self.use_default_versions_var)
@@ -216,7 +228,8 @@ class VersionManager:
             (self.flow_service_version_entry, "flow_service_version"),
             (self.lpa_service_version_entry, "lpa_service_version"),
             (self.storehub_service_version_entry, "storehub_service_version"),
-            (self.rcs_version_entry, "rcs_version")
+            (self.rcs_version_entry, "rcs_version"),
+            (self.mqtt_broker_version_entry, "mqtt_broker_version")
         ]
 
         for entry, config_key in version_entries:
@@ -307,7 +320,8 @@ class VersionManager:
                     (self.flow_service_version_entry, "flow_service_version"),
                     (self.lpa_service_version_entry, "lpa_service_version"),
                     (self.storehub_service_version_entry, "storehub_service_version"),
-                    (self.rcs_version_entry, "rcs_version")
+                    (self.rcs_version_entry, "rcs_version"),
+                    (self.mqtt_broker_version_entry, "mqtt_broker_version")
                 ]
 
                 # Update each component version field

@@ -22,6 +22,7 @@ COMPONENT_SERVICE_CONFIG_MAP = {
     "LPA-SERVICE": "lpa_service_launcher_settings",
     "STOREHUB-SERVICE": "storehub_service_launcher_settings",
     "RCS-SERVICE": "rcs_service_launcher_settings",
+    "MQTT-BROKER": "mqtt_broker_launcher_settings",
 }
 
 
@@ -149,6 +150,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         lpa_service_version = config.get("lpa_service_version", default_version)
         storehub_service_version = config.get("storehub_service_version", default_version)
         rcs_version = config.get("rcs_version", default_version)
+        mqtt_broker_version = config.get("mqtt_broker_version", default_version)
 
         # Get system types from config
         pos_system_type = config.get("pos_system_type", "GKR-OPOS-CLOUD")
@@ -158,6 +160,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         lpa_service_system_type = config.get("lpa_service_system_type", "CSE-lps-lpa")
         storehub_service_system_type = config.get("storehub_service_system_type", "CSE-sh-cloud")
         rcs_system_type = config.get("rcs_system_type", "GKR-Resource-Cache-Service")
+        mqtt_broker_system_type = config.get("mqtt_broker_system_type", "GKR-Store-MQTT-Broker")
 
         print(f"Using system types from config:")
         print(f"  POS System Type: {pos_system_type}")
@@ -167,6 +170,7 @@ def generate_gk_install(output_dir, config, detection_manager,
         print(f"  LPA Service System Type: {lpa_service_system_type}")
         print(f"  StoreHub Service System Type: {storehub_service_system_type}")
         print(f"  RCS System Type: {rcs_system_type}")
+        print(f"  MQTT Broker System Type: {mqtt_broker_system_type}")
 
         # Common replacements for both Windows and Linux
         replacements = []
@@ -261,6 +265,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
                 ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                 ("@RCS_VERSION@", rcs_version),
+                ("@MQTT_BROKER_VERSION@", mqtt_broker_version),
                 ("@DEFAULT_SSL_PASSWORD@", config.get("ssl_password", "changeit")),
                 ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                 ("@USE_DEFAULT_VERSIONS@", "$true" if config.get("use_default_versions", False) else "$false"),
@@ -273,6 +278,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
                 ("@RCS_SYSTEM_TYPE@", rcs_system_type),
+                ("@MQTT_BROKER_SYSTEM_TYPE@", mqtt_broker_system_type),
                 ("@TENANT_ID@", tenant_id),
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
@@ -309,6 +315,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@LPA_SERVICE_VERSION@", lpa_service_version),
                 ("@STOREHUB_SERVICE_VERSION@", storehub_service_version),
                 ("@RCS_VERSION@", rcs_version),
+                ("@MQTT_BROKER_VERSION@", mqtt_broker_version),
                 ("@DEFAULT_SSL_PASSWORD@", config.get("ssl_password", "changeit")),
                 ("@FIREBIRD_SERVER_PATH@", firebird_server_path),
                 ("@USE_DEFAULT_VERSIONS@", "true" if config.get("use_default_versions", False) else "false"),
@@ -321,6 +328,7 @@ def generate_gk_install(output_dir, config, detection_manager,
                 ("@LPA_SERVICE_SYSTEM_TYPE@", lpa_service_system_type),
                 ("@STOREHUB_SERVICE_SYSTEM_TYPE@", storehub_service_system_type),
                 ("@RCS_SYSTEM_TYPE@", rcs_system_type),
+                ("@MQTT_BROKER_SYSTEM_TYPE@", mqtt_broker_system_type),
                 ("@TENANT_ID@", tenant_id),
                 # API endpoint replacements (replace new API URLs with configured version)
                 ("/api/iam/cim/rest/v1/onboarding/tokens", api_endpoints["onboarding_api"]),
@@ -611,6 +619,7 @@ def generate_gk_install(output_dir, config, detection_manager,
             lpa_file = det_files.get("LPA-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             sh_file = det_files.get("STOREHUB-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             rcs_file = det_files.get("RCS-SERVICE", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            mqtt_file = det_files.get("MQTT-BROKER", "").replace('\\', '\\\\') if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             pos_filename = detection_manager.get_custom_filename("POS") if file_detection_enabled else "NEVER_MATCH.station"
             onex_filename = detection_manager.get_custom_filename("ONEX-POS") if file_detection_enabled else "NEVER_MATCH.station"
             wdm_filename = detection_manager.get_custom_filename("WDM") if file_detection_enabled else "NEVER_MATCH.station"
@@ -618,6 +627,7 @@ def generate_gk_install(output_dir, config, detection_manager,
             lpa_filename = detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             sh_filename = detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             rcs_filename = detection_manager.get_custom_filename("RCS-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
+            mqtt_filename = detection_manager.get_custom_filename("MQTT-BROKER") if file_detection_enabled else "NEVER_MATCH.station"
 
             # Build the comprehensive station detection code
             # This includes both base directory and custom paths modes
@@ -639,7 +649,8 @@ def generate_gk_install(output_dir, config, detection_manager,
                 "FLOW-SERVICE" = "{flow_filename}";
                 "LPA-SERVICE" = "{lpa_filename}";
                 "STOREHUB-SERVICE" = "{sh_filename}";
-                "RCS-SERVICE" = "{rcs_filename}"
+                "RCS-SERVICE" = "{rcs_filename}";
+                "MQTT-BROKER" = "{mqtt_filename}"
             }}
 
             # Get the appropriate station file for the current component
@@ -658,7 +669,8 @@ def generate_gk_install(output_dir, config, detection_manager,
                 "FLOW-SERVICE" = "{flow_file}";
                 "LPA-SERVICE" = "{lpa_file}";
                 "STOREHUB-SERVICE" = "{sh_file}";
-                "RCS-SERVICE" = "{rcs_file}"
+                "RCS-SERVICE" = "{rcs_file}";
+                "MQTT-BROKER" = "{mqtt_file}"
             }}
 
             # Get the appropriate station file path for the current component
@@ -852,6 +864,7 @@ def generate_gk_install(output_dir, config, detection_manager,
             lpa_file = det_files.get("LPA-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             sh_file = det_files.get("STOREHUB-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             rcs_file = det_files.get("RCS-SERVICE", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
+            mqtt_file = det_files.get("MQTT-BROKER", "") if file_detection_enabled else "NEVER_MATCH_FILE_PATH"
             pos_filename = detection_manager.get_custom_filename("POS") if file_detection_enabled else "NEVER_MATCH.station"
             onex_filename = detection_manager.get_custom_filename("ONEX-POS") if file_detection_enabled else "NEVER_MATCH.station"
             wdm_filename = detection_manager.get_custom_filename("WDM") if file_detection_enabled else "NEVER_MATCH.station"
@@ -859,6 +872,7 @@ def generate_gk_install(output_dir, config, detection_manager,
             lpa_filename = detection_manager.get_custom_filename("LPA-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             sh_filename = detection_manager.get_custom_filename("STOREHUB-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
             rcs_filename = detection_manager.get_custom_filename("RCS-SERVICE") if file_detection_enabled else "NEVER_MATCH.station"
+            mqtt_filename = detection_manager.get_custom_filename("MQTT-BROKER") if file_detection_enabled else "NEVER_MATCH.station"
 
             # Build the comprehensive station detection code for Linux
             station_detection_code = f'''
@@ -880,6 +894,7 @@ if [ "$useBaseDirectory" = "True" ]; then
     customFilenames["LPA-SERVICE"]="{lpa_filename}"
     customFilenames["STOREHUB-SERVICE"]="{sh_filename}"
     customFilenames["RCS-SERVICE"]="{rcs_filename}"
+    customFilenames["MQTT-BROKER"]="{mqtt_filename}"
 
     # Get the appropriate station file for the current component
     stationFileName="${{customFilenames[$componentType]}}"
@@ -898,6 +913,7 @@ else
     customPaths["LPA-SERVICE"]="{lpa_file}"
     customPaths["STOREHUB-SERVICE"]="{sh_file}"
     customPaths["RCS-SERVICE"]="{rcs_file}"
+    customPaths["MQTT-BROKER"]="{mqtt_file}"
 
     # Get the appropriate station file path for the current component
     stationFilePath="${{customPaths[$componentType]}}"

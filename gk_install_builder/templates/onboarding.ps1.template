@@ -156,6 +156,8 @@ try {
         "storehub-service.onboarding.json"
     } elseif ($ComponentType -eq "RCS-SERVICE") {
         "rcs-service.onboarding.json"
+    } elseif ($ComponentType -eq "MQTT-BROKER") {
+        "store-mqtt-broker-service.onboarding.json"
     } else {
         "pos.onboarding.json"
     }

@@ -103,7 +103,8 @@ done
 tenant_id=${tenant_id:-"${tenant_id}"}
 
 # Verify all required parameters are provided
-if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || [ -z "$WORKSTATION_ID" ]; then
+# WorkstationId is optional for MQTT-BROKER (singleton-per-store, no workstation context)
+if [ -z "$COMPONENT_TYPE" ] || [ -z "$base_url" ] || [ -z "$STORE_ID" ] || { [ -z "$WORKSTATION_ID" ] && [ "$COMPONENT_TYPE" != "MQTT-BROKER" ]; }; then
   echo "Error: All parameters are required"
   echo "Usage: $0 --ComponentType <type> --base_url <url> --StoreId <id> --WorkstationId <id> [--Version <version>] [--SystemNameOverride <name>] [--WorkstationNameOverride <name>]"
   exit 1
@@ -118,6 +119,7 @@ system_name_map["FLOW-SERVICE"]="${flow_service_system_type}"
 system_name_map["LPA-SERVICE"]="${lpa_service_system_type}"
 system_name_map["STOREHUB-SERVICE"]="${storehub_service_system_type}"
 system_name_map["RCS-SERVICE"]="${rcs_system_type}"
+system_name_map["MQTT-BROKER"]="${mqtt_broker_system_type}"
 
 # Get the systemName for the current component (used for creation if workstation doesn't exist)
 current_system_name="${system_name_map[$COMPONENT_TYPE]}"
@@ -212,44 +214,71 @@ else
       # Use alternative methods if jq is not available
       if command -v jq >/dev/null 2>&1; then
         echo "JQ is available. Using JQ for structure JSON parsing."
-        
-        # Search by workstation ID (unique per store)
-        echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
-        structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-        actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+
+        # MQTT-BROKER is a store-level singleton (no workstationId on the
+        # structure node), so match by systemName for that component.
+        if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+          echo "Looking for MQTT-BROKER singleton by systemName: $current_system_name"
+          structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
+          actual_system_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .systemName" "$storemanager_path")
+        else
+          echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
+          structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+          actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+        fi
 
         if [ -n "$structure_unique_name" ]; then
-          echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+            echo "Found MQTT-BROKER singleton with system: $actual_system_name"
+          else
+            echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          fi
           echo "Structure unique name: $structure_unique_name"
         else
-          echo "No structure found for workstation ID: $WORKSTATION_ID"
+          if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+            echo "No structure found for MQTT-BROKER singleton (systemName: $current_system_name)"
+          else
+            echo "No structure found for workstation ID: $WORKSTATION_ID"
+          fi
         fi
       else
         echo "JQ was not detected. Falling back to bash-native JSON parsing methods."
         echo "Parsing JSON response without jq..."
-        
+
         # First, convert the JSON to a safer format for processing
         # Convert JSON to one-object-per-line format with tr and sed
         cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/flattened.json
-        
-        # Search by workstation ID (unique per store)
-        echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
 
-        # Use a more robust pattern that handles minified JSON - search by workstation ID only
-        matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
-                       grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
-                       echo "")
+        # MQTT-BROKER singleton matches by systemName; everything else by workstationId.
+        if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+          echo "Looking for MQTT-BROKER singleton by systemName: $current_system_name"
+          matching_line=$(grep -o '{"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/flattened.json ||
+                         echo "")
+        else
+          echo "Looking for workstation ID: $WORKSTATION_ID (workstation IDs are unique per store)"
+          matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
+                         grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/flattened.json ||
+                         echo "")
+        fi
 
         if [ -n "$matching_line" ]; then
           # Extract the structureUniqueName and systemName from the matching line
           structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
           actual_system_name=$(echo "$matching_line" | grep -o '"systemName":"[^"]*"' | sed 's/"systemName":"//g' | sed 's/"//g')
-          echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+            echo "Found MQTT-BROKER singleton with system: $actual_system_name"
+          else
+            echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+          fi
           echo "Structure unique name: $structure_unique_name"
         else
-          echo "No structure found for workstation ID: $WORKSTATION_ID"
+          if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+            echo "No structure found for MQTT-BROKER singleton (systemName: $current_system_name)"
+          else
+            echo "No structure found for workstation ID: $WORKSTATION_ID"
+          fi
         fi
-        
+
         # Clean up temp files
         rm -f /tmp/flattened.json
       fi
@@ -276,31 +305,54 @@ else
     echo "$structure_unique_name" > "$structure_name_path"
     echo "Structure unique name saved to: $structure_name_path"
     
-    # Check if the workstation exists for the current component
+    # Check if the workstation/singleton node exists for the current component.
+    # MQTT-BROKER matches by systemName (singleton, no workstationId).
     workstation_exists=false
-    
-    # Check if workstation ID exists in the response (workstation IDs are unique per store)
+
     if command -v jq >/dev/null 2>&1; then
-      echo "Checking for existing workstation using JQ..."
-      matching_workstation=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
-      if [ -n "$matching_workstation" ]; then
-        workstation_exists=true
-        actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+      echo "Checking for existing node using JQ..."
+      if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+        matching_workstation=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\")" "$storemanager_path")
+        if [ -n "$matching_workstation" ]; then
+          workstation_exists=true
+          actual_system_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .systemName" "$storemanager_path")
+        fi
+      else
+        matching_workstation=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\")" "$storemanager_path")
+        if [ -n "$matching_workstation" ]; then
+          workstation_exists=true
+          actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+        fi
       fi
     else
       # Fallback method if jq is not available
-      echo "Checking for existing workstation using bash methods..."
-      if grep -q "\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path"; then
-        workstation_exists=true
-        # Extract actual system name
-        actual_system_name=$(grep -o "\"workstationId\":\"$WORKSTATION_ID\"[^}]*\"systemName\":\"[^\"]*\"" "$storemanager_path" | grep -o "\"systemName\":\"[^\"]*\"" | sed 's/"systemName":"//g' | sed 's/"//g')
+      echo "Checking for existing node using bash methods..."
+      if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+        if grep -q '"systemName":"'$current_system_name'"' "$storemanager_path"; then
+          workstation_exists=true
+          actual_system_name="$current_system_name"
+        fi
+      else
+        if grep -q "\"workstationId\":\"$WORKSTATION_ID\"" "$storemanager_path"; then
+          workstation_exists=true
+          # Extract actual system name
+          actual_system_name=$(grep -o "\"workstationId\":\"$WORKSTATION_ID\"[^}]*\"systemName\":\"[^\"]*\"" "$storemanager_path" | grep -o "\"systemName\":\"[^\"]*\"" | sed 's/"systemName":"//g' | sed 's/"//g')
+        fi
       fi
     fi
 
     if [ "$workstation_exists" = true ]; then
-      echo "Workstation $WORKSTATION_ID already exists with system: $actual_system_name. No need to create it."
+      if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+        echo "MQTT-BROKER singleton already exists with system: $actual_system_name. No need to create it."
+      else
+        echo "Workstation $WORKSTATION_ID already exists with system: $actual_system_name. No need to create it."
+      fi
     else
-      echo "Workstation $WORKSTATION_ID does not exist in the store structure."
+      if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+        echo "MQTT-BROKER singleton does not exist in the store structure."
+      else
+        echo "Workstation $WORKSTATION_ID does not exist in the store structure."
+      fi
       
       # Ask the user if they want to create the workstation
       if [ "$AUTO_CONFIRM" = true ]; then
@@ -315,23 +367,29 @@ else
         
         # Path to the create structure template
         create_structure_template=""
-        
-        # Set the template path (same template for all component types)
-        create_structure_template="$PWD/helper/structure/create_structure.json"
-        
+
+        # Select template by componentType: MQTT-BROKER is a store-level singleton
+        # and uses a dedicated template without workstationId.
+        if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+          create_structure_template_filename="create_structure_mqtt-broker.json"
+        else
+          create_structure_template_filename="create_structure.json"
+        fi
+        create_structure_template="$PWD/helper/structure/$create_structure_template_filename"
+
         if [ ! -f "$create_structure_template" ]; then
           echo "Warning: Create structure template not found at: $create_structure_template"
-          echo "Using default template from structure/create_structure.json"
-          create_structure_template="$PWD/helper/structure/create_structure.json"
-          
+          echo "Using default template from structure/$create_structure_template_filename"
+          create_structure_template="$PWD/helper/structure/$create_structure_template_filename"
+
           # Create directories if they don't exist
           mkdir -p "$(dirname "$create_structure_template")"
-          
+
           if [ ! -f "$create_structure_template" ]; then
             # Try in the current directory
-            echo "Checking for create_structure.json in structure subdirectory..."
-            if [ -f "structure/create_structure.json" ]; then
-              create_structure_template="structure/create_structure.json"
+            echo "Checking for $create_structure_template_filename in structure subdirectory..."
+            if [ -f "structure/$create_structure_template_filename" ]; then
+              create_structure_template="structure/$create_structure_template_filename"
               echo "Found template at: $create_structure_template"
             else
               echo "Error: Default template not found. Cannot create workstation."
@@ -370,6 +428,9 @@ else
               ;;
             RCS-SERVICE)
               station_name="Resource Cache Service"
+              ;;
+            MQTT-BROKER)
+              station_name="Store MQTT Broker"
               ;;
             *)
               station_name="POS Client $WORKSTATION_ID"
@@ -463,40 +524,67 @@ else
                 echo "$refreshed_store_response" > "$storemanager_path"
                 echo "Refreshed store information saved to: $storemanager_path"
                 
-                # Look for our structure again with updated data
+                # Look for our structure again with updated data.
+                # MQTT-BROKER matches by systemName (singleton, no workstationId).
                 if command -v jq >/dev/null 2>&1; then
-                  # Try to find the structure by workstation ID (unique per store)
-                  echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
-                  structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
-                  actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+                  if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                    echo "Looking for MQTT-BROKER singleton by systemName: $current_system_name in refreshed data"
+                    structure_unique_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .structureUniqueName" "$storemanager_path")
+                    actual_system_name=$(jq -r ".childNodeList[] | select(.systemName == \"$current_system_name\") | .systemName" "$storemanager_path")
+                  else
+                    echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
+                    structure_unique_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .structureUniqueName" "$storemanager_path")
+                    actual_system_name=$(jq -r ".childNodeList[] | select(.workstationId == \"$WORKSTATION_ID\") | .systemName" "$storemanager_path")
+                  fi
 
                   if [ -n "$structure_unique_name" ]; then
-                    echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                      echo "Found MQTT-BROKER singleton with system: $actual_system_name"
+                    else
+                      echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    fi
                     echo "Structure unique name: $structure_unique_name"
                   else
-                    echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
+                    if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                      echo "No structure found for MQTT-BROKER singleton (systemName: $current_system_name) in refreshed data"
+                    else
+                      echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
+                    fi
                   fi
                 else
-                  # Fallback for no jq - search for workstation ID
+                  # Fallback for no jq
                   cat "$storemanager_path" | tr -d '\n' | sed 's/},{/},\n{/g' > /tmp/refreshed_flattened.json
-                  
-                  # Search for our specific workstation in updated data
-                  echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
 
-                  # Use a more robust pattern that handles minified JSON - search by workstation ID only
-                  matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
-                                 grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
-                                 echo "")
+                  if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                    echo "Looking for MQTT-BROKER singleton by systemName: $current_system_name in refreshed data"
+                    matching_line=$(grep -o '{"[^}]*"systemName":"'$current_system_name'"[^}]*}' /tmp/refreshed_flattened.json ||
+                                   echo "")
+                  else
+                    # Search for our specific workstation in updated data
+                    echo "Looking for workstation ID: $WORKSTATION_ID in refreshed data"
+                    # Use a more robust pattern that handles minified JSON - search by workstation ID only
+                    matching_line=$(grep -o '{"tenantId":"[^"]*","retailStoreId":"[^"]*","workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
+                                   grep -o '{"[^}]*"workstationId":"'$WORKSTATION_ID'"[^}]*}' /tmp/refreshed_flattened.json ||
+                                   echo "")
+                  fi
 
                   if [ -n "$matching_line" ]; then
                     structure_unique_name=$(echo "$matching_line" | grep -o '"structureUniqueName":"[^"]*"' | sed 's/"structureUniqueName":"//g' | sed 's/"//g')
                     actual_system_name=$(echo "$matching_line" | grep -o '"systemName":"[^"]*"' | sed 's/"systemName":"//g' | sed 's/"//g')
-                    echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                      echo "Found MQTT-BROKER singleton with system: $actual_system_name"
+                    else
+                      echo "Found workstation $WORKSTATION_ID with system: $actual_system_name"
+                    fi
                     echo "Structure unique name: $structure_unique_name"
                   else
-                    echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
+                    if [ "$COMPONENT_TYPE" = "MQTT-BROKER" ]; then
+                      echo "No structure found for MQTT-BROKER singleton (systemName: $current_system_name) in refreshed data"
+                    else
+                      echo "No structure found for workstation ID: $WORKSTATION_ID in refreshed data"
+                    fi
                   fi
-                  
+
                   # Clean up temp file
                   rm -f /tmp/refreshed_flattened.json
                 fi
@@ -813,53 +901,59 @@ fi
 
 echo "Found businessUnitGroupID: $business_unit_group_id"
 
-# Second API call - Register Workstation (PUT = create or update)
-# Determine workstation type based on ComponentType
-case "$COMPONENT_TYPE" in
-  'LPA-SERVICE')
-    type_code="LPAS"
-    ;;
-  'STOREHUB-SERVICE')
-    type_code="SHS"
-    ;;
-  'FLOW-SERVICE')
-    type_code="EDGE"
-    ;;
-  'RCS-SERVICE')
-    type_code="RCS"
-    ;;
-  'POS')
-    type_code="POS"
-    ;;
-  'WDM')
-    type_code="EDGE"
-    ;;
-  *)
-    type_code="POS"
-    ;;
-esac
+# MQTT-BROKER is a singleton-per-store and does not register as a workstation.
+# The structure node created above is sufficient; skip the workstation PUT.
+if [ "$COMPONENT_TYPE" != "MQTT-BROKER" ]; then
+  # Second API call - Register Workstation (PUT = create or update)
+  # Determine workstation type based on ComponentType
+  case "$COMPONENT_TYPE" in
+    'LPA-SERVICE')
+      type_code="LPAS"
+      ;;
+    'STOREHUB-SERVICE')
+      type_code="SHS"
+      ;;
+    'FLOW-SERVICE')
+      type_code="EDGE"
+      ;;
+    'RCS-SERVICE')
+      type_code="RCS"
+      ;;
+    'POS')
+      type_code="POS"
+      ;;
+    'WDM')
+      type_code="EDGE"
+      ;;
+    *)
+      type_code="POS"
+      ;;
+  esac
 
-current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
-ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
+  current_time=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+  ws_payload="{\"workstation\":{\"key\":{\"workstationID\":\"$WORKSTATION_ID\",\"businessUnitGroupID\":\"$business_unit_group_id\"},\"typeCode\":\"$type_code\",\"createTimestampUTC0\":\"$current_time\"}}"
 
-ws_url="https://$base_url/api/pos/master-data/rest/v1/workstations"
-log_api_call "PUT" "$ws_url" "Register Workstation to SDC (type: $type_code)"
-echo "Payload: $ws_payload"
-ws_response=$(curl -s -f -X PUT "$ws_url" "${headers[@]}" -d "$ws_payload")
+  ws_url="https://$base_url/api/pos/master-data/rest/v1/workstations"
+  log_api_call "PUT" "$ws_url" "Register Workstation to SDC (type: $type_code)"
+  echo "Payload: $ws_payload"
+  ws_response=$(curl -s -f -X PUT "$ws_url" "${headers[@]}" -d "$ws_payload")
 
-if [ $? -ne 0 ]; then
-  log_api_response "FAILURE" "$ws_response"
-  echo "Error registering workstation"
-  echo "Response: $ws_response"
-  exit 1
+  if [ $? -ne 0 ]; then
+    log_api_response "FAILURE" "$ws_response"
+    echo "Error registering workstation"
+    echo "Response: $ws_response"
+    exit 1
+  fi
+  log_api_response "SUCCESS" "$ws_response"
+  echo "Successfully registered workstation"
+
+  # Save responses to files
+  echo "$bu_response" > "business-unit.json"
+  echo "$ws_response" > "workstation.json"
+  echo "Saved response data to business-unit.json and workstation.json"
+else
+  echo "Skipping workstation registration for MQTT-BROKER (singleton-per-store)"
 fi
-log_api_response "SUCCESS" "$ws_response"
-echo "Successfully registered workstation"
-
-# Save responses to files
-echo "$bu_response" > "business-unit.json"
-echo "$ws_response" > "workstation.json"
-echo "Saved response data to business-unit.json and workstation.json"
 
 # Wait for StoreHub components to allow time for backend processing
 if [ "$COMPONENT_TYPE" = "STOREHUB-SERVICE" ] || [ "$COMPONENT_TYPE" = "SH" ]; then

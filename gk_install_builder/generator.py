@@ -465,7 +465,8 @@ class ProjectGenerator:
             for name in ["launcher.pos.template", "launcher.onex-pos.template",
                          "launcher.wdm.template", "launcher.flow-service.template",
                          "launcher.lpa-service.template", "launcher.storehub-service.template",
-                         "launcher.rcs-service.template"]:
+                         "launcher.rcs-service.template",
+                         "launcher.store-mqtt-broker-service.template"]:
                 tracker.add_file(name, GenerationTracker.LAUNCHERS)
             # Password/token files (3 files + 3 defaults)
             for name in ["basic_auth_password.txt", "basic_auth_password.txt.default",
@@ -479,7 +480,8 @@ class ProjectGenerator:
             # Onboarding JSON files
             for name in ["pos.onboarding.json", "onex-pos.onboarding.json",
                          "wdm.onboarding.json", "flow-service.onboarding.json",
-                         "lpa-service.onboarding.json", "storehub-service.onboarding.json"]:
+                         "lpa-service.onboarding.json", "storehub-service.onboarding.json",
+                         "store-mqtt-broker-service.onboarding.json"]:
                 tracker.add_file(name, GenerationTracker.CONFIGS)
             # Override files (if enabled)
             overrides_enabled = config.get("installer_overrides_enabled", True)
@@ -536,7 +538,8 @@ class ProjectGenerator:
             "wdm.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
             "flow-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
             "lpa-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
-            "storehub-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}'''
+            "storehub-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","timestamp":"{{TIMESTAMP}}"}''',
+            "store-mqtt-broker-service.onboarding.json": '''{"deviceId":"@USER_ID@","tenant_id":"@TENANT_ID@","clientType":"store-mqtt-broker","timestamp":"{{TIMESTAMP}}"}'''
         }
         
         # Write JSON files
@@ -694,6 +697,7 @@ class ProjectGenerator:
                 "LPA-SERVICE": ("lpa_service", "CSE-lps-lpa"),
                 "STOREHUB-SERVICE": ("storehub_service", "CSE-sh-cloud"),
                 "RCS-SERVICE": ("rcs", "GKR-Resource-Cache-Service"),
+                "MQTT-BROKER": ("mqtt_broker", "GKR-Store-MQTT-Broker"),
             }
 
             for comp_key, (cfg_key, default_sys_type) in component_version_map.items():
@@ -798,6 +802,14 @@ class ProjectGenerator:
                 self.dsg_api_browser, prompt_for_file_selection,
                 files_to_download, dialog_parent, self.parent_window,
                 display_name="RCS Service",
+                installer_preferences=installer_preferences
+            )
+            process_component(
+                "MQTT-BROKER", "MQTT-BROKER", "mqtt_broker", "GKR-Store-MQTT-Broker",
+                selected_components, output_dir, config, self.get_component_version,
+                self.dsg_api_browser, prompt_for_file_selection,
+                files_to_download, dialog_parent, self.parent_window,
+                display_name="Store MQTT Broker",
                 installer_preferences=installer_preferences
             )
 
@@ -1089,6 +1101,7 @@ class ProjectGenerator:
         self._create_default_template(launchers_dir, "launcher.flow-service.template")
         self._create_default_template(launchers_dir, "launcher.lpa-service.template")
         self._create_default_template(launchers_dir, "launcher.storehub-service.template")
+        self._create_default_template(launchers_dir, "launcher.store-mqtt-broker-service.template")
 
     def _create_default_template(self, launchers_dir, filename):
         """Create a default template in the source directory"""

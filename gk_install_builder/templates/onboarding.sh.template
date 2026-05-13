@@ -224,6 +224,9 @@ case "$COMPONENT_TYPE" in
   'RCS-SERVICE')
     json_file="rcs-service.onboarding.json"
     ;;
+  'MQTT-BROKER')
+    json_file="store-mqtt-broker-service.onboarding.json"
+    ;;
   *)
     json_file="pos.onboarding.json"
     ;;
