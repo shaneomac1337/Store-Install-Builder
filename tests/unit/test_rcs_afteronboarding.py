@@ -89,11 +89,22 @@ class TestOnboardingShRcsUrlInjection:
         )
 
     def test_sh_sed_fallback_anchored_to_last_line(self, tmp_path):
-        """Sed fallback must use $ line-address to avoid matching nested braces."""
+        """Sed fallback must use $ line-address and a delimiter safe for URLs."""
         templates_dir, output_dir = _setup_templates(tmp_path, "Linux")
         cfg = create_config(platform="Linux")
         generate_onboarding_script(output_dir, cfg, templates_dir)
         content = _read(output_dir, "onboarding.sh")
-        assert "sed '$ s/}/" in content or 'sed "$ s/}/' in content, (
-            "Sed fallback must be anchored to last line ($ address)"
+        # Anchored to last line ($ address) AND uses | delimiter (RCS URLs contain /)
+        assert "sed '$ s|}|" in content, (
+            "Sed fallback must be anchored to last line ($ address) and use | delimiter"
+        )
+
+    def test_sh_sed_fallback_does_not_use_slash_delimiter(self, tmp_path):
+        """Regression: sed must not use / as the delimiter (RCS URLs contain /)."""
+        templates_dir, output_dir = _setup_templates(tmp_path, "Linux")
+        cfg = create_config(platform="Linux")
+        generate_onboarding_script(output_dir, cfg, templates_dir)
+        content = _read(output_dir, "onboarding.sh")
+        assert "sed '$ s/}/" not in content, (
+            "Sed fallback must not use / delimiter (breaks on URLs containing /)"
         )

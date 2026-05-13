@@ -258,10 +258,15 @@ if [ -n "$rcs_url" ] && [ "$COMPONENT_TYPE" != "RCS-SERVICE" ]; then
       echo "Warning: jq failed; using original body for $COMPONENT_TYPE"
     fi
   else
-    # Sed fallback anchored to last line only (avoids nested braces)
-    new_body=$(echo "$body" | sed '$ s/}/,"afterOnboardingProperties":[{"key":"rcs.url","value":"'"$rcs_url"'"}]}/')
-    body="$new_body"
-    echo "Injected afterOnboardingProperties rcs.url=$rcs_url (via sed fallback)"
+    # Sed fallback anchored to last line only (avoids nested braces).
+    # Use | delimiter because $rcs_url contains / (e.g. https://host:port/rcs).
+    new_body=$(echo "$body" | sed '$ s|}|,"afterOnboardingProperties":[{"key":"rcs.url","value":"'"$rcs_url"'"}]}|')
+    if [ -n "$new_body" ]; then
+      body="$new_body"
+      echo "Injected afterOnboardingProperties rcs.url=$rcs_url (via sed fallback)"
+    else
+      echo "Warning: sed fallback failed; using original body for $COMPONENT_TYPE" >&2
+    fi
   fi
 fi
 
