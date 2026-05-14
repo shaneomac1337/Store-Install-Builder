@@ -407,7 +407,7 @@ class APIClient:
                     result_text += f"❌ {component}: Not Found\n"
                     print(f"[TEST API] ❌ {component}: Not Found")
 
-            result_text += f"\n📊 Summary: {found_count}/7 components found"
+            result_text += f"\n📊 Summary: {found_count}/{len(versions)} components found"
             api_version_label = "Legacy (5.25)" if api_version == "legacy" else "New (5.27+)"
             result_text += f"\n🔍 API: Function Pack ({api_version_label})"
             result_text += f"\n📋 Strategy: FP scope first, FPD for missing"
@@ -416,7 +416,7 @@ class APIClient:
                 result_text += "\n\n⚠️ No component versions found in either FP or FPD scope"
 
             print(f"[TEST API] " + "="*80)
-            print(f"[TEST API] SUMMARY: {found_count}/7 components found")
+            print(f"[TEST API] SUMMARY: {found_count}/{len(versions)} components found")
             print(f"[TEST API] " + "="*80)
             messagebox.showinfo("API Test Results", result_text)
 
@@ -684,7 +684,7 @@ class APIClient:
                     result_text += f"❌ {component}: Not Found\n\n"
                     print(f"[CONFIG API] ❌ {component}: Not Found")
 
-            result_text += f"📊 Summary: {found_count}/7 components found"
+            result_text += f"📊 Summary: {found_count}/{len(versions)} components found"
             api_version_label = "Legacy (5.25)" if api_version == "legacy" else "New (5.27+)"
             result_text += f"\n🔍 API: Config-Service ({api_version_label})"
 
@@ -692,7 +692,7 @@ class APIClient:
                 result_text += "\n\n⚠️ No component versions found"
 
             print(f"[CONFIG API] " + "="*80)
-            print(f"[CONFIG API] SUMMARY: {found_count}/7 components found")
+            print(f"[CONFIG API] SUMMARY: {found_count}/{len(versions)} components found")
             print(f"[CONFIG API] " + "="*80)
             messagebox.showinfo("Config-Service API Test Results", result_text)
 
