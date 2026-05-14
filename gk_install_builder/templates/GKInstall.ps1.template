@@ -1139,6 +1139,12 @@ if ($isUpdate) {
             Write-Host "Warning: No configService.url found in station.properties" -ForegroundColor Yellow
         }
 
+        # Extract the RCS URL (for update-mode wait message; cosmetic only)
+        if ($stationPropertiesContent -match 'rcs\.url=([^\r\n]+)') {
+            $stationRcsUrl = $matches[1].Trim() -replace '\\:', ':' -replace '\\=', '='
+            Write-Host "Found RCS URL in station.properties: $stationRcsUrl"
+        }
+
         # Extract the tenant ID
         if ($stationPropertiesContent -match 'station\.tenantId=([^\r\n]+)') {
             $script:extractedTenantId = $matches[1]
@@ -2655,6 +2661,8 @@ while ($elapsed -lt $maxWaitTime) {
         $waitMessage = if (-not $offline.IsPresent) {
             if ($rcsUrl -and $rcsUrl -ne "autodetect") {
                 "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from RCS ($rcsUrl)"
+            } elseif ($stationRcsUrl) {
+                "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from RCS ($stationRcsUrl)"
             } else {
                 "Waiting for installer log file to be created... ($logWaitElapsed seconds elapsed) - Downloading installation files from $base_url DSG"
             }

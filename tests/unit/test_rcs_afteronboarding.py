@@ -281,3 +281,63 @@ class TestRcsUrlEndToEndFlow:
         assert '!= "RCS-SERVICE"' in ob
         # Legacy installationtoken.txt append still present
         assert 'rcs.url=$rcs_url' in gk
+
+
+class TestUpdateModeRcsDetectionPs1:
+    """GKInstall.ps1 must extract rcs.url from station.properties in update mode
+    and show it in the wait message via an elseif branch."""
+
+    def _generate_ps1(self, tmp_path):
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        cfg = create_config(platform="Windows", output_dir=str(output_dir))
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+        ps1_path = os.path.join(str(output_dir), "GKInstall.ps1")
+        with open(ps1_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_ps1_extracts_rcs_url_from_station_properties(self, tmp_path):
+        content = self._generate_ps1(tmp_path)
+        # Extraction regex present
+        assert "'rcs\\.url=([^\\r\\n]+)'" in content or \
+               "rcs\\.url=([^\\r\\n]+)" in content, (
+            "GKInstall.ps1 must contain rcs.url regex extraction"
+        )
+        # Variable assigned
+        assert '$stationRcsUrl' in content, (
+            "GKInstall.ps1 must declare $stationRcsUrl variable"
+        )
+        # Java-escape unescape (matches configServiceUrl pattern)
+        # The extraction line should use the same -replace pattern
+        assert "$stationRcsUrl = $matches[1].Trim() -replace '\\\\:', ':' -replace '\\\\=', '='" in content, (
+            "GKInstall.ps1 must unescape Java property colons/equals for stationRcsUrl"
+        )
+
+    def test_ps1_wait_message_has_station_rcs_elseif(self, tmp_path):
+        content = self._generate_ps1(tmp_path)
+        # The new elseif branch must reference $stationRcsUrl
+        assert 'elseif ($stationRcsUrl)' in content, (
+            "GKInstall.ps1 wait-message logic must include elseif ($stationRcsUrl) branch"
+        )
+        # And use the variable in the RCS message
+        assert 'Downloading installation files from RCS ($stationRcsUrl)' in content, (
+            "Wait message must show extracted station.properties rcs.url"
+        )
+
+    def test_ps1_extraction_before_wait_message(self, tmp_path):
+        """station.properties parse block must appear BEFORE wait-message block
+        so $stationRcsUrl is in scope."""
+        content = self._generate_ps1(tmp_path)
+        extract_idx = content.find('$stationRcsUrl = $matches[1].Trim()')
+        wait_idx = content.find('elseif ($stationRcsUrl)')
+        assert extract_idx >= 0, "Extraction not found"
+        assert wait_idx >= 0, "Wait-message elseif not found"
+        assert extract_idx < wait_idx, (
+            f"Extraction (idx={extract_idx}) must appear BEFORE wait-message elseif (idx={wait_idx})"
+        )
