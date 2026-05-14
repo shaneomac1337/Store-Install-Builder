@@ -597,6 +597,11 @@ def prompt_for_file_selection(files, component_type, dialog_parent, parent_windo
         if preferred_files and file['name'] in preferred_files:
             default_selected = True
             print(f"[INSTALLER PROPS] Pre-selecting '{file['name']}' (from installer.properties)")
+        # Skip auto-latest fallbacks when installer.properties supplied an explicit
+        # preference; otherwise we'd silently pre-select TWO files (the preferred
+        # one + the latest one), confusing the operator.
+        elif preferred_files:
+            pass
         # For Java files, select based on platform
         elif component_type and 'Java' in component_type:
             platform = config.get("platform", "Windows")
