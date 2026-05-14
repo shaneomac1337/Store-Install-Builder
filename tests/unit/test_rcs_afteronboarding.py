@@ -341,3 +341,56 @@ class TestUpdateModeRcsDetectionPs1:
         assert extract_idx < wait_idx, (
             f"Extraction (idx={extract_idx}) must appear BEFORE wait-message elseif (idx={wait_idx})"
         )
+
+
+class TestUpdateModeRcsDetectionSh:
+    """GKInstall.sh must extract rcs.url from station.properties in update mode
+    and show it in the wait message via an elif branch."""
+
+    def _generate_sh(self, tmp_path):
+        from gk_install_builder.generator import ProjectGenerator
+        from tests.unit.test_generator_integration import (
+            TestCompleteProjectGeneration,
+        )
+        cfg = create_config(platform="Linux", output_dir=str(tmp_path))
+        gen = ProjectGenerator()
+        TestCompleteProjectGeneration._configure_detection_manager(gen)
+        gen.generate(cfg)
+        sh_path = os.path.join(str(tmp_path), "GKInstall.sh")
+        with open(sh_path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_sh_extracts_rcs_url_from_station_properties(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        # grep call on rcs.url present
+        assert 'grep "rcs.url=" "$station_properties_path"' in content or \
+               'grep \'rcs.url=\' "$station_properties_path"' in content or \
+               'grep "^rcs\\.url=" "$station_properties_path"' in content, (
+            "GKInstall.sh must grep for rcs.url in station.properties"
+        )
+        # Variable name
+        assert 'station_rcs_url=' in content, (
+            "GKInstall.sh must assign station_rcs_url variable"
+        )
+        # Java unescape (matches configService.url style)
+        assert "sed 's/\\\\:/:/g'" in content or "sed 's/\\\\:/:/g;s/\\\\=/=/g'" in content, (
+            "GKInstall.sh must unescape \\: -> : (Java property style)"
+        )
+
+    def test_sh_wait_message_has_station_rcs_elif(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        assert 'elif [ -n "$station_rcs_url" ]' in content, (
+            "Wait-message logic must include elif [ -n \"$station_rcs_url\" ] branch"
+        )
+        assert 'Downloading installation files from RCS ($station_rcs_url)' in content, (
+            "Wait message must show extracted station.properties rcs.url"
+        )
+
+    def test_sh_extraction_before_wait_message(self, tmp_path):
+        content = self._generate_sh(tmp_path)
+        extract_idx = content.find('station_rcs_url=')
+        wait_idx = content.find('elif [ -n "$station_rcs_url" ]')
+        assert extract_idx >= 0 and wait_idx >= 0
+        assert extract_idx < wait_idx, (
+            f"Extraction (idx={extract_idx}) must appear BEFORE wait-message elif (idx={wait_idx})"
+        )

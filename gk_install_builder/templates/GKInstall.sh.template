@@ -1382,6 +1382,15 @@ if [ "$isUpdate" = true ]; then
       echo -e "\033[1;33mWarning: No configService.url found in station.properties\033[0m"
     fi
 
+    # Extract the RCS URL (for update-mode wait message; cosmetic only)
+    rcs_url_line=$(grep "^rcs\.url=" "$station_properties_path")
+    if [ -n "$rcs_url_line" ]; then
+      station_rcs_url=$(echo "$rcs_url_line" | cut -d'=' -f2-)
+      # Unescape Java property colons/equals: https\://host\:7443/rcs -> https://host:7443/rcs
+      station_rcs_url=$(echo "$station_rcs_url" | sed 's/\\:/:/g;s/\\=/=/g' | tr -d '\r')
+      echo "Found RCS URL in station.properties: $station_rcs_url"
+    fi
+
     # Extract the tenant ID
     tenant_id_line=$(grep "station.tenantId=" "$station_properties_path")
     if [ -n "$tenant_id_line" ]; then
@@ -3109,6 +3118,8 @@ while [ $elapsed -lt $max_wait_time ]; do
     if [ "$offline_mode" = false ]; then
       if [ -n "$rcs_url" ] && [ "$rcs_url" != "autodetect" ]; then
         echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from RCS ($rcs_url)"
+      elif [ -n "$station_rcs_url" ]; then
+        echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from RCS ($station_rcs_url)"
       else
         echo "Waiting for installer log file to be created... ($log_wait_elapsed seconds elapsed) - Downloading installation files from $base_url DSG"
       fi
