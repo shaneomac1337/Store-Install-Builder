@@ -1,0 +1,962 @@
+<h1>RCS Service Implementation Guide</h1>
+<p>
+  <em>GK Install Builder — Resource Cache Service (RCS) Integration</em>
+</p>
+<p>
+  <ac:structured-macro ac:macro-id="874fd0c6-36e1-48db-97f8-401198c039d7" ac:name="toc" ac:schema-version="1">
+    <ac:parameter ac:name="maxLevel">3</ac:parameter>
+    <ac:parameter ac:name="minLevel">2</ac:parameter>
+  </ac:structured-macro>
+</p>
+<hr/>
+<h2>Overview</h2>
+<ac:structured-macro ac:macro-id="a30ac6b9-cf2c-4ed6-88b6-5fe700e70685" ac:name="info" ac:schema-version="1">
+  <ac:parameter ac:name="title">What is RCS?</ac:parameter>
+  <ac:rich-text-body>
+    <p>The <strong>Resource Cache Service (RCS)</strong> acts as a local cache layer inside a store that serves installation packages to other components, <strong>reducing bandwidth</strong> to the cloud DSG. Instead of every POS/ONEX etc. node downloading from the internet, they download from the local RCS.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>The RCS implementation in GK Install Builder covers three areas:</p>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(7,71,166);color: white;text-align: center;width: 40.0px;">1</th>
+      <td>
+        <strong>RCS as an installable component</strong> — installing the RCS Service itself on a machine</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(7,71,166);color: white;text-align: center;width: 40.0px;">2</th>
+      <td>
+        <strong>RCS URL configuration</strong> — registering the RCS URL in Config-Service so other nodes discover it</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(7,71,166);color: white;text-align: center;width: 40.0px;">3</th>
+      <td>
+        <strong>RCS URL in installation token</strong> (<code>--rcsUrl</code>) — telling the Launcher to download packages from RCS instead of from cloud DSG</td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>Quick Start Guide</h2>
+<ac:structured-macro ac:macro-id="7d6ab9c9-522c-447e-aa00-5615227e6419" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#00875a</ac:parameter>
+  <ac:parameter ac:name="bgColor">#e3fcef</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <h3>Install the RCS Service itself</h3>
+    <ac:structured-macro ac:macro-id="eec7848d-a96c-47e5-919d-745dbc64196a" ac:name="code" ac:schema-version="1">
+      <ac:parameter ac:name="language">bash</ac:parameter>
+      <ac:plain-text-body><![CDATA[# Windows
+.\GKInstall.ps1 -ComponentType RCS
+
+# Linux
+./GKInstall.sh --ComponentType RCS]]></ac:plain-text-body>
+    </ac:structured-macro>
+    <p>This downloads the RCS Service from DSG and registers its URL in Config-Service automatically.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="bb33f11d-7e42-4c9e-b96c-f40d7a012c0f" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#0747a6</ac:parameter>
+  <ac:parameter ac:name="bgColor">#deebff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <h3>Install a component via RCS (when you know the RCS URL) - Semi automatic</h3>
+    <ac:structured-macro ac:macro-id="7e88ad55-aa8d-4ed5-8f7d-6f2287c99edc" ac:name="code" ac:schema-version="1">
+      <ac:parameter ac:name="language">bash</ac:parameter>
+      <ac:plain-text-body><![CDATA[# Windows
+.\GKInstall.ps1 -ComponentType POS -rcsUrl http://10.63.2.215:8180/rcs
+
+# Linux
+./GKInstall.sh --ComponentType POS --rcsUrl http://10.63.2.215:8180/rcs]]></ac:plain-text-body>
+    </ac:structured-macro>
+    <p>The Launcher downloads POS packages from RCS instead of from the cloud DSG.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="b5000162-9014-4cee-b1d0-2840e8192146" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#6554c0</ac:parameter>
+  <ac:parameter ac:name="bgColor">#eae6ff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <h3>Install a component via RCS (autodetect the URL) - Fully automatic. Needs to have system.properties set (this is done by default when installed by GK Install Builder)</h3>
+    <ac:structured-macro ac:macro-id="249c0055-168f-4862-82d0-e6434e1d9024" ac:name="code" ac:schema-version="1">
+      <ac:parameter ac:name="language">bash</ac:parameter>
+      <ac:plain-text-body><![CDATA[# Windows
+.\GKInstall.ps1 -ComponentType POS -rcsUrl autodetect
+
+# Linux
+./GKInstall.sh --ComponentType POS --rcsUrl autodetect]]></ac:plain-text-body>
+    </ac:structured-macro>
+    <p>The script queries Config-Service to find the RCS URL for this store automatically. Requires RCS to have been installed and registered first.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="7a061e47-fc90-4af2-a8b1-f59595b626cc" ac:name="tip" ac:schema-version="1">
+  <ac:parameter ac:name="title">GUI Options (Launcher Settings → RCS-SERVICE tab)</ac:parameter>
+  <ac:rich-text-body>
+    <ul>
+      <li>
+        <strong>Use HTTPS for RCS URL</strong> — switches the registered URL from <code>http</code> to <code>https</code> (and uses the HTTPS port)</li>
+      <li>
+        <strong>Don't set RCS URL</strong> — skips registering the RCS URL in Config-Service during store-initialization</li>
+    </ul>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<hr/>
+<h2>1. RCS as an Installable Component</h2>
+<h3>System Type</h3>
+<ac:structured-macro ac:macro-id="84df6f1c-9b43-4cea-81fb-4a57e6416f37" ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>RCS <strong>always</strong> uses the <code>GKR</code> prefix regardless of the project code (unlike POS, WDM, etc. which use the extracted project code like <code>CSE-</code>).<br/>Unless RCS would be project custom, which is highly improbable.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="cf316a3b-757c-4346-9e4c-90994c031494" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[GKR-Resource-Cache-Service]]></ac:plain-text-body>
+</ac:structured-macro>
+<h3>Installation Directory</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Platform</th>
+      <th style="background-color: rgb(222,235,255);">Path</th>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="0c792a26-261e-481a-ac56-8c7fb762eb44" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Blue</ac:parameter>
+            <ac:parameter ac:name="title">Windows</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>C:\gkretail\rcs</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="e0ee33e6-956e-4ac4-a854-10c31cb2555e" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Green</ac:parameter>
+            <ac:parameter ac:name="title">Linux</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>/usr/local/gkretail/rcs</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<h3>Default Launcher Ports</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Setting</th>
+      <th style="background-color: rgb(222,235,255);">Default Value</th>
+    </tr>
+    <tr>
+      <td>HTTP Port</td>
+      <td>
+        <code>8180</code>
+      </td>
+    </tr>
+    <tr>
+      <td>HTTPS Port</td>
+      <td>
+        <code>8543</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Shutdown Port</td>
+      <td>
+        <code>8005</code>
+      </td>
+    </tr>
+    <tr>
+      <td>JMX Port</td>
+      <td>
+        <code>52222</code>
+      </td>
+    </tr>
+    <tr>
+      <td>Updater JMX Port</td>
+      <td>
+        <code>4333</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<h3>Onboarding</h3>
+<p>RCS uses <code>clientType: "rcs"</code> with a <strong>24-hour</strong> token lifespan and <strong>10,000</strong> max usage count.</p>
+<hr/>
+<h2>2. Launcher Settings — RCS-Specific Options</h2>
+<p>The <strong>Launcher Settings Editor</strong> has an <strong>RCS-SERVICE</strong> tab with three additional options below the standard port settings:</p>
+<h3>Use HTTPS for RCS URL</h3>
+<ac:structured-macro ac:macro-id="bf4d2621-ce02-48e0-bb37-c775dcd86f54" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#4c9aff</ac:parameter>
+  <ac:parameter ac:name="bgColor">#deebff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <p>
+      <strong>Config key:</strong> <code>rcs_use_https</code>   |   <strong>Default:</strong> <ac:structured-macro ac:macro-id="4f1bf97c-7736-4383-9134-fd96d47d6983" ac:name="status" ac:schema-version="1">
+        <ac:parameter ac:name="colour">Grey</ac:parameter>
+        <ac:parameter ac:name="title">false</ac:parameter>
+      </ac:structured-macro>
+    </p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Controls which protocol and port the store-initialization script uses when constructing the RCS URL:</p>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Setting</th>
+      <th style="background-color: rgb(222,235,255);">Protocol</th>
+      <th style="background-color: rgb(222,235,255);">Port Used</th>
+      <th style="background-color: rgb(222,235,255);">Resulting URL</th>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="ac4a2f80-d8d6-4416-8b16-3a6b807c8689" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Grey</ac:parameter>
+            <ac:parameter ac:name="title">Disabled</ac:parameter>
+          </ac:structured-macro> (default)</div>
+      </td>
+      <td>
+        <code>http</code>
+      </td>
+      <td>
+        <code>applicationServerHttpPort</code> (8180)</td>
+      <td>
+        <code>http://&lt;hostname&gt;:8180/rcs</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="a42b8afe-1de8-40d1-a7a9-6308b600008f" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Green</ac:parameter>
+            <ac:parameter ac:name="title">Enabled</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>https</code>
+      </td>
+      <td>
+        <code>applicationServerHttpsPort</code> (8543)</td>
+      <td>
+        <code>https://&lt;hostname&gt;:8543/rcs</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<h3>RCS URL Mode — Hostname vs IP Address</h3>
+<ac:structured-macro ac:macro-id="b08-rcs-url-mode-panel" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#4c9aff</ac:parameter>
+  <ac:parameter ac:name="bgColor">#deebff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <p>
+      <strong>Config key:</strong> <code>rcs_url_mode</code> | <strong>Default:</strong> <ac:structured-macro ac:macro-id="b08-rcs-url-mode-default" ac:name="status" ac:schema-version="1">
+        <ac:parameter ac:name="colour">Grey</ac:parameter>
+        <ac:parameter ac:name="title">hostname</ac:parameter>
+      </ac:structured-macro>
+    </p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>Controls whether the registered RCS URL uses the machine <strong>hostname</strong> or its <strong>IP address</strong>. Two radio buttons in the RCS-SERVICE tab let you choose the mode:</p>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Mode</th>
+      <th style="background-color: rgb(222,235,255);">Host Component</th>
+      <th style="background-color: rgb(222,235,255);">HTTPS Compatible</th>
+      <th style="background-color: rgb(222,235,255);">Resulting URL</th>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="b08-rcs-mode-hostname-status" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Green</ac:parameter>
+            <ac:parameter ac:name="title">hostname (default)</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>$env:COMPUTERNAME</code> (Windows) / <code>hostname</code> (Linux)</td>
+      <td>Yes</td>
+      <td>
+        <code>http://&lt;hostname&gt;:8180/rcs</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="b08-rcs-mode-ip-status" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Yellow</ac:parameter>
+            <ac:parameter ac:name="title">ip</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>IP resolved at runtime via the default gateway adapter</td>
+      <td>No — HTTPS is automatically disabled</td>
+      <td>
+        <code>http://&lt;ip-address&gt;:8180/rcs</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<p>In <strong>IP mode</strong>, the store-initialization script resolves the machine's IP address at runtime by inspecting the network adapter associated with the default gateway. HTTPS is automatically disabled in this mode because SSL certificates cannot validate raw IP addresses.</p>
+<ac:structured-macro ac:macro-id="b08-rcs-url-mode-warning" ac:name="warning" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>
+      <strong>Hostname mode is the recommended default.</strong> Only switch to IP mode for edge-case environments where stable DNS is not available, or for example having problems with hostname with underscores like project <strong>ACH (Action)</strong>. Using IP mode in environments with dynamic IPs will break the registered URL after a reboot or DHCP lease renewal.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Don't set RCS URL</h3>
+<ac:structured-macro ac:macro-id="93fed3b3-27ea-436d-af93-293817cf9b14" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#4c9aff</ac:parameter>
+  <ac:parameter ac:name="bgColor">#deebff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <p>
+      <strong>Config key:</strong> <code>rcs_skip_url_config</code>   |   <strong>Default:</strong> <ac:structured-macro ac:macro-id="e312cf67-a13c-4146-b3b7-cfeb5b431bf3" ac:name="status" ac:schema-version="1">
+        <ac:parameter ac:name="colour">Grey</ac:parameter>
+        <ac:parameter ac:name="title">false</ac:parameter>
+      </ac:structured-macro>
+    </p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<p>When enabled, the store-initialization script <strong>completely skips</strong> the API call that sets <code>rcs.url</code> in Config-Service. The script will log:</p>
+<ac:structured-macro ac:macro-id="5c2ea0a8-9632-47b5-910a-843d5a057f07" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[Skipping RCS URL configuration (disabled in launcher settings)]]></ac:plain-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="993fdb6c-3d63-4a4d-8e4d-9e9d634581ac" ac:name="tip" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Use this when the RCS URL is managed externally, configured manually, or simply not needed for the deployment.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<hr/>
+<h2>3. Store-Initialization — RCS URL Registration</h2>
+<p>When the generated <code>store-initialization</code> script runs for an <strong>RCS-SERVICE</strong> component, it registers the RCS URL in Config-Service so that other nodes in the store can discover it.</p>
+<h3>Flow</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">1</th>
+      <td>Checks that the component type is <code>RCS-SERVICE</code> and <code>rcs_skip_url_config</code> is not <code>"true"</code>
+      </td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">2</th>
+      <td>Reads the <code>update_config.json</code> template from <code>helper/init/rcs/</code>
+      </td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">3</th>
+      <td>Gets the machine hostname (<code>$env:COMPUTERNAME</code> on Windows, <code>hostname</code> on Linux)</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">4</th>
+      <td>Constructs the RCS URL: <code>&lt;protocol&gt;://&lt;hostname&gt;:&lt;port&gt;/rcs</code>
+      </td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">5</th>
+      <td>Replaces all placeholders in the config template</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(0,135,90);color: white;text-align: center;width: 40.0px;">6</th>
+      <td>POSTs the config to Config-Service API</td>
+    </tr>
+  </tbody>
+</table>
+<h3>API Endpoint</h3>
+<ac:structured-macro ac:macro-id="38544ebd-5c14-45c1-81aa-be4d6f1c3d22" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[POST https://<base_url>/api/config/services/rest/config-management/v1/parameter-contents/plain]]></ac:plain-text-body>
+</ac:structured-macro>
+<h3>Request Body (update_config.json)</h3>
+<ac:structured-macro ac:macro-id="0f5563e9-f1c5-48a7-867c-c426e2974221" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">json</ac:parameter>
+  <ac:plain-text-body><![CDATA[{
+  "levelDescriptor": {
+    "structureUniqueName": "<store_structure_name>"
+  },
+  "systemDescriptor": {
+    "systemName": "GKR-Resource-Cache-Service",
+    "systemVersionList": [
+      { "name": "<rcs_version>" }
+    ]
+  },
+  "user": "<eh_launchpad_username>",
+  "parameterValueChangeList": [
+    {
+      "name": "system.properties",
+      "url": "rcs.url",
+      "value": "http://<hostname>:8180/rcs"
+    }
+  ]
+}]]></ac:plain-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="b8313fbc-334f-447d-8a8a-dc231f26fa64" ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>This sets the <code>rcs.url</code> property inside <code>system.properties</code> for the RCS node in Config-Service. Other components use this property to locate the RCS instance in the store.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Template Placeholders</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Placeholder</th>
+      <th style="background-color: rgb(222,235,255);">Replaced With</th>
+      <th style="background-color: rgb(222,235,255);">Set By</th>
+    </tr>
+    <tr>
+      <td>
+        <code>@RCS_PROTOCOL@</code>
+      </td>
+      <td>
+        <code>http</code> or <code>https</code>
+      </td>
+      <td>
+        <code>helper_file_generator.py</code> (from <code>rcs_use_https</code> config)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>@RCS_PORT@</code>
+      </td>
+      <td>
+        <code>8180</code> or <code>8543</code> (or custom)</td>
+      <td>
+        <code>helper_file_generator.py</code> (from launcher settings)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>@RCS_SKIP_URL_CONFIG@</code>
+      </td>
+      <td>
+        <code>true</code> or <code>false</code>
+      </td>
+      <td>
+        <code>helper_file_generator.py</code> (from <code>rcs_skip_url_config</code> config)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>@RCS_URL@</code>
+      </td>
+      <td>Full URL at runtime</td>
+      <td>Replaced by the store-init script itself at install time</td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>4. The <code>--rcsUrl</code> CLI Parameter</h2>
+<ac:structured-macro ac:macro-id="713f69c1-c524-422b-9f48-f5f34a795209" ac:name="info" ac:schema-version="1">
+  <ac:parameter ac:name="title">Purpose</ac:parameter>
+  <ac:rich-text-body>
+    <p>The <code>--rcsUrl</code> parameter on the generated <code>GKInstall</code> script tells the Launcher to download installation packages from a <strong>local RCS</strong> instead of from the cloud DSG. It (a) appends <code>rcs.url=&lt;value&gt;</code> to the <code>installationtoken.txt</code> file, and (b) injects the resolved URL into each non-RCS component's onboarding token request via <code>afterOnboardingProperties</code> (see below).</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Three Modes of Operation</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Mode</th>
+      <th style="background-color: rgb(222,235,255);">Usage</th>
+      <th style="background-color: rgb(222,235,255);">Behavior</th>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="5a14a1f1-ed88-4648-a64d-b98859b7cdd2" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Grey</ac:parameter>
+            <ac:parameter ac:name="title">Not specified</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>.\GKInstall.ps1</code>
+      </td>
+      <td>Normal behavior. The Launcher downloads from <strong>DSG</strong> using the <code>dsg.url</code> in the installation token.</td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="d17d2dc9-7ef1-4689-80d9-b9a772841de3" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Green</ac:parameter>
+            <ac:parameter ac:name="title">Direct URL</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>.\GKInstall.ps1 -rcsUrl http://10.63.2.215:8180/rcs</code>
+      </td>
+      <td>Appends <code>rcs.url=http://10.63.2.215:8180/rcs</code> to the installation token. The Launcher uses <strong>RCS</strong> for package downloads.</td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="d772fd51-c49c-4957-abe3-59d7b8de4654" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Blue</ac:parameter>
+            <ac:parameter ac:name="title">Autodetect</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>.\GKInstall.ps1 -rcsUrl autodetect</code>
+      </td>
+      <td>Queries Config-Service to find the RCS URL for this store, then appends it to the installation token. Falls back to user prompt if detection fails.</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Installation Token</h3>
+<p>The base installation token always contains:</p>
+<ac:structured-macro ac:macro-id="929833bc-94ae-4285-a89f-8c890ed7f629" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">installationtoken.txt (base)</ac:parameter>
+  <ac:plain-text-body><![CDATA[configService.url=https://<server>/api/config
+cims.url=https://<server>/api/iam/cim/rest
+station.tenantId=<tenant_id>
+station.storeId=<store_id>
+station.workstationId=<workstation_id>
+station.applicationVersion=<version>
+station.systemType=<system_type>
+onboarding.token=<onboarding_token>
+dsg.url=https://<server>/api/digital-content/content/cep/SoftwarePackage]]></ac:plain-text-body>
+</ac:structured-macro>
+<p>When <code>--rcsUrl</code> is provided, the following line is <strong>appended</strong> after the token file is written:</p>
+<ac:structured-macro ac:macro-id="1a850d53-93fa-4051-b695-ab0e3cdca47d" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">Appended line</ac:parameter>
+  <ac:plain-text-body><![CDATA[rcs.url=http://10.63.2.215:8180/rcs]]></ac:plain-text-body>
+</ac:structured-macro>
+<p>The complete token is then base64-encoded as <code>installationtoken.base64</code> for the Launcher.</p>
+<h3>afterOnboardingProperties Injection</h3>
+<p>In addition to the <code>installationtoken.txt</code> append, when <code>--rcsUrl</code> is set (direct URL or <code>autodetect</code>) the resolved RCS URL is injected into the onboarding token request body as an <code>afterOnboardingProperties</code> entry, so the component receives it as part of the signed onboarding token.</p>
+<ac:structured-macro ac:macro-id="a1f2c3d4-rcs-afteronboard-body" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">json</ac:parameter>
+  <ac:parameter ac:name="title">Onboarding request body (non-RCS component, rcsUrl set)</ac:parameter>
+  <ac:plain-text-body><![CDATA[{
+  "restrictions": {
+    "clientType": "opos-onex-cloud",
+    "tenantId": "001",
+    "lifespan": 86400,
+    "maxUsageCount": 10000
+  },
+  "afterOnboardingProperties": [
+    { "key": "rcs.url", "value": "http://10.63.2.215:8180/rcs" }
+  ]
+}]]></ac:plain-text-body>
+</ac:structured-macro>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Aspect</th>
+      <th style="background-color: rgb(222,235,255);">Behavior</th>
+    </tr>
+    <tr>
+      <td>Scope</td>
+      <td>All non-RCS components (POS, WDM, Flow, LPA, StoreHub, MQTT-Broker). The <code>RCS-SERVICE</code> onboarding body is left unchanged — it does not need its own URL.</td>
+    </tr>
+    <tr>
+      <td>Resolution order</td>
+      <td><code>GKInstall</code> pre-acquires the OAuth token and resolves the RCS URL (literal or autodetect) <strong>before</strong> the onboarding call, so the value is available for injection.</td>
+    </tr>
+    <tr>
+      <td>In-memory only</td>
+      <td>The on-disk <code>helper/onboarding/*.onboarding.json</code> files are not modified — injection happens on the request body only.</td>
+    </tr>
+    <tr>
+      <td>Belt-and-suspenders</td>
+      <td>The existing <code>installationtoken.txt</code> <code>rcs.url=</code> append is preserved unchanged. Both paths carry the value.</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Update-Mode RCS Detection</h3>
+<ac:structured-macro ac:macro-id="b2e3d4c5-rcs-updatemode-note" ac:name="info" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>During an <strong>update</strong> (existing <code>station.properties</code> present), if that file already contains an <code>rcs.url</code> entry, the progress message now reads <em>"Downloading installation files from RCS (&lt;url&gt;)"</em> instead of the misleading <em>"... from &lt;base_url&gt; DSG"</em>. This is cosmetic only — no token changes, no side effects; the installer already used RCS automatically in this case. Precedence: CLI <code>--rcsUrl</code> &gt; <code>station.properties</code> <code>rcs.url</code> &gt; DSG fallback.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<hr/>
+<h2>5. Autodetect — How It Works</h2>
+<ac:structured-macro ac:macro-id="13d2a413-b285-4462-b5ae-0f6ab21be06b" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#6554c0</ac:parameter>
+  <ac:parameter ac:name="bgColor">#eae6ff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <p>When <code>--rcsUrl autodetect</code> is used, the script performs <strong>two API calls</strong> to Config-Service to find the <code>rcs.url</code> property that was previously registered by the store-initialization script (see Section 3).</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Step 1 — Get Store Child Nodes</h3>
+<ac:structured-macro ac:macro-id="0ac45f26-0c67-4a56-9d14-b715da2cd724" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">API Call 1</ac:parameter>
+  <ac:plain-text-body><![CDATA[POST https://<server>/api/config/services/rest/infrastructure/v1/structure/child-nodes/search]]></ac:plain-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="dc755987-c72e-4129-be4b-2d4b27530f68" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">json</ac:parameter>
+  <ac:parameter ac:name="title">Request Body</ac:parameter>
+  <ac:plain-text-body><![CDATA[{
+  "station": {
+    "systemName": "GKR-Store",
+    "tenantId": "<tenant_id>",
+    "retailStoreId": "<store_id>"
+  }
+}]]></ac:plain-text-body>
+</ac:structured-macro>
+<p>The response contains a <code>childNodeList</code> with all nodes registered under this store. The script finds the node whose <code>systemName</code> contains <code>Resource-Cache-Service</code>.</p>
+<h3>Step 2 — Fetch system.properties</h3>
+<ac:structured-macro ac:macro-id="8139d78a-ebe5-475b-a858-2da79fd36550" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:parameter ac:name="title">API Call 2</ac:parameter>
+  <ac:plain-text-body><![CDATA[POST https://<server>/api/config/services/rest/config-management/v1/parameter-contents/plain/search]]></ac:plain-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="d4e60001-b4e8-4f70-8738-d39cc2f98743" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">json</ac:parameter>
+  <ac:parameter ac:name="title">Request Body</ac:parameter>
+  <ac:plain-text-body><![CDATA[{
+  "levelDescriptor": {
+    "structureUniqueName": "<rcs_node_structureUniqueName>"
+  },
+  "systemDescriptor": {
+    "systemName": "<rcs_node_systemName>",
+    "systemVersionList": [
+      { "name": "<rcs_node_activeVersion>" }
+    ]
+  },
+  "parameterList": [
+    { "name": "system.properties" }
+  ]
+}]]></ac:plain-text-body>
+</ac:structured-macro>
+<h3>Step 3 — Extract the URL</h3>
+<p>The <code>system.properties</code> content is returned as a <strong>base64-encoded</strong> string. The script:</p>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(101,84,192);color: white;text-align: center;width: 40.0px;">a</th>
+      <td>Decodes the base64 content</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(101,84,192);color: white;text-align: center;width: 40.0px;">b</th>
+      <td>Parses the <code>rcs.url=...</code> line using regex</td>
+    </tr>
+    <tr>
+      <th style="background-color: rgb(101,84,192);color: white;text-align: center;width: 40.0px;">c</th>
+      <td>Handles Java-style property escaping (<code>\:</code> → <code>:</code>, <code>\=</code> → <code>=</code>)</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Authentication</h3>
+<ac:structured-macro ac:macro-id="93fd074b-d461-4092-a1fa-a6d2d1f2adb5" ac:name="note" ac:schema-version="1">
+  <ac:rich-text-body>
+    <p>Both API calls use a <strong>Bearer token</strong> read from <code>helper/tokens/access_token.txt</code>. When <code>--rcsUrl</code> is set, <code>GKInstall</code> <strong>pre-acquires</strong> this OAuth token and runs autodetect <strong>before</strong> the onboarding step (so the resolved URL can be injected into the onboarding token via <code>afterOnboardingProperties</code>). The subsequent onboarding phase re-acquires its own token normally; the pre-acquired file is harmlessly overwritten.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Failure Handling</h3>
+<p>If autodetection fails at any step, the script prompts the user:</p>
+<ac:structured-macro ac:macro-id="5a150c70-bd25-4893-bc9f-876608bd1503" ac:name="code" ac:schema-version="1">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[RCS URL autodetection failed. Continue without rcs.url in installation token?
+Press Y to continue, any other key to abort:]]></ac:plain-text-body>
+</ac:structured-macro>
+<ac:structured-macro ac:macro-id="b3c0e3f0-8449-4a8f-9e51-ede82b978a63" ac:name="warning" ac:schema-version="1">
+  <ac:parameter ac:name="title">Possible Failure Reasons</ac:parameter>
+  <ac:rich-text-body>
+    <ul>
+      <li>
+        <code>No access token available for RCS URL autodetect</code> — token file missing</li>
+      <li>
+        <code>Failed to fetch store child nodes</code> — Config-Service API unreachable</li>
+      <li>
+        <code>No Resource-Cache-Service node found for store &lt;id&gt;</code> — RCS not registered for this store</li>
+      <li>
+        <code>No system.properties content returned for RCS node</code> — properties not configured</li>
+      <li>
+        <code>system.properties found but no rcs.url entry</code> — property exists but <code>rcs.url</code> line missing</li>
+    </ul>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<hr/>
+<h2>6. Log Wait Message</h2>
+<p>After the Launcher starts, the GKInstall script waits for the installer log file to appear (up to <strong>1 hour</strong>). The wait message indicates the download source:</p>
+<table class="relative-table wrapped" style="width: 51.7099%;">
+  <colgroup> <col style="width: 9.0977%;"/> <col style="width: 90.9023%;"/> </colgroup>
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Condition</th>
+      <th style="background-color: rgb(222,235,255);">Message</th>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="ae5b79bd-c74b-47e6-9fe3-68c642af7882" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Green</ac:parameter>
+            <ac:parameter ac:name="title">--rcsUrl active</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>Waiting for installer log file to be created... (28s elapsed) - Downloading installation files from RCS (http://10.63.2.215:8180/rcs)</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="78c6ed7f-c0a8-4087-b16b-adfe3620154f" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Blue</ac:parameter>
+            <ac:parameter ac:name="title">Normal DSG</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>Waiting for installer log file to be created... (28s elapsed) - Downloading installation files from qa.cloud4retail.co DSG</code>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <div class="content-wrapper">
+          <ac:structured-macro ac:macro-id="21927431-0062-4a8f-9336-c7c9c88d11d4" ac:name="status" ac:schema-version="1">
+            <ac:parameter ac:name="colour">Grey</ac:parameter>
+            <ac:parameter ac:name="title">Offline</ac:parameter>
+          </ac:structured-macro>
+        </div>
+      </td>
+      <td>
+        <code>Waiting for installer log file to be created... (28s elapsed)</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>7. Typical Deployment Scenarios</h2>
+<h3>Scenario A — First RCS Installation in a Store</h3>
+<ac:structured-macro ac:macro-id="c5266613-5c62-4d95-9f69-e262356d95ca" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#00875a</ac:parameter>
+  <ac:parameter ac:name="bgColor">#e3fcef</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <ol>
+      <li>Generate installation files with the GK Install Builder</li>
+      <li>Run <code>GKInstall.ps1 -ComponentType RCS</code> on the RCS server</li>
+      <li>The Launcher downloads the RCS Service from <strong>DSG</strong> (cloud)</li>
+      <li>The store-initialization script registers <code>rcs.url=http://&lt;hostname&gt;:8180/rcs</code> in Config-Service</li>
+    </ol>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Scenario B — Installing POS via RCS (Direct URL)</h3>
+<ac:structured-macro ac:macro-id="c6ecad90-87cf-40d7-ac95-36ef7a49c808" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#0747a6</ac:parameter>
+  <ac:parameter ac:name="bgColor">#deebff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <ol>
+      <li>RCS is already installed and its URL is known</li>
+      <li>Run <code>GKInstall.ps1 -ComponentType POS -rcsUrl http://10.63.2.215:8180/rcs</code>
+      </li>
+      <li>The installation token gets <code>rcs.url=http://10.63.2.215:8180/rcs</code>
+      </li>
+      <li>The Launcher downloads POS packages from <strong>RCS</strong> instead of DSG</li>
+    </ol>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Scenario C — Installing POS via RCS (Autodetect)</h3>
+<ac:structured-macro ac:macro-id="93234559-7a72-4dab-9267-9339943a14fe" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#6554c0</ac:parameter>
+  <ac:parameter ac:name="bgColor">#eae6ff</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <ol>
+      <li>RCS is already installed and registered in Config-Service</li>
+      <li>Run <code>GKInstall.ps1 -ComponentType POS -rcsUrl autodetect</code>
+      </li>
+      <li>The script queries Config-Service, finds the RCS node, extracts <code>rcs.url</code>
+      </li>
+      <li>The installation token gets the autodetected <code>rcs.url</code>
+      </li>
+      <li>The Launcher downloads POS packages from <strong>RCS</strong>
+      </li>
+    </ol>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<h3>Scenario D — RCS without URL Registration</h3>
+<ac:structured-macro ac:macro-id="2cf1a4fa-411f-4c8b-a0a2-582e6fde75cb" ac:name="panel" ac:schema-version="1">
+  <ac:parameter ac:name="borderColor">#ff8b00</ac:parameter>
+  <ac:parameter ac:name="bgColor">#fffae6</ac:parameter>
+  <ac:parameter ac:name="borderStyle">solid</ac:parameter>
+  <ac:rich-text-body>
+    <ol>
+      <li>Enable <strong>"Don't set RCS URL"</strong> in Launcher Settings</li>
+      <li>Generate and run the installation</li>
+      <li>RCS is installed but <code>rcs.url</code> is <strong>not</strong> registered in Config-Service</li>
+      <li>Useful when the URL is managed externally or via a different mechanism or just manually in SM</li>
+    </ol>
+  </ac:rich-text-body>
+</ac:structured-macro>
+<hr/>
+<h2>8. Configuration Reference</h2>
+<h3>Config Keys (gk_install_config.json)</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Key</th>
+      <th style="background-color: rgb(222,235,255);">Type</th>
+      <th style="background-color: rgb(222,235,255);">Default</th>
+      <th style="background-color: rgb(222,235,255);">Description</th>
+    </tr>
+    <tr>
+      <td>
+        <code>rcs_use_https</code>
+      </td>
+      <td>boolean</td>
+      <td>
+        <code>false</code>
+      </td>
+      <td>Use HTTPS protocol and HTTPS port for the RCS URL</td>
+    </tr>
+    <tr>
+      <td>
+        <code>rcs_skip_url_config</code>
+      </td>
+      <td>boolean</td>
+      <td>
+        <code>false</code>
+      </td>
+      <td>Skip the RCS URL registration API call in store-initialization</td>
+    </tr>
+    <tr>
+      <td>
+        <code>rcs_version</code>
+      </td>
+      <td>string</td>
+      <td>
+        <code>v3.0.5</code>
+      </td>
+      <td>RCS component version</td>
+    </tr>
+    <tr>
+      <td>
+        <code>rcs_system_type</code>
+      </td>
+      <td>string</td>
+      <td>
+        <code>GKR-Resource-Cache-Service</code>
+      </td>
+      <td>System type identifier (auto-filled)</td>
+    </tr>
+    <tr>
+      <td>
+        <code>rcs_service_launcher_settings</code>
+      </td>
+      <td>object</td>
+      <td>
+        <em>(port defaults above)</em>
+      </td>
+      <td>Port and JMX settings for the RCS Launcher</td>
+    </tr>
+  </tbody>
+</table>
+<h3>CLI Parameters (Generated GKInstall Script)</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">Parameter</th>
+      <th style="background-color: rgb(222,235,255);">Values</th>
+      <th style="background-color: rgb(222,235,255);">Description</th>
+    </tr>
+    <tr>
+      <td>
+        <code>--rcsUrl &lt;url&gt;</code>
+      </td>
+      <td>Any valid URL</td>
+      <td>Appends <code>rcs.url=&lt;url&gt;</code> to the installation token</td>
+    </tr>
+    <tr>
+      <td>
+        <code>--rcsUrl autodetect</code>
+      </td>
+      <td>
+        <code>autodetect</code>
+      </td>
+      <td>Queries Config-Service to find the RCS URL for this store</td>
+    </tr>
+    <tr>
+      <td>
+        <code>--ComponentType RCS</code>
+      </td>
+      <td>
+        <code>RCS</code>
+      </td>
+      <td>Alias for <code>RCS-SERVICE</code> (automatically expanded)</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Source Files</h3>
+<table class="wrapped">
+  <tbody>
+    <tr>
+      <th style="background-color: rgb(222,235,255);">File</th>
+      <th style="background-color: rgb(222,235,255);">RCS Responsibility</th>
+    </tr>
+    <tr>
+      <td>
+        <code>dialogs/launcher_settings.py</code>
+      </td>
+      <td>HTTPS toggle and "Don't set URL" checkbox UI</td>
+    </tr>
+    <tr>
+      <td>
+        <code>generators/helper_file_generator.py</code>
+      </td>
+      <td>Replaces <code>@RCS_PROTOCOL@</code>, <code>@RCS_PORT@</code>, <code>@RCS_SKIP_URL_CONFIG@</code> in templates</td>
+    </tr>
+    <tr>
+      <td>
+        <code>generators/gk_install_generator.py</code>
+      </td>
+      <td>Replaces <code>@RCS_SYSTEM_TYPE@</code> and <code>@RCS_VERSION@</code> in GKInstall templates</td>
+    </tr>
+    <tr>
+      <td>
+        <code>templates/GKInstall.ps1.template</code>
+      </td>
+      <td>
+        <code>-rcsUrl</code> parameter, autodetect logic, installation token append</td>
+    </tr>
+    <tr>
+      <td>
+        <code>templates/GKInstall.sh.template</code>
+      </td>
+      <td>Same as above for Linux</td>
+    </tr>
+    <tr>
+      <td>
+        <code>templates/store-initialization.ps1.template</code>
+      </td>
+      <td>RCS URL construction and Config-Service API call</td>
+    </tr>
+    <tr>
+      <td>
+        <code>templates/store-initialization.sh.template</code>
+      </td>
+      <td>Same as above for Linux</td>
+    </tr>
+    <tr>
+      <td>
+        <code>generators/launcher_generator.py</code>
+      </td>
+      <td>RCS launcher template with port settings</td>
+    </tr>
+    <tr>
+      <td>
+        <code>features/auto_fill.py</code>
+      </td>
+      <td>Auto-fills <code>rcs_system_type</code> as <code>GKR-Resource-Cache-Service</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
