@@ -14,7 +14,7 @@
       <li>
         <strong>Store-Level Singleton:</strong> One broker per store, not per-workstation — node creation uses a singleton structure with no <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">workstationId</code>, and GKInstall skips the WSID prompt for this component</li>
       <li>
-        <strong>System Type:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKR-Store-MQTT-Broker</code>, default version <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v1.0.0</code></li>
+        <strong>System Type:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKR-Store-MQTT-Broker</code></li>
     </ul>
     <h4 style="color: rgb(30,58,95);">RCS URL Injection via afterOnboardingProperties</h4>
     <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">When <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl</code> is supplied (a literal URL or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">autodetect</code>), the resolved RCS URL is now embedded directly into each non-RCS component's onboarding token request as an <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">afterOnboardingProperties</code> entry, not only appended to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code>.</p>
