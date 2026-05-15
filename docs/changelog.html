@@ -5,9 +5,17 @@
       <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b11 - May 2026</h2>
     </div>
     <p style="color: rgb(102,102,102);margin-top: 0;">
-      <em>RCS URL injected into onboarding token via afterOnboardingProperties, update-mode RCS download-source detection, plus Tomcat/Java pre-select and API-test summary fixes</em>
+      <em>New Store MQTT Broker component (store-level singleton), RCS URL injected into onboarding token via afterOnboardingProperties, update-mode RCS download-source detection, plus Tomcat/Java pre-select and API-test summary fixes</em>
     </p>
     <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">New Component: Store MQTT Broker</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">A new installable component, <strong>Store MQTT Broker</strong>, is now available end-to-end (UI, version management, onboarding, launcher, API integration, offline packaging) on Windows and Linux.</p>
+    <ul>
+      <li>
+        <strong>Store-Level Singleton:</strong> One broker per store, not per-workstation — node creation uses a singleton structure with no <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">workstationId</code>, and GKInstall skips the WSID prompt for this component</li>
+      <li>
+        <strong>System Type:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKR-Store-MQTT-Broker</code>, default version <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v1.0.0</code></li>
+    </ul>
     <h4 style="color: rgb(30,58,95);">RCS URL Injection via afterOnboardingProperties</h4>
     <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">When <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl</code> is supplied (a literal URL or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">autodetect</code>), the resolved RCS URL is now embedded directly into each non-RCS component's onboarding token request as an <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">afterOnboardingProperties</code> entry, not only appended to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code>.</p>
     <ul>
