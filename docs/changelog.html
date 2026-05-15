@@ -1,7 +1,272 @@
 <div>
   <div style="border-left: 4.0px solid rgb(40,167,69);padding-left: 20.0px;margin-bottom: 40.0px;">
     <div style="margin-bottom: 15.0px;">
-      <span style="background: rgb(40,167,69);color: white;padding: 6.0px 14.0px;border-radius: 20.0px;font-weight: bold;font-size: 14.0px;">LATEST</span>
+      <span style="background: rgb(40,167,69);color: white;padding: 6.0px 14.0px;border-radius: 20.0px;font-weight: bold;font-size: 14.0px;display: inline-block;margin-bottom: 10.0px;">LATEST</span>
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b11 - May 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>RCS URL injected into onboarding token via afterOnboardingProperties, update-mode RCS download-source detection, plus Tomcat/Java pre-select and API-test summary fixes</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">RCS URL Injection via afterOnboardingProperties</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">When <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl</code> is supplied (a literal URL or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">autodetect</code>), the resolved RCS URL is now embedded directly into each non-RCS component's onboarding token request as an <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">afterOnboardingProperties</code> entry, not only appended to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code>.</p>
+    <ul>
+      <li>
+        <strong>Scope:</strong> All non-RCS components (POS, WDM, Flow, LPA, StoreHub, MQTT-Broker). <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">RCS-SERVICE</code> onboarding body left unchanged — it does not need its own URL</li>
+      <li>
+        <strong>Resolution Order:</strong> GKInstall now pre-acquires the OAuth token and resolves the RCS URL (Config-Service <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">system.properties</code> autodetect) <em>before</em> the onboarding call so the value is available for injection</li>
+      <li>
+        <strong>In-Memory Only:</strong> The <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">helper/onboarding/*.onboarding.json</code> files on disk are not modified — injection happens to the request body only</li>
+      <li>
+        <strong>Belt-and-Suspenders:</strong> The existing <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">rcs.url=</code> append behavior is preserved unchanged</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Update-Mode RCS Download-Source Detection</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">During an update, if the existing <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">station.properties</code> contains an <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">rcs.url</code> entry, the progress message now reads <em>"Downloading installation files from RCS (&lt;url&gt;)"</em> instead of the misleading <em>"... from &lt;base_url&gt; DSG"</em>.</p>
+    <ul>
+      <li>
+        <strong>Cosmetic Only:</strong> No change to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$rcsUrl</code> auto-set, no <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installationtoken.txt</code> append, no onboarding side effects — the installer already used RCS automatically in this case; only the displayed source was wrong</li>
+      <li>
+        <strong>Precedence:</strong> CLI <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--rcsUrl</code> &gt; <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">station.properties</code> rcs.url &gt; DSG fallback</li>
+      <li>
+        <strong>Both Platforms:</strong> Implemented in <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall.ps1</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall.sh</code> with Java-property colon unescaping</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <h4 style="color: rgb(30,58,95);">Bash sed Fallback Broke on RCS URLs Containing Slashes</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The no-jq <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">sed</code> fallback used to inject <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">afterOnboardingProperties</code> used <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/</code> as the substitution delimiter; every real RCS URL contains <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/</code> (e.g. <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">https://host:7443/rcs</code>), which broke the command.</p>
+    <ul>
+      <li>
+        <strong>Fix:</strong> Switched the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">sed</code> delimiter to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">|</code> and anchored the substitution to the last line only (avoids matching nested closing braces); added an empty-result guard plus a stderr warning</li>
+      <li>
+        <strong>Linux Autodetect:</strong> Follow-up fix corrected the no-jq Bash fallback path for the RCS URL autodetect Config-Service parse on Linux hosts without <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">jq</code></li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">API Test Summary Showed "8/7 Components Found"</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The Config-Service / Function-Pack API test result dialog hardcoded the component denominator to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">7</code>. After MQTT-Broker was added as the 8th component, the summary read an impossible <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">8/7 components found</code>.</p>
+    <ul>
+      <li>
+        <strong>Fix:</strong> Replaced the four hardcoded <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/7</code> occurrences with the dynamic component count so the denominator can never drift again</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Offline Package: Two Tomcat/Java Versions Pre-Selected</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The Tomcat/Java file picker pre-selected <em>two</em> entries when <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer.properties</code> specified a preferred version: the preferred file <em>and</em> the latest available file. The latest-file auto-pick fired silently for any file not already preferred.</p>
+    <ul>
+      <li>
+        <strong>Fix:</strong> When <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">installer.properties</code> supplies an explicit preference, the auto-latest fallbacks (Java and non-Java) are skipped — the preferred file wins, no silent duplicates</li>
+      <li>
+        <strong>Was Hidden for Java:</strong> The same latent bug existed for Java; it was invisible only because the preferred Java version happened to equal the latest available</li>
+    </ul>
+    <h3 style="color: rgb(111,66,193);border-bottom: 2.0px solid rgb(111,66,193);padding-bottom: 8.0px;">Testing</h3>
+    <ul>
+      <li>
+        <strong>New <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">test_rcs_afteronboarding.py</code>:</strong> Covers afterOnboardingProperties injection (PS1 + SH, RCS-SERVICE exclusion), the sed-delimiter regression, GKInstall pre-onboarding rcsUrl resolution ordering, update-mode station.properties RCS detection, and end-to-end flow consistency across the generated scripts</li>
+      <li>
+        <strong>Suite Status:</strong> 422 passing (1 pre-existing unrelated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">pytest-mock</code> setup error, untouched by this work)</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b10 - May 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>PRIA-1740 RCS-SERVICE version-parse fix (PowerShell single-item list returned 'v') + RCS-SERVICE FP/FPD dispatch coverage across PS1, Bash, and GUI test</em>
+    </p>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <h4 style="color: rgb(30,58,95);">PRIA-1740 — RCS Default Version Parse Returned Single Character 'v'</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall.ps1</code> resolved the RCS-SERVICE version to the literal character <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v</code> instead of the full version string (e.g. <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v2.1.10</code>) when Config-Service returned a single-element <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">versionNameList</code>. Downstream API calls and DSG download URLs then 404'd with <em>"System type version 'v' for system 'GKR-Resource-Cache-Service' does not exist."</em>
+    </p>
+    <ul>
+      <li>
+        <strong>Root Cause:</strong> PowerShell pipeline unwraps a single-element <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Sort-Object</code> result to a scalar string; the trailing <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">[0]</code> index then returned <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">[char]'v'</code> instead of the first element</li>
+      <li>
+        <strong>Fix:</strong> Replaced <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">[0]</code> indexing with <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Select-Object -First 1</code> in <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall.ps1.template</code>
+      </li>
+      <li>
+        <strong>Scope:</strong> Both Legacy (5.25) and New (5.27+) API modes were affected — same parsing code. Bash (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">grep | tr | sort -V | head -1</code>) was not affected</li>
+      <li>
+        <strong>Impacted Component:</strong> Most exposed on RCS-SERVICE because it typically publishes only a single version, but the fix covers any single-version component on Windows</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">RCS-SERVICE FP/FPD Dispatch Missing in 5 of 6 Parsers</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">RCS-SERVICE was listed as a target component for the Employee Hub Function Pack API but had no property-name dispatch in 5 of 6 parsing sites. The code silently fell back to the hardcoded <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">@RCS_VERSION@</code> template value (often stale) instead of the live API value.</p>
+    <ul>
+      <li>
+        <strong>Sites Fixed:</strong> PS1 FP, PS1 FPD, Bash FP, Bash FPD, and Python FPD (GUI API test). Python FP was already correct</li>
+      <li>
+        <strong>Property Names:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">RCS_Version</code> preferred, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">RCS_Update_Version</code> fallback — matching the convention used by ONEX, WDM, FlowService, LPA</li>
+      <li>
+        <strong>Origin:</strong> Bug introduced when RCS-SERVICE was first added — the component was wired into the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$allComponents</code> array and mapping switches but the FP/FPD property dispatch was never added</li>
+      <li>
+        <strong>Symptom:</strong> RCS installs configured to use FP/FPD as the version source used whatever stale value was in the GUI override rather than the live cloud value, with no clear error</li>
+    </ul>
+    <h3 style="color: rgb(111,66,193);border-bottom: 2.0px solid rgb(111,66,193);padding-bottom: 8.0px;">Testing</h3>
+    <ul>
+      <li>
+        <strong>PRIA-1740 Regression Test:</strong> Asserts that <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall.ps1.template</code> uses <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Select-Object -First 1</code> rather than <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">[0]</code> indexing for the version-name parse — guards against reintroduction of the single-element unwrap bug</li>
+      <li>
+        <strong>FP/FPD Dispatch Coverage Matrix Test:</strong> New <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">test_fp_fpd_coverage.py</code> walks each of the 6 dispatch sites and asserts every component has both <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">*_Version</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">*_Update_Version</code> property names — catches the same class of bug for any future component addition</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b09 - May 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>SkipStoreInit CLI flag, runtime tenant_id propagation fix for legacy API multi-env</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">SkipStoreInit CLI Flag</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">New <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-SkipStoreInit</code> (PowerShell) / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--SkipStoreInit</code> (Bash) switch added to the generated GKInstall scripts for bypassing the store-initialization step after onboarding.</p>
+    <ul>
+      <li>
+        <strong>Use Case:</strong> Edge-case deployments where the backend already has the workstation configured and a re-init would be redundant or harmful</li>
+      <li>
+        <strong>Onboarding Still Runs:</strong> Only the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization.{ps1,sh}</code> invocation is skipped — onboarding completes normally</li>
+      <li>
+        <strong>Default Off:</strong> Existing behavior preserved for installations that do not pass the flag</li>
+      <li>
+        <strong style="color: rgb(220,53,69);">⚠ Use With Caution:</strong> Only use this flag when you know exactly what you are doing. Skipping store-initialization without proper backend preparation can cause the workstation to not be registered correctly — most commonly resulting in the WSID not being installed properly on the component.</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Legacy API — Runtime Tenant ID Propagation (PR #5):</strong> Fixed a 404 on <em>Get Business Unit</em> in legacy API mode (5.25) when the runtime tenant differed from the build-time tenant (multi-env installs or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">station.properties</code> override). The legacy <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">/swee-sdc/tenants/{id}/...</code> URLs in store-initialization had the tenant baked at generation time as a Python f-string, while <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> correctly switched the runtime tenant for OAuth and onboarding. The runtime <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">tenant_id</code> is now forwarded from <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code>, mirroring the pattern already used for <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">onboarding.ps1</code>. New API mode is unaffected (no tenant in URL path); single-env legacy installs are also unaffected because the default value is the build-time tenant.</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b08 - April 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>RCS URL IP mode (ACH edge case), PUT-based workstation registration, WSID leading zero stripping (AHD edge case)</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">RCS URL Mode — Hostname vs IP Address</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">New radio buttons in Launcher Settings → RCS-SERVICE tab to choose between hostname and IP address for the RCS URL written to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">system.properties</code>.</p>
+    <ul>
+      <li>
+        <strong>Hostname mode is the recommended default.</strong> IP mode should only be used for edge-case environments where stable DNS is not available — for example, project <strong>ACH (Action)</strong>
+      </li>
+      <li>
+        <strong>IP Resolution:</strong> In IP mode the store-initialization script resolves the machine's IP via the default gateway adapter at runtime (both PowerShell and Bash)</li>
+      <li>
+        <strong>HTTPS Auto-Disabled:</strong> HTTPS is automatically disabled in IP mode since certificates cannot validate raw IP addresses</li>
+    </ul>
+    <h3 style="color: rgb(23,162,184);border-bottom: 2.0px solid rgb(23,162,184);padding-bottom: 8.0px;">Improvements</h3>
+    <h4 style="color: rgb(30,58,95);">Workstation Registration — PUT Upsert</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Replaced the GET-then-POST check-and-create pattern with a single PUT call in <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization.ps1</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization.sh</code>.</p>
+    <ul>
+      <li>
+        <strong>Upsert Semantics:</strong> PUT acts as an upsert — creates new workstations or updates existing ones in one call</li>
+      <li>
+        <strong>typeCode Backfill:</strong> Backfills <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">typeCode</code> on legacy workstations that were missing it</li>
+      <li>
+        <strong>Simplified Wait Logic:</strong> Simplifies StoreHub wait logic by removing the double-wait flag</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">WSID Leading Zero Stripping (edge case)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">New "Remove leading zeros from Workstation ID" checkbox in Detection Settings → Regex tab.</p>
+    <ul>
+      <li>
+        <strong>Runtime Stripping:</strong> When enabled, generated PowerShell and Bash scripts strip leading zeros from the resolved WSID at install time (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">01 → 1</code>)</li>
+      <li>
+        <strong>Applied After CLI Overrides:</strong> Stripping is applied after CLI overrides, so <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--workstationId</code> values also benefit</li>
+      <li>
+        <strong>Preview in Dialog:</strong> Test preview in the dialog shows arrow notation (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">01 → 1</code>) when applicable</li>
+      <li>
+        <strong>Disabled by Default:</strong> Intended only for edge-case projects such as <strong>AHD (Ahold)</strong> where the hostname pattern includes padded zeros but the backend expects numeric WSIDs without them</li>
+    </ul>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
+      <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b07 - March 2026</h2>
+    </div>
+    <p style="color: rgb(102,102,102);margin-top: 0;">
+      <em>System service installation, DSG download authorization, generation summary dialog, override cleanup CLI flags</em>
+    </p>
+    <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
+    <h4 style="color: rgb(30,58,95);">System Service Installation (Launcher Settings)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Tomcat-based components can now be registered as system services during installation. Per-component service configuration is available in the Launcher Settings dialog for WDM, Flow-Service, LPA-Service, StoreHub-Service, and RCS-Service.</p>
+    <ul>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--runAsService</code> </strong> — Enables system service registration during Launcher invocation</li>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--appServiceName</code> </strong> — Sets the application service name (e.g. <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-wdm</code>, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-flowservice</code>)</li>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--updaterServiceName</code> </strong> — Sets the updater service name (e.g. <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Updater-wdm</code>, <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Updater-flowservice</code>)</li>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--runAsServiceStartType</code> </strong> — Service start type (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">auto</code> or <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">manual</code>, Windows only)</li>
+      <li>
+        <strong>Platform-Aware:</strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--runAsServiceStartType</code> is automatically excluded from Linux Bash scripts as it is a Windows-only parameter</li>
+      <li>
+        <strong>Conditional Injection:</strong> Service arguments are only added for components where <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">runAsService</code> is enabled in the Launcher Settings</li>
+      <li>
+        <strong>POS and OneX-POS Excluded:</strong> These components are not Tomcat-based and do not support service parameters</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">DSG Download Authorization (Bearer Token)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Launcher download requests from the DSG endpoint now include bearer token authorization for environments that require authentication on their DSG:</p>
+    <ul>
+      <li>
+        <strong>Token Source:</strong> Bearer token read from <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">helper/tokens/access_token.txt</code> at runtime</li>
+      <li>
+        <strong>Graceful Degradation:</strong> Works with or without token present — backwards compatible with unprotected DSG endpoints</li>
+      <li>
+        <strong>Multi-Tool Support:</strong> PowerShell uses curl with WebClient fallback; Bash uses curl with wget fallback. Authorization headers are added to all download methods</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Generation Summary Dialog</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">After a successful generation, a summary dialog now displays what was created:</p>
+    <ul>
+      <li>
+        <strong>Configuration Snapshot:</strong> Shows the platform, base URL, tenant ID, API version, and output directory used during generation</li>
+      <li>
+        <strong>File Counts by Category:</strong> Scripts, launchers, configs, tokens, overrides, and other files are counted and displayed by category</li>
+      <li>
+        <strong>Informational Notes:</strong> Highlights non-default settings such as disabled overrides, hostname detection, legacy API mode, or custom versions</li>
+      <li>
+        <strong>Open Folder Button:</strong> Opens the output directory in the system file manager (Windows Explorer, Nautilus, Finder)</li>
+    </ul>
+    <h4 style="color: rgb(30,58,95);">Override Cleanup CLI Flags (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--removeOverrides</code> / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--keepOverrides</code>)</h4>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Two new mutually exclusive CLI switch parameters allow controlling override file cleanup at runtime without regenerating scripts:</p>
+    <ul>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--removeOverrides</code> </strong> — Force removal of override files after installation, overriding the GUI-configured default</li>
+      <li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--keepOverrides</code> </strong> — Force keeping override files after installation, overriding the GUI-configured default</li>
+      <li>
+        <strong>Conflict Detection:</strong> Supplying both flags simultaneously causes the script to exit with error code 1</li>
+      <li>
+        <strong>Cross-Platform:</strong> Available in both PowerShell and Bash scripts with case-insensitive variants on Linux</li>
+    </ul>
+    <h3 style="color: rgb(220,53,69);border-bottom: 2.0px solid rgb(220,53,69);padding-bottom: 8.0px;">Bug Fixes</h3>
+    <ul>
+      <li>
+        <strong>Bash Service Variable Case:</strong> Fixed <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$ComponentType</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">$COMPONENT_TYPE</code> in generated Bash service args — Bash is case-sensitive, so service registration would have silently failed on Linux</li>
+      <li>
+        <strong>Default Service Names:</strong> Corrected abbreviated default service names for Flow Service (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-flow</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-flowservice</code>) and StoreHub (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-sh</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">Tomcat-storehub</code>) to match service registry expectations</li>
+      <li>
+        <strong>Generation Summary Linux Scroll:</strong> Added mousewheel scroll support for the Generation Summary Dialog on Linux (Button-4/Button-5 binding)</li>
+      <li>
+        <strong>False Certificate Warning:</strong> Fixed incorrect "Certificate not found" note in generation summary when certificate was already present in the output directory (e.g. generated directly there by certificate manager)</li>
+    </ul>
+    <h3 style="color: rgb(111,66,193);border-bottom: 2.0px solid rgb(111,66,193);padding-bottom: 8.0px;">Testing</h3>
+    <ul>
+      <li>
+        <strong>Service Installation Tests:</strong> 7 new unit tests covering service args generation: no service, single/multiple services, disabled filtering, missing settings defaults, empty config, and platform-specific output</li>
+      <li>
+        <strong>Override CLI Flag Tests:</strong> New <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">TestRemoveOverridesCLIFlags</code> test class (149 lines) verifying parameter declarations, conflict detection, and CLI override logic in both PowerShell and Bash generated scripts</li>
+      <li>
+        <strong>Generation Tracker Tests:</strong> 8 unit tests for the new GenerationTracker class covering file recording, note deduplication, config snapshots, and category constants</li>
+    </ul>
+    <p>
+      <br/>
+    </p>
+  </div>
+  <div style="border-left: 4.0px solid rgb(108,117,125);padding-left: 20.0px;margin-bottom: 40.0px;">
+    <div style="margin-bottom: 15.0px;">
       <h2 style="margin: 0;color: rgb(30,58,95);">Build 5.27-b06 - March 2026</h2>
     </div>
     <p style="color: rgb(102,102,102);margin-top: 0;">
@@ -9,26 +274,18 @@
     </p>
     <h3 style="color: rgb(40,167,69);border-bottom: 2.0px solid rgb(40,167,69);padding-bottom: 8.0px;">New Features</h3>
     <h4 style="color: rgb(30,58,95);">CLI Override Parameters (Generated Scripts)</h4>
-    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Four new CLI parameters have been added to the generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> scripts. All parameters are optional and take highest priority (Priority 0) over any other resolved value, making them well-suited for wrapper scripts and automated pipelines.</p>
+    <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">Five new CLI parameters have been added to the generated <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> and <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> scripts. All parameters are optional and take highest priority (Priority 0) over any other resolved value, making them well-suited for wrapper scripts and automated pipelines.</p>
     <ul>
       <li>
-        <strong>
-          <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--VersionOverride</code>
-        </strong> — Overrides the component version resolved by the script at runtime. Accepts both prefixed (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v5.27.1</code>) and plain (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">5.27.1</code>) version strings. Supported on both PowerShell and Bash.</li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--VersionOverride</code> </strong> — Overrides the component version resolved by the script at runtime. Accepts both prefixed (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">v5.27.1</code>) and plain (<code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">5.27.1</code>) version strings. Supported on both PowerShell and Bash.</li>
       <li>
-        <strong>
-          <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--SystemNameOverride</code>
-        </strong> — Overrides the system name sent to the Store Manager API during <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code>. Useful for deployments where the registered system type must differ from the component type embedded in the script.</li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--SystemNameOverride</code> </strong> — Overrides the system name sent to the Store Manager API during <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code>. Useful for deployments where the registered system type must differ from the component type embedded in the script. Allows you to use any inherited system type name like GKR-OPOS-ONEX-CLOUD-SCO and not just GKR-OPOS-ONEX-CLOUD.</li>
       <li>
-        <strong>
-          <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--WorkstationNameOverride</code>
-        </strong> — Overrides the workstation name sent to the Store Manager API. Accepts any string value (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">A319_OneXPOS1</code>). Propagated automatically from <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> when provided.</li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--WorkstationNameOverride</code> </strong> — Overrides the workstation name sent to the Store Manager API. Accepts any string value (e.g., <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">A319_OneXPOS1</code>). Propagated automatically from <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">GKInstall</code> to <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">store-initialization</code> when provided.</li>
       <li>
-        <strong>
-          <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--StructureUniqueNameOverride</code>
-        </strong> — Injects a <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">structureUniqueName</code> field into the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">newNode</code> object when creating workstation structures via <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">POST /structure/nodes</code>. Only active when explicitly passed; default behavior is unchanged.</li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--StructureUniqueNameOverride</code> </strong> — Injects a <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">structureUniqueName</code> field into the <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">newNode</code> object when creating workstation structures via <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">POST /structure/nodes</code>. Only active when explicitly passed; default behavior is unchanged.</li>
       <li>
-        <strong><code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-y</code> / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--yes</code></strong> — Auto-confirms the workstation creation prompt in store-initialization. Essential for fully non-interactive deployments where no operator is present. Automatically forwarded from GKInstall.</li>
+        <strong> <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">-y</code> / <code style="background: rgb(244,244,244);padding: 2.0px 6.0px;border-radius: 4.0px;">--yes</code> </strong> — Auto-confirms the workstation creation prompt in store-initialization. Essential for fully non-interactive deployments where no operator is present. Automatically forwarded from GKInstall.</li>
     </ul>
     <h4 style="color: rgb(30,58,95);">SSL Password Control</h4>
     <p style="color: rgb(102,102,102);margin: 5.0px 0 10.0px 0;">The SSL certificate password is now configurable and overridable at runtime without regenerating the package:</p>
